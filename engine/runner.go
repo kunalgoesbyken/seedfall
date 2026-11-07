@@ -36,8 +36,8 @@ type Runner struct {
 	weakened    atomic.Int64
 	catalog     []CatalogEntry
 	cfg         *Config
-	cache       wazero.CompilationCache
-	wasm        map[string][]byte
+	rt          wazero.Runtime
+	compiled    map[string]wazero.CompiledModule
 }
 
 func NewRunner(cfg *Config) (*Runner, error) {
@@ -49,25 +49,32 @@ func NewRunner(cfg *Config) (*Runner, error) {
 	if err != nil {
 		return nil, err
 	}
-	r := &Runner{cfg: cfg, cache: cache, wasm: map[string][]byte{}, catalog: entries}
-	for _, s := range cfg.all() {
-		b, err := os.ReadFile(resolve(cfg.Dir, s.Wasm))
-		if err != nil {
-			return nil, fmt.Errorf("node %s: %w", s.Name, err)
-		}
-		r.wasm[s.Name] = b
+	ctx := context.Background()
+	rt := wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfig().WithCompilationCache(cache).WithCloseOnContextDone(true))
+	if err := wasiModule(ctx, rt); err != nil {
+		return nil, err
 	}
-	return r, r.warm()
+	if err := hostModule(ctx, rt); err != nil {
+		return nil, err
+	}
+	r := &Runner{cfg: cfg, rt: rt, compiled: map[string]wazero.CompiledModule{}, catalog: entries}
+	return r, r.compile(ctx)
 }
 
-func (r *Runner) warm() error {
-	ctx := context.Background()
-	rt := wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfig().WithCompilationCache(r.cache))
-	defer rt.Close(ctx)
-	for name, b := range r.wasm {
-		if _, err := rt.CompileModule(ctx, b); err != nil {
-			return fmt.Errorf("compile %s: %w", name, err)
+func (r *Runner) compile(ctx context.Context) error {
+	byPath := map[string]wazero.CompiledModule{}
+	for _, s := range r.cfg.all() {
+		path := resolve(r.cfg.Dir, s.Wasm)
+		if _, ok := byPath[path]; !ok {
+			b, err := os.ReadFile(path)
+			if err != nil {
+				return fmt.Errorf("node %s: %w", s.Name, err)
+			}
+			if byPath[path], err = r.rt.CompileModule(ctx, b); err != nil {
+				return fmt.Errorf("compile %s: %w", s.Name, err)
+			}
 		}
+		r.compiled[s.Name] = byPath[path]
 	}
 	return nil
 }
@@ -134,21 +141,16 @@ func lineAt(lines []string, i int) string {
 func (r *Runner) run(seed uint64, faults []Fault, explicit bool, b *branch, p *probe) Result {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	rt := wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfig().WithCompilationCache(r.cache).WithCloseOnContextDone(true))
-	defer rt.Close(context.Background())
 	w := &world{
-		cfg: r.cfg, seed: seed, ctx: ctx, cancel: cancel, rt: rt,
+		cfg: r.cfg, seed: seed, ctx: ctx, cancel: cancel, rt: r.rt,
 		sched: streams(seed, "sched"), netRand: streams(seed, "net"), diskRand: streams(seed, "disk"),
-		events: make(chan event), faults: faults, trace: &tracer{}, wasm: r.wasm,
+		events: make(chan event), faults: faults, trace: &tracer{}, compiled: r.compiled,
 		explicit: explicit, ioRand: streams(seed, "io"), props: properties{}, spec: r.cfg.Faults.forSeed(seed), branch: b, probe: p,
 		mutation: r.Mutation, weakened: func() { r.weakened.Add(1) },
 	}
 	w.net = newNetwork(w)
 	res := Result{Seed: seed, Faults: faults}
-	if err := w.setup(ctx); err != nil {
-		res.Failed, res.Reason, res.Failure = true, err.Error(), Failure{Class: FailSetup}
-		return res
-	}
+	w.setup()
 	w.loop()
 	w.capture()
 	w.shutdown()
@@ -167,19 +169,9 @@ func (r *Runner) run(seed uint64, faults []Fault, explicit bool, b *branch, p *p
 	return res
 }
 
-func (w *world) setup(ctx context.Context) error {
-	if err := w.wasiModule(ctx); err != nil {
-		return err
-	}
-	if err := w.hostModule(ctx); err != nil {
-		return err
-	}
+func (w *world) setup() {
 	for _, s := range w.cfg.all() {
-		compiled, err := w.rt.CompileModule(ctx, w.wasm[s.Name])
-		if err != nil {
-			return fmt.Errorf("compile %s: %w", s.Name, err)
-		}
-		n := &node{spec: s, crashable: s.Name != w.cfg.Workload.Name, compiled: compiled, restartAt: -1}
+		n := &node{spec: s, crashable: s.Name != w.cfg.Workload.Name, compiled: w.compiled[s.Name], restartAt: -1}
 		n.fs = newMemFS(func() int64 { return epochNanos + w.now })
 		if w.spec.StrictDirs {
 			n.fs.strict()
@@ -199,7 +191,6 @@ func (w *world) setup(ctx context.Context) error {
 	for _, n := range w.nodes {
 		w.start(n)
 	}
-	return nil
 }
 
 type tracer struct {
