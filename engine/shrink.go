@@ -9,7 +9,7 @@ func Shrink(r *Runner, failing Result, progress func(int)) Result {
 		for i := 0; i < len(best.Faults); i++ {
 			candidate := slices.Delete(slices.Clone(best.Faults), i, i+1)
 			res := r.Run(best.Seed, candidate)
-			if !res.Failed {
+			if !res.sameFailure(failing) {
 				continue
 			}
 			best, changed = res, true

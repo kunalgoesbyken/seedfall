@@ -1,6 +1,9 @@
 package engine
 
-import "strings"
+import (
+	"strings"
+	"unicode"
+)
 
 type FailureClass string
 
@@ -30,4 +33,25 @@ func (f Failure) Key() string {
 		}
 	}
 	return strings.Join(parts, " · ")
+}
+
+func (r Result) sameFailure(o Result) bool {
+	return r.Failed && o.Failed && r.Failure.Key() == o.Failure.Key() && maskDigits(r.Reason) == maskDigits(o.Reason)
+}
+
+func maskDigits(s string) string {
+	var b strings.Builder
+	digit := false
+	for _, c := range s {
+		if unicode.IsDigit(c) {
+			if !digit {
+				b.WriteByte('#')
+			}
+			digit = true
+			continue
+		}
+		digit = false
+		b.WriteRune(c)
+	}
+	return b.String()
 }
