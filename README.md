@@ -155,6 +155,8 @@ The [getting started guide](docs/getting-started.md) walks through finding, shri
 
 - Code must build for `GOOS=wasip1`: no cgo, and no dependencies that need `mmap` or `flock` (for example bbolt or pebble).
 - Goroutine interleavings inside a node come from the Go scheduler under a seeded random source. There is no systematic preemption, so use `go test -race` for shared-memory races. seedfall targets distributed and storage bugs.
+- There is no asynchronous preemption, so a goroutine that spins without making a syscall starves the others in its node. gRPC's transparent retry does this after a peer crashes, which shows up as a false watchdog livelock; [`examples/jmsraft`](examples/jmsraft) uses a plain TCP transport for this reason.
+- The guest's wall clock does not advance while it runs between scheduling points, so two `time.Now()` calls in a row can return the same value. Code that names files by timestamp can collide in a way it would not on real hardware.
 - Reordering of writes within the pending set is not modeled. A torn crash keeps an in-order prefix.
 - Heavy guests run at roughly real-time speed; sweeps get their speed from running seeds in parallel.
 
