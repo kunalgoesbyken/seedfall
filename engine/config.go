@@ -118,3 +118,5 @@ func (c *Config) validate() error {
 }
 
 func (c *Config) all() []NodeSpec { return append(append([]NodeSpec{}, c.Nodes...), c.Workload) }
+
+func DefaultConfig() Config { return defaultConfig() }

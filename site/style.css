@@ -261,3 +261,4 @@ tbody tr:hover { background: rgba(255, 154, 90, 0.06); }
 .add-btn:hover .logo { color: var(--ink); }
 .add-btn:active { transform: scale(0.98); }
 .setup-note { margin-top: 10px; font-size: 14px; color: var(--dark-dim); }
+.setup-note + .install { margin-top: 10px; }

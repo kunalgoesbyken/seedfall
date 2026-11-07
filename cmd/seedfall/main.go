@@ -16,6 +16,7 @@ import (
 const usage = `seedfall: deterministic simulation testing for Go
 
 usage:
+  seedfall init   [-dir .] [-c seedfall.json] [-node ./cmd/server]... [-workload seedfall/workload] [-n] [-json]
   seedfall run    [-c seedfall.json] [-seeds 1-1000] [-j N] [-v] [-check] [-report report.html | -json]
   seedfall replay [-c seedfall.json] -seed N [-faults file.json]
   seedfall shrink [-c seedfall.json] -seed N
@@ -23,7 +24,8 @@ usage:
   seedfall inspect [-c seedfall.json] -seed N [-faults file.json] [-at DURATION] [-node name] [-cat path | -out dir]
   seedfall mutate [-c seedfall.json] [-seeds 1-100]
   seedfall verify [-c seedfall.json] [-seed N [-faults file.json]] [-report report.html] [-seeds range] [-check 10] [-mutate] [-md proof.md]
-  seedfall mcp    serve run, replay and shrink to AI coding agents over MCP (stdio)
+  seedfall mcp    serve init, run, replay, shrink, cause, inspect and verify to AI coding agents over MCP (stdio)
+  seedfall hook   Claude Code Stop hook: sweep $SEEDFALL_HOOK_SEEDS (unset: do nothing) and block the stop on a failure
 `
 
 func main() {
@@ -31,7 +33,7 @@ func main() {
 		fmt.Print(usage)
 		os.Exit(2)
 	}
-	commands := map[string]func([]string) error{"run": cmdRun, "replay": cmdReplay, "shrink": cmdShrink, "cause": cmdCause, "inspect": cmdInspect, "mutate": cmdMutate, "verify": cmdVerify, "mcp": cmdMCP}
+	commands := map[string]func([]string) error{"run": cmdRun, "replay": cmdReplay, "shrink": cmdShrink, "cause": cmdCause, "inspect": cmdInspect, "mutate": cmdMutate, "verify": cmdVerify, "mcp": cmdMCP, "init": cmdInit, "hook": cmdHook}
 	cmd, ok := commands[os.Args[1]]
 	if !ok {
 		fmt.Print(usage)

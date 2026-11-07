@@ -34,6 +34,23 @@ faults before the failure (2):
    1.7052s  crash server, restart at 1.942589s
 ```
 
+## For AI coding agents
+
+seedfall is built so a coding agent can adopt it in an unfamiliar Go repository and prove its own changes crash-safe, with no human in the loop and no API key:
+
+```sh
+claude plugin install seedfall --marketplace kunalgoesbyken/seedfall   # Claude Code: MCP server, skills and an opt-in Stop hook
+npx skills add kunalgoesbyken/seedfall                                 # the same skills for other agents
+claude mcp add seedfall -- seedfall mcp                                # or only the MCP server
+```
+
+- **`seedfall init`** inspects a module with `go list`, reports every package that will not build for `wasip1` (compile errors and cgo) with the import chain to it, and scaffolds `seedfall.json` and a workload.
+- **Four skills**: `seedfall-setup`, `seedfall-properties` (write checks, then grade them with `mutate`), `seedfall-triage` (shrink, cause, inspect, then a counterfactual replay) and `seedfall-fix-and-prove` (finish with `verify` and paste the proof into the PR).
+- **MCP**: every command as a tool, the skills as prompts, and the config schema and these docs as resources.
+- **[llms.txt](https://seedfall-lemon.vercel.app/llms.txt)** and [llms-full.txt](https://seedfall-lemon.vercel.app/llms-full.txt) for models that read docs directly.
+
+Details: [docs/agents.md](docs/agents.md).
+
 ## Bugs found
 
 | Project | What seedfall found |

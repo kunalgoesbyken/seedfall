@@ -1,0 +1,15 @@
+{
+  "name": "seedfall",
+  "description": "seedfall deterministic simulation testing for Go, packaged for Claude Code",
+  "owner": {
+    "name": "Kunal Roy Choudhury",
+    "url": "https://github.com/kunalgoesbyken"
+  },
+  "plugins": [
+    {
+      "name": "seedfall",
+      "source": "./",
+      "description": "The seedfall MCP server, the setup, properties, triage and fix-and-prove skills, and an opt-in Stop hook that sweeps seeds before Claude finishes"
+    }
+  ]
+}

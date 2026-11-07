@@ -11,11 +11,14 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/kunalgoesbyken/seedfall/engine"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 const mcpTraceTail = 60
+
+const mcpInstructions = "seedfall runs Go services as wasip1 guests under simulated crashes, torn writes, fsync errors and partitions, with exact replay from a seed. In a module without a seedfall.json, call seedfall_init first. Read seedfall://docs/properties before writing checks and seedfall://schema/config before editing seedfall.json. The prompts seedfall-setup, seedfall-properties, seedfall-triage and seedfall-fix-and-prove walk through each stage."
 
 type runArgs struct {
 	Config string `json:"config" jsonschema:"path to seedfall.json"`
@@ -116,7 +119,24 @@ type shrinkView struct {
 }
 
 func cmdMCP([]string) error {
-	server := mcp.NewServer(&mcp.Implementation{Name: "seedfall", Version: "0.2.0"}, nil)
+	server, err := newMCPServer()
+	if err != nil {
+		return err
+	}
+	return server.Run(context.Background(), &mcp.StdioTransport{})
+}
+
+func newMCPServer() (*mcp.Server, error) {
+	server := mcp.NewServer(&mcp.Implementation{Name: "seedfall", Version: "0.2.0"}, &mcp.ServerOptions{Instructions: mcpInstructions})
+	initOutput, err := jsonschema.For[initView](schemaOptions())
+	if err != nil {
+		return nil, err
+	}
+	mcp.AddTool(server, &mcp.Tool{
+		Name:         "seedfall_init",
+		Description:  "Onboard a Go module: find its main packages, report what blocks a GOOS=wasip1 build (compile errors from go list, and cgo packages) with the import chain to each, and scaffold a starter seedfall.json and workload skeleton. Existing files are kept. Returns the report and the next steps.",
+		OutputSchema: initOutput,
+	}, toolInit)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "seedfall_run",
 		Description: "Sweep a seed range under simulated crashes, torn writes, fsync errors and partitions. Returns the lowest failing seed with its fault schedule and trace tail, plus property coverage.",
@@ -141,7 +161,10 @@ func cmdMCP([]string) error {
 		Name:        "seedfall_inspect",
 		Description: "Replay a seed and snapshot every node's simulated disk at the failure or at a virtual time. Returns each file's size, durable size, the byte ranges a crash would lose, directory entries that are not durable yet, removed entries a crash would bring back, and the last torn write. Optionally returns one file's durable content.",
 	}, toolInspect)
-	return server.Run(context.Background(), &mcp.StdioTransport{})
+	if err := addResources(server); err != nil {
+		return nil, err
+	}
+	return server, addPrompts(server)
 }
 
 func toolRun(_ context.Context, _ *mcp.CallToolRequest, a runArgs) (*mcp.CallToolResult, runView, error) {
