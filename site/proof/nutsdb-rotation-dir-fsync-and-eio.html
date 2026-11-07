@@ -32,12 +32,13 @@
     <p class="eyebrow">Proof</p>
     <h1>Acknowledged writes can be lost after a data-file rotation (no directory fsync) or after a failed fsync (offset not rewound)</h1>
     <article class="prose">
+<p><strong>Upstream:</strong> <a href="https://github.com/nutsdb/nutsdb/issues/697">nutsdb/nutsdb#697</a></p>
 <p><strong>Repo:</strong> nutsdb/nutsdb (tested on v1.1.0, still present on <code>main</code> at 39d6badd)
-<strong>Severity:</strong> lower than the <code>bucket.Meta</code> and torn-tail issues. Both need a less common event, a crash shortly after a rotation or an fsync error, and both lose acknowledged writes silently.</p>
+<strong>Severity:</strong> lower than <a href="https://github.com/nutsdb/nutsdb/issues/695">nutsdb#695</a> and <a href="https://github.com/nutsdb/nutsdb/issues/696">nutsdb#696</a>. Both need a less common event, a crash shortly after a rotation or an fsync error, and both lose acknowledged writes silently.</p>
 <p>Two related durability gaps in the commit path, both with <code>SyncEnable: true</code>.</p>
 <h2>1. A new data file is created without fsyncing the directory</h2>
 <p>When a commit doesn&#39;t fit in the active file, <code>rotateActiveFile</code> (tx.go:471) opens the next <code>&lt;id&gt;.dat</code> through <code>FileManager.GetDataFile</code> (tx.go:487). That reaches <code>FdManager.GetFd</code>, which creates the file with <code>O_CREATE</code> (internal/fileio/fd_manager.go:68), and <code>fileio.Truncate</code> preallocates it. Commits written to the new file are fsynced, but the directory entry for the file never is. On filesystems that need an explicit directory fsync to persist a new name (POSIX; ext4 with <code>data=writeback</code>, XFS), a crash can drop the whole file and every acknowledged commit in it. Recovery then sees only the older files.</p>
-<p>Reproduction (stock v1.1.0; the server fsyncs <code>bucket.Meta</code> itself to avoid the separate <code>bucket.Meta</code> issue):</p>
+<p>Reproduction (stock v1.1.0; the server fsyncs <code>bucket.Meta</code> itself to avoid <a href="https://github.com/nutsdb/nutsdb/issues/695">nutsdb#695</a>):</p>
 <pre><code>cd examples/nutsdb
 seedfall replay -c seedfall.strict.json -seed 3
 </code></pre>
