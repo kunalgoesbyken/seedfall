@@ -82,6 +82,7 @@ func main() {
 	apiPort := flag.String("api-port", "8000", "client API port")
 	noSync := flag.Bool("no-fsync", false, "skip fsync in the log store (unsafe)")
 	stockTCP := flag.Bool("tcp", false, "use raft's stock TCP transport and plain net.Listen (needs net_overlay)")
+	localReads := flag.Bool("local-reads", false, "serve reads without confirming leadership (unsafe)")
 	flag.Parse()
 	id := sim.Node()
 
@@ -134,16 +135,23 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	a := kvAPI{r: r, state: state, localReads: *localReads}
 	for {
 		conn, err := api.Accept()
 		if err != nil {
 			log.Fatal(err)
 		}
-		go serve(conn, r, state)
+		go a.serve(conn)
 	}
 }
 
-func serve(conn net.Conn, r *raft.Raft, state *fsm) {
+type kvAPI struct {
+	r          *raft.Raft
+	state      *fsm
+	localReads bool
+}
+
+func (a kvAPI) serve(conn net.Conn) {
 	defer conn.Close()
 	reader := bufio.NewReader(conn)
 	for {
@@ -151,25 +159,25 @@ func serve(conn net.Conn, r *raft.Raft, state *fsm) {
 		if err != nil {
 			return
 		}
-		fmt.Fprint(conn, handle(strings.Fields(line), r, state))
+		fmt.Fprint(conn, a.handle(strings.Fields(line)))
 	}
 }
 
-func handle(cmd []string, r *raft.Raft, state *fsm) string {
-	if r.State() != raft.Leader {
+func (a kvAPI) handle(cmd []string) string {
+	if a.r.State() != raft.Leader {
 		return "NOTLEADER\n"
 	}
 	switch {
 	case len(cmd) == 3 && cmd[0] == "PUT":
-		if err := r.Apply([]byte(cmd[1]+"="+cmd[2]), time.Second).Error(); err != nil {
+		if err := a.r.Apply([]byte(cmd[1]+"="+cmd[2]), time.Second).Error(); err != nil {
 			return "ERR " + err.Error() + "\n"
 		}
 		return "OK\n"
 	case len(cmd) == 2 && cmd[0] == "GET":
-		if err := r.VerifyLeader().Error(); err != nil {
+		if !a.localReads && a.r.VerifyLeader().Error() != nil {
 			return "NOTLEADER\n"
 		}
-		if v, ok := state.get(cmd[1]); ok {
+		if v, ok := a.state.get(cmd[1]); ok {
 			return "VAL " + v + "\n"
 		}
 		return "NONE\n"

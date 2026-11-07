@@ -34,6 +34,7 @@ type node struct {
 	ops       int64
 	restartAt int64
 	skew      int64
+	pausedTo  int64
 }
 
 func (n *node) name() string { return n.spec.Name }
@@ -90,6 +91,7 @@ type world struct {
 	history     history
 	lin         Linearizability
 	props       properties
+	branch      *branch
 	setupDone   bool
 	quietUntil  int64
 }
@@ -177,11 +179,6 @@ func (w *world) fail(kind Failure, reason string) {
 
 func (w *world) moduleConfig(inst *instance) wazero.ModuleConfig {
 	n := inst.node
-	key := [32]byte{}
-	r := streams(w.seed, fmt.Sprintf("%s/%d", n.name(), n.starts))
-	for i := range key {
-		key[i] = byte(r.Uint32())
-	}
 	out := &lineWriter{emit: func(line string) { w.trace.add(w.now, "%-8s| %s", inst.label, line) }}
 	cfg := wazero.NewModuleConfig().
 		WithName("").
@@ -189,7 +186,7 @@ func (w *world) moduleConfig(inst *instance) wazero.ModuleConfig {
 		WithEnv("SEEDFALL", "1").
 		WithEnv("SEEDFALL_NODE", n.name()).
 		WithStdout(out).WithStderr(out).
-		WithRandSource(rand.NewChaCha8(key)).
+		WithRandSource(w.guestRandom(fmt.Sprintf("%s/%d", n.name(), n.starts))).
 		WithWalltime(func() (int64, int32) {
 			t := epochNanos + w.now + n.skew
 			return t / int64(time.Second), int32(t % int64(time.Second))
@@ -215,7 +212,7 @@ func (w *world) park(inst *instance, at int64) {
 func (w *world) start(n *node) {
 	n.starts++
 	inst := &instance{node: n, label: fmt.Sprintf("%s#%d", n.name(), n.starts), wakeAt: w.now, resume: make(chan bool), fds: map[int32]int32{}}
-	n.live, n.restartAt = inst, -1
+	n.live, n.restartAt, n.pausedTo = inst, -1, 0
 	ctx := context.WithValue(w.ctx, instKey{}, inst)
 	cfg := w.moduleConfig(inst)
 	go func() {
@@ -303,6 +300,20 @@ func (w *world) applyFault(f Fault) {
 		w.trace.add(w.now, "fault crash %s, restart at %s", n.live.label, fmtTime(int64(f.Until)))
 		w.kill(n.live)
 		w.crashDisk(n, int64(f.Until))
+	case FaultPause:
+		n := w.nodeByName(f.Node)
+		if n == nil || n.live == nil {
+			return
+		}
+		n.pausedTo = int64(f.Until)
+		w.trace.add(w.now, "fault pause %s until %s", n.live.label, fmtTime(n.pausedTo))
+	case FaultClockJump:
+		n := w.nodeByName(f.Node)
+		if n == nil {
+			return
+		}
+		n.skew += int64(f.Shift)
+		w.trace.add(w.now, "fault %s's wall clock jumps %s", f.Node, fmtSigned(int64(f.Shift)))
 	case FaultPartition:
 		side := map[string]bool{}
 		for _, s := range f.Side {
@@ -360,7 +371,7 @@ func (w *world) nextSteps() []step {
 	for _, n := range w.nodes {
 		switch {
 		case n.live != nil:
-			steps = append(steps, step{at: n.live.wakeAt, kind: stepResume, node: n})
+			steps = append(steps, step{at: max(n.live.wakeAt, n.pausedTo), kind: stepResume, node: n})
 		case n.restartAt >= 0:
 			steps = append(steps, step{at: n.restartAt, kind: stepRestart, node: n})
 		}
@@ -391,6 +402,9 @@ func (w *world) loop() {
 			w.fail(Failure{Class: FailDeadlock}, "deadlock: every node is blocked with no timer or pending message")
 			return
 		}
+		if w.takeBranch(candidates[0].at) {
+			continue
+		}
 		s := candidates[w.sched.IntN(len(candidates))]
 		if s.at > horizon {
 			w.trace.add(w.now, "horizon %s reached before the workload finished", fmtTime(horizon))
@@ -405,6 +419,7 @@ func (w *world) loop() {
 			w.now = max(w.now, s.at)
 			w.start(s.node)
 		case stepResume:
+			w.now = max(w.now, s.at)
 			w.resume(s.node.live)
 		}
 	}

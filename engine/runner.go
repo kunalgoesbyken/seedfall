@@ -98,7 +98,7 @@ func (r *Runner) Run(seed uint64, faults []Fault) Result {
 
 func (r *Runner) timedRun(seed uint64, faults []Fault, explicit bool) Result {
 	started := time.Now()
-	res := r.run(seed, faults, explicit)
+	res := r.run(seed, faults, explicit, nil)
 	res.Elapsed = time.Since(started)
 	return res
 }
@@ -119,7 +119,7 @@ func lineAt(lines []string, i int) string {
 	return "<end of trace>"
 }
 
-func (r *Runner) run(seed uint64, faults []Fault, explicit bool) Result {
+func (r *Runner) run(seed uint64, faults []Fault, explicit bool, b *branch) Result {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	rt := wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfig().WithCompilationCache(r.cache).WithCloseOnContextDone(true))
@@ -128,7 +128,7 @@ func (r *Runner) run(seed uint64, faults []Fault, explicit bool) Result {
 		cfg: r.cfg, seed: seed, ctx: ctx, cancel: cancel, rt: rt,
 		sched: streams(seed, "sched"), netRand: streams(seed, "net"), diskRand: streams(seed, "disk"),
 		events: make(chan event), faults: faults, trace: &tracer{}, wasm: r.wasm,
-		explicit: explicit, ioRand: streams(seed, "io"), props: properties{}, spec: r.cfg.Faults.forSeed(seed),
+		explicit: explicit, ioRand: streams(seed, "io"), props: properties{}, spec: r.cfg.Faults.forSeed(seed), branch: b,
 	}
 	w.net = newNetwork(w)
 	res := Result{Seed: seed, Faults: faults}

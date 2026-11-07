@@ -57,6 +57,8 @@ expect raftkv seedfall.lin.json      1-30   pass
 expect raftkv nofsync.lin.json       1-120  fail
 expect raftkv strict.lin.json        1-30   fail
 expect raftkv tcp.lin.json           1-20   pass
+expect raftkv pause.lin.json         1-60   pass
+expect raftkv pause.localreads.lin.json 1-30 fail
 expect raftkv tcp.nofsync.lin.json   1-150  fail
 expect httpkv seedfall.json          1-40   pass
 expect httpkv seedfall.nofsync.json  1-20   fail

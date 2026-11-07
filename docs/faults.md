@@ -22,6 +22,8 @@ A world is described in a JSON file, `seedfall.json` by default. Paths inside it
     "fsync_eio": 0.01,
     "strict_dirs": true,
     "clock_skew": "200ms",
+    "pause_per_sec": 0.2,
+    "clock_jump_per_sec": 0.05,
     "swarm": true
   }
 }
@@ -57,6 +59,10 @@ All faults come from the seed. Faults that depend on what the program does, such
 | `fsync_eio` | `0` | Probability that a file fsync fails with `EIO`. The unsynced writes stay readable but are dropped from durable storage, and the next fsync succeeds (Linux "fsyncgate" semantics) |
 | `strict_dirs` | `false` | Directory entries survive a crash only after the parent directory is fsynced (strict POSIX) |
 | `clock_skew` | `0` | Each node's wall clock is offset by a seeded amount in `[-skew, +skew]`. The monotonic clock is untouched, so timers and `time.Since` are unaffected |
+| `pause_per_sec` | `0` | Rate of process pauses per node. A paused node stops running, like a long GC pause or a stalled VM, then resumes without crashing. Its connections stay open and messages queue up |
+| `pause_for` | `["100ms", "3s"]` | Pause duration |
+| `clock_jump_per_sec` | `0` | Rate of wall-clock jumps per node. Each jump moves the node's wall clock forward or back by up to `clock_jump_max`; the monotonic clock is untouched |
+| `clock_jump_max` | `10s` | Largest clock jump in either direction |
 | `swarm` | `false` | Swarm testing. Each seed turns every fault type on or off and rescales its rate between 0 and 2× the configured value, so faults that hide each other get explored separately |
 
 ## Choosing rates

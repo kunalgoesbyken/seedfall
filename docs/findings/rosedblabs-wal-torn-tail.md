@@ -50,3 +50,19 @@ These changes are applied to a local copy in `.prof/rosedb-wal`:
 | + directory fsync on rotation | ok, 1000 seeds | ok, 1000 seeds |
 
 Not covered: a torn record that spans blocks (`ChunkTypeFirst` with no `Last`). Reading it returns `io.EOF` instead of an error, so repair wouldn't truncate it. The test payloads are under 32 KB, so this path wasn't exercised.
+
+## When the failure becomes inevitable
+
+`seedfall cause` re-randomizes the run from many moments and measures how often it still fails:
+
+```
+         0s    15%  █████
+  427.268ms    10%  ███
+  427.268ms    75%  ███████████████████████         <- after 427.268ms  crash server during disk op #56, restart at 791.388ms
+    1.7052s    70%  █████████████████████
+    1.7052s   100%  ██████████████████████████████  <- after 1.7052s  crash server, restart at 1.942589s
+
+biggest jump: 10% -> 75% at 427.268ms
+```
+
+The crash in the middle of a write is what plants the bug: from that moment, three futures in four lose acknowledged data. The later crash only triggers the replay that exposes it.

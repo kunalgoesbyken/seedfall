@@ -13,6 +13,8 @@ const (
 	FaultPartition = "partition"
 	FaultCrashIO   = "crash_io"
 	FaultFsyncEIO  = "fsync_eio"
+	FaultPause     = "pause"
+	FaultClockJump = "clock_jump"
 )
 
 func observedAtRuntime(kind string) bool { return kind == FaultCrashIO || kind == FaultFsyncEIO }
@@ -24,6 +26,7 @@ type Fault struct {
 	Side  []string `json:"side,omitempty"`
 	Until Duration `json:"until"`
 	Op    int64    `json:"op,omitempty"`
+	Shift Duration `json:"shift,omitempty"`
 }
 
 func uniform(r *rand.Rand, rg Range) time.Duration {
@@ -47,6 +50,8 @@ func (s FaultSpec) forSeed(seed uint64) FaultSpec {
 	s.PartitionPerSec = swarmRate(r, s.PartitionPerSec)
 	s.CrashOnIO = swarmRate(r, s.CrashOnIO)
 	s.FsyncEIO = swarmRate(r, s.FsyncEIO)
+	s.PausePerSec = swarmRate(r, s.PausePerSec)
+	s.ClockJumpPerSec = swarmRate(r, s.ClockJumpPerSec)
 	s.TornWrites = s.TornWrites && r.IntN(2) == 0
 	return s
 }
@@ -78,7 +83,32 @@ func generateFaults(cfg *Config, spec FaultSpec, r *rand.Rand) []Fault {
 			t = until + exponential(r, rate)
 		}
 	}
+	out = append(out, perNode(cfg, spec.PausePerSec, r, func(n string, t time.Duration) (Fault, time.Duration) {
+		until := t + uniform(r, spec.PauseFor)
+		return Fault{At: Duration(t), Kind: FaultPause, Node: n, Until: Duration(until)}, until
+	})...)
+	out = append(out, perNode(cfg, spec.ClockJumpPerSec, r, func(n string, t time.Duration) (Fault, time.Duration) {
+		limit := int64(spec.ClockJumpMax)
+		shift := r.Int64N(2*limit+1) - limit
+		return Fault{At: Duration(t), Kind: FaultClockJump, Node: n, Shift: Duration(shift)}, t
+	})...)
 	slices.SortStableFunc(out, func(a, b Fault) int { return int(a.At - b.At) })
+	return out
+}
+
+func perNode(cfg *Config, rate float64, r *rand.Rand, fault func(node string, at time.Duration) (Fault, time.Duration)) []Fault {
+	if rate <= 0 {
+		return nil
+	}
+	var out []Fault
+	horizon := time.Duration(cfg.Duration)
+	for _, n := range cfg.Nodes {
+		for t := exponential(r, rate); t < horizon; {
+			f, end := fault(n.Name, t)
+			out = append(out, f)
+			t = end + exponential(r, rate)
+		}
+	}
 	return out
 }
 
@@ -113,6 +143,10 @@ func (f Fault) Describe() string {
 		return fmt.Sprintf("%8s  crash %s during disk op #%d, restart at %s", at(f.At), f.Node, f.Op, at(f.Until))
 	case FaultCrash:
 		return fmt.Sprintf("%8s  crash %s, restart at %s", at(f.At), f.Node, at(f.Until))
+	case FaultPause:
+		return fmt.Sprintf("%8s  pause %s until %s", at(f.At), f.Node, at(f.Until))
+	case FaultClockJump:
+		return fmt.Sprintf("%8s  %s's wall clock jumps %s", at(f.At), f.Node, fmtSigned(int64(f.Shift)))
 	}
 	return fmt.Sprintf("%8s  partition %v from the rest until %s", at(f.At), f.Side, at(f.Until))
 }

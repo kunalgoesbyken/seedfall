@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -62,6 +63,24 @@ type seedView struct {
 	Trace   []string     `json:"trace_tail,omitempty"`
 }
 
+type causeArgs struct {
+	Config   string `json:"config" jsonschema:"path to seedfall.json"`
+	Seed     uint64 `json:"seed" jsonschema:"failing seed to explain"`
+	Points   int    `json:"points,omitempty" jsonschema:"evenly spaced moments to branch from, default 16"`
+	Branches int    `json:"branches,omitempty" jsonschema:"alternate futures per moment, default 20"`
+}
+
+type causePointView struct {
+	At          string   `json:"at"`
+	Probability float64  `json:"failure_probability"`
+	After       []string `json:"after_faults,omitempty"`
+}
+
+type causeView struct {
+	Failure *failureView     `json:"failure"`
+	Curve   []causePointView `json:"curve"`
+}
+
 type shrinkView struct {
 	OriginalFaults int          `json:"original_faults"`
 	MinimalFaults  int          `json:"minimal_faults"`
@@ -83,6 +102,10 @@ func cmdMCP([]string) error {
 		Name:        "seedfall_shrink",
 		Description: "Minimize the fault schedule of a failing seed to the faults that still cause the failure, and save it for replay.",
 	}, toolShrink)
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "seedfall_cause",
+		Description: "Explain a failing seed: replay it up to many moments, re-randomize everything after each one, and return the probability of failing from each moment. The fault where the probability jumps is the cause.",
+	}, toolCause)
 	return server.Run(context.Background(), &mcp.StdioTransport{})
 }
 
@@ -139,6 +162,27 @@ func toolShrink(_ context.Context, _ *mcp.CallToolRequest, a seedArgs) (*mcp.Cal
 		return nil, shrinkView{}, err
 	}
 	return nil, shrinkView{OriginalFaults: len(original.Faults), MinimalFaults: len(best.Faults), ScheduleFile: path, Failure: viewFailure(a.Config, best)}, nil
+}
+
+func toolCause(_ context.Context, _ *mcp.CallToolRequest, a causeArgs) (*mcp.CallToolResult, causeView, error) {
+	r, _, err := load(a.Config)
+	if err != nil {
+		return nil, causeView{}, err
+	}
+	opts := engine.CauseOptions{Points: cmp.Or(a.Points, defaultPoints), Branches: cmp.Or(a.Branches, defaultBranches), Jobs: runtime.NumCPU()}
+	original, curve, err := engine.Cause(r, a.Seed, opts)
+	if err != nil {
+		return nil, causeView{}, err
+	}
+	out := causeView{Failure: viewFailure(a.Config, original)}
+	for _, p := range curve {
+		view := causePointView{At: p.At.String(), Probability: p.Probability()}
+		for _, f := range p.Faults {
+			view.After = append(view.After, f.Describe())
+		}
+		out.Curve = append(out.Curve, view)
+	}
+	return nil, out, nil
 }
 
 func readFaults(path string) ([]engine.Fault, error) {

@@ -48,6 +48,10 @@ type FaultSpec struct {
 	FsyncEIO        float64  `json:"fsync_eio"`
 	ClockSkew       Duration `json:"clock_skew"`
 	Swarm           bool     `json:"swarm"`
+	PausePerSec     float64  `json:"pause_per_sec"`
+	PauseFor        Range    `json:"pause_for"`
+	ClockJumpPerSec float64  `json:"clock_jump_per_sec"`
+	ClockJumpMax    Duration `json:"clock_jump_max"`
 }
 
 type Config struct {
@@ -71,6 +75,8 @@ func defaultConfig() Config {
 		Faults: FaultSpec{
 			RestartAfter: Range{Duration(10 * time.Millisecond), Duration(time.Second)},
 			PartitionFor: Range{Duration(50 * time.Millisecond), Duration(2 * time.Second)},
+			PauseFor:     Range{Duration(100 * time.Millisecond), Duration(3 * time.Second)},
+			ClockJumpMax: Duration(10 * time.Second),
 		},
 	}
 }

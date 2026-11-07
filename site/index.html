@@ -117,10 +117,24 @@
 $ seedfall run -c seedfall.fixed.json -seeds 1-1000 -check
 
 property       seeds reached  seeds true
-  sometimes            1000         994  a crash interrupted the workload
   sometimes            1000         406  recovery found a torn tail
 
 <b class="ok">ok</b>  1000 seeds passed (0 hit the time horizon)</pre>
+    </div>
+    <div class="feature">
+      <div>
+        <h3>Not just what failed. When it became inevitable.</h3>
+        <p><code>seedfall cause</code> replays a failing seed to dozens of moments and re-randomizes everything after each one: scheduling, latency, disk tearing and every future fault. The share of futures that still fail is the probability of failure from that moment. Bystander faults leave the curve flat. The real cause makes it jump. No snapshots are needed, because replay is exact.</p>
+      </div>
+<pre class="code"><s># kvlog, seed 1: 440 alternate futures in 24s</s>
+         0s     5%  ██
+  292.108ms     5%  ██          <s>&lt;- partition</s>
+  757.268ms     0%
+  757.268ms    75%  ███████████ <i>&lt;- crash during disk op #56</i>
+  1.084433s    75%  ███████████
+    1.7052s   100%  ███████████████ <i>&lt;- crash server</i>
+
+<b>biggest jump: 0% -&gt; 75%</b> after the crash mid-write</pre>
     </div>
     <div class="cols tiles">
       <div>
@@ -239,7 +253,7 @@ n2#2 | panic: log not found
     <div>
       <p class="eyebrow">For AI coding agents</p>
       <h2>Let the agent prove it's crash-safe</h2>
-      <p class="sub left">Agents write more storage and replication code than anyone can review. <code>seedfall mcp</code> gives Claude Code, Cursor and other agents three tools: sweep seeds, replay one exactly, and shrink a failure to its cause. The agent reads the fault schedule, fixes the bug, and attaches the passing sweep to its pull request. Your own agent does the reasoning, so no API key or hosted service is involved.</p>
+      <p class="sub left">Agents write more storage and replication code than anyone can review. <code>seedfall mcp</code> gives Claude Code, Cursor and other agents four tools: sweep seeds, replay one exactly, shrink a failure to its faults, and find the moment it became inevitable. The agent reads the fault schedule, fixes the bug, and attaches the passing sweep to its pull request. Your own agent does the reasoning, so no API key or hosted service is involved.</p>
       <ul class="logos works-with"><li><svg class="logo" aria-hidden="true"><use href="#claude"/></svg>Claude Code</li><li><svg class="logo" aria-hidden="true"><use href="#cursor"/></svg>Cursor</li><li><svg class="logo" aria-hidden="true"><use href="#mcp"/></svg>Any MCP client</li><li><svg class="logo" aria-hidden="true"><use href="#gha"/></svg>GitHub Actions</li></ul>
       <a class="textlink dark-link" href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/agents.md">Set up the MCP server &rarr;</a>
     </div>
@@ -249,6 +263,7 @@ $ claude mcp add seedfall -- seedfall mcp
 <s># the agent calls</s>
 seedfall_run    { "config": "seedfall.json", "seeds": "1-500" }
 seedfall_shrink { "config": "seedfall.json", "seed": 1 }
+seedfall_cause  { "config": "seedfall.json", "seed": 1 }
 
 <s># and gets back</s>
 { "minimal_faults": 2,
@@ -273,6 +288,7 @@ seedfall_shrink { "config": "seedfall.json", "seed": 1 }
           <tr><td>Multi-process crash + restart</td><td class="y">yes</td><td class="y">yes</td><td class="m">partial</td><td class="n">no</td><td class="y">yes</td></tr>
           <tr><td>Torn writes, lost fsync</td><td class="y">yes</td><td class="m">lost writes</td><td class="m">varies</td><td class="n">no</td><td class="y">yes</td></tr>
           <tr><td>Controls goroutine order</td><td class="y">yes</td><td class="y">yes</td><td class="m">varies</td><td class="n">no</td><td class="y">yes</td></tr>
+          <tr><td>Process pauses, clock jumps</td><td class="y">yes</td><td class="m">not documented</td><td class="m">varies</td><td class="n">no</td><td class="y">yes</td></tr>
           <tr><td>fsync errors, clock skew</td><td class="y">yes</td><td class="m">not documented</td><td class="m">varies</td><td class="n">no</td><td class="m">clock only</td></tr>
           <tr><td>Coverage properties</td><td class="y">yes</td><td class="n">no</td><td class="n">no</td><td class="n">no</td><td class="y">yes</td></tr>
           <tr><td>MCP server for agents</td><td class="y">yes</td><td class="n">no</td><td class="n">no</td><td class="n">no</td><td class="m">agent skills</td></tr>

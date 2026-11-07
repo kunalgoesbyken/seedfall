@@ -92,6 +92,7 @@ Then sweep, replay and shrink:
 seedfall run    -seeds 1-5000          # parallel sweep, reports the lowest failing seed
 seedfall replay -seed 9                # exact replay with the full trace
 seedfall shrink -seed 9                # minimal fault schedule, saved to .seedfall/
+seedfall cause  -seed 9                # probability of failing over time, and the fault that caused it
 seedfall run    -seeds 1-500 -check    # run every seed twice, fail on any divergence
 seedfall run    -seeds 1-500 -report .seedfall/report.html   # triage report of every failure
 ```
@@ -104,11 +105,13 @@ The [getting started guide](docs/getting-started.md) walks through finding, shri
 - **A real disk model.** Plain `os.File` with fsync durability, torn writes, crashes in the middle of a disk operation, fsync `EIO` with Linux "fsyncgate" semantics, and strict POSIX directory durability. [Faults](docs/faults.md)
 - **A real network.** Partitions, latency, resets, through `sim` or with zero code changes via `net_overlay`, including `net/http` and hashicorp/raft's stock TCP transport. [Networking](docs/networking.md)
 - **Real processes.** Every node is its own wasm instance. A crash kills the process; a restart boots fresh over the surviving disk. `supervise` restarts nodes that exit, like systemd.
-- **Clock skew and swarm testing.** Per-node wall-clock offsets, and per-seed random fault mixes in the style of TigerBeetle's VOPR.
+- **Pauses, clock skew and clock jumps.** Freeze a node like a long GC pause, offset or jump its wall clock. These catch stale reads and lease bugs: a raft store that reads without `VerifyLeader` fails on seed 13.
+- **Swarm testing.** Per-seed random fault mixes in the style of TigerBeetle's VOPR.
 - **Properties with coverage.** `Always`, `Sometimes`, `Reachable` and `Unreachable`, cataloged from your source and aggregated across the sweep, so a property that never ran fails the build instead of passing silently. [Properties](docs/properties.md)
 - **Liveness checks.** `sim.QuietFor` stops the faults and heals partitions so you can assert the system recovers; `sim.SetupComplete` holds faults until bootstrap is done.
 - **Linearizability.** Record concurrent `sim.Put` / `sim.Get` operations and get a Porcupine check with an HTML timeline.
 - **Exact replay and shrinking.** Same seed, same run, byte for byte. Shrunk schedules replay exactly.
+- **Causality analysis.** `seedfall cause` replays a failing seed to many moments, re-randomizes everything after each one, and plots the probability of failing over time. The fault where it jumps is the cause. [Cause](docs/cause.md)
 - **Triage reports.** `-report` groups every failing seed into findings, writes an HTML and JSON report, and tracks each finding across runs as new, ongoing, resolved (with 95% confidence) or regressed. [Reports](docs/reports.md)
 - **AI-agent native.** `seedfall mcp` lets Claude Code, Cursor and other agents run, replay and shrink on their own, and prove a fix before opening a PR. [Agents](docs/agents.md)
 - **CI ready.** A GitHub Action and a `go test` helper. [CI](docs/ci.md)
