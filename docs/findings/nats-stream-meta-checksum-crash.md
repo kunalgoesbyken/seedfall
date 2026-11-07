@@ -1,4 +1,6 @@
-# DRAFT ISSUE (not filed): a crash during stream creation leaves meta.inf without meta.sum, and the stream then disappears on every later restart
+# A crash during stream creation leaves meta.inf without meta.sum, and the stream then disappears on every later restart
+
+**Upstream:** being filed with nats-io/nats-server
 
 **Repo:** nats-io/nats-server (tested on v2.15.2, single server, JetStream file storage, `sync_always: true`)
 **Severity:** acknowledged messages become invisible after a restart. The stream accepts and acknowledges publishes normally after the first restart, and is silently skipped on every restart after that. No strict-POSIX assumptions needed: this reproduces with ordinary "a rename and an fsynced file are durable" semantics.

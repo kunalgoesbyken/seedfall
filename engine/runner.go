@@ -19,6 +19,7 @@ type Result struct {
 	Failed     bool
 	Reason     string
 	At         time.Duration
+	Duration   time.Duration
 	Finished   bool
 	Steps      int
 	Faults     []Fault
@@ -82,37 +83,45 @@ func (r *Runner) Faults(seed uint64) []Fault {
 	return generateFaults(r.cfg, r.cfg.Faults.forSeed(seed), streams(seed, "faults"))
 }
 
-func (r *Runner) Run(seed uint64, faults []Fault) Result {
-	explicit := faults != nil
-	if !explicit {
-		faults = r.Faults(seed)
+func (r *Runner) schedule(seed uint64, faults []Fault) ([]Fault, bool) {
+	if faults != nil {
+		return faults, true
 	}
-	res := r.timedRun(seed, faults, explicit)
+	return r.Faults(seed), false
+}
+
+func (r *Runner) Run(seed uint64, faults []Fault) Result {
+	res := r.once(seed, faults)
 	if !r.Doublecheck {
 		return res
 	}
-	again := r.timedRun(seed, faults, explicit)
-	if line, diverged := divergence(res.Trace, again.Trace); diverged {
+	if diff, diverged := divergence(res.Trace, r.once(seed, faults).Trace); diverged {
 		res.Failed, res.At, res.Failure = true, 0, Failure{Class: FailNondeterminism}
-		res.Reason = fmt.Sprintf("nondeterminism: two runs of seed %d diverge at trace line %d: %q vs %q", seed, line+1, lineAt(res.Trace, line), lineAt(again.Trace, line))
+		res.Reason = fmt.Sprintf("nondeterminism: two runs of seed %d diverge at %s", seed, diff)
 	}
 	return res
 }
 
-func (r *Runner) timedRun(seed uint64, faults []Fault, explicit bool) Result {
+func (r *Runner) once(seed uint64, faults []Fault) Result {
+	faults, explicit := r.schedule(seed, faults)
 	started := time.Now()
-	res := r.run(seed, faults, explicit, nil)
+	res := r.run(seed, faults, explicit, nil, nil)
 	res.Elapsed = time.Since(started)
 	return res
 }
 
-func divergence(a, b []string) (int, bool) {
-	for i := range min(len(a), len(b)) {
+func divergence(a, b []string) (string, bool) {
+	line := min(len(a), len(b))
+	for i := range line {
 		if a[i] != b[i] {
-			return i, true
+			line = i
+			break
 		}
 	}
-	return min(len(a), len(b)), len(a) != len(b)
+	if line == len(a) && line == len(b) {
+		return "", false
+	}
+	return fmt.Sprintf("trace line %d: %q vs %q", line+1, lineAt(a, line), lineAt(b, line)), true
 }
 
 func lineAt(lines []string, i int) string {
@@ -122,7 +131,7 @@ func lineAt(lines []string, i int) string {
 	return "<end of trace>"
 }
 
-func (r *Runner) run(seed uint64, faults []Fault, explicit bool, b *branch) Result {
+func (r *Runner) run(seed uint64, faults []Fault, explicit bool, b *branch, p *probe) Result {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	rt := wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfig().WithCompilationCache(r.cache).WithCloseOnContextDone(true))
@@ -131,7 +140,7 @@ func (r *Runner) run(seed uint64, faults []Fault, explicit bool, b *branch) Resu
 		cfg: r.cfg, seed: seed, ctx: ctx, cancel: cancel, rt: rt,
 		sched: streams(seed, "sched"), netRand: streams(seed, "net"), diskRand: streams(seed, "disk"),
 		events: make(chan event), faults: faults, trace: &tracer{}, wasm: r.wasm,
-		explicit: explicit, ioRand: streams(seed, "io"), props: properties{}, spec: r.cfg.Faults.forSeed(seed), branch: b,
+		explicit: explicit, ioRand: streams(seed, "io"), props: properties{}, spec: r.cfg.Faults.forSeed(seed), branch: b, probe: p,
 		mutation: r.Mutation, weakened: func() { r.weakened.Add(1) },
 	}
 	w.net = newNetwork(w)
@@ -141,6 +150,7 @@ func (r *Runner) run(seed uint64, faults []Fault, explicit bool, b *branch) Resu
 		return res
 	}
 	w.loop()
+	w.capture()
 	w.shutdown()
 	w.checkLinearizable()
 	res.History = w.lin
@@ -149,10 +159,11 @@ func (r *Runner) run(seed uint64, faults []Fault, explicit bool, b *branch) Resu
 	res.Reason = w.failure
 	res.Failure = w.failureKind
 	res.At = time.Duration(w.failAt)
+	res.Duration = time.Duration(w.now)
 	res.Finished = w.finished
 	res.Steps = w.steps
 	res.Trace = w.trace.lines
-	res.Faults = mergeFaults(faults, w.ioFaults)
+	res.Faults = mergeFaults(w.faults, w.ioFaults)
 	return res
 }
 
@@ -206,6 +217,10 @@ func mergeFaults(planned, observed []Fault) []Fault {
 	return out
 }
 
-func (r Result) FaultsBefore() []Fault {
-	return slices.DeleteFunc(slices.Clone(r.Faults), func(f Fault) bool { return time.Duration(f.At) > r.At })
+func (r Result) FaultsBefore() []Fault { return r.faultsUntil(r.At) }
+
+func (r Result) FaultsApplied() []Fault { return r.faultsUntil(r.Duration) }
+
+func (r Result) faultsUntil(t time.Duration) []Fault {
+	return slices.DeleteFunc(slices.Clone(r.Faults), func(f Fault) bool { return time.Duration(f.At) > t })
 }

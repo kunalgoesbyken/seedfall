@@ -43,6 +43,9 @@ faults before the failure (2):
 | **tidwall/buntdb** | The automatic AOF shrink renames the rewritten file without fsyncing it. A crash after a shrink can bring the database back empty, even with `SyncPolicy: Always`. |
 | **tidwall/wal** | A crash mid-write makes the log permanently unopenable (known #21), and the pending fix #22 is incomplete. 1 fault. |
 | **hashicorp/raft** | The snapshot directory is never fsynced before rename. Under strict POSIX, one crash leaves a node that panics on every restart. |
+| **nutsdb** | `bucket.Meta` is never fsynced, so one crash can make recovery drop every acknowledged entry in a bucket. A torn tail also makes `Open` fail with `crc error` forever. 3 issues, 1 fault each. |
+| **bitcask** | `Open` rewrites `config.json` without fsync, and auto-recovery fails on the torn tails it is meant to repair. Either leaves the database unopenable after one crash. 4 issues. |
+| **diskv** | A synced `WriteStream` renames into place without fsyncing the directory, so under strict POSIX an acknowledged write can revert. |
 
 hashicorp/raft (600 seeds) and etcd-io/raft (100 seeds) pass cleanly, with linearizability checked, and their negative controls are caught. Details, replay commands and verified fixes: [docs/findings](docs/findings/README.md).
 
@@ -93,9 +96,12 @@ seedfall run    -seeds 1-5000          # parallel sweep, reports the lowest fail
 seedfall replay -seed 9                # exact replay with the full trace
 seedfall shrink -seed 9                # minimal fault schedule, saved to .seedfall/
 seedfall cause  -seed 9                # probability of failing over time, and the fault that caused it
+seedfall inspect -seed 9               # every node's disk at the failure: durable, pending and torn bytes
 seedfall run    -seeds 1-500 -check    # run every seed twice, fail on any divergence
 seedfall run    -seeds 1-500 -report .seedfall/report.html   # triage report of every failure
+seedfall run    -seeds 1-500 -json     # one JSON object per seed, then a summary
 seedfall mutate -seeds 1-100           # would your checks notice fsync silently breaking?
+seedfall verify -seed 9 -faults .seedfall/seed-9.faults.json -md proof.md   # prove the fix
 ```
 
 The [getting started guide](docs/getting-started.md) walks through finding, shrinking and fixing a real bug in five minutes.
@@ -113,11 +119,15 @@ The [getting started guide](docs/getting-started.md) walks through finding, shri
 - **Linearizability.** Record concurrent `sim.Put` / `sim.Get` operations and get a Porcupine check with an HTML timeline.
 - **Exact replay and shrinking.** Same seed, same run, byte for byte. Shrunk schedules replay exactly.
 - **Causality analysis.** `seedfall cause` replays a failing seed to many moments, re-randomizes everything after each one, and plots the probability of failing over time. The fault where it jumps is the cause. [Cause](docs/cause.md)
+- **Disk inspection.** `seedfall inspect` snapshots every node's simulated disk at the failure or any virtual time: which bytes are durable, which a crash would lose, which directory entries are not durable yet, and where the last crash tore a write. `-out` exports the durable image for the library's own tools. [Inspect](docs/inspect.md)
 - **Mutation testing.** `seedfall mutate` silently breaks fsync, directory fsync and `O_SYNC` under your nodes and checks that your sweep notices. A surviving mutant is a blind spot in your checks. [Mutate](docs/mutate.md)
 - **Triage reports.** `-report` groups every failing seed into findings, writes an HTML and JSON report, and tracks each finding across runs as new, ongoing, resolved (with 95% confidence) or regressed. [Reports](docs/reports.md)
 - **Runs Antithesis SDK code.** Programs instrumented with the Antithesis Go SDK run unchanged: `assert.Always`, `Sometimes`, `Reachable` and `lifecycle.SetupComplete` become seedfall properties and setup. [Antithesis compatibility](docs/antithesis.md)
+- **Failure classification.** Every reported failure is classed as a `bug`, `nondeterministic` (with the first diverging trace line) or `timeout`, so CI and agents block only on real bugs. [Reports](docs/reports.md#classification)
+- **Proof of fix.** `seedfall verify` replays the failing schedules, sweeps enough fresh seeds for 95% confidence, checks determinism and mutants, and writes a Markdown proof block for the pull request. [Verify](docs/verify.md)
 - **AI-agent native.** `seedfall mcp` lets Claude Code, Cursor and other agents run, replay and shrink on their own, and prove a fix before opening a PR. [Agents](docs/agents.md)
-- **CI ready.** A GitHub Action and a `go test` helper. [CI](docs/ci.md)
+- **CI ready.** A GitHub Action, a `go test` helper, and `run -json` for one JSON object per seed. [CI](docs/ci.md)
+- **Gostman collections as workloads.** Run the API checks you already keep in a [Gostman](https://github.com/kunalgoesbyken/gostman) collection while seedfall crashes and partitions the service behind them. [Gostman](docs/gostman.md)
 
 ## Examples
 
@@ -129,8 +139,12 @@ The [getting started guide](docs/getting-started.md) walks through finding, shri
 | [`examples/wals`](examples/wals) | tidwall/wal and rosedblabs/wal behind one log server and client |
 | [`examples/natsjs`](examples/natsjs) | An embedded nats-server with JetStream file storage, piped over the simulated network |
 | [`examples/buntdb`](examples/buntdb) | tidwall/buntdb, including the AOF shrink finding |
+| [`examples/nutsdb`](examples/nutsdb) | A key-value server on nutsdb, with the `bucket.Meta`, torn-tail, rotation and fsync-error findings |
+| [`examples/bitcask`](examples/bitcask) | bitcask v2, with the `config.json`, auto-recovery, rotation and fsync-error findings |
+| [`examples/diskv`](examples/diskv) | peterbourgon/diskv with `TempDir` and synced writes, including the directory-fsync finding |
 | [`examples/ledger`](examples/ledger) | A service with no seedfall imports, checked only with the Antithesis SDK's assertions |
 | [`examples/httpkv`](examples/httpkv) | A plain `net/http` server with no seedfall code, run through `net_overlay` |
+| [`examples/gostman`](examples/gostman) | A [Gostman](https://github.com/kunalgoesbyken/gostman) collection as the workload: its checks must pass after every fault window |
 
 `bash scripts/regress.sh` runs every example against its expected result.
 

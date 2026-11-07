@@ -23,7 +23,7 @@ type known struct {
 	cleanSeeds int
 }
 
-func (k known) seedsToConfirm() int { return seedsToConfirm(float64(k.failures) / float64(k.seeds)) }
+func (k known) seedsToConfirm() int { return SeedsToConfirm(float64(k.failures) / float64(k.seeds)) }
 
 func (k known) resolved(extraCleanSeeds int) bool {
 	return k.cleanSeeds+extraCleanSeeds >= k.seedsToConfirm()

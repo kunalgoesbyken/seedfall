@@ -1,4 +1,6 @@
-# DRAFT ISSUE (not filed): rosedblabs/wal appends after a torn chunk, so one crash mid-write makes later fsynced writes unreachable and rosedb can no longer open
+# rosedblabs/wal appends after a torn chunk, so one crash mid-write makes later fsynced writes unreachable and rosedb can no longer open
+
+**Upstream:** [rosedblabs/wal#51](https://github.com/rosedblabs/wal/issues/51)
 
 **Repo:** rosedblabs/wal (tested on v1.3.8, `Sync: true`). This affects rosedblabs/rosedb v2, which replays the WAL on `Open`.
 **Severity:** acknowledged, fsynced writes are lost to replay, and rosedb's `Open` fails with `invalid crc` after a single crash during a write.

@@ -92,6 +92,7 @@ type world struct {
 	lin         Linearizability
 	props       properties
 	branch      *branch
+	probe       *probe
 	mutation    Mutation
 	weakened    func()
 	setupDone   bool
@@ -176,6 +177,7 @@ func (w *world) fail(kind Failure, reason string) {
 	if w.failure == "" {
 		w.failure, w.failAt, w.failureKind = reason, w.now, kind
 		w.trace.add(w.now, "FAIL  %s", reason)
+		w.capture()
 	}
 }
 
@@ -405,6 +407,7 @@ func (w *world) loop() {
 			w.fail(Failure{Class: FailDeadlock}, "deadlock: every node is blocked with no timer or pending message")
 			return
 		}
+		w.captureBefore(candidates[0].at)
 		if w.takeBranch(candidates[0].at) {
 			continue
 		}

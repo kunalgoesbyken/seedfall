@@ -15,7 +15,7 @@ const (
 	confidence   = 0.05
 	exampleSeeds = 10
 	exampleTrace = 40
-	rareRate     = 0.01
+	RareRate     = 0.01
 )
 
 type Status string
@@ -39,15 +39,16 @@ type Example struct {
 }
 
 type Finding struct {
-	Key     string         `json:"key"`
-	Failure engine.Failure `json:"failure"`
-	Status  Status         `json:"status"`
-	Count   int            `json:"failing_seeds"`
-	Rate    float64        `json:"rate"`
-	Rare    bool           `json:"rare"`
-	Seeds   []uint64       `json:"example_seeds"`
-	Example *Example       `json:"example,omitempty"`
-	Note    string         `json:"note,omitempty"`
+	Key            string                 `json:"key"`
+	Failure        engine.Failure         `json:"failure"`
+	Classification *engine.Classification `json:"classification,omitempty"`
+	Status         Status                 `json:"status"`
+	Count          int                    `json:"failing_seeds"`
+	Rate           float64                `json:"rate"`
+	Rare           bool                   `json:"rare"`
+	Seeds          []uint64               `json:"example_seeds"`
+	Example        *Example               `json:"example,omitempty"`
+	Note           string                 `json:"note,omitempty"`
 }
 
 type Property struct {
@@ -75,12 +76,13 @@ type Report struct {
 }
 
 type Input struct {
-	Config  string
-	Seeds   string
-	Faults  engine.FaultSpec
-	Summary engine.Summary
-	Elapsed time.Duration
-	Replay  func(seed uint64) engine.Result
+	Config   string
+	Seeds    string
+	Faults   engine.FaultSpec
+	Summary  engine.Summary
+	Elapsed  time.Duration
+	Replay   func(seed uint64) engine.Result
+	Classify func(engine.Result) engine.Classification
 }
 
 func Build(in Input, history map[string]known) Report {
@@ -125,7 +127,7 @@ func finding(in Input, group []engine.Result, total int, history map[string]know
 		Key: first.Failure.Key(), Failure: first.Failure, Count: len(group),
 		Rate: float64(len(group)) / float64(total), Status: StatusNew,
 	}
-	f.Rare = f.Rate < rareRate
+	f.Rare = f.Rate < RareRate
 	if k, ok := history[f.Key]; ok {
 		f.Status = StatusOngoing
 		if k.resolved(0) {
@@ -135,7 +137,10 @@ func finding(in Input, group []engine.Result, total int, history map[string]know
 	for _, res := range group[:min(len(group), exampleSeeds)] {
 		f.Seeds = append(f.Seeds, res.Seed)
 	}
-	f.Example = example(in, in.Replay(first.Seed))
+	replayed := in.Replay(first.Seed)
+	f.Example = example(in, replayed)
+	class := in.Classify(replayed)
+	f.Classification = &class
 	return f
 }
 
@@ -174,11 +179,15 @@ func cleared(current []Finding, history map[string]known, total int) []Finding {
 	return out
 }
 
-func seedsToConfirm(failureRate float64) int {
+func SeedsToConfirm(failureRate float64) int {
 	if failureRate >= 1 {
 		return 1
 	}
 	return int(math.Ceil(math.Log(confidence) / math.Log(1-failureRate)))
+}
+
+func DetectableRate(cleanSeeds int) float64 {
+	return 1 - math.Pow(confidence, 1/float64(cleanSeeds))
 }
 
 func properties(c engine.Coverage) []Property {

@@ -21,7 +21,7 @@
     <a class="brand" href="#"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
     <nav class="links">
       <a href="#how">How it works</a>
-      <a href="#proof">Proof</a>
+      <a href="proof/">Proof</a>
       <a href="#agents">Agents</a>
       <a href="#compare">Compare</a>
       <a href="#start">Quickstart</a>
@@ -41,23 +41,12 @@
       </div>
       <a class="textlink" href="#proof">See the 5 bugs it found in real Go systems &rarr;</a>
     </div>
-    <figure class="term" aria-label="seedfall output">
-      <div class="term-bar"><span></span><span></span><span></span><p>seedfall replay -c rosedb.json -seed 1 -faults seed-1.faults.json</p></div>
-<pre><b class="bad">FAIL</b> seed 1 at t=3.121s <s>(867 steps, 387ms real)</s>
-  client#1: acknowledged entry 27 lost
-
-<b>faults before the failure (2)</b>
-  427ms  crash server during disk op #56
-  1.705s crash server, restart at 1.943s
-
-<b>trace</b>
-<s>0.427s</s>  <i>fault</i> crash server#1 during disk op 56
-<s>0.791s</s>  server#2| replay stopped after 26 entries:
-              invalid crc
-<s>1.705s</s>  <i>fault</i> crash server#2
-<s>1.943s</s>  server#3| recovered 26 entries
-<s>2.929s</s>  client#1| 139 of 200 appends acknowledged
-<s>3.121s</s>  <b class="bad">FAIL</b> acknowledged entry 27 lost</pre>
+    <figure class="demo">
+      <video autoplay muted loop playsinline preload="metadata" poster="media/seedfall-demo.jpg" width="1128" height="940" aria-describedby="demo-caption">
+        <source src="media/seedfall-demo.webm" type="video/webm">
+        <source src="media/seedfall-demo.mp4" type="video/mp4">
+      </video>
+      <figcaption id="demo-caption">A real terminal: <code>seedfall run</code> finds seed 1 losing acknowledged entry 27 in rosedblabs/wal, then <code>seedfall shrink</code> cuts 26 faults to 2. Waits trimmed, shrink at 4&times; speed.</figcaption>
     </figure>
   </div>
   <div class="wrap runs-on">
@@ -66,12 +55,7 @@
   </div>
 </section>
 
-<section class="stats">
-  <div class="wrap stat-grid">
-    <div class="stat"><p class="label">real bugs found</p><p class="num" data-count="5">5</p><p>In NATS JetStream, rosedblabs/wal, tidwall/buntdb, tidwall/wal and hashicorp/raft. Each one replays from a single seed and has a verified fix.</p></div>
-    <div class="stat"><p class="label">open-source Go systems tested</p><p class="num" data-count="6">6</p><p>NATS JetStream, hashicorp/raft, etcd-io/raft, tidwall/buntdb, tidwall/wal and rosedblabs/wal, each with a negative control that seedfall catches.</p></div>
-    <div class="stat"><p class="label">faults to explain a bug</p><p class="num" data-count="2">2</p><p>Typical size of a shrunk schedule. The rosedb data loss comes down to one crash mid-write and one ordinary crash.</p></div>
-  </div>
+<section class="intro">
   <div class="wrap what">
     <p class="eyebrow">What is seedfall</p>
     <p class="big">The bugs that lose data come from rare combinations: a crash between write and fsync, a restart that misreads a half-written record, a partition during a leader change. Normal tests almost never hit them, and when production does, you can't reproduce it.</p>
@@ -178,9 +162,25 @@ property       seeds reached  seeds true
     <p class="sub dim">Every result below replays from the seed shown. Each finding has a root cause with file and line, and a patched copy that passes hundreds of seeds.</p>
     <div class="cases">
       <article class="case">
-        <p class="case-k"><svg class="logo" aria-hidden="true"><use href="#nats"/></svg>nats-io/nats-server v2.15.2 · 21k stars · SyncAlways · any filesystem</p>
-        <h3>A stream that silently forgets everything</h3>
-        <p>JetStream writes a stream's config and its checksum as two separate files. A crash between them leaves the config without a checksum, so on restart the stream is skipped. The client re-creates it, but NATS only rewrites the files when the config is missing, so the checksum never comes back. The stream accepts and acknowledges publishes as normal, then vanishes with all of them on the next restart.</p>
+        <div class="case-body">
+          <p class="case-k"><svg class="logo" aria-hidden="true"><use href="#nats"/></svg>nats-io/nats-server v2.15.2 · 21k stars · SyncAlways · any filesystem</p>
+          <h3>A stream that silently forgets everything</h3>
+          <p>JetStream writes a stream's config and its checksum as two separate files. A crash between them leaves the config without a checksum, so on restart the stream is skipped. The client re-creates it, but NATS only rewrites the files when the config is missing, so the checksum never comes back. The stream accepts and acknowledges publishes as normal, then vanishes with all of them on the next restart.</p>
+          <details class="more">
+            <summary>Root cause, reproduction and fix</summary>
+            <dl class="facts">
+              <dt>Root cause</dt>
+              <dd><code>fileStore.writeStreamMeta</code> (<code>server/filestore.go:1011</code>) writes <code>meta.inf</code> and <code>meta.sum</code> as two separate atomic writes. Recovery (<code>server/jetstream.go:1453</code>) skips a stream with no <code>meta.sum</code>, and <code>newFileStoreWithCreated</code> (<code>server/filestore.go:636-643</code>) only rewrites the metadata when <code>meta.inf</code> is missing or empty.</dd>
+              <dt>Minimal schedule</dt>
+              <dd>Two faults. A crash during stream creation, after <code>meta.inf</code> is renamed into place and before <code>meta.sum</code> is, then any later crash while the re-created stream acknowledges publishes. The same schedule with the first crash at disk op 10 passes.</dd>
+              <dt>Fix</dt>
+              <dd>Treat a missing checksum like a missing config when opening a store, so the re-created stream rewrites both files.</dd>
+              <dt>Verified</dt>
+              <dd>On a patched local copy of v2.15.2, the failing schedule passes, and so do 150 random seeds with crashes, torn writes and crashes during disk I/O.</dd>
+            </dl>
+          </details>
+          <a class="textlink" href="proof/nats-stream-meta-checksum-crash.html">Full report &rarr;</a>
+        </div>
 <pre class="code dark-code">$ seedfall replay -c seedfall.always.json -seed 40 \
     -faults metasum.faults.json
   0.158s  crash node#1 during disk op 9
@@ -190,9 +190,25 @@ property       seeds reached  seeds true
 <s>crash at disk op 10 instead</s>   <b class="ok">ok</b></pre>
       </article>
       <article class="case">
-        <p class="case-k">rosedblabs/wal v1.3.8 · used by rosedb · any filesystem</p>
-        <h3>Acknowledged writes vanish after one torn write</h3>
-        <p>A crash in the middle of a write leaves a torn chunk. On restart, <code>Open</code> seeks to the end of the segment without checking it, so new writes are fsynced and acknowledged <em>after</em> the garbage. The next replay stops at the torn chunk with <code>invalid crc</code>, and everything written since is unreachable. rosedb v2 refuses to open at all.</p>
+        <div class="case-body">
+          <p class="case-k">rosedblabs/wal v1.3.8 · used by rosedb · any filesystem</p>
+          <h3>Acknowledged writes vanish after one torn write</h3>
+          <p>A crash in the middle of a write leaves a torn chunk. On restart, <code>Open</code> seeks to the end of the segment without checking it, so new writes are fsynced and acknowledged <em>after</em> the garbage. The next replay stops at the torn chunk with <code>invalid crc</code>, and everything written since is unreachable. rosedb v2 refuses to open at all.</p>
+          <details class="more">
+            <summary>Root cause, reproduction and fix</summary>
+            <dl class="facts">
+              <dt>Root cause</dt>
+              <dd><code>openSegmentFile</code> seeks to the end of the last segment (<code>segment.go:116</code>, <code>:126</code>) without checking the tail. Replay later hits the torn chunk and returns <code>ErrInvalidCRC</code> (<code>segment.go:453</code>), and rosedb v2.4.0 <code>loadIndexFromWAL</code> (<code>db.go:686-691</code>) returns that error from <code>Open</code>.</dd>
+              <dt>Minimal schedule</dt>
+              <dd>Two faults. A crash during disk op #56 at 427ms tears a chunk that was never acknowledged, then any later crash triggers the replay that loses everything after it.</dd>
+              <dt>Fix</dt>
+              <dd>Repair the tail on <code>Open</code> by truncating and fsyncing at the end of the last valid chunk, bounds-check reads in <code>readInternal</code>, and fsync the WAL directory in <code>rotateActiveSegment</code>.</dd>
+              <dt>Verified</dt>
+              <dd>With all three changes, 1,000 seeds pass on both <code>rosedb.json</code> and <code>rosedb.strict.json</code>.</dd>
+            </dl>
+          </details>
+          <a class="textlink" href="proof/rosedblabs-wal-torn-tail.html">Full report &rarr;</a>
+        </div>
 <pre class="code dark-code">$ seedfall shrink -c rosedb.json -seed 1
 faults before the failure (2):
   427.268ms  crash server during disk op #56
@@ -201,9 +217,25 @@ faults before the failure (2):
      answers "VAL e141-1111111111111111111111"</pre>
       </article>
       <article class="case">
-        <p class="case-k">tidwall/buntdb v1.3.2 · 4.8k stars · SyncPolicy: Always</p>
-        <h3>The background shrink forgets to fsync</h3>
-        <p>buntdb compacts its append-only file automatically. <code>Shrink</code> writes a fresh file, closes it and renames it over the database, but never fsyncs the file or the directory. A crash after a shrink can bring the database back without acknowledged writes, even with the strictest sync policy.</p>
+        <div class="case-body">
+          <p class="case-k">tidwall/buntdb v1.3.2 · 4.8k stars · SyncPolicy: Always</p>
+          <h3>The background shrink forgets to fsync</h3>
+          <p>buntdb compacts its append-only file automatically. <code>Shrink</code> writes a fresh file, closes it and renames it over the database, but never fsyncs the file or the directory. A crash after a shrink can bring the database back without acknowledged writes, even with the strictest sync policy.</p>
+          <details class="more">
+            <summary>Root cause, reproduction and fix</summary>
+            <dl class="facts">
+              <dt>Root cause</dt>
+              <dd><code>(*DB).Shrink</code> (<code>buntdb.go:636</code>) writes <code>&lt;path&gt;.tmp</code>, closes it (<code>buntdb.go:750</code>) and renames it over the database (<code>buntdb.go:757</code>) without fsyncing the file or the directory. <code>backgroundManager</code> (<code>buntdb.go:547</code>) runs it automatically.</dd>
+              <dt>Minimal schedule</dt>
+              <dd>Four plain crashes and one partition, with no torn writes. The partition keeps writes from arriving, so nothing fsyncs the new file before the crash.</dd>
+              <dt>Fix</dt>
+              <dd><code>f.Sync()</code> before <code>f.Close()</code> in <code>Shrink</code>, and an fsync of the parent directory after the rename.</dd>
+              <dt>Verified</dt>
+              <dd>A patched v1.3.2 passes the failing seeds and 300 seeds each of <code>seedfall.shrink.json</code> and <code>seedfall.shrink.strict.json</code>.</dd>
+            </dl>
+          </details>
+          <a class="textlink" href="proof/tidwall-buntdb-shrink-fsync.html">Full report &rarr;</a>
+        </div>
 <pre class="code dark-code">$ seedfall replay -c seedfall.shrink.json -seed 27
 <b class="bad">FAIL</b> seed 27 at t=5.559s
   client#1: acknowledged write lost: k22=v262,
@@ -211,9 +243,25 @@ faults before the failure (2):
 <b class="ok">patched</b>  f.Sync() before rename · 300 seeds ok</pre>
       </article>
       <article class="case">
-        <p class="case-k">tidwall/wal v1.2.1 · 733 stars</p>
-        <h3>One crash, and the log never opens again</h3>
-        <p>A crash during an append leaves a partial entry, and every later <code>Open</code> returns <code>log corrupt</code>. That much is known (issue #21). seedfall also showed that the pending fix, PR #22, is incomplete: it skips the partial entry but never truncates it, so a shorter later write leaves stale bytes behind and the segment corrupts again.</p>
+        <div class="case-body">
+          <p class="case-k">tidwall/wal v1.2.1 · 733 stars</p>
+          <h3>One crash, and the log never opens again</h3>
+          <p>A crash during an append leaves a partial entry, and every later <code>Open</code> returns <code>log corrupt</code>. That much is known (issue #21). seedfall also showed that the pending fix, PR #22, is incomplete: it skips the partial entry but never truncates it, so a shorter later write leaves stale bytes behind and the segment corrupts again.</p>
+          <details class="more">
+            <summary>Root cause, reproduction and fix</summary>
+            <dl class="facts">
+              <dt>Root cause</dt>
+              <dd><code>loadNextBinaryEntry</code> (<code>wal.go:599-606</code>) returns <code>ErrCorrupt</code> for the partial tail entry, so <code>Open</code> fails forever. PR #22 trims the entry in memory but never truncates the file, and <code>cycle()</code> (<code>wal.go:355-376</code>) never fsyncs the log directory.</dd>
+              <dt>Minimal schedule</dt>
+              <dd>One fault on v1.2.1: a crash during disk op #56 at 366ms. With PR #22 applied, seed 117 shrinks to 4 faults and ends in <code>ErrCorrupt</code> in the middle of the log.</dd>
+              <dt>Fix</dt>
+              <dd>PR #22, plus truncating the file to the valid prefix and fsyncing it before the seek in <code>load()</code>, plus an fsync of the log directory in <code>cycle()</code>.</dd>
+              <dt>Verified</dt>
+              <dd>1,500 seeds pass on both <code>tidwall.json</code> and <code>tidwall.strict.json</code>.</dd>
+            </dl>
+          </details>
+          <a class="textlink" href="proof/tidwall-wal-torn-tail.html">Full report &rarr;</a>
+        </div>
 <pre class="code dark-code">    0.366s  crash server#1 during disk op 56
     0.730s  server#2| open wal: log corrupt
 <b class="bad">FAIL</b> seed 1 · 1 fault
@@ -221,15 +269,46 @@ faults before the failure (2):
 <s>with PR #22 + fix</s>   <b class="ok">ok</b>   1500 seeds</pre>
       </article>
       <article class="case">
-        <p class="case-k"><svg class="logo" aria-hidden="true"><use href="#hashicorp"/></svg>hashicorp/raft v1.8 · 9.2k stars · strict POSIX directories</p>
-        <h3>An empty snapshot bricks a node</h3>
-        <p>Raft fsyncs the snapshot files and renames the directory into place, but never fsyncs the snapshot directory itself. Under strict POSIX semantics, one crash leaves an empty snapshot after the log was already compacted, and <code>NewRaft</code> panics on every restart. On ext4 and XFS a file fsync usually persists the entry anyway, so the exposure is to strict filesystems.</p>
+        <div class="case-body">
+          <p class="case-k"><svg class="logo" aria-hidden="true"><use href="#hashicorp"/></svg>hashicorp/raft v1.8 · 9.2k stars · strict POSIX directories</p>
+          <h3>An empty snapshot bricks a node</h3>
+          <p>Raft fsyncs the snapshot files and renames the directory into place, but never fsyncs the snapshot directory itself. Under strict POSIX semantics, one crash leaves an empty snapshot after the log was already compacted, and <code>NewRaft</code> panics on every restart. On ext4 and XFS a file fsync usually persists the entry anyway, so the exposure is to strict filesystems.</p>
+          <details class="more">
+            <summary>Root cause, reproduction and fix</summary>
+            <dl class="facts">
+              <dt>Root cause</dt>
+              <dd><code>FileSnapshotSink.Close</code> fsyncs <code>state.bin</code> and <code>meta.json</code>, renames the snapshot directory into place and fsyncs its parent, but never fsyncs the snapshot directory itself. After log compaction, the empty snapshot is skipped and <code>NewRaft</code> panics with <code>log not found</code> (<code>api.go:617</code>).</dd>
+              <dt>Minimal schedule</dt>
+              <dd>One fault: crash n2 once after its first snapshot, under strict POSIX directory semantics (<code>strict.lin.json</code>, seed 7).</dd>
+              <dt>Fix</dt>
+              <dd>Open <code>s.dir</code> and <code>Sync()</code> it before the <code>os.Rename</code> in <code>FileSnapshotSink.Close</code>, skipped on Windows like the existing parent-directory sync.</dd>
+              <dt>Verified</dt>
+              <dd>Seed 7 passes, and so do seeds 1–120 under strict directory semantics.</dd>
+            </dl>
+          </details>
+          <a class="textlink" href="proof/hashicorp-raft-snapshot-dir-fsync.html">Full report &rarr;</a>
+        </div>
 <pre class="code dark-code">n2#2 | [ERROR] failed to get log: index=1
        error="log not found"
 n2#2 | panic: log not found
 <b class="bad">FAIL</b> n2#2 crashed: exit_code(2)
 <b class="ok">patched</b>  seed 7 ok · seeds 1-120 ok</pre>
       </article>
+    </div>
+    <div class="ledger-wrap">
+      <p class="case-k">More bugs, in storage libraries</p>
+      <table class="ledger">
+        <tbody>
+          <tr><td>nutsdb v1.1.0</td><td><a href="proof/nutsdb-bucket-meta-fsync.html"><code>bucket.Meta</code> is never fsynced, so one crash drops every entry in a bucket</a></td><td class="bad">1 crash</td></tr>
+          <tr><td>nutsdb v1.1.0</td><td><a href="proof/nutsdb-torn-tail-crc.html">A torn tail reads as <code>crc error</code> and <code>Open</code> fails forever</a></td><td class="bad">1 crash</td></tr>
+          <tr><td>nutsdb v1.1.0</td><td><a href="proof/nutsdb-rotation-dir-fsync-and-eio.html">New data files are never directory-fsynced; a failed fsync doesn&rsquo;t rewind</a></td><td class="bad">strict POSIX · EIO</td></tr>
+          <tr><td>bitcask v2.2.0</td><td><a href="proof/bitcask-config-json-torn.html"><code>Open</code> rewrites <code>config.json</code> without fsync and can brick the database</a></td><td class="bad">1 crash</td></tr>
+          <tr><td>bitcask v2.2.0</td><td><a href="proof/bitcask-autorecovery-torn-tail.html">Auto-recovery fails on the torn tails it exists to repair</a></td><td class="bad">1 crash</td></tr>
+          <tr><td>bitcask v2.2.0</td><td><a href="proof/bitcask-recovered-datafile-fsync.html">Auto-recovery renames an unsynced copy over the last datafile</a></td><td class="bad">3 faults</td></tr>
+          <tr><td>bitcask v2.2.0</td><td><a href="proof/bitcask-rotation-dir-fsync-and-eio.html">New datafiles are never directory-fsynced; a failed fsync doesn&rsquo;t rewind</a></td><td class="bad">strict POSIX · EIO</td></tr>
+          <tr><td>peterbourgon/diskv v3.0.1</td><td><a href="proof/diskv-rename-dir-fsync.html">A synced write renames into place without a directory fsync</a></td><td class="bad">strict POSIX</td></tr>
+        </tbody>
+      </table>
     </div>
     <div class="ledger-wrap">
       <p class="case-k">And no false alarms</p>
@@ -244,6 +323,7 @@ n2#2 | panic: log not found
         </tbody>
       </table>
       <p class="note dim">Each system also has a negative control, such as skipping fsync, and seedfall catches every one, so a pass means something.</p>
+      <a class="textlink" href="proof/">All findings and passing systems &rarr;</a>
     </div>
   </div>
 </section>
@@ -254,13 +334,37 @@ n2#2 | panic: log not found
       <p class="eyebrow">For AI coding agents</p>
       <h2>Let the agent prove it's crash-safe</h2>
       <p class="sub left">Agents write more storage and replication code than anyone can review. <code>seedfall mcp</code> gives Claude Code, Cursor and other agents four tools: sweep seeds, replay one exactly, shrink a failure to its faults, and find the moment it became inevitable. The agent reads the fault schedule, fixes the bug, and attaches the passing sweep to its pull request. Your own agent does the reasoning, so no API key or hosted service is involved.</p>
-      <ul class="logos works-with"><li><svg class="logo" aria-hidden="true"><use href="#claude"/></svg>Claude Code</li><li><svg class="logo" aria-hidden="true"><use href="#cursor"/></svg>Cursor</li><li><svg class="logo" aria-hidden="true"><use href="#mcp"/></svg>Any MCP client</li><li><svg class="logo" aria-hidden="true"><use href="#gha"/></svg>GitHub Actions</li></ul>
-      <a class="textlink dark-link" href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/agents.md">Set up the MCP server &rarr;</a>
+      <div class="setup">
+        <p class="setup-step">1. Install seedfall</p>
+        <button class="install" data-copy="go install github.com/kunalgoesbyken/seedfall/cmd/seedfall@latest"><span class="prompt">$</span><span class="cmd">go install github.com/kunalgoesbyken/seedfall/cmd/seedfall@latest</span><span class="copy">copy</span></button>
+        <p class="setup-step">2. Connect your agent</p>
+        <div class="tabs" role="tablist" aria-label="Agent">
+          <button role="tab" id="tab-claude" aria-controls="panel-claude" aria-selected="true"><svg class="logo" aria-hidden="true"><use href="#claude"/></svg>Claude Code</button>
+          <button role="tab" id="tab-cursor" aria-controls="panel-cursor" aria-selected="false" tabindex="-1"><svg class="logo" aria-hidden="true"><use href="#cursor"/></svg>Cursor</button>
+          <button role="tab" id="tab-vscode" aria-controls="panel-vscode" aria-selected="false" tabindex="-1"><svg class="logo" aria-hidden="true"><use href="#mcp"/></svg>VS Code</button>
+          <button role="tab" id="tab-other" aria-controls="panel-other" aria-selected="false" tabindex="-1"><svg class="logo" aria-hidden="true"><use href="#mcp"/></svg>Other</button>
+          <button role="tab" id="tab-gha" aria-controls="panel-gha" aria-selected="false" tabindex="-1"><svg class="logo" aria-hidden="true"><use href="#gha"/></svg>GitHub Actions</button>
+        </div>
+        <div class="panel" role="tabpanel" id="panel-claude" aria-labelledby="tab-claude">
+          <button class="install" data-copy="claude mcp add seedfall -- seedfall mcp"><span class="prompt">$</span><span class="cmd">claude mcp add seedfall -- seedfall mcp</span><span class="copy">copy</span></button>
+        </div>
+        <div class="panel" role="tabpanel" id="panel-cursor" aria-labelledby="tab-cursor" hidden>
+          <a class="add-btn" href="cursor://anysphere.cursor-deeplink/mcp/install?name=seedfall&amp;config=eyJjb21tYW5kIjoic2VlZGZhbGwiLCJhcmdzIjpbIm1jcCJdfQ=="><svg class="logo" aria-hidden="true"><use href="#cursor"/></svg>Add to Cursor</a>
+        </div>
+        <div class="panel" role="tabpanel" id="panel-vscode" aria-labelledby="tab-vscode" hidden>
+          <a class="add-btn" href="vscode:mcp/install?%7B%22name%22%3A%22seedfall%22%2C%22command%22%3A%22seedfall%22%2C%22args%22%3A%5B%22mcp%22%5D%7D"><svg class="logo" aria-hidden="true"><use href="#mcp"/></svg>Add to VS Code</a>
+        </div>
+        <div class="panel" role="tabpanel" id="panel-other" aria-labelledby="tab-other" hidden>
+          <button class="install" data-copy="{&quot;mcpServers&quot;: {&quot;seedfall&quot;: {&quot;command&quot;: &quot;seedfall&quot;, &quot;args&quot;: [&quot;mcp&quot;]}}}"><span class="cmd">{&quot;mcpServers&quot;: {&quot;seedfall&quot;: {&quot;command&quot;: &quot;seedfall&quot;, &quot;args&quot;: [&quot;mcp&quot;]}}}</span><span class="copy">copy</span></button>
+          <p class="setup-note">Paste into any MCP client that reads an <code>mcpServers</code> config.</p>
+        </div>
+        <div class="panel" role="tabpanel" id="panel-gha" aria-labelledby="tab-gha" hidden>
+          <button class="install" data-copy="- uses: kunalgoesbyken/seedfall@v0.2.0"><span class="cmd">- uses: kunalgoesbyken/seedfall@v0.2.0</span><span class="copy">copy</span></button>
+          <p class="setup-note">Add it as a step after <code>actions/checkout</code>. Each run uploads an HTML triage report that groups failures and gives a replay command for each.</p>
+        </div>
+      </div>
     </div>
-<pre class="code"><s># Claude Code</s>
-$ claude mcp add seedfall -- seedfall mcp
-
-<s># the agent calls</s>
+<pre class="code"><s># the agent calls</s>
 seedfall_run    { "config": "seedfall.json", "seeds": "1-500" }
 seedfall_shrink { "config": "seedfall.json", "seed": 1 }
 seedfall_cause  { "config": "seedfall.json", "seed": 1 }
@@ -357,7 +461,7 @@ $ seedfall shrink -seed 9</pre>
 <footer class="foot">
   <div class="wrap foot-row">
     <a class="brand" href="#"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
-    <p>Built by <a href="https://github.com/kunalgoesbyken">Kunal Roy Choudhury</a> · on <a href="https://wazero.io">wazero</a></p>
+    <p>Built by <a href="https://github.com/kunalgoesbyken">Kunal Roy Choudhury</a> · on <a href="https://wazero.io">wazero</a> · also by Kunal: <a href="https://gostman.com">Gostman</a>, an open-source API client whose collections run as <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/gostman.md">seedfall workloads</a></p>
   </div>
 </footer>
 

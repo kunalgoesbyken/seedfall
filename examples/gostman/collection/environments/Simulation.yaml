@@ -1,0 +1,8 @@
+id: env-simulation
+name: Simulation
+order: 2
+variables:
+  base_url: http://server:8080
+  key: k1
+  value: v1
+  deleted_key: k0

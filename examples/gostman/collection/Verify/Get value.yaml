@@ -1,0 +1,13 @@
+id: req-get-value
+name: Get value
+description: An acknowledged write must still be there.
+order: 2
+method: GET
+url: "{{base_url}}/kv/{{key}}"
+assertions:
+  - expression: res.status
+    operator: eq
+    value: "200"
+  - expression: res.body
+    operator: eq
+    value: "{{value}}"

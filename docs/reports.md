@@ -8,7 +8,7 @@ With `-report`, a sweep keeps going after the first failure, groups every failin
 
 ```
 16 of 60 seeds failed, 1 findings, in 4.867s
-  new       assert · client                             16 seeds  e.g. seed 1
+  new       assert · client                             16 seeds  e.g. seed 1  bug
 report: .seedfall/report.html
 ```
 
@@ -21,6 +21,23 @@ For each finding the report shows:
 - up to ten example seeds;
 - ready-to-run `replay` and `shrink` commands;
 - the faults before the failure and the trace of the lowest failing seed. seedfall re-runs that seed to get them, which works because replays are exact.
+
+## Classification
+
+Every finding, and the failure `seedfall run` stops at, gets a class that says whether it is worth blocking on:
+
+| Class | Meaning |
+|---|---|
+| `bug` | Replaying the seed fails again with the same trace. A real, reproducible failure of the system under test |
+| `nondeterministic` | The replay diverges from the original run: something in the harness or the system leaks host nondeterminism. The first diverging trace line is shown |
+| `timeout` | The real-time watchdog fired. This depends on host speed and load, not only on the seed |
+
+```
+FAIL seed 1 at t=2.892s ...
+class: bug
+```
+
+Classification replays only the failure that `run` reports and one representative seed per finding, so it adds one run per finding, never one per seed. It appears in the terminal summary, in the HTML report, as `classification` in `report.json`, and in the MCP `seedfall_run` and `seedfall_replay` results, so CI and agents can block on `bug` and quarantine the rest.
 
 ## History: new, ongoing, resolved, regressed
 

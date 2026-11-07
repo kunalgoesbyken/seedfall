@@ -1,0 +1,12 @@
+id: req-put-value
+name: Put value
+description: Stores value under key. A 200 means the write is durable.
+order: 1
+method: PUT
+url: "{{base_url}}/kv/{{key}}"
+bodyType: text
+body: "{{value}}"
+assertions:
+  - expression: res.status
+    operator: eq
+    value: "200"

@@ -53,7 +53,7 @@ td.num { font-family: ui-monospace, monospace; white-space: nowrap; }
     <header>
       <span class="badge {{.Status}}">{{.Status}}</span>
       <h3>{{.Key}}</h3>
-      <span class="dim mono">{{.Count}} seeds · {{percent .Rate}}{{if .Rare}} · rare{{end}}</span>
+      <span class="dim mono">{{.Count}} seeds · {{percent .Rate}}{{if .Rare}} · rare{{end}}{{with .Classification}} · {{.}}{{end}}</span>
     </header>
     {{with .Example}}
     <p style="margin-top:10px">{{.Reason}}</p>

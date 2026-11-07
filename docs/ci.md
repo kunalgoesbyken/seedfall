@@ -26,6 +26,29 @@ jobs:
 
 The job fails if any seed fails. The output goes to the job summary, and the triage report (see [reports.md](reports.md)) is uploaded as an artifact. Rotate the seed range over time, for example with the run number, to keep exploring new schedules while each failure stays reproducible.
 
+## Machine-readable output
+
+`seedfall run -json` sweeps every seed in the range and prints one JSON object per line as each seed finishes, then a summary object. Seeds finish in parallel, so lines are not in seed order.
+
+```sh
+seedfall run -c seedfall.always.json -seeds 1-100 -json | jq -c 'select(.type == "seed" and .passed == false)'
+```
+
+```json
+{"type":"seed","seed":1,"passed":false,"finished":false,"failure":{"class":"assert","node":"client"},"reason":"client#1: acknowledged write lost: k96=v96, server now answers \"NONE\"","virtual_seconds":2.891820635,"faults":3}
+```
+
+| Field | Meaning |
+|---|---|
+| `type` | `seed` or `summary` |
+| `seed`, `passed`, `finished` | The seed, whether it passed, and whether the workload finished before the time horizon |
+| `failure` | `class`, plus `node` and `property` when known, the same key the triage report groups by |
+| `reason` | The failure message |
+| `virtual_seconds` | Simulated time the run covered |
+| `faults` | Faults that happened during the run |
+
+The summary has `passed`, `failed`, `unfinished`, `unmet_properties` and `properties`, the same coverage table `seedfall_run` returns over MCP, with a `problem` on each property that was never reached or never true. The exit code is 1 if any seed failed or any property is unmet. `-json` cannot be combined with `-report`.
+
 ## `go test`
 
 ```go

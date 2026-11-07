@@ -81,6 +81,24 @@ expect natsjs seedfall.json          1-20   fail
 expect natsjs seedfall.always.json   1-60   pass
 expect natsjs seedfall.strict.json   1-20   fail
 expect_replay natsjs seedfall.always.json 40 metasum.faults.json fail
+expect gostman seedfall.json          1-24   pass
+expect gostman seedfall.nofsync.json  1-8    fail
+expect nutsdb   seedfall.json               1-20  fail
+expect nutsdb   seedfall.fsyncmeta.json     1-40  pass
+expect nutsdb   seedfall.torn.json          1-20  fail
+expect nutsdb   seedfall.strict.json        1-30  fail
+expect nutsdb   seedfall.fsyncgate.json     1-20  fail
+expect nutsdb   seedfall.nosync.json        1-20  fail
+expect bitcask  seedfall.json               1-40  pass
+expect bitcask  seedfall.nosync.json        1-20  fail
+expect bitcask  seedfall.torn.json          1-20  fail
+expect bitcask  seedfall.recovery.json      1-20  fail
+expect bitcask  seedfall.strict.json        1-30  fail
+expect bitcask  seedfall.fsyncgate.json     1-20  fail
+expect diskv    seedfall.json               1-60  pass
+expect diskv    seedfall.nosync.json        1-30  fail
+expect diskv    seedfall.inplace.json       1-30  fail
+expect diskv    seedfall.strict.json        1-20  fail
 deterministic kvlog  seedfall.always.json 1
 deterministic raftkv seedfall.lin.json    3
 deterministic wals   rosedb.json             1

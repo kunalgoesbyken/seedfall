@@ -7,6 +7,7 @@ import (
 	"path"
 	"sort"
 	"strings"
+	"time"
 
 	fsapi "github.com/tetratelabs/wazero/experimental/sys"
 	"github.com/tetratelabs/wazero/sys"
@@ -25,6 +26,7 @@ type inode struct {
 	synced  bool
 	pending []pendingWrite
 	mtime   int64
+	tear    *Tear
 }
 
 type memFS struct {
@@ -225,9 +227,10 @@ func (m *memFS) crash(r *rand.Rand, torn bool) {
 		m.crashStrict(r, torn)
 		return
 	}
+	at := m.crashTime()
 	for _, p := range sortedKeys(m.files) {
 		in := m.files[p]
-		in.recover(r, torn)
+		in.recover(r, torn, at)
 		if !in.synced {
 			delete(m.files, p)
 		}
@@ -236,24 +239,27 @@ func (m *memFS) crash(r *rand.Rand, torn bool) {
 
 func (m *memFS) crashStrict(r *rand.Rand, torn bool) {
 	seen := map[*inode]bool{}
+	at := m.crashTime()
 	for _, files := range []map[string]*inode{m.files, m.ns.files} {
 		for _, p := range sortedKeys(files) {
 			if in := files[p]; !seen[in] {
 				seen[in] = true
-				in.recover(r, torn)
+				in.recover(r, torn, at)
 			}
 		}
 	}
 	m.files, m.dirs = m.ns.recover(r, torn)
 }
 
-func (in *inode) recover(r *rand.Rand, torn bool) {
+func (m *memFS) crashTime() time.Duration { return time.Duration(m.clock() - epochNanos) }
+
+func (in *inode) recover(r *rand.Rand, torn bool, at time.Duration) {
 	data := append([]byte(nil), in.durable...)
 	if torn && len(in.pending) > 0 {
 		keep := r.IntN(len(in.pending) + 1)
 		for i, w := range in.pending[:keep] {
 			if i == keep-1 && !w.truncate && len(w.data) > 0 {
-				w.data = w.data[:r.IntN(len(w.data)+1)]
+				w = in.tearWrite(r, w, at)
 			}
 			data = w.apply(data)
 		}
@@ -262,6 +268,15 @@ func (in *inode) recover(r *rand.Rand, torn bool) {
 	in.data = data
 	in.durable = append([]byte(nil), data...)
 	in.pending = nil
+}
+
+func (in *inode) tearWrite(r *rand.Rand, w pendingWrite, at time.Duration) pendingWrite {
+	kept := r.IntN(len(w.data) + 1)
+	if kept < len(w.data) {
+		in.tear = &Tear{At: Duration(at), Offset: w.off, Kept: int64(kept), Size: int64(len(w.data))}
+	}
+	w.data = w.data[:kept]
+	return w
 }
 
 func (w pendingWrite) apply(data []byte) []byte {

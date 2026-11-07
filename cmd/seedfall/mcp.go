@@ -36,6 +36,8 @@ type failureView struct {
 	Faults []string `json:"faults_before_failure"`
 	Trace  []string `json:"trace_tail"`
 	Replay string   `json:"replay_command"`
+
+	Class *engine.Classification `json:"classification,omitempty"`
 }
 
 type propertyView struct {
@@ -81,6 +83,31 @@ type causeView struct {
 	Curve   []causePointView `json:"curve"`
 }
 
+type inspectArgs struct {
+	Config string `json:"config" jsonschema:"path to seedfall.json"`
+	Seed   uint64 `json:"seed" jsonschema:"seed to replay"`
+	Faults string `json:"faults,omitempty" jsonschema:"optional fault schedule file written by seedfall_shrink"`
+	At     string `json:"at,omitempty" jsonschema:"virtual time to snapshot at, for example 1.5s; default is the moment of failure"`
+	Node   string `json:"node,omitempty" jsonschema:"only inspect this node"`
+	Path   string `json:"path,omitempty" jsonschema:"also return the durable content of this file, as text or a hex dump"`
+}
+
+type fileView struct {
+	Path        string `json:"path"`
+	DurableSize int64  `json:"durable_size"`
+	Encoding    string `json:"encoding"`
+	Content     string `json:"content"`
+}
+
+type inspectView struct {
+	Seed    uint64        `json:"seed"`
+	Passed  bool          `json:"passed"`
+	At      string        `json:"snapshot_at"`
+	Failure *failureView  `json:"failure,omitempty"`
+	Disks   []engine.Disk `json:"disks"`
+	File    *fileView     `json:"file,omitempty"`
+}
+
 type shrinkView struct {
 	OriginalFaults int          `json:"original_faults"`
 	MinimalFaults  int          `json:"minimal_faults"`
@@ -106,6 +133,14 @@ func cmdMCP([]string) error {
 		Name:        "seedfall_cause",
 		Description: "Explain a failing seed: replay it up to many moments, re-randomize everything after each one, and return the probability of failing from each moment. The fault where the probability jumps is the cause.",
 	}, toolCause)
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "seedfall_verify",
+		Description: "Prove a fix: replay the failing seeds and schedules (given directly or taken from a triage report), sweep enough fresh seeds for 95% confidence, check determinism and optionally re-run the durability mutants. Returns the verdict and a Markdown proof block for the pull request.",
+	}, toolVerify)
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "seedfall_inspect",
+		Description: "Replay a seed and snapshot every node's simulated disk at the failure or at a virtual time. Returns each file's size, durable size, the byte ranges a crash would lose, directory entries that are not durable yet, removed entries a crash would bring back, and the last torn write. Optionally returns one file's durable content.",
+	}, toolInspect)
 	return server.Run(context.Background(), &mcp.StdioTransport{})
 }
 
@@ -124,6 +159,8 @@ func toolRun(_ context.Context, _ *mcp.CallToolRequest, a runArgs) (*mcp.CallToo
 	out := runView{Passed: sum.Passed, Unfinished: sum.Unfinished, Properties: properties(sum.Coverage), Elapsed: time.Since(started).Round(time.Millisecond).String()}
 	if sum.First != nil {
 		out.Failure = viewFailure(a.Config, *sum.First)
+		class := r.Classify(*sum.First, nil)
+		out.Failure.Class = &class
 	}
 	return nil, out, nil
 }
@@ -141,6 +178,8 @@ func toolReplay(_ context.Context, _ *mcp.CallToolRequest, a seedArgs) (*mcp.Cal
 	out := seedView{Seed: a.Seed, Passed: !res.Failed, Steps: res.Steps}
 	if res.Failed {
 		out.Failure = viewFailure(a.Config, res)
+		class := r.Classify(res, faults)
+		out.Failure.Class = &class
 		return nil, out, nil
 	}
 	out.Trace = tail(res.Trace, mcpTraceTail)
@@ -185,6 +224,46 @@ func toolCause(_ context.Context, _ *mcp.CallToolRequest, a causeArgs) (*mcp.Cal
 	return nil, out, nil
 }
 
+func toolInspect(_ context.Context, _ *mcp.CallToolRequest, a inspectArgs) (*mcp.CallToolResult, inspectView, error) {
+	at, err := parseAt(a.At)
+	if err != nil {
+		return nil, inspectView{}, err
+	}
+	r, _, err := load(a.Config)
+	if err != nil {
+		return nil, inspectView{}, err
+	}
+	faults, err := readFaults(a.Faults)
+	if err != nil {
+		return nil, inspectView{}, err
+	}
+	in, err := r.Inspect(a.Seed, faults, engine.InspectOptions{At: at, Node: a.Node})
+	if err != nil {
+		return nil, inspectView{}, err
+	}
+	out := inspectView{Seed: a.Seed, Passed: !in.Result.Failed, At: in.At.String(), Disks: in.Disks}
+	if in.Result.Failed {
+		out.Failure = viewFailure(a.Config, in.Result)
+	}
+	if a.Path == "" {
+		return nil, out, nil
+	}
+	f, err := durableFile(in.Disks, a.Path)
+	if err != nil {
+		return nil, inspectView{}, err
+	}
+	encoding, content := renderContent(f.Durable)
+	out.File = &fileView{Path: f.Path, DurableSize: f.DurableSize, Encoding: encoding, Content: content}
+	return nil, out, nil
+}
+
+func parseAt(s string) (time.Duration, error) {
+	if s == "" {
+		return 0, nil
+	}
+	return time.ParseDuration(s)
+}
+
 func readFaults(path string) ([]engine.Fault, error) {
 	if path == "" {
 		return nil, nil
@@ -197,12 +276,15 @@ func readFaults(path string) ([]engine.Fault, error) {
 	return faults, json.Unmarshal(b, &faults)
 }
 
+func schedulePath(config string, seed uint64) string {
+	return filepath.Join(filepath.Dir(config), ".seedfall", fmt.Sprintf("seed-%d.faults.json", seed))
+}
+
 func saveSchedule(config string, seed uint64, faults []engine.Fault) (string, error) {
-	dir := filepath.Join(filepath.Dir(config), ".seedfall")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	path := schedulePath(config, seed)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return "", err
 	}
-	path := filepath.Join(dir, fmt.Sprintf("seed-%d.faults.json", seed))
 	b, err := json.MarshalIndent(faults, "", "  ")
 	if err != nil {
 		return "", err

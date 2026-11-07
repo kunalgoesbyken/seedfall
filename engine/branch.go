@@ -63,7 +63,7 @@ func (g *guestRandom) Read(p []byte) (int, error) {
 
 func (r *Runner) Branch(seed uint64, at time.Duration, key uint64) Result {
 	started := time.Now()
-	res := r.run(seed, r.Faults(seed), false, &branch{at: int64(at), key: key})
+	res := r.run(seed, r.Faults(seed), false, &branch{at: int64(at), key: key}, nil)
 	res.Elapsed = time.Since(started)
 	return res
 }

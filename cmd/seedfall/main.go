@@ -16,11 +16,13 @@ import (
 const usage = `seedfall: deterministic simulation testing for Go
 
 usage:
-  seedfall run    [-c seedfall.json] [-seeds 1-1000] [-j N] [-v] [-check] [-report report.html]
+  seedfall run    [-c seedfall.json] [-seeds 1-1000] [-j N] [-v] [-check] [-report report.html | -json]
   seedfall replay [-c seedfall.json] -seed N [-faults file.json]
   seedfall shrink [-c seedfall.json] -seed N
   seedfall cause  [-c seedfall.json] -seed N [-points 16] [-branches 20]
+  seedfall inspect [-c seedfall.json] -seed N [-faults file.json] [-at DURATION] [-node name] [-cat path | -out dir]
   seedfall mutate [-c seedfall.json] [-seeds 1-100]
+  seedfall verify [-c seedfall.json] [-seed N [-faults file.json]] [-report report.html] [-seeds range] [-check 10] [-mutate] [-md proof.md]
   seedfall mcp    serve run, replay and shrink to AI coding agents over MCP (stdio)
 `
 
@@ -29,7 +31,7 @@ func main() {
 		fmt.Print(usage)
 		os.Exit(2)
 	}
-	commands := map[string]func([]string) error{"run": cmdRun, "replay": cmdReplay, "shrink": cmdShrink, "cause": cmdCause, "mutate": cmdMutate, "mcp": cmdMCP}
+	commands := map[string]func([]string) error{"run": cmdRun, "replay": cmdReplay, "shrink": cmdShrink, "cause": cmdCause, "inspect": cmdInspect, "mutate": cmdMutate, "verify": cmdVerify, "mcp": cmdMCP}
 	cmd, ok := commands[os.Args[1]]
 	if !ok {
 		fmt.Print(usage)
@@ -61,7 +63,11 @@ func cmdRun(args []string) error {
 	verbose := fs.Bool("v", false, "print every seed")
 	check := fs.Bool("check", false, "run every seed twice and fail if the traces differ")
 	reportPath := fs.String("report", "", "sweep every seed and write an HTML triage report (plus .json) to this path")
+	jsonOut := fs.Bool("json", false, "sweep every seed and print one JSON object per finished seed, then a summary object")
 	fs.Parse(args)
+	if *jsonOut && *reportPath != "" {
+		return errors.New("-json and -report cannot be combined")
+	}
 	lo, hi, err := engine.ParseSeeds(*seeds)
 	if err != nil {
 		return err
@@ -71,6 +77,9 @@ func cmdRun(args []string) error {
 		return err
 	}
 	r.Doublecheck = *check
+	if *jsonOut {
+		return runJSON(r, lo, hi, *jobs)
+	}
 	started := time.Now()
 	sum := engine.Sweep(r, lo, hi, engine.SweepOptions{Jobs: *jobs, KeepGoing: *reportPath != "", OnResult: func(res engine.Result) {
 		if *verbose {
@@ -83,6 +92,7 @@ func cmdRun(args []string) error {
 	}
 	if sum.First != nil {
 		printFailure(*sum.First, 25)
+		fmt.Printf("\nclass: %s\n", r.Classify(*sum.First, nil))
 		fmt.Printf("\n%d seeds passed before the failure, %s\n", sum.Passed, took)
 		fmt.Printf("replay: seedfall replay -c %s -seed %d\nshrink: seedfall shrink -c %s -seed %d\n", *conf, sum.First.Seed, *conf, sum.First.Seed)
 		os.Exit(1)
@@ -115,6 +125,7 @@ func printCoverage(c engine.Coverage) {
 
 func writeReport(r *engine.Runner, cfg *engine.Config, conf, seeds, path string, sum engine.Summary, took time.Duration) error {
 	in := report.Input{Config: conf, Seeds: seeds, Faults: cfg.Faults, Summary: sum, Elapsed: took, Replay: func(seed uint64) engine.Result { return r.Run(seed, nil) }}
+	in.Classify = func(res engine.Result) engine.Classification { return r.Classify(res, nil) }
 	rep, err := report.Generate(in, path, filepath.Join(cfg.Dir, ".seedfall", "history.jsonl"))
 	if err != nil {
 		return err
@@ -122,7 +133,7 @@ func writeReport(r *engine.Runner, cfg *engine.Config, conf, seeds, path string,
 	printCoverage(sum.Coverage)
 	fmt.Printf("%d of %d seeds failed, %d findings, in %s\n", rep.Failed, rep.Total, len(rep.Findings), took)
 	for _, f := range rep.Findings {
-		fmt.Printf("  %-9s %-40s %5d seeds  e.g. seed %d\n", f.Status, f.Key, f.Count, f.Seeds[0])
+		fmt.Printf("  %-9s %-40s %5d seeds  e.g. seed %d  %s\n", f.Status, f.Key, f.Count, f.Seeds[0], f.Classification)
 	}
 	for _, f := range rep.Cleared {
 		fmt.Printf("  %-9s %-40s %s\n", f.Status, f.Key, f.Note)

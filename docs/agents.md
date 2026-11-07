@@ -32,9 +32,11 @@ Config paths in tool calls are resolved against the server's working directory, 
 
 | Tool | Arguments | Returns |
 |---|---|---|
-| `seedfall_run` | `config`, `seeds` (for example `1-200`), optional `check` | Seeds passed, the lowest failing seed with its reason, the faults before the failure, the trace tail and a replay command, plus property coverage |
+| `seedfall_run` | `config`, `seeds` (for example `1-200`), optional `check` | Seeds passed, the lowest failing seed with its reason, [classification](reports.md#classification), the faults before the failure, the trace tail and a replay command, plus property coverage |
 | `seedfall_replay` | `config`, `seed`, optional `faults` file | The same failure view for one seed, or the trace tail if it passes |
 | `seedfall_shrink` | `config`, `seed` | The original and minimal fault counts, the path of the saved minimal schedule, and the failure view under that schedule |
+| `seedfall_inspect` | `config`, `seed`, optional `faults`, `at`, `node`, `path` | Every node's disk at the failure or at virtual time `at`: per file the live and durable sizes, the byte ranges a crash would lose, whether its directory entry is durable, the last torn write, and removed entries a crash would bring back. With `path`, one file's durable content as text or a hex dump ([inspect.md](inspect.md)) |
+| `seedfall_verify` | `config`, `seed` and optional `faults`, and/or `report`; optional `seeds`, `check_seeds`, `mutate`, `md` | Whether the fix holds: each replayed schedule, the fresh sweep with its confidence, the determinism check and the mutants, plus a Markdown proof block for the PR ([verify.md](verify.md)) |
 | `seedfall_cause` | `config`, `seed`, optional `points`, `branches` | The probability of failing from each moment of the run, with the faults between moments, so the agent can see which event made the failure inevitable ([cause.md](cause.md)) |
 
 Every result is structured JSON, so the agent can read the seed, the faults and the trace directly.
@@ -46,6 +48,6 @@ Ask the agent to treat a seed sweep as the definition of done for storage or rep
 1. Run `seedfall_run` over a few hundred seeds before changing anything, to record the baseline.
 2. When a seed fails, run `seedfall_shrink` and read the minimal fault schedule. It usually names the exact window: "crash during disk op #56", then "crash". `seedfall_cause` shows which of those faults made the failure likely.
 3. Fix the code, then `seedfall_replay` the saved schedule until it passes.
-4. Sweep a fresh seed range, ideally with `check: true`, and include the seed range and result in the pull request.
+4. Run `seedfall_verify` with the seed and schedule and paste its `markdown` proof block into the pull request.
 
 Shrunk schedules are small enough that an agent can reason about them step by step. `examples/kvlog` is a good first exercise: its `seedfall.always.json` shrinks to two faults.

@@ -1,0 +1,6 @@
+id: req-health
+name: Health
+description: Readiness probe. It has no checks, so any answer means the server is up.
+order: 1
+method: GET
+url: "{{base_url}}/health"

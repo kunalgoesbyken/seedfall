@@ -26,10 +26,14 @@ func Generate(in Input, htmlPath, historyPath string) (Report, error) {
 	if err := writeHTML(r, htmlPath); err != nil {
 		return r, err
 	}
-	if err := writeJSON(r, strings.TrimSuffix(htmlPath, filepath.Ext(htmlPath))+".json"); err != nil {
+	if err := writeJSON(r, jsonPath(htmlPath)); err != nil {
 		return r, err
 	}
 	return r, appendEntry(historyPath, r.entry())
+}
+
+func jsonPath(reportPath string) string {
+	return strings.TrimSuffix(reportPath, filepath.Ext(reportPath)) + ".json"
 }
 
 func writeHTML(r Report, path string) error {

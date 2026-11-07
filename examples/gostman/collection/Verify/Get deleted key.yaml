@@ -1,0 +1,10 @@
+id: req-get-deleted-key
+name: Get deleted key
+description: An acknowledged delete must stay deleted.
+order: 3
+method: GET
+url: "{{base_url}}/kv/{{deleted_key}}"
+assertions:
+  - expression: res.status
+    operator: eq
+    value: "404"

@@ -1,4 +1,6 @@
-# DRAFT (not filed): tidwall/wal can't reopen after a crash mid-append, and the pending fix (#22) leaves stale bytes that corrupt the log after the next segment rotation
+# tidwall/wal can't reopen after a crash mid-append, and the pending fix (#22) leaves stale bytes that corrupt the log after the next segment rotation
+
+**Upstream:** [tidwall/wal#43](https://github.com/tidwall/wal/issues/43), following up on #21 and PR #22
 
 **Repo:** tidwall/wal (tested on v1.2.1, default options, `NoSync: false`)
 **Status upstream:** the first half is known: issue #21, open since June 2023, and PR #22, unmerged. The second and third parts below are not reported.

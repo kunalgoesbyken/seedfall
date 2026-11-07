@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -26,8 +27,12 @@ func main() {
 		log.Fatal(err)
 	}
 	s.sync = *fsync
-	http.HandleFunc("/put", s.put)
-	http.HandleFunc("/get", s.get)
+	http.HandleFunc("/put", s.putForm)
+	http.HandleFunc("/get", s.getForm)
+	http.HandleFunc("PUT /kv/{key}", s.putPath)
+	http.HandleFunc("GET /kv/{key}", s.getPath)
+	http.HandleFunc("DELETE /kv/{key}", s.deletePath)
+	http.HandleFunc("GET /health", health)
 	log.Printf("serving %d keys", len(s.values))
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
@@ -42,11 +47,14 @@ func open(dir, name string) (*store, error) {
 		return nil, err
 	}
 	values, complete := replay(data)
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0o644)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o644)
 	if err != nil {
 		return nil, err
 	}
 	if err := f.Truncate(int64(complete)); err != nil {
+		return nil, err
+	}
+	if _, err := f.Seek(int64(complete), io.SeekStart); err != nil {
 		return nil, err
 	}
 	if err := f.Sync(); err != nil {
@@ -68,29 +76,54 @@ func replay(data []byte) (map[string]string, int) {
 		if i < 0 {
 			return values, complete
 		}
-		k, v, ok := strings.Cut(string(data[complete:complete+i]), " ")
-		if !ok {
-			return values, complete
+		line := string(data[complete : complete+i])
+		if k, v, ok := strings.Cut(line, " "); ok {
+			values[k] = v
+		} else {
+			delete(values, line)
 		}
-		values[k] = v
 		complete += i + 1
 	}
 }
 
-func syncDir(dir string) error {
-	d, err := os.Open(dir)
-	if err != nil {
-		return err
+func record(key string, value *string) (string, bool) {
+	if key == "" || strings.ContainsAny(key, " \n") {
+		return "", false
 	}
-	defer d.Close()
-	return d.Sync()
+	if value == nil {
+		return key + "\n", true
+	}
+	return key + " " + *value + "\n", !strings.Contains(*value, "\n")
 }
 
-func (s *store) put(w http.ResponseWriter, r *http.Request) {
-	k, v := r.FormValue("k"), r.FormValue("v")
+func (s *store) putForm(w http.ResponseWriter, r *http.Request) {
+	v := r.FormValue("v")
+	s.apply(w, r.FormValue("k"), &v)
+}
+
+func (s *store) putPath(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	v := string(body)
+	s.apply(w, r.PathValue("key"), &v)
+}
+
+func (s *store) deletePath(w http.ResponseWriter, r *http.Request) {
+	s.apply(w, r.PathValue("key"), nil)
+}
+
+func (s *store) apply(w http.ResponseWriter, k string, v *string) {
+	line, ok := record(k, v)
+	if !ok {
+		http.Error(w, "keys cannot hold spaces or line breaks, values cannot hold line breaks", http.StatusBadRequest)
+		return
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, err := fmt.Fprintf(s.file, "%s %s\n", k, v); err != nil {
+	if _, err := io.WriteString(s.file, line); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -98,13 +131,25 @@ func (s *store) put(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	s.values[k] = v
+	if v == nil {
+		delete(s.values, k)
+	} else {
+		s.values[k] = *v
+	}
 	fmt.Fprint(w, "OK")
 }
 
-func (s *store) get(w http.ResponseWriter, r *http.Request) {
+func (s *store) getForm(w http.ResponseWriter, r *http.Request) {
+	s.get(w, r, r.FormValue("k"))
+}
+
+func (s *store) getPath(w http.ResponseWriter, r *http.Request) {
+	s.get(w, r, r.PathValue("key"))
+}
+
+func (s *store) get(w http.ResponseWriter, r *http.Request, k string) {
 	s.mu.Lock()
-	v, ok := s.values[r.FormValue("k")]
+	v, ok := s.values[k]
 	s.mu.Unlock()
 	if !ok {
 		http.NotFound(w, r)
@@ -118,4 +163,8 @@ func (s *store) persist() error {
 		return nil
 	}
 	return s.file.Sync()
+}
+
+func health(w http.ResponseWriter, _ *http.Request) {
+	fmt.Fprint(w, "OK")
 }

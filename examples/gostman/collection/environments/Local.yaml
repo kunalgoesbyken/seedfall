@@ -1,0 +1,8 @@
+id: env-local
+name: Local
+order: 1
+variables:
+  base_url: http://127.0.0.1:8080
+  key: k1
+  value: v1
+  deleted_key: k0

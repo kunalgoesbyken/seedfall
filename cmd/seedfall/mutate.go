@@ -9,21 +9,14 @@ import (
 	"github.com/kunalgoesbyken/seedfall/engine"
 )
 
-type mutantResult struct {
-	mutation engine.Mutation
-	killedBy *engine.Result
-	passed   int
-	weakened int64
-}
-
-func (m mutantResult) verdict() string {
-	switch {
-	case m.killedBy != nil:
-		return fmt.Sprintf("killed     seed %d: %s", m.killedBy.Seed, m.killedBy.Reason)
-	case m.weakened == 0:
+func mutantVerdict(m engine.MutantResult) string {
+	switch m.Outcome() {
+	case engine.MutantKilled:
+		return fmt.Sprintf("killed     seed %d: %s", m.KilledBy.Seed, m.KilledBy.Reason)
+	case engine.MutantUnexercised:
 		return "not exercised (the operation never ran, or has no effect in this configuration)"
 	}
-	return fmt.Sprintf("SURVIVED   %d seeds passed although the operation was weakened %d times", m.passed, m.weakened)
+	return fmt.Sprintf("SURVIVED   %d seeds passed although the operation was weakened %d times", m.Passed, m.Weakened)
 }
 
 func cmdMutate(args []string) error {
@@ -45,15 +38,9 @@ func cmdMutate(args []string) error {
 		return fmt.Errorf("the unmutated system already fails on seed %d (%s); fix that first", base.First.Seed, base.First.Reason)
 	}
 	fmt.Printf("baseline: seeds %s pass\n\n", *seeds)
-	survived := 0
-	for _, m := range engine.Mutations {
-		res := runMutant(r, m, lo, hi, opts)
-		fmt.Printf("  %-14s %s\n  %-14s %s\n\n", m, res.verdict(), "", m.Describe())
-		if res.killedBy == nil && res.weakened > 0 {
-			survived++
-		}
-	}
-	if survived > 0 {
+	mutants := engine.SweepMutants(r, lo, hi, opts)
+	printMutants(mutants)
+	if survived := countSurvivors(mutants); survived > 0 {
 		fmt.Printf("%d mutants survived: your workload does not notice those durability guarantees disappearing\n", survived)
 		os.Exit(1)
 	}
@@ -61,10 +48,18 @@ func cmdMutate(args []string) error {
 	return nil
 }
 
-func runMutant(r *engine.Runner, m engine.Mutation, lo, hi uint64, opts engine.SweepOptions) mutantResult {
-	r.Mutation = m
-	defer func() { r.Mutation = engine.NoMutation }()
-	before := r.Weakened()
-	sum := engine.Sweep(r, lo, hi, opts)
-	return mutantResult{mutation: m, killedBy: sum.First, passed: sum.Passed, weakened: r.Weakened() - before}
+func printMutants(mutants []engine.MutantResult) {
+	for _, m := range mutants {
+		fmt.Printf("  %-14s %s\n  %-14s %s\n\n", m.Mutation, mutantVerdict(m), "", m.Mutation.Describe())
+	}
+}
+
+func countSurvivors(mutants []engine.MutantResult) int {
+	n := 0
+	for _, m := range mutants {
+		if m.Outcome() == engine.MutantSurvived {
+			n++
+		}
+	}
+	return n
 }

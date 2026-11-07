@@ -1,4 +1,6 @@
-# DRAFT ISSUE (not filed): FileSnapshotStore doesn't fsync the snapshot directory before rename, so a crash can leave an empty snapshot after logs were compacted
+# FileSnapshotStore doesn't fsync the snapshot directory before rename, so a crash can leave an empty snapshot after logs were compacted
+
+**Upstream:** [hashicorp/raft#744](https://github.com/hashicorp/raft/issues/744)
 
 **Repo:** hashicorp/raft (tested on v1.8.0)
 **Severity:** a node can't restart (it panics in `NewRaft`). This needs strict POSIX directory-durability semantics.
