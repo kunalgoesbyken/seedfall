@@ -134,6 +134,34 @@
 <td>3 faults</td>
 <td>300 seeds</td>
 </tr>
+<tr>
+<td><a href="jmsadair-raft-state-file-fsync.html">jmsadair/raft</a> v0.2.0</td>
+<td><code>SetState</code> renames the term and vote file into place without fsyncing it. One crash leaves <code>state.bin</code> empty, and the node fails to start forever</td>
+<td>Any filesystem</td>
+<td>1 crash</td>
+<td>150 seeds (all four fixes)</td>
+</tr>
+<tr>
+<td><a href="jmsadair-raft-log-torn-tail.html">jmsadair/raft</a> v0.2.0</td>
+<td><code>Replay</code> never truncates a torn log tail. A partial entry fails every restart; an orphan length prefix is read as a clean end, so new acknowledged entries land behind it and the next restart fails</td>
+<td>Any filesystem</td>
+<td>1 crash</td>
+<td>150 seeds</td>
+</tr>
+<tr>
+<td><a href="jmsadair-raft-tmp-snapshot-dir.html">jmsadair/raft</a> v0.2.0</td>
+<td>A crash mid-snapshot leaves a temp directory whose cleanup fails the next start</td>
+<td>Any filesystem</td>
+<td>1 crash</td>
+<td>150 seeds</td>
+</tr>
+<tr>
+<td><a href="jmsadair-raft-snapshot-wall-clock-order.html">jmsadair/raft</a> v0.2.0</td>
+<td>Snapshots are ordered by wall-clock name, so after a clock step back a restart loads an old snapshot behind the compacted log and never starts</td>
+<td>Any filesystem</td>
+<td>1 clock jump, 2 crashes</td>
+<td>100 seeds</td>
+</tr>
 </tbody></table>
 <p>Systems that passed (no false alarms):</p>
 <div class="table-scroll"><table>
@@ -158,6 +186,11 @@
 <td>NATS JetStream v2.15.2</td>
 <td><code>SyncAlways</code>, R1 file stream, 300 publishes</td>
 <td>150 seeds under crashes, torn writes and crashes mid-I/O</td>
+</tr>
+<tr>
+<td>NATS JetStream cluster v2.15.2</td>
+<td>3 nodes, R3 stream on NATS raft, <code>sync_always</code>, faults during publishes</td>
+<td>200 seeds; under strict directories it loses acknowledged R3 messages after three single-node crashes, the same missing directory fsyncs as the single-server finding</td>
 </tr>
 <tr>
 <td>tidwall/buntdb v1.3.2</td>

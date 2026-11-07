@@ -46,6 +46,7 @@ faults before the failure (2):
 | **nutsdb** | `bucket.Meta` is never fsynced, so one crash can make recovery drop every acknowledged entry in a bucket. A torn tail also makes `Open` fail with `crc error` forever. 3 issues, 1 fault each. |
 | **bitcask** | `Open` rewrites `config.json` without fsync, and auto-recovery fails on the torn tails it is meant to repair. Either leaves the database unopenable after one crash. 4 issues. |
 | **diskv** | A synced `WriteStream` renames into place without fsyncing the directory, so under strict POSIX an acknowledged write can revert. |
+| **jmsadair/raft** | Four ways one crash or one clock step back leaves a node that can never restart: an unsynced term/vote file, an untruncated torn log tail, a leftover temp snapshot directory, and snapshots ordered by wall clock. Not filed: the repository is no longer public. |
 
 hashicorp/raft (600 seeds) and etcd-io/raft (100 seeds) pass cleanly, with linearizability checked, and their negative controls are caught. Details, replay commands and verified fixes: [docs/findings](docs/findings/README.md).
 
@@ -142,6 +143,8 @@ The [getting started guide](docs/getting-started.md) walks through finding, shri
 | [`examples/nutsdb`](examples/nutsdb) | A key-value server on nutsdb, with the `bucket.Meta`, torn-tail, rotation and fsync-error findings |
 | [`examples/bitcask`](examples/bitcask) | bitcask v2, with the `config.json`, auto-recovery, rotation and fsync-error findings |
 | [`examples/diskv`](examples/diskv) | peterbourgon/diskv with `TempDir` and synced writes, including the directory-fsync finding |
+| [`examples/jmsraft`](examples/jmsraft) | jmsadair/raft v0.2.0 with its own storage, linearizability checked, and its stock gRPC transport available under `net_overlay` |
+| [`examples/natscluster`](examples/natscluster) | A 3-node nats-server cluster with an R3 JetStream stream, run unmodified through `net_overlay` |
 | [`examples/ledger`](examples/ledger) | A service with no seedfall imports, checked only with the Antithesis SDK's assertions |
 | [`examples/httpkv`](examples/httpkv) | A plain `net/http` server with no seedfall code, run through `net_overlay` |
 | [`examples/gostman`](examples/gostman) | A [Gostman](https://github.com/kunalgoesbyken/gostman) collection as the workload: its checks must pass after every fault window |

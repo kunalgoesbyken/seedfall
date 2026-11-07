@@ -17,6 +17,10 @@ Bugs that seedfall found in open-source Go projects. Each report has the root ca
 | [prologic/bitcask](bitcask-recovered-datafile-fsync.md) v2.2.0 | Auto-recovery renames an unsynced copy over the last datafile, so a second crash can wipe acknowledged writes | Any filesystem | 3 faults | 300 seeds |
 | [prologic/bitcask](bitcask-rotation-dir-fsync-and-eio.md) v2.2.0 | A new datafile is never directory-fsynced, and a failed fsync doesn't rewind the offset | Strict POSIX; fsync errors | 1 crash; 1 EIO, 1 crash | 300 seeds |
 | [peterbourgon/diskv](diskv-rename-dir-fsync.md) v3.0.1 | `WriteStream` with sync and `TempDir` never fsyncs the directory after the rename, so an acknowledged write can revert | Strict POSIX | 3 faults | 300 seeds |
+| [jmsadair/raft](jmsadair-raft-state-file-fsync.md) v0.2.0 | `SetState` renames the term and vote file into place without fsyncing it. One crash leaves `state.bin` empty, and the node fails to start forever | Any filesystem | 1 crash | 150 seeds (all four fixes) |
+| [jmsadair/raft](jmsadair-raft-log-torn-tail.md) v0.2.0 | `Replay` never truncates a torn log tail. A partial entry fails every restart; an orphan length prefix is read as a clean end, so new acknowledged entries land behind it and the next restart fails | Any filesystem | 1 crash | 150 seeds |
+| [jmsadair/raft](jmsadair-raft-tmp-snapshot-dir.md) v0.2.0 | A crash mid-snapshot leaves a temp directory whose cleanup fails the next start | Any filesystem | 1 crash | 150 seeds |
+| [jmsadair/raft](jmsadair-raft-snapshot-wall-clock-order.md) v0.2.0 | Snapshots are ordered by wall-clock name, so after a clock step back a restart loads an old snapshot behind the compacted log and never starts | Any filesystem | 1 clock jump, 2 crashes | 100 seeds |
 
 Systems that passed (no false alarms):
 
@@ -25,6 +29,7 @@ Systems that passed (no false alarms):
 | hashicorp/raft v1.8 | 3 nodes, 4 concurrent clients, Porcupine | 600 seeds durable, 60 seeds linearizable, also over the stock `NewTCPTransport` |
 | etcd-io/raft v3.7 | 3 nodes, raftexample-style storage, Porcupine | 100 seeds, plus 100 under strict directories |
 | NATS JetStream v2.15.2 | `SyncAlways`, R1 file stream, 300 publishes | 150 seeds under crashes, torn writes and crashes mid-I/O |
+| NATS JetStream cluster v2.15.2 | 3 nodes, R3 stream on NATS raft, `sync_always`, faults during publishes | 200 seeds; under strict directories it loses acknowledged R3 messages after three single-node crashes, the same missing directory fsyncs as the single-server finding |
 | tidwall/buntdb v1.3.2 | `SyncPolicy: Always` without shrink | 300 seeds, plus 300 with torn writes and crashes mid-I/O |
 
 Each system also had a negative control (for example, skipping fsync) that seedfall caught, so the passing results are not vacuous.

@@ -1,0 +1,20 @@
+[
+  {
+    "at": "981.124ms",
+    "kind": "clock_jump",
+    "node": "n3",
+    "shift": "-4.856s"
+  },
+  {
+    "at": "1.837318s",
+    "kind": "crash",
+    "node": "n2",
+    "until": "2.710503s"
+  },
+  {
+    "at": "2.106889s",
+    "kind": "crash",
+    "node": "n3",
+    "until": "2.684051s"
+  }
+]

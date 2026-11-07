@@ -296,7 +296,7 @@ n2#2 | panic: log not found
       </article>
     </div>
     <div class="ledger-wrap">
-      <p class="case-k">More bugs, in storage libraries</p>
+      <p class="case-k">More bugs, in storage and raft libraries</p>
       <table class="ledger">
         <tbody>
           <tr><td>nutsdb v1.1.0</td><td><a href="proof/nutsdb-bucket-meta-fsync.html"><code>bucket.Meta</code> is never fsynced, so one crash drops every entry in a bucket</a></td><td class="bad">1 crash</td></tr>
@@ -307,6 +307,9 @@ n2#2 | panic: log not found
           <tr><td>bitcask v2.2.0</td><td><a href="proof/bitcask-recovered-datafile-fsync.html">Auto-recovery renames an unsynced copy over the last datafile</a></td><td class="bad">3 faults</td></tr>
           <tr><td>bitcask v2.2.0</td><td><a href="proof/bitcask-rotation-dir-fsync-and-eio.html">New datafiles are never directory-fsynced; a failed fsync doesn&rsquo;t rewind</a></td><td class="bad">strict POSIX · EIO</td></tr>
           <tr><td>peterbourgon/diskv v3.0.1</td><td><a href="proof/diskv-rename-dir-fsync.html">A synced write renames into place without a directory fsync</a></td><td class="bad">strict POSIX</td></tr>
+          <tr><td>jmsadair/raft v0.2.0</td><td><a href="proof/jmsadair-raft-state-file-fsync.html">The term and vote file is renamed in unsynced; one crash and the node never restarts</a></td><td class="bad">1 crash</td></tr>
+          <tr><td>jmsadair/raft v0.2.0</td><td><a href="proof/jmsadair-raft-log-torn-tail.html">A torn log tail is never truncated, so restarts fail now or later</a></td><td class="bad">1 crash</td></tr>
+          <tr><td>jmsadair/raft v0.2.0</td><td><a href="proof/jmsadair-raft-snapshot-wall-clock-order.html">Snapshots ordered by wall clock: a clock step back bricks the node</a></td><td class="bad">clock jump · 2 crashes</td></tr>
         </tbody>
       </table>
     </div>
@@ -318,6 +321,7 @@ n2#2 | panic: log not found
           <tr><td><svg class="logo" aria-hidden="true"><use href="#hashicorp"/></svg>hashicorp/raft, stock TCP transport</td><td>unmodified <code>net.Listen</code> via net_overlay</td><td class="ok">20 seeds linearizable</td></tr>
           <tr><td><svg class="logo" aria-hidden="true"><use href="#etcd"/></svg>etcd-io/raft v3.7</td><td>raftexample-style WAL and snapshots</td><td class="ok">100 seeds · 100 strict</td></tr>
           <tr><td><svg class="logo" aria-hidden="true"><use href="#nats"/></svg>NATS JetStream, SyncAlways</td><td>R1 file stream, torn writes, crashes mid-I/O</td><td class="ok">150 seeds</td></tr>
+          <tr><td><svg class="logo" aria-hidden="true"><use href="#nats"/></svg>NATS JetStream, 3-node cluster</td><td>R3 stream on NATS raft, unmodified via net_overlay</td><td class="ok">200 seeds</td></tr>
           <tr><td>tidwall/buntdb, no shrink</td><td>torn writes, crashes mid-I/O</td><td class="ok">300 seeds</td></tr>
           <tr><td>examples/kvlog, fixed</td><td>crashes, partitions, torn writes</td><td class="ok">3,000 seeds</td></tr>
         </tbody>
