@@ -102,7 +102,7 @@ h2 { font-family: var(--display); font-weight: 300; font-size: clamp(38px, 4.6vw
 .cols .col-k { font-weight: 600; font-size: 17px; color: var(--dark); }
 .tiles { row-gap: 56px; margin-top: 72px; }
 .tiles h4 { font-family: var(--display); font-weight: 400; font-size: 25px; line-height: 1.15; }
-.steps .code { margin-top: auto; font-size: 12.5px; }
+.steps .code { font-size: 12.5px; }
 .cols .kicker { font-family: var(--mono); font-size: 12.5px; color: var(--ember-deep); }
 
 .feature { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; margin-top: 64px; }
@@ -164,3 +164,4 @@ td.m { color: #8a6a1f; }
 .gh:hover { color: var(--text); }
 .gh svg { width: 26px; height: 26px; }
 .btn .icon { width: 18px; height: 18px; margin-right: 10px; }
+.sprite { position: absolute; }
