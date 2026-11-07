@@ -1,0 +1,7 @@
+.seedfall/
+.prof/
+.playwright-mcp/
+*.exe
+*.wasm
+/seedfall
+.impeccable/

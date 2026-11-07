@@ -1,0 +1,18 @@
+{
+  "nodes": [
+    { "name": "n1", "pkg": "./node", "args": ["-no-fsync"] },
+    { "name": "n2", "pkg": "./node", "args": ["-no-fsync"] },
+    { "name": "n3", "pkg": "./node", "args": ["-no-fsync"] }
+  ],
+  "workload": { "name": "client", "pkg": "./client" },
+  "duration": "120s",
+  "latency": ["1ms", "8ms"],
+  "faults": {
+    "crash_per_sec": 0.15,
+    "restart_after": ["50ms", "1s"],
+    "partition_per_sec": 0.2,
+    "partition_for": ["100ms", "2s"],
+    "torn_writes": true,
+    "crash_on_io": 0.002
+  }
+}

@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>seedfall: deterministic simulation testing for Go</title>
+<meta name="description" content="Open-source deterministic simulation testing for Go. Run unmodified Go services under simulated crashes, torn writes, lost fsyncs and network partitions, then replay any failure from a single seed. Stock toolchain, no forks, free.">
+<meta property="og:title" content="seedfall: every crash, replayable from one seed">
+<meta property="og:description" content="Deterministic simulation testing for Go on the stock toolchain. Finds lost writes, torn-write recovery bugs and consensus failures, then shrinks them to the faults that matter.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap nav-row">
+    <a class="brand" href="#"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <nav class="links">
+      <a href="#how">How it works</a>
+      <a href="#proof">Proof</a>
+      <a href="#compare">Compare</a>
+      <a href="#start">Quickstart</a>
+    </nav>
+    <a class="btn btn-solid btn-sm" href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <p class="eyebrow">Deterministic simulation testing for Go</p>
+      <h1>Every crash, torn write and partition.<br><em>Replayable from one seed.</em></h1>
+      <p class="lede">seedfall runs your unmodified Go services inside a simulated world, then crashes them mid-write, loses their fsyncs and partitions their network. When something breaks, you get the seed, the exact fault schedule and a trace. Runs on the stock Go toolchain and costs nothing.</p>
+      <div class="cta">
+        <button class="install" data-copy="go install github.com/kunalgoesbyken/seedfall/cmd/seedfall@latest"><span class="prompt">$</span><span class="cmd">go install github.com/kunalgoesbyken/seedfall/cmd/seedfall@latest</span><span class="copy">copy</span></button>
+      </div>
+      <a class="textlink" href="#proof">See it break hashicorp/raft &rarr;</a>
+    </div>
+    <figure class="term" aria-label="seedfall output">
+      <div class="term-bar"><span></span><span></span><span></span><p>seedfall replay -seed 1 -faults seed-1.faults.json</p></div>
+<pre><b class="bad">FAIL</b> seed 1 at t=3.130s <s>(871 steps, 518ms real)</s>
+  client#1: acknowledged write lost: k64=v64
+
+<b>faults before the failure (2)</b>  <s>shrunk from 33</s>
+  445ms  crash server during disk op #56
+  1.705s crash server, restart at 1.943s
+
+<b>trace</b>
+<s>0.000s</s>  start server#1
+<s>0.445s</s>  <i>fault</i> crash server#1 during disk op 56
+<s>0.809s</s>  server#2| serving 27 keys
+<s>1.705s</s>  <i>fault</i> crash server#2
+<s>1.943s</s>  server#3| serving 80 keys
+<s>2.929s</s>  client#1| 139 of 200 writes acknowledged
+<s>3.130s</s>  <b class="bad">FAIL</b> acknowledged write lost: k64=v64</pre>
+    </figure>
+  </div>
+  <div class="wrap runs-on">
+    <p>Built on and tested against</p>
+    <ul><li>Go 1.27 stock toolchain</li><li>wazero</li><li>hashicorp/raft v1.8</li><li>GOOS=wasip1</li><li>Windows · macOS · Linux</li></ul>
+  </div>
+</section>
+
+<section class="stats">
+  <div class="wrap stat-grid">
+    <div class="stat"><p class="label">hashicorp/raft</p><p class="num">75 → 3</p><p>A lost committed write in a 3-node raft cluster with a non-fsyncing log store, shrunk to the three crashes that cause it.</p></div>
+    <div class="stat"><p class="label">fsync-before-ack</p><p class="num">8 seeds</p><p>Enough to find a torn-tail recovery bug that survives the "obvious" durability fix.</p></div>
+    <div class="stat"><p class="label">false alarms</p><p class="num">0 / 3,000</p><p>Seeds swept against the correctly fixed store under crashes, partitions and torn writes.</p></div>
+  </div>
+  <div class="wrap what">
+    <p class="eyebrow">What is seedfall</p>
+    <p class="big">The bugs that lose data come from rare combinations: a crash between write and fsync, a restart that misreads a half-written record, a partition during a leader change. Normal tests almost never hit them, and when production does, you can't reproduce it.</p>
+    <p class="big muted">seedfall compiles each node to <code>GOOS=wasip1</code> and runs it under a scheduler that owns every source of nondeterminism: time, randomness, goroutine interleaving, disk and network. Same seed, same run, byte for byte.</p>
+  </div>
+</section>
+
+<section class="light">
+  <div class="wrap">
+    <p class="eyebrow center">The problem</p>
+    <h2 class="center">Bugs your test suite can't reach</h2>
+    <p class="sub center">These aren't hypothetical. They keep turning up in mature Go systems years after release.</p>
+    <div class="cards">
+      <article class="card">
+        <p class="card-k">Lost acknowledged writes</p>
+        <p>Jepsen found NATS JetStream 2.12.1 losing <strong>679,153 of 1,367,069</strong> acknowledged writes after file corruption, and acknowledging messages that had not been fsynced.</p>
+        <a href="https://jepsen.io/analyses/nats-2.12.1">jepsen.io/analyses/nats-2.12.1</a>
+      </article>
+      <article class="card">
+        <p class="card-k">Recovery that misreads its own log</p>
+        <p>A crash mid-append leaves a torn record. Without truncation on recovery, the next write is glued onto garbage and silently lost on the following restart.</p>
+        <a href="#proof">Reproduced below</a>
+      </article>
+      <article class="card">
+        <p class="card-k">Divergence after a crash</p>
+        <p>etcd 3.5.0–3.5.5 could diverge after a crash during defragmentation, and it went unnoticed for five patch releases.</p>
+        <a href="https://groups.google.com/g/etcd-dev/c/8S7u6NqW6C4">etcd-dev notice</a>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="light alt" id="how">
+  <div class="wrap">
+    <p class="eyebrow center">How it works</p>
+    <h2 class="center">A whole cluster on one simulated clock</h2>
+    <div class="feature">
+      <div>
+        <h3>Perfect determinism, no forked toolchain</h3>
+        <p>On <code>wasip1</code>, the Go runtime is single-threaded and reaches the outside world through three calls: <code>random_get</code>, <code>clock_time_get</code> and <code>poll_oneoff</code>. seedfall implements them. Map order, <code>select</code> choices, timers and goroutine scheduling all follow the seed. There's no <code>linkname</code>, no source rewriting and no patched runtime, so new Go releases don't break it.</p>
+      </div>
+      <pre class="code"><s># same seed, separate processes</s>
+$ seedfall replay -seed 3 &gt; a.txt
+$ seedfall replay -seed 3 &gt; b.txt
+$ diff a.txt b.txt
+<s>1c1  only the wall-clock line differs</s>
+&lt; FAIL seed 3 at t=4.173s (6252 steps, <b>2.82s</b> real)
+&gt; FAIL seed 3 at t=4.173s (6252 steps, <b>914ms</b> real)</pre>
+    </div>
+    <div class="grid4">
+      <div class="tile">
+        <p class="tile-k">Disk</p>
+        <h4>Real fsync semantics</h4>
+        <p>Your code uses plain <code>os.File</code>. A crash keeps only what was synced. With torn writes on, it keeps a random prefix of pending writes, down to a partial record.</p>
+      </div>
+      <div class="tile">
+        <p class="tile-k">Crashes</p>
+        <h4>Crash mid-operation</h4>
+        <p>Nodes die while idle or in the middle of a disk write. Each node is its own wasm instance, so a restart starts from a clean process over the surviving disk.</p>
+      </div>
+      <div class="tile">
+        <p class="tile-k">Network</p>
+        <h4>Partitions and resets</h4>
+        <p>Ordered streams with seeded latency, partitions that hold traffic until they heal, and connection resets when a peer dies. Blocked reads use Go's own poller, with no polling.</p>
+      </div>
+      <div class="tile">
+        <p class="tile-k">Correctness</p>
+        <h4>Linearizability, checked</h4>
+        <p>Record operations with <code>sim.Put</code> and <code>sim.Get</code> from concurrent clients. Every run is checked with Porcupine, and violations come with an interactive timeline.</p>
+      </div>
+      <div class="tile">
+        <p class="tile-k">Filesystem</p>
+        <h4>Strict POSIX directories</h4>
+        <p>Turn on <code>strict_dirs</code> and a create or rename survives a crash only once its parent directory is fsynced. This is the bug class ALICE found in LevelDB.</p>
+      </div>
+      <div class="tile">
+        <p class="tile-k">Debugging</p>
+        <h4>Shrink to the cause</h4>
+        <p><code>seedfall shrink</code> drops faults one at a time while the failure persists and saves the minimal schedule. It cut 75 faults down to 3 on raft.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="dark" id="proof">
+  <div class="wrap">
+    <p class="eyebrow">Proof</p>
+    <h2>Real code, real bugs</h2>
+    <div class="cases">
+      <article class="case">
+        <p class="case-k">hashicorp/raft v1.8 · 3 nodes</p>
+        <h3>A committed write disappears</h3>
+        <p>The real raft library with its own <code>NetworkTransport</code> runs inside seedfall. The correct cluster passes every seed. With a log store that skips fsync, seed 9 loses an acknowledged write, and shrinking explains why: the leader crashes mid-write, then both followers crash, and none of them had synced the entry, so no copy survives.</p>
+<pre class="code dark-code">faults before the failure (3)  <s>shrunk from 75</s>
+  1.983s  crash n1 during disk op #58
+  2.123s  crash n2, restart at 2.957s
+  2.405s  crash n3, restart at 2.591s
+<b class="bad">FAIL</b> acknowledged write lost: k47=v47</pre>
+      </article>
+      <article class="case">
+        <p class="case-k">log-structured KV · examples/kvlog</p>
+        <h3>The fix that wasn't</h3>
+        <p>Version 1 acknowledges before fsync and fails on the second seed. Version 2 fsyncs before every ack, which is the obvious fix, and still loses data: a crash during an append leaves a torn tail, recovery doesn't truncate it, and the next record is lost. Version 3 truncates on recovery and passes 3,000 seeds.</p>
+<pre class="code dark-code">-sync=batch            <b class="bad">FAIL</b> seed 1
+-sync=always           <b class="bad">FAIL</b> seed 1 <s>(torn tail)</s>
+-sync=always -repair   <b class="ok">ok</b>   3000 seeds</pre>
+      </article>
+      <article class="case wide">
+        <p class="case-k">hashicorp/raft v1.8 · strict POSIX directories · unreported</p>
+        <h3>An empty snapshot bricks a node</h3>
+        <p>Raft fsyncs <code>state.bin</code> and <code>meta.json</code>, renames the snapshot into place and fsyncs the parent, but never fsyncs the snapshot directory itself. With strict directory semantics, one crash after the first snapshot leaves an empty snapshot directory. The log has already been compacted, so <code>NewRaft</code> panics with <code>log not found</code> on every restart. A five-line directory fsync fixes it, and 120 more seeds pass. On ext4, XFS and btrfs a file fsync usually persists the entry anyway, so the exposure is to POSIX-strict filesystems.</p>
+<pre class="code dark-code">n2#2 | DIAG snapshot 2-72-1767225601464 contains []
+n2#2 | [ERROR] failed to get log: index=1 error="log not found"
+n2#2 | panic: log not found   <s>raft.NewRaft api.go:617</s>
+<b class="ok">patched</b>  seed 7 ok · seeds 1-120 ok</pre>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="light" id="compare">
+  <div class="wrap">
+    <p class="eyebrow center">Compare</p>
+    <h2 class="center">Why another DST tool</h2>
+    <p class="sub center">Every Go option so far requires you to give something up.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th></th><th>seedfall</th><th>gosim forks</th><th>faultline &amp; co.</th><th>testing/synctest</th><th>Antithesis</th></tr></thead>
+        <tbody>
+          <tr><td>Stock Go toolchain</td><td class="y">yes</td><td class="n">needs linkname flags</td><td class="y">yes</td><td class="y">yes</td><td class="y">yes</td></tr>
+          <tr><td>Code changes</td><td class="y">one line for the listener/dialer</td><td class="y">none</td><td class="n">inject net and fs everywhere</td><td class="n">fakes required</td><td class="y">none</td></tr>
+          <tr><td>Multi-process crash + restart</td><td class="y">yes</td><td class="y">yes</td><td class="m">partial</td><td class="n">no</td><td class="y">yes</td></tr>
+          <tr><td>Torn writes, lost fsync</td><td class="y">yes</td><td class="m">lost writes</td><td class="m">varies</td><td class="n">no</td><td class="y">yes</td></tr>
+          <tr><td>Controls goroutine order</td><td class="y">yes</td><td class="y">yes</td><td class="m">varies</td><td class="n">no</td><td class="y">yes</td></tr>
+          <tr><td>Windows</td><td class="y">yes</td><td class="n">no</td><td class="y">yes</td><td class="y">yes</td><td class="n">SaaS</td></tr>
+          <tr><td>Price</td><td class="y">free, Apache-2.0</td><td class="y">free</td><td class="y">free</td><td class="y">free</td><td class="n">from $17,520/yr</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note center">Antithesis price from its AWS Marketplace listing. gosim needs <code>-checklinkname=0</code> and private runtime contracts.</p>
+  </div>
+</section>
+
+<section class="light alt" id="start">
+  <div class="wrap">
+    <p class="eyebrow center">Quickstart</p>
+    <h2 class="center">Three steps to your first seed</h2>
+    <div class="steps">
+      <div class="step">
+        <p class="tile-k">One line</p>
+        <p>Create listeners and dialers through <code>sim</code>. Outside the simulator it is plain <code>net</code>.</p>
+<pre class="code">ln, err := sim.Listen("tcp", ":7000")
+conn, err := sim.Dial("tcp", "server:7000")</pre>
+      </div>
+      <div class="step">
+        <p class="tile-k">Describe the world</p>
+        <p>Nodes, a workload that checks your invariants, and how hostile the world should be.</p>
+<pre class="code">{
+  "nodes": [{ "name": "server", "pkg": "./server" }],
+  "workload": { "name": "client", "pkg": "./client" },
+  "faults": { "crash_per_sec": 0.5, "torn_writes": true,
+              "crash_on_io": 0.005, "partition_per_sec": 0.2 }
+}</pre>
+      </div>
+      <div class="step">
+        <p class="tile-k">Sweep, replay, shrink</p>
+        <p>Failures print the seed. Replays are exact. Shrinking keeps only the faults that matter.</p>
+<pre class="code">$ seedfall run -seeds 1-5000
+$ seedfall replay -seed 9
+$ seedfall shrink -seed 9</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="final">
+  <div class="wrap center">
+    <p class="eyebrow center">Open source · Apache-2.0</p>
+    <h2>Find it on seed 9,<br><em>not in production.</em></h2>
+    <div class="cta center-row">
+      <a class="btn btn-solid" href="https://github.com/kunalgoesbyken/seedfall">Star on GitHub</a>
+      <a class="btn btn-ghost" href="#start">Quickstart</a>
+    </div>
+  </div>
+</section>
+
+<footer class="foot">
+  <div class="wrap foot-row">
+    <a class="brand" href="#"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <p>Built by <a href="https://github.com/kunalgoesbyken">Kunal Roy Choudhury</a> · on <a href="https://wazero.io">wazero</a></p>
+  </div>
+</footer>
+
+<script>
+document.querySelectorAll('[data-copy]').forEach(b => b.addEventListener('click', async () => {
+  await navigator.clipboard.writeText(b.dataset.copy);
+  const c = b.querySelector('.copy');
+  c.textContent = 'copied';
+  setTimeout(() => { c.textContent = 'copy'; }, 1500);
+}));
+</script>
+</body>
+</html>

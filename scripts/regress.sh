@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+set -u
+root="$(cd "$(dirname "$0")/.." && pwd)"
+bin="$root/seedfall"
+go build -o "$bin" "$root/cmd/seedfall" || exit 1
+
+failures=0
+
+expect() {
+  local dir="$1" config="$2" seeds="$3" want="$4"
+  local out status
+  out="$(cd "$root/examples/$dir" && "$bin" run -c "$config" -seeds "$seeds" 2>&1)"
+  status=$?
+  local got="pass"
+  [ $status -ne 0 ] && got="fail"
+  local summary
+  summary="$(printf '%s\n' "$out" | grep -m1 -E '^(ok|FAIL)')"
+  if [ "$got" = "$want" ]; then
+    printf 'PASS  %-8s %-24s want=%-4s  %s\n' "$dir" "$config" "$want" "$summary"
+  else
+    printf 'FAIL  %-8s %-24s want=%-4s  %s\n' "$dir" "$config" "$want" "$summary"
+    failures=$((failures + 1))
+  fi
+}
+
+deterministic() {
+  local dir="$1" config="$2" seed="$3"
+  local a b
+  a="$(cd "$root/examples/$dir" && "$bin" replay -c "$config" -seed "$seed" 2>&1 | sed -E 's/[0-9.]+(ms|s) real//')"
+  b="$(cd "$root/examples/$dir" && "$bin" replay -c "$config" -seed "$seed" 2>&1 | sed -E 's/[0-9.]+(ms|s) real//')"
+  if [ "$a" = "$b" ]; then
+    printf 'PASS  %-8s %-24s replay of seed %s is identical (%d lines)\n' "$dir" "$config" "$seed" "$(printf '%s\n' "$a" | wc -l)"
+  else
+    printf 'FAIL  %-8s %-24s replay of seed %s differs\n' "$dir" "$config" "$seed"
+    failures=$((failures + 1))
+  fi
+}
+
+expect kvlog  seedfall.json          1-50   fail
+expect kvlog  seedfall.always.json   1-100  fail
+expect kvlog  seedfall.fixed.json    1-300  pass
+expect kvlog  seedfall.strict.json   1-200  pass
+expect raftkv seedfall.json          1-40   pass
+expect raftkv seedfall.nofsync.json  1-120  fail
+expect raftkv seedfall.lin.json      1-30   pass
+expect raftkv nofsync.lin.json       1-120  fail
+expect raftkv strict.lin.json        1-30   fail
+deterministic kvlog  seedfall.always.json 1
+deterministic raftkv seedfall.lin.json    3
+
+echo
+[ $failures -eq 0 ] && echo "regression: all checks passed" || echo "regression: $failures check(s) failed"
+exit $failures
