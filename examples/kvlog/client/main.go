@@ -27,6 +27,7 @@ func main() {
 		time.Sleep(*gap)
 	}
 	fmt.Printf("%d of %d writes acknowledged, verifying\n", len(acked), *writes)
+	sim.Sometimes(len(acked) < *writes, "a crash interrupted the workload")
 	for _, e := range acked {
 		reply := callUntilServed(*addr, "GET "+e.key)
 		sim.Assert(reply == "VAL "+e.value, fmt.Sprintf("acknowledged write lost: %s=%s, server now answers %q", e.key, e.value, reply))

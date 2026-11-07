@@ -14,22 +14,24 @@ import (
 )
 
 type Result struct {
-	Seed     uint64
-	Failed   bool
-	Reason   string
-	At       time.Duration
-	Finished bool
-	Steps    int
-	Faults   []Fault
-	Trace    []string
-	Elapsed  time.Duration
-	History  Linearizability
+	Seed       uint64
+	Failed     bool
+	Reason     string
+	At         time.Duration
+	Finished   bool
+	Steps      int
+	Faults     []Fault
+	Trace      []string
+	Elapsed    time.Duration
+	History    Linearizability
+	Properties map[string]*Property
 }
 
 type Runner struct {
-	cfg   *Config
-	cache wazero.CompilationCache
-	wasm  map[string][]byte
+	Doublecheck bool
+	cfg         *Config
+	cache       wazero.CompilationCache
+	wasm        map[string][]byte
 }
 
 func NewRunner(cfg *Config) (*Runner, error) {
@@ -76,10 +78,39 @@ func (r *Runner) Run(seed uint64, faults []Fault) Result {
 	if !explicit {
 		faults = r.Faults(seed)
 	}
+	res := r.timedRun(seed, faults, explicit)
+	if !r.Doublecheck {
+		return res
+	}
+	again := r.timedRun(seed, faults, explicit)
+	if line, diverged := divergence(res.Trace, again.Trace); diverged {
+		res.Failed, res.At = true, 0
+		res.Reason = fmt.Sprintf("nondeterminism: two runs of seed %d diverge at trace line %d: %q vs %q", seed, line+1, lineAt(res.Trace, line), lineAt(again.Trace, line))
+	}
+	return res
+}
+
+func (r *Runner) timedRun(seed uint64, faults []Fault, explicit bool) Result {
 	started := time.Now()
 	res := r.run(seed, faults, explicit)
 	res.Elapsed = time.Since(started)
 	return res
+}
+
+func divergence(a, b []string) (int, bool) {
+	for i := range min(len(a), len(b)) {
+		if a[i] != b[i] {
+			return i, true
+		}
+	}
+	return min(len(a), len(b)), len(a) != len(b)
+}
+
+func lineAt(lines []string, i int) string {
+	if i < len(lines) {
+		return lines[i]
+	}
+	return "<end of trace>"
 }
 
 func (r *Runner) run(seed uint64, faults []Fault, explicit bool) Result {
@@ -91,7 +122,7 @@ func (r *Runner) run(seed uint64, faults []Fault, explicit bool) Result {
 		cfg: r.cfg, seed: seed, ctx: ctx, rt: rt,
 		sched: streams(seed, "sched"), netRand: streams(seed, "net"), diskRand: streams(seed, "disk"),
 		events: make(chan event), faults: faults, trace: &tracer{}, wasm: r.wasm,
-		explicit: explicit, ioRand: streams(seed, "io"),
+		explicit: explicit, ioRand: streams(seed, "io"), props: properties{},
 	}
 	w.net = newNetwork(w)
 	res := Result{Seed: seed, Faults: faults}
@@ -103,6 +134,7 @@ func (r *Runner) run(seed uint64, faults []Fault, explicit bool) Result {
 	w.shutdown()
 	w.checkLinearizable()
 	res.History = w.lin
+	res.Properties = w.props
 	res.Failed = w.failure != ""
 	res.Reason = w.failure
 	res.At = time.Duration(w.failAt)

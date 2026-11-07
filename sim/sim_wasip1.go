@@ -46,6 +46,18 @@ func hostString(fn func(unsafe.Pointer, uint32) int32, s string) int32 {
 	return fn(bytesPtr(b), uint32(len(b)))
 }
 
+//go:wasmimport seedfall property
+func hostProperty(k, cond int32, msg unsafe.Pointer, msgLen uint32, detail unsafe.Pointer, detailLen uint32)
+
+func property(k kind, cond bool, msg string, details []any) {
+	m, d := []byte(msg), []byte(describe(details))
+	c := int32(0)
+	if cond {
+		c = 1
+	}
+	hostProperty(int32(k), c, bytesPtr(m), uint32(len(m)), bytesPtr(d), uint32(len(d)))
+}
+
 func Fail(msg string) {
 	b := []byte(msg)
 	hostFail(bytesPtr(b), uint32(len(b)))

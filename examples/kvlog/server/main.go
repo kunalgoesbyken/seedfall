@@ -81,6 +81,7 @@ func open(path string, repair bool) (*store, error) {
 	if err != nil {
 		return nil, err
 	}
+	sim.Sometimes(complete < len(data), "recovery found a torn tail")
 	if repair && complete < len(data) {
 		if err := f.Truncate(int64(complete)); err != nil {
 			return nil, err

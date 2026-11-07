@@ -27,9 +27,13 @@ func Sweep(t testing.TB, config, seeds string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	first, passed, _ := engine.Sweep(r, lo, hi, runtime.NumCPU(), func(engine.Result) {})
+	sum := engine.Sweep(r, lo, hi, runtime.NumCPU(), func(engine.Result) {})
+	first := sum.First
 	if first == nil {
-		t.Logf("seedfall: %d seeds passed", passed)
+		if unmet := sum.Coverage.Unmet(); len(unmet) > 0 {
+			t.Fatalf("seedfall: properties never satisfied in %d seeds: %s", sum.Passed, strings.Join(unmet, "; "))
+		}
+		t.Logf("seedfall: %d seeds passed", sum.Passed)
 		return
 	}
 	trace := first.Trace

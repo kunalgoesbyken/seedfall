@@ -39,6 +39,7 @@ func (f *fsm) Snapshot() (raft.FSMSnapshot, error) {
 }
 
 func (f *fsm) Restore(rc io.ReadCloser) error {
+	sim.Reachable("a node restored from a snapshot")
 	defer rc.Close()
 	values := map[string]string{}
 	if err := json.NewDecoder(rc).Decode(&values); err != nil {

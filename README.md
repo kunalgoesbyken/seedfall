@@ -129,11 +129,36 @@ func TestDurabilityUnderCrashes(t *testing.T) {
 ```
 
 The workload is any Go program. It exercises the system and checks invariants. A run **fails** if:
-- the workload calls `sim.Fail` or `sim.Assert`;
+- any node calls `sim.Fail`, fails `sim.Assert` or `sim.Always`, or reaches `sim.Unreachable`;
 - the workload exits non-zero;
 - a server node exits or panics;
 - every node blocks forever (deadlock);
 - the real-time watchdog fires (livelock).
+
+### Properties and coverage
+
+A green sweep only means something if the scary paths actually ran. Properties are named by a constant message, aggregated across every seed, and printed after a sweep:
+
+```go
+sim.Always(len(log) >= committed, "log never shrinks below the commit index", len(log), committed)
+sim.Sometimes(tornTail, "recovery found a torn tail")
+sim.Reachable("a node restored from a snapshot")
+sim.Unreachable("two leaders in the same term", term)
+```
+
+```
+property       seeds reached  seeds true
+  sometimes             100          99  a crash interrupted the workload
+  sometimes             100          40  recovery found a torn tail
+
+ok  100 seeds passed (0 hit the time horizon) in 32.84s
+```
+
+`always` and `unreachable` fail the seed immediately. A `sometimes` that is never true in any seed fails the sweep, because it means your faults never reached that path. Extra arguments are details: they appear in the failure message but do not split the property.
+
+### Checking determinism
+
+`seedfall run -check` runs every seed twice and fails with the first differing trace line if the runs diverge. Use it in CI to make sure nothing in your program escapes the simulator.
 
 ### Config reference
 

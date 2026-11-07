@@ -85,6 +85,7 @@ type world struct {
 	wasm      map[string][]byte
 	history   history
 	lin       Linearizability
+	props     properties
 }
 
 func streams(seed uint64, name string) *rand.Rand {
@@ -142,6 +143,9 @@ func (w *world) hostModule(ctx context.Context) error {
 	})
 	export("history_return", func(ctx context.Context, m api.Module, id int32, p, n uint32, outcome int32) {
 		w.history.complete(w.now, id, string(readBytes(m, p, n)), outcome)
+	})
+	export("property", func(ctx context.Context, m api.Module, kind, cond int32, p, n, dp, dn uint32) {
+		w.observeProperty(w.instance(ctx), PropertyKind(kind), cond != 0, string(readBytes(m, p, n)), string(readBytes(m, dp, dn)))
 	})
 	export("fail", func(ctx context.Context, m api.Module, p, n uint32) {
 		inst := w.instance(ctx)

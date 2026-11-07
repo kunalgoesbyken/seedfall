@@ -1,6 +1,9 @@
 package sim
 
-import "os"
+import (
+	"fmt"
+	"os"
+)
 
 func Enabled() bool { return os.Getenv("SEEDFALL") == "1" }
 
@@ -12,10 +15,34 @@ func Node() string {
 	return h
 }
 
+type kind int32
+
+const (
+	always kind = iota
+	sometimes
+	reachable
+	unreachable
+)
+
+func Always(cond bool, msg string, details ...any) { property(always, cond, msg, details) }
+
+func Sometimes(cond bool, msg string, details ...any) { property(sometimes, cond, msg, details) }
+
+func Reachable(msg string, details ...any) { property(reachable, true, msg, details) }
+
+func Unreachable(msg string, details ...any) { property(unreachable, false, msg, details) }
+
 func Assert(cond bool, msg string) {
 	if !cond {
 		Fail(msg)
 	}
+}
+
+func describe(details []any) string {
+	if len(details) == 0 {
+		return ""
+	}
+	return fmt.Sprint(details...)
 }
 
 type Op struct{ id int32 }

@@ -57,14 +57,32 @@ func ParseSeeds(s string) (uint64, uint64, error) {
 	return a, b, nil
 }
 
-func Sweep(r *Runner, lo, hi uint64, jobs int, onResult func(Result)) (*Result, int, int) {
+type Summary struct {
+	First      *Result
+	Passed     int
+	Unfinished int
+	Coverage   Coverage
+}
+
+func (s *Summary) record(res Result) {
+	s.Coverage.add(res.Properties)
+	switch {
+	case res.Failed && (s.First == nil || res.Seed < s.First.Seed):
+		s.First = &res
+	case !res.Failed:
+		s.Passed++
+		if !res.Finished {
+			s.Unfinished++
+		}
+	}
+}
+
+func Sweep(r *Runner, lo, hi uint64, jobs int, onResult func(Result)) Summary {
 	var (
-		next       atomic.Uint64
-		mu         sync.Mutex
-		first      *Result
-		passed     int
-		unfinished int
-		wg         sync.WaitGroup
+		next atomic.Uint64
+		mu   sync.Mutex
+		sum  = Summary{Coverage: Coverage{}}
+		wg   sync.WaitGroup
 	)
 	next.Store(lo)
 	for range max(jobs, 1) {
@@ -74,27 +92,19 @@ func Sweep(r *Runner, lo, hi uint64, jobs int, onResult func(Result)) (*Result, 
 			for {
 				seed := next.Add(1) - 1
 				mu.Lock()
-				stop := seed > hi || (first != nil && seed > first.Seed)
+				stop := seed > hi || (sum.First != nil && seed > sum.First.Seed)
 				mu.Unlock()
 				if stop {
 					return
 				}
 				res := r.Run(seed, nil)
 				mu.Lock()
-				switch {
-				case res.Failed && (first == nil || res.Seed < first.Seed):
-					first = &res
-				case !res.Failed:
-					passed++
-					if !res.Finished {
-						unfinished++
-					}
-				}
+				sum.record(res)
 				onResult(res)
 				mu.Unlock()
 			}
 		}()
 	}
 	wg.Wait()
-	return first, passed, unfinished
+	return sum
 }

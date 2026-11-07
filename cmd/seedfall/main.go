@@ -17,7 +17,7 @@ import (
 const usage = `seedfall: deterministic simulation testing for Go
 
 usage:
-  seedfall run    [-c seedfall.json] [-seeds 1-1000] [-j N] [-v]
+  seedfall run    [-c seedfall.json] [-seeds 1-1000] [-j N] [-v] [-check]
   seedfall replay [-c seedfall.json] -seed N [-faults file.json]
   seedfall shrink [-c seedfall.json] -seed N
 `
@@ -57,6 +57,7 @@ func cmdRun(args []string) error {
 	seeds := fs.String("seeds", "1-200", "seed or seed range")
 	jobs := fs.Int("j", runtime.NumCPU(), "parallel runs")
 	verbose := fs.Bool("v", false, "print every seed")
+	check := fs.Bool("check", false, "run every seed twice and fail if the traces differ")
 	fs.Parse(args)
 	lo, hi, err := engine.ParseSeeds(*seeds)
 	if err != nil {
@@ -66,22 +67,44 @@ func cmdRun(args []string) error {
 	if err != nil {
 		return err
 	}
+	r.Doublecheck = *check
 	started := time.Now()
-	first, passed, unfinished := engine.Sweep(r, lo, hi, *jobs, func(res engine.Result) {
+	sum := engine.Sweep(r, lo, hi, *jobs, func(res engine.Result) {
 		if *verbose {
 			fmt.Printf("seed %d: %s\n", res.Seed, status(res))
 		}
 	})
 	took := time.Since(started).Round(time.Millisecond)
-	if first == nil {
-		fmt.Printf("ok  %d seeds passed (%d hit the time horizon) in %s\n", passed, unfinished, took)
-		return nil
+	if sum.First != nil {
+		report(*sum.First, 25)
+		fmt.Printf("\n%d seeds passed before the failure, %s\n", sum.Passed, took)
+		fmt.Printf("replay: seedfall replay -c %s -seed %d\nshrink: seedfall shrink -c %s -seed %d\n", *conf, sum.First.Seed, *conf, sum.First.Seed)
+		os.Exit(1)
 	}
-	report(*first, 25)
-	fmt.Printf("\n%d seeds passed before the failure, %s\n", passed, took)
-	fmt.Printf("replay: seedfall replay -c %s -seed %d\nshrink: seedfall shrink -c %s -seed %d\n", *conf, first.Seed, *conf, first.Seed)
-	os.Exit(1)
+	printCoverage(sum.Coverage)
+	if unmet := sum.Coverage.Unmet(); len(unmet) > 0 {
+		fmt.Printf("FAIL %d properties were never satisfied in %d seeds\n", len(unmet), sum.Passed)
+		os.Exit(1)
+	}
+	fmt.Printf("ok  %d seeds passed (%d hit the time horizon) in %s\n", sum.Passed, sum.Unfinished, took)
 	return nil
+}
+
+func printCoverage(c engine.Coverage) {
+	msgs := c.Messages()
+	if len(msgs) == 0 {
+		return
+	}
+	fmt.Println("property       seeds reached  seeds true")
+	for _, msg := range msgs {
+		p := c[msg]
+		mark := ""
+		if p.Unmet() {
+			mark = "  <- never satisfied"
+		}
+		fmt.Printf("  %-12s %12d %11d  %s%s\n", p.Kind, p.SeedsReached, p.SeedsTrue, msg, mark)
+	}
+	fmt.Println()
 }
 
 func status(res engine.Result) string {

@@ -1,0 +1,95 @@
+package engine
+
+import (
+	"fmt"
+	"maps"
+	"slices"
+	"strings"
+)
+
+type PropertyKind int32
+
+const (
+	Always PropertyKind = iota
+	Sometimes
+	Reachable
+	Unreachable
+)
+
+var kindNames = [...]string{"always", "sometimes", "reachable", "unreachable"}
+
+func (k PropertyKind) String() string { return kindNames[k] }
+
+func (k PropertyKind) violatedBy(cond bool) bool {
+	return (k == Always && !cond) || k == Unreachable
+}
+
+func (k PropertyKind) needsWitness() bool { return k == Sometimes || k == Reachable }
+
+type Property struct {
+	Kind PropertyKind
+	Hits int
+	True int
+}
+
+type properties map[string]*Property
+
+func (p properties) observe(kind PropertyKind, cond bool, msg string) {
+	prop, ok := p[msg]
+	if !ok {
+		prop = &Property{Kind: kind}
+		p[msg] = prop
+	}
+	prop.Hits++
+	if cond {
+		prop.True++
+	}
+}
+
+type PropertyCoverage struct {
+	Kind         PropertyKind
+	SeedsReached int
+	SeedsTrue    int
+}
+
+func (c PropertyCoverage) Unmet() bool { return c.Kind.needsWitness() && c.SeedsTrue == 0 }
+
+type Coverage map[string]*PropertyCoverage
+
+func (c Coverage) add(props properties) {
+	for msg, p := range props {
+		cov, ok := c[msg]
+		if !ok {
+			cov = &PropertyCoverage{Kind: p.Kind}
+			c[msg] = cov
+		}
+		cov.SeedsReached++
+		if p.True > 0 {
+			cov.SeedsTrue++
+		}
+	}
+}
+
+func (c Coverage) Messages() []string { return slices.Sorted(maps.Keys(c)) }
+
+func (c Coverage) Unmet() []string {
+	var out []string
+	for _, msg := range c.Messages() {
+		if c[msg].Unmet() {
+			out = append(out, msg)
+		}
+	}
+	return out
+}
+
+func (w *world) observeProperty(inst *instance, kind PropertyKind, cond bool, msg, detail string) {
+	if kind < Always || kind > Unreachable {
+		w.fail(fmt.Sprintf("%s: unknown property kind %d", inst.label, kind))
+		panic(errFailed)
+	}
+	w.props.observe(kind, cond, msg)
+	if kind.violatedBy(cond) {
+		w.fail(strings.TrimSuffix(fmt.Sprintf("%s: %s: %s", inst.label, msg, detail), ": "))
+		panic(errFailed)
+	}
+}
