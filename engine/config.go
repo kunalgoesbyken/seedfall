@@ -62,6 +62,7 @@ type Config struct {
 	Faults           FaultSpec  `json:"faults"`
 	Watchdog         Duration   `json:"watchdog"`
 	NetOverlay       bool       `json:"net_overlay"`
+	CompatOverlay    bool       `json:"compat_overlay"`
 	Supervise        bool       `json:"supervise"`
 	FaultsAfterSetup bool       `json:"faults_after_setup"`
 	Dir              string     `json:"-"`

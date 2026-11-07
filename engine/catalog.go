@@ -34,8 +34,15 @@ type CatalogEntry struct {
 }
 
 type goPackage struct {
-	Dir     string
-	GoFiles []string
+	ImportPath string
+	Dir        string
+	GoFiles    []string
+	Module     *goModule
+}
+
+type goModule struct {
+	Path string
+	Dir  string
 }
 
 func catalog(cfg *Config) ([]CatalogEntry, error) {

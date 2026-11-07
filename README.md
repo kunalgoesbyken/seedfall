@@ -46,6 +46,7 @@ faults before the failure (2):
 | **nutsdb** | `bucket.Meta` is never fsynced, so one crash can make recovery drop every acknowledged entry in a bucket. A torn tail also makes `Open` fail with `crc error` forever. 3 issues, 1 fault each. |
 | **bitcask** | `Open` rewrites `config.json` without fsync, and auto-recovery fails on the torn tails it is meant to repair. Either leaves the database unopenable after one crash. 4 issues. |
 | **diskv** | A synced `WriteStream` renames into place without fsyncing the directory, so under strict POSIX an acknowledged write can revert. |
+| **bbolt** | `Open` never fsyncs the directory of the file it creates, so under strict POSIX one crash can lose the whole database. Found by running bbolt unmodified through `compat_overlay`. Not filed yet. |
 | **jmsadair/raft** | Four ways one crash or one clock step back leaves a node that can never restart: an unsynced term/vote file, an untruncated torn log tail, a leftover temp snapshot directory, and snapshots ordered by wall clock. Not filed: the repository is no longer public. |
 
 hashicorp/raft (600 seeds) and etcd-io/raft (100 seeds) pass cleanly, with linearizability checked, and their negative controls are caught. Details, replay commands and verified fixes: [docs/findings](docs/findings/README.md).
@@ -111,6 +112,7 @@ The [getting started guide](docs/getting-started.md) walks through finding, shri
 
 - **Stock toolchain.** No `linkname`, no source rewriting, no forked runtime. Works on Linux, macOS and Windows. [How it works](docs/how-it-works.md)
 - **A real disk model.** Plain `os.File` with fsync durability, torn writes, crashes in the middle of a disk operation, fsync `EIO` with Linux "fsyncgate" semantics, and strict POSIX directory durability. [Faults](docs/faults.md)
+- **Storage engines that need `mmap`.** bbolt, pebble and badger run unmodified via `compat_overlay`, which swaps their platform files for `wasip1` versions. [Compat](docs/compat.md)
 - **A real network.** Partitions, latency, resets, through `sim` or with zero code changes via `net_overlay`, including `net/http` and hashicorp/raft's stock TCP transport. [Networking](docs/networking.md)
 - **Real processes.** Every node is its own wasm instance. A crash kills the process; a restart boots fresh over the surviving disk. `supervise` restarts nodes that exit, like systemd.
 - **Pauses, clock skew and clock jumps.** Freeze a node like a long GC pause, offset or jump its wall clock. These catch stale reads and lease bugs: a raft store that reads without `VerifyLeader` fails on seed 13.
@@ -147,13 +149,16 @@ The [getting started guide](docs/getting-started.md) walks through finding, shri
 | [`examples/natscluster`](examples/natscluster) | A 3-node nats-server cluster with an R3 JetStream stream, run unmodified through `net_overlay` |
 | [`examples/ledger`](examples/ledger) | A service with no seedfall imports, checked only with the Antithesis SDK's assertions |
 | [`examples/httpkv`](examples/httpkv) | A plain `net/http` server with no seedfall code, run through `net_overlay` |
+| [`examples/bboltkv`](examples/bboltkv) | Unmodified bbolt through `compat_overlay`, including the directory-fsync finding |
+| [`examples/pebblekv`](examples/pebblekv) | Unmodified pebble v2 through `compat_overlay`, with `Sync` and `NoSync` writes |
+| [`examples/badgerkv`](examples/badgerkv) | Unmodified badger v4 through `compat_overlay`, its writable `mmap` emulated |
 | [`examples/gostman`](examples/gostman) | A [Gostman](https://github.com/kunalgoesbyken/gostman) collection as the workload: its checks must pass after every fault window |
 
 `bash scripts/regress.sh` runs every example against its expected result.
 
 ## Limitations
 
-- Code must build for `GOOS=wasip1`: no cgo, and no dependencies that need `mmap` or `flock` (for example bbolt or pebble).
+- Code must build for `GOOS=wasip1`, so no cgo. Dependencies that need `mmap` or `flock` work only if seedfall ships a shim for them: bbolt, pebble and badger do, through `compat_overlay` ([compat](docs/compat.md)).
 - Goroutine interleavings inside a node come from the Go scheduler under a seeded random source. There is no systematic preemption, so use `go test -race` for shared-memory races. seedfall targets distributed and storage bugs.
 - There is no asynchronous preemption, so a goroutine that spins without making a syscall starves the others in its node. gRPC's transparent retry does this after a peer crashes, which shows up as a false watchdog livelock; [`examples/jmsraft`](examples/jmsraft) uses a plain TCP transport for this reason.
 - The guest's wall clock does not advance while it runs between scheduling points, so two `time.Now()` calls in a row can return the same value. Code that names files by timestamp can collide in a way it would not on real hardware.

@@ -115,6 +115,14 @@ expect natscluster seedfall.json            1-2  pass
 expect natscluster seedfall.pause.json      1-4  pass
 expect natscluster seedfall.r1.nosync.json  1-4  fail
 expect_replay natscluster seedfall.strict.json 3 strict.faults.json fail
+expect bboltkv  seedfall.json                  1-60  pass
+expect bboltkv  seedfall.torn.json             1-60  pass
+expect bboltkv  seedfall.strict.json           1-60  pass
+expect bboltkv  seedfall.strict.nodirsync.json 1-10  fail
+expect bboltkv  seedfall.nosync.json           1-10  fail
+expect_replay bboltkv seedfall.strict.nodirsync.json 1 createdir.faults.json fail
+expect pebblekv seedfall.json                  1-30  pass
+expect pebblekv seedfall.nosync.json           1-10  fail
 deterministic kvlog  seedfall.always.json 1
 deterministic raftkv seedfall.lin.json    3
 deterministic wals   rosedb.json             1

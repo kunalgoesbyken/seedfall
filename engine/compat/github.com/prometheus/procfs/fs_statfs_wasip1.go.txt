@@ -1,0 +1,7 @@
+//go:build wasip1
+
+package procfs
+
+func isRealProc(mountPoint string) (bool, error) {
+	return false, nil
+}
