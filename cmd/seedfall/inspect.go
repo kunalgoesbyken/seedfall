@@ -263,18 +263,22 @@ func exportImage(d engine.Disk, root string) error {
 	if err := os.Mkdir(root, 0o755); err != nil {
 		return fmt.Errorf("export target must not exist yet: %w", err)
 	}
+	dir, err := os.OpenRoot(root)
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
 	dirs, files := d.AfterCrash()
 	for _, s := range dirs {
-		if err := os.MkdirAll(filepath.Join(root, filepath.FromSlash(s.Path)), 0o755); err != nil {
+		if err := dir.MkdirAll(s.Path, 0o755); err != nil {
 			return err
 		}
 	}
 	for _, f := range files {
-		target := filepath.Join(root, filepath.FromSlash(f.Path))
-		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		if err := dir.MkdirAll(path.Dir(f.Path), 0o755); err != nil {
 			return err
 		}
-		if err := os.WriteFile(target, f.Durable, 0o644); err != nil {
+		if err := dir.WriteFile(f.Path, f.Durable, 0o644); err != nil {
 			return err
 		}
 	}

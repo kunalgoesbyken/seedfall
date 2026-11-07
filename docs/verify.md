@@ -97,4 +97,4 @@ The exit status is 0 only when every check passes.
 
 ## From an agent
 
-The MCP tool `seedfall_verify` takes the same inputs (`config`, `seed`, `faults`, `report`, `seeds`, `check_seeds`, `mutate`, `md`) and returns each check as structured JSON, the overall `passed` verdict, and the proof block as `markdown`. See [agents.md](agents.md).
+The MCP tool `seedfall_verify` takes the same inputs (`config`, `seed`, `faults`, `report`, `seeds`, `check_seeds`, `mutate`) and returns each check as structured JSON, the overall `passed` verdict, and the proof block as `markdown`. See [agents.md](agents.md).

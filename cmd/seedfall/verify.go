@@ -27,7 +27,7 @@ type verifyArgs struct {
 	Seeds      string  `json:"seeds,omitempty" jsonschema:"fresh seed range to sweep; default is enough seeds for 95% confidence at the historical failure rate"`
 	CheckSeeds int     `json:"check_seeds,omitempty" jsonschema:"fresh seeds to run twice for the determinism check, default 10"`
 	Mutate     bool    `json:"mutate,omitempty" jsonschema:"also require every exercised durability mutant to be killed"`
-	Markdown   string  `json:"md,omitempty" jsonschema:"optional file to write the Markdown proof block to"`
+	Markdown   string  `json:"-"`
 	jobs       int
 }
 

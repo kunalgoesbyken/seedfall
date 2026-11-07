@@ -1,5 +1,7 @@
 # A torn write at the end of the active data file makes Open fail with "crc error" on every restart
 
+**Upstream:** [nutsdb/nutsdb#696](https://github.com/nutsdb/nutsdb/issues/696)
+
 **Repo:** nutsdb/nutsdb (tested on v1.1.0, still present on `main` at 39d6badd)
 **Severity:** one crash in the middle of a commit that was never acknowledged leaves the database unopenable until someone deletes data by hand.
 
@@ -13,7 +15,7 @@ This matches field reports that were closed without a root cause: #569 (power lo
 
 ## Reproduction
 
-Reproduced deterministically with [seedfall](https://github.com/kunalgoesbyken/seedfall). It runs a small server on nutsdb v1.1.0 with the default options (`SyncEnable: true`, `RWMode: FileIO`) and an 8 KB segment size. It acknowledges `SET` only after `db.Update` returns. To keep this separate from the `bucket.Meta` durability issue, the server fsyncs `bucket.Meta` itself after creating its bucket. The simulated disk keeps only fsynced data across a crash, and with torn writes enabled a crash can keep a partial, unsynced write.
+Reproduced deterministically with [seedfall](https://github.com/kunalgoesbyken/seedfall). It runs a small server on nutsdb v1.1.0 with the default options (`SyncEnable: true`, `RWMode: FileIO`) and an 8 KB segment size. It acknowledges `SET` only after `db.Update` returns. To keep this separate from the `bucket.Meta` durability issue ([nutsdb#695](https://github.com/nutsdb/nutsdb/issues/695)), the server fsyncs `bucket.Meta` itself after creating its bucket. The simulated disk keeps only fsynced data across a crash, and with torn writes enabled a crash can keep a partial, unsynced write.
 
 ```
 cd examples/nutsdb

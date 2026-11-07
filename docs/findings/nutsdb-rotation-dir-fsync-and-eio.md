@@ -1,7 +1,9 @@
 # Acknowledged writes can be lost after a data-file rotation (no directory fsync) or after a failed fsync (offset not rewound)
 
+**Upstream:** [nutsdb/nutsdb#697](https://github.com/nutsdb/nutsdb/issues/697)
+
 **Repo:** nutsdb/nutsdb (tested on v1.1.0, still present on `main` at 39d6badd)
-**Severity:** lower than the `bucket.Meta` and torn-tail issues. Both need a less common event, a crash shortly after a rotation or an fsync error, and both lose acknowledged writes silently.
+**Severity:** lower than [nutsdb#695](https://github.com/nutsdb/nutsdb/issues/695) and [nutsdb#696](https://github.com/nutsdb/nutsdb/issues/696). Both need a less common event, a crash shortly after a rotation or an fsync error, and both lose acknowledged writes silently.
 
 Two related durability gaps in the commit path, both with `SyncEnable: true`.
 
@@ -9,7 +11,7 @@ Two related durability gaps in the commit path, both with `SyncEnable: true`.
 
 When a commit doesn't fit in the active file, `rotateActiveFile` (tx.go:471) opens the next `<id>.dat` through `FileManager.GetDataFile` (tx.go:487). That reaches `FdManager.GetFd`, which creates the file with `O_CREATE` (internal/fileio/fd_manager.go:68), and `fileio.Truncate` preallocates it. Commits written to the new file are fsynced, but the directory entry for the file never is. On filesystems that need an explicit directory fsync to persist a new name (POSIX; ext4 with `data=writeback`, XFS), a crash can drop the whole file and every acknowledged commit in it. Recovery then sees only the older files.
 
-Reproduction (stock v1.1.0; the server fsyncs `bucket.Meta` itself to avoid the separate `bucket.Meta` issue):
+Reproduction (stock v1.1.0; the server fsyncs `bucket.Meta` itself to avoid [nutsdb#695](https://github.com/nutsdb/nutsdb/issues/695)):
 
 ```
 cd examples/nutsdb

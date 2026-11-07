@@ -1,5 +1,7 @@
 # `bucket.Meta` is never fsynced, so a crash can make recovery drop every entry in the bucket
 
+**Upstream:** [nutsdb/nutsdb#695](https://github.com/nutsdb/nutsdb/issues/695)
+
 **Repo:** nutsdb/nutsdb (tested on v1.1.0, still present on `main` at 39d6badd)
 **Severity:** with the default `SyncEnable: true`, one OS crash or power loss after a bucket is created can silently lose every acknowledged write in that bucket.
 

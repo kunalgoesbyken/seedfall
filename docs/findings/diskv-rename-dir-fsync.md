@@ -1,5 +1,7 @@
 # WriteStream with sync and TempDir doesn't fsync the directory after the rename, so an acknowledged write can revert after a crash
 
+**Upstream:** [peterbourgon/diskv#83](https://github.com/peterbourgon/diskv/issues/83)
+
 **Repo:** peterbourgon/diskv (tested on v3.0.1, which is the latest commit on `master`, from 2021)
 **Severity:** low. It needs a filesystem where a rename is durable only after the parent directory is fsynced, plus a crash shortly after the write. On such filesystems, an acknowledged synced write can silently revert to the previous value, or disappear if it created the key.
 
