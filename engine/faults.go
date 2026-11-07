@@ -53,6 +53,7 @@ func (s FaultSpec) forSeed(seed uint64) FaultSpec {
 	s.PausePerSec = swarmRate(r, s.PausePerSec)
 	s.ClockJumpPerSec = swarmRate(r, s.ClockJumpPerSec)
 	s.TornWrites = s.TornWrites && r.IntN(2) == 0
+	s.ReorderWrites = s.ReorderWrites && r.IntN(2) == 0
 	return s
 }
 

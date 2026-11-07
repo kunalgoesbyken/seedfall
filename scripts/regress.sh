@@ -111,11 +111,16 @@ expect_replay jmsraft seedfall.json 16 statefile.crash.faults.json fail
 expect_replay jmsraft seedfall.json 7  tornlog.faults.json         fail
 expect_replay jmsraft seedfall.json 16 tmpdir.faults.json          fail
 expect_replay jmsraft clock.json    13 snapshotorder.faults.json   fail
+expect metapage seedfall.json         1-100 pass
+expect metapage seedfall.reorder.json 1-30  fail
+expect metapage seedfall.fixed.json   1-100 pass
+expect_replay metapage seedfall.reorder.json 16 reorder.faults.json fail
 expect natscluster seedfall.json            1-2  pass
 expect natscluster seedfall.pause.json      1-4  pass
 expect natscluster seedfall.r1.nosync.json  1-4  fail
 expect_replay natscluster seedfall.strict.json 3 strict.faults.json fail
 deterministic kvlog  seedfall.always.json 1
+deterministic metapage seedfall.reorder.json 16
 deterministic raftkv seedfall.lin.json    3
 deterministic wals   rosedb.json             1
 

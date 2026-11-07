@@ -19,6 +19,7 @@ import (
 
 const (
 	shownRanges = 3
+	shownWrites = 8
 	pathWidth   = 50
 )
 
@@ -91,6 +92,9 @@ func printDisk(d engine.Disk) {
 	if d.Torn {
 		mode += "; torn_writes: a crash may also keep a prefix of the pending writes"
 	}
+	if d.Reorder {
+		mode += "; reorder_writes: a crash keeps any subset of dirty pages, in order within each page"
+	}
 	fmt.Printf("node %s (%s)\n", d.Node, mode)
 	if len(d.Dirs)+len(d.Files)+len(d.Ghosts) == 0 {
 		fmt.Println("  empty disk")
@@ -162,7 +166,40 @@ func (t diskTree) print(dir string, depth int) {
 		if f.Tear != nil {
 			fmt.Printf("%s  ^ torn by the crash at t=%s: kept %d of a %d-byte write at offset %d\n", indent, time.Duration(f.Tear.At), f.Tear.Kept, f.Tear.Size, f.Tear.Offset)
 		}
+		if f.Writeback != nil {
+			printWriteback(indent, *f.Writeback)
+		}
 	}
+}
+
+func printWriteback(indent string, wb engine.Writeback) {
+	survived := 0
+	for _, w := range wb.Writes {
+		if w.Survived {
+			survived++
+		}
+	}
+	fmt.Printf("%s  ^ the crash at t=%s wrote back pages out of order: %d of %d pending writes reached the disk\n", indent, time.Duration(wb.At), survived, len(wb.Writes))
+	for i, w := range wb.Writes[:min(len(wb.Writes), shownWrites)] {
+		fmt.Printf("%s    #%d %s\n", indent, i+1, writeFate(w))
+	}
+	if extra := len(wb.Writes) - shownWrites; extra > 0 {
+		fmt.Printf("%s    and %d more\n", indent, extra)
+	}
+}
+
+func writeFate(w engine.WriteFate) string {
+	switch {
+	case w.Truncate && w.Survived:
+		return fmt.Sprintf("kept     truncate to %d bytes", w.Offset)
+	case w.Truncate:
+		return fmt.Sprintf("lost     truncate to %d bytes", w.Offset)
+	case w.Kept == w.Size:
+		return fmt.Sprintf("kept     %d-byte write at offset %d", w.Size, w.Offset)
+	case w.Survived:
+		return fmt.Sprintf("partial  %d of a %d-byte write at offset %d", w.Kept, w.Size, w.Offset)
+	}
+	return fmt.Sprintf("lost     %d-byte write at offset %d", w.Size, w.Offset)
 }
 
 func (t diskTree) lostNote() string {

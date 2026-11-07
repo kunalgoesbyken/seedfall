@@ -43,6 +43,7 @@ type FaultSpec struct {
 	PartitionPerSec float64  `json:"partition_per_sec"`
 	PartitionFor    Range    `json:"partition_for"`
 	TornWrites      bool     `json:"torn_writes"`
+	ReorderWrites   bool     `json:"reorder_writes"`
 	CrashOnIO       float64  `json:"crash_on_io"`
 	StrictDirs      bool     `json:"strict_dirs"`
 	FsyncEIO        float64  `json:"fsync_eio"`

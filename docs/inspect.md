@@ -57,9 +57,11 @@ Each file has its live size (what the program reads now) and its durable size (w
 
 A `^ torn by the crash at t=...` line under a file says the last crash kept only part of one write: how many bytes of it, and at which offset. Those partial bytes are now durable and are what recovery code has to cope with.
 
+With `reorder_writes`, a `^ the crash at t=... wrote back pages out of order` line lists the writes that were pending at the last crash, numbered in program order, and says which of them reached the disk: `kept`, `lost`, or `partial` when only some of its pages did. A later write marked `kept` above an earlier one marked `lost` is the reordering your recovery code has to survive. The same list is in `last_writeback` in the MCP inspect output.
+
 With `strict_dirs`, a file that was unlinked or renamed away while its parent directory was not fsynced is listed separately as an entry that a crash brings back. Renaming a temporary file over an existing one without fsyncing the directory shows up as the new name `NOT DURABLE` and the old content coming back.
 
-The durable image is the disk a crash would leave without `torn_writes`. With `torn_writes`, a crash can also keep an in-order prefix of the pending writes and, with `strict_dirs`, of the pending directory operations.
+The durable image is the disk a crash would leave without `torn_writes` or `reorder_writes`. With `torn_writes`, a crash can also keep an in-order prefix of the pending writes and, with `strict_dirs`, of the pending directory operations. With `reorder_writes`, it can keep any subset of the dirty pages.
 
 ## Examples
 

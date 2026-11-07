@@ -139,7 +139,7 @@ func cmdMCP([]string) error {
 	}, toolVerify)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "seedfall_inspect",
-		Description: "Replay a seed and snapshot every node's simulated disk at the failure or at a virtual time. Returns each file's size, durable size, the byte ranges a crash would lose, directory entries that are not durable yet, removed entries a crash would bring back, and the last torn write. Optionally returns one file's durable content.",
+		Description: "Replay a seed and snapshot every node's simulated disk at the failure or at a virtual time. Returns each file's size, durable size, the byte ranges a crash would lose, directory entries that are not durable yet, removed entries a crash would bring back, the last torn write, and under reorder_writes which pending writes the last crash kept. Optionally returns one file's durable content.",
 	}, toolInspect)
 	return server.Run(context.Background(), &mcp.StdioTransport{})
 }
