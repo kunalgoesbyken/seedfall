@@ -19,6 +19,10 @@ func Build(cfg *Config) error {
 	if err := os.MkdirAll(filepath.Join(cfg.Dir, ".seedfall"), 0o755); err != nil {
 		return err
 	}
+	flags, err := buildFlags(cfg)
+	if err != nil {
+		return err
+	}
 	built := map[string]string{}
 	for _, s := range specs {
 		if s.Pkg == "" {
@@ -29,7 +33,7 @@ func Build(cfg *Config) error {
 			continue
 		}
 		out := filepath.Join(".seedfall", strings.NewReplacer("/", "_", "\\", "_", ".", "_").Replace(s.Pkg)+".wasm")
-		cmd := exec.Command("go", "build", "-o", out, s.Pkg)
+		cmd := exec.Command("go", append(append([]string{"build"}, flags...), "-o", out, s.Pkg)...)
 		cmd.Dir = cfg.Dir
 		cmd.Env = append(os.Environ(), "GOOS=wasip1", "GOARCH=wasm")
 		cmd.Stderr = os.Stderr

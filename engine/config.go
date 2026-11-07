@@ -38,23 +38,28 @@ type NodeSpec struct {
 }
 
 type FaultSpec struct {
-	CrashPerSec     float64 `json:"crash_per_sec"`
-	RestartAfter    Range   `json:"restart_after"`
-	PartitionPerSec float64 `json:"partition_per_sec"`
-	PartitionFor    Range   `json:"partition_for"`
-	TornWrites      bool    `json:"torn_writes"`
-	CrashOnIO       float64 `json:"crash_on_io"`
-	StrictDirs      bool    `json:"strict_dirs"`
+	CrashPerSec     float64  `json:"crash_per_sec"`
+	RestartAfter    Range    `json:"restart_after"`
+	PartitionPerSec float64  `json:"partition_per_sec"`
+	PartitionFor    Range    `json:"partition_for"`
+	TornWrites      bool     `json:"torn_writes"`
+	CrashOnIO       float64  `json:"crash_on_io"`
+	StrictDirs      bool     `json:"strict_dirs"`
+	FsyncEIO        float64  `json:"fsync_eio"`
+	ClockSkew       Duration `json:"clock_skew"`
+	Swarm           bool     `json:"swarm"`
 }
 
 type Config struct {
-	Nodes    []NodeSpec `json:"nodes"`
-	Workload NodeSpec   `json:"workload"`
-	Duration Duration   `json:"duration"`
-	Latency  Range      `json:"latency"`
-	Faults   FaultSpec  `json:"faults"`
-	Watchdog Duration   `json:"watchdog"`
-	Dir      string     `json:"-"`
+	Nodes      []NodeSpec `json:"nodes"`
+	Workload   NodeSpec   `json:"workload"`
+	Duration   Duration   `json:"duration"`
+	Latency    Range      `json:"latency"`
+	Faults     FaultSpec  `json:"faults"`
+	Watchdog   Duration   `json:"watchdog"`
+	NetOverlay bool       `json:"net_overlay"`
+	Supervise  bool       `json:"supervise"`
+	Dir        string     `json:"-"`
 }
 
 func defaultConfig() Config {

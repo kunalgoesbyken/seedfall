@@ -1,0 +1,43 @@
+name: seedfall
+description: Sweep seeds of a seedfall deterministic simulation and fail the job with a replayable seed when an invariant breaks.
+branding:
+  icon: bar-chart-2
+  color: orange
+inputs:
+  config:
+    description: Path to seedfall.json
+    default: seedfall.json
+  seeds:
+    description: Seed or inclusive seed range
+    default: 1-200
+  check:
+    description: Run every seed twice and fail if the traces differ
+    default: "false"
+  go-version:
+    description: Go version used to build the nodes and seedfall
+    default: stable
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-go@v5
+      with:
+        go-version: ${{ inputs.go-version }}
+    - name: Build seedfall
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: go build -o "$RUNNER_TEMP/seedfall" ./cmd/seedfall
+    - name: Sweep seeds
+      shell: bash
+      env:
+        CONFIG: ${{ inputs.config }}
+        SEEDS: ${{ inputs.seeds }}
+        CHECK: ${{ inputs.check }}
+      run: |
+        set -o pipefail
+        "$RUNNER_TEMP/seedfall" run -c "$CONFIG" -seeds "$SEEDS" -check="$CHECK" | tee "$RUNNER_TEMP/seedfall.txt"
+    - name: Summarize
+      if: always()
+      shell: bash
+      run: |
+        [ -f "$RUNNER_TEMP/seedfall.txt" ] || exit 0
+        { echo '### seedfall'; echo '```'; tail -n 60 "$RUNNER_TEMP/seedfall.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

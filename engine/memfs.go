@@ -29,13 +29,14 @@ type inode struct {
 
 type memFS struct {
 	fsapi.UnimplementedFS
-	clock   func() int64
-	mutated func()
-	special func(string) (fsapi.File, fsapi.Errno, bool)
-	nextIno uint64
-	files   map[string]*inode
-	dirs    map[string]uint64
-	ns      *namespace
+	clock     func() int64
+	mutated   func()
+	syncFails func() bool
+	special   func(string) (fsapi.File, fsapi.Errno, bool)
+	nextIno   uint64
+	files     map[string]*inode
+	dirs      map[string]uint64
+	ns        *namespace
 }
 
 func newMemFS(clock func() int64) *memFS {
@@ -416,6 +417,10 @@ func (f *memFile) Sync() fsapi.Errno {
 		return 0
 	}
 	f.fs.notify()
+	if f.fs.syncFails != nil && f.fs.syncFails() {
+		f.in.pending = nil
+		return fsapi.EIO
+	}
 	for _, w := range f.in.pending {
 		f.in.durable = w.apply(f.in.durable)
 	}

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 )
@@ -50,10 +51,31 @@ type network struct {
 	nextID    int32
 	listeners map[string]*listener
 	handles   map[int32]any
+	names     map[string]string
+	hosts     []byte
 }
 
 func newNetwork(w *world) *network {
-	return &network{w: w, listeners: map[string]*listener{}, handles: map[int32]any{}}
+	n := &network{w: w, listeners: map[string]*listener{}, handles: map[int32]any{}, names: map[string]string{}}
+	n.hosts = []byte("127.0.0.1 localhost\n")
+	for i, s := range w.cfg.all() {
+		ip := fmt.Sprintf("10.77.%d.%d", (i+1)/256, (i+1)%256)
+		n.names[ip] = s.Name
+		n.hosts = fmt.Appendf(n.hosts, "%s %s\n", ip, s.Name)
+	}
+	return n
+}
+
+func (n *network) resolve(inst *instance, host string) string {
+	host = strings.Trim(host, "[]")
+	switch host {
+	case "", "localhost", "127.0.0.1", "::1", "0.0.0.0", "::":
+		return inst.node.name()
+	}
+	if name, ok := n.names[host]; ok {
+		return name
+	}
+	return host
 }
 
 func (n *network) alloc() int32 {
@@ -71,7 +93,7 @@ func splitHostPort(addr string) (string, string) {
 
 func (n *network) listen(inst *instance, addr string) int32 {
 	host, port := splitHostPort(addr)
-	if host != "" && host != inst.node.name() {
+	if n.resolve(inst, host) != inst.node.name() {
 		return codeRefused
 	}
 	key := inst.node.name() + ":" + port
@@ -85,8 +107,9 @@ func (n *network) listen(inst *instance, addr string) int32 {
 }
 
 func (n *network) dial(inst *instance, addr string) int32 {
-	host, _ := splitHostPort(addr)
-	l, ok := n.listeners[addr]
+	host, port := splitHostPort(addr)
+	host = n.resolve(inst, host)
+	l, ok := n.listeners[host+":"+port]
 	if !ok || n.w.cut(inst.node.name(), host) {
 		return codeRefused
 	}
@@ -217,4 +240,11 @@ func (n *network) drop(inst *instance) {
 			}
 		}
 	}
+}
+
+const hostsPath = "etc/hosts"
+
+func (n *network) hostsFile() *memFile {
+	in := &inode{data: n.hosts, durable: n.hosts, mtime: epochNanos}
+	return &memFile{fs: newMemFS(func() int64 { return epochNanos }), path: hostsPath, in: in}
 }

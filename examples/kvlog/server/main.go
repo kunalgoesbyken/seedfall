@@ -3,8 +3,10 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -21,6 +23,7 @@ type store struct {
 	file   *os.File
 	values map[string]string
 	always bool
+	rewind bool
 }
 
 func main() {
@@ -28,6 +31,7 @@ func main() {
 	dir := flag.String("dir", "data", "data directory")
 	syncMode := flag.String("sync", "batch", "batch: fsync every 200ms, always: fsync before every ack")
 	repair := flag.Bool("repair", false, "truncate a torn log tail during recovery")
+	rewind := flag.Bool("rewind", false, "after a failed fsync, truncate the unsynced record instead of leaving it in the page cache")
 	flag.Parse()
 
 	if err := os.MkdirAll(*dir, 0o755); err != nil {
@@ -42,7 +46,7 @@ func main() {
 			log.Fatal(err)
 		}
 	}
-	s.always = *syncMode == "always"
+	s.always, s.rewind = *syncMode == "always", *rewind
 	if !s.always {
 		go s.flushEvery(200 * time.Millisecond)
 	}
@@ -104,16 +108,27 @@ func (s *store) flushEvery(d time.Duration) {
 func (s *store) put(k, v string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	end, err := s.file.Seek(0, io.SeekEnd)
+	if err != nil {
+		return err
+	}
 	if _, err := fmt.Fprintf(s.file, "%s=%s\n", k, v); err != nil {
 		return err
 	}
 	if s.always {
 		if err := s.file.Sync(); err != nil {
-			return err
+			return s.failedSync(end, err)
 		}
 	}
 	s.values[k] = v
 	return nil
+}
+
+func (s *store) failedSync(end int64, err error) error {
+	if s.rewind {
+		return errors.Join(err, s.file.Truncate(end))
+	}
+	return err
 }
 
 func (s *store) get(k string) (string, bool) {

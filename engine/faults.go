@@ -11,7 +11,10 @@ const (
 	FaultCrash     = "crash"
 	FaultPartition = "partition"
 	FaultCrashIO   = "crash_io"
+	FaultFsyncEIO  = "fsync_eio"
 )
+
+func observedAtRuntime(kind string) bool { return kind == FaultCrashIO || kind == FaultFsyncEIO }
 
 type Fault struct {
 	At    Duration `json:"at"`
@@ -34,22 +37,42 @@ func exponential(r *rand.Rand, perSec float64) time.Duration {
 	return time.Duration(-math.Log(1-r.Float64()) / perSec * float64(time.Second))
 }
 
-func generateFaults(cfg *Config, r *rand.Rand) []Fault {
+func (s FaultSpec) forSeed(seed uint64) FaultSpec {
+	if !s.Swarm {
+		return s
+	}
+	r := streams(seed, "swarm")
+	s.CrashPerSec = swarmRate(r, s.CrashPerSec)
+	s.PartitionPerSec = swarmRate(r, s.PartitionPerSec)
+	s.CrashOnIO = swarmRate(r, s.CrashOnIO)
+	s.FsyncEIO = swarmRate(r, s.FsyncEIO)
+	s.TornWrites = s.TornWrites && r.IntN(2) == 0
+	return s
+}
+
+func swarmRate(r *rand.Rand, rate float64) float64 {
+	if r.IntN(2) == 0 {
+		return 0
+	}
+	return rate * 2 * r.Float64()
+}
+
+func generateFaults(cfg *Config, spec FaultSpec, r *rand.Rand) []Fault {
 	var out []Fault
 	horizon := time.Duration(cfg.Duration)
-	if rate := cfg.Faults.CrashPerSec; rate > 0 {
+	if rate := spec.CrashPerSec; rate > 0 {
 		for _, n := range cfg.Nodes {
 			for t := exponential(r, rate); t < horizon; {
-				until := t + uniform(r, cfg.Faults.RestartAfter)
+				until := t + uniform(r, spec.RestartAfter)
 				out = append(out, Fault{At: Duration(t), Kind: FaultCrash, Node: n.Name, Until: Duration(until)})
 				t = until + exponential(r, rate)
 			}
 		}
 	}
-	if rate := cfg.Faults.PartitionPerSec; rate > 0 {
+	if rate := spec.PartitionPerSec; rate > 0 {
 		names := nodeNames(cfg)
 		for t := exponential(r, rate); t < horizon; {
-			until := t + uniform(r, cfg.Faults.PartitionFor)
+			until := t + uniform(r, spec.PartitionFor)
 			out = append(out, Fault{At: Duration(t), Kind: FaultPartition, Side: randomSide(r, names), Until: Duration(until)})
 			t = until + exponential(r, rate)
 		}

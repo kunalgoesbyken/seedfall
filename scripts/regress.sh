@@ -40,13 +40,32 @@ expect kvlog  seedfall.json          1-50   fail
 expect kvlog  seedfall.always.json   1-100  fail
 expect kvlog  seedfall.fixed.json    1-300  pass
 expect kvlog  seedfall.strict.json   1-200  pass
+expect kvlog  seedfall.fsyncgate.json 1-50  fail
+expect kvlog  seedfall.rewind.json   1-200  pass
 expect raftkv seedfall.json          1-40   pass
 expect raftkv seedfall.nofsync.json  1-120  fail
 expect raftkv seedfall.lin.json      1-30   pass
 expect raftkv nofsync.lin.json       1-120  fail
 expect raftkv strict.lin.json        1-30   fail
+expect raftkv tcp.lin.json           1-20   pass
+expect raftkv tcp.nofsync.lin.json   1-150  fail
+expect httpkv seedfall.json          1-40   pass
+expect httpkv seedfall.nofsync.json  1-20   fail
+expect wals   tidwall.json           1-50   fail
+expect wals   tidwall.strict.json    1-50   fail
+expect wals   rosedb.json            1-50   fail
+expect wals   rosedb.strict.json     1-50   fail
+expect buntdb   seedfall.json               1-100  pass
+expect buntdb   seedfall.torn.json          1-100  pass
+expect buntdb   seedfall.everysecond.json   1-20   fail
+expect buntdb   seedfall.shrink.json        1-60   fail
+expect buntdb   seedfall.shrink.strict.json 1-60   fail
+expect etcdraft seedfall.json               1-30   pass
+expect etcdraft seedfall.nofsync.json       1-60   fail
+expect etcdraft seedfall.strict.json        1-30   pass
 deterministic kvlog  seedfall.always.json 1
 deterministic raftkv seedfall.lin.json    3
+deterministic wals   rosedb.json             1
 
 echo
 [ $failures -eq 0 ] && echo "regression: all checks passed" || echo "regression: $failures check(s) failed"

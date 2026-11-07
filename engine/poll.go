@@ -168,6 +168,9 @@ func (n *network) nextArrival(id int32) int64 {
 }
 
 func (w *world) openNetFile(n *node, p string) (fsapi.File, fsapi.Errno, bool) {
+	if p == hostsPath {
+		return w.net.hostsFile(), 0, true
+	}
 	if !strings.HasPrefix(p, netFilePrefix) {
 		return nil, 0, false
 	}

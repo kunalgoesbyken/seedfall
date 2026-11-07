@@ -33,6 +33,7 @@ type node struct {
 	starts    int
 	ops       int64
 	restartAt int64
+	skew      int64
 }
 
 func (n *node) name() string { return n.spec.Name }
@@ -62,6 +63,7 @@ type world struct {
 	cfg       *Config
 	seed      uint64
 	ctx       context.Context
+	cancel    context.CancelFunc
 	rt        wazero.Runtime
 	now       int64
 	sched     *rand.Rand
@@ -81,7 +83,8 @@ type world struct {
 	steps     int
 	explicit  bool
 	ioRand    *rand.Rand
-	ioCrashes []Fault
+	ioFaults  []Fault
+	spec      FaultSpec
 	wasm      map[string][]byte
 	history   history
 	lin       Linearizability
@@ -179,7 +182,7 @@ func (w *world) moduleConfig(inst *instance) wazero.ModuleConfig {
 		WithStdout(out).WithStderr(out).
 		WithRandSource(rand.NewChaCha8(key)).
 		WithWalltime(func() (int64, int32) {
-			t := epochNanos + w.now
+			t := epochNanos + w.now + n.skew
 			return t / int64(time.Second), int32(t % int64(time.Second))
 		}, 1).
 		WithNanotime(func() int64 { return epochNanos + w.now }, 1).
@@ -220,6 +223,13 @@ func (w *world) start(n *node) {
 	w.trace.add(w.now, "start %s", inst.label)
 }
 
+const goPanicExitCode = 2
+
+func (w *world) supervised(n *node, err error) bool {
+	var ee *sys.ExitError
+	return w.cfg.Supervise && n.crashable && errors.As(err, &ee) && ee.ExitCode() != 0 && ee.ExitCode() != goPanicExitCode
+}
+
 func exitedCleanly(err error) bool {
 	var ee *sys.ExitError
 	return err == nil || (errors.As(err, &ee) && ee.ExitCode() == 0)
@@ -228,6 +238,8 @@ func exitedCleanly(err error) bool {
 func (w *world) resume(inst *instance) {
 	w.now = max(w.now, inst.wakeAt)
 	w.steps++
+	watchdog := time.AfterFunc(time.Duration(w.cfg.Watchdog), w.cancel)
+	defer watchdog.Stop()
 	inst.resume <- true
 	w.handle(<-w.events)
 }
@@ -248,10 +260,13 @@ func (w *world) handle(ev event) {
 			w.crashDisk(n, ev.inst.crashUntil)
 		}
 	case w.ctx.Err() != nil:
-		w.fail(fmt.Sprintf("watchdog: %s used more than %s of real time without finishing (livelock or busy loop)", ev.inst.label, time.Duration(w.cfg.Watchdog)))
+		w.fail(fmt.Sprintf("watchdog: %s ran for more than %s of real time without yielding (livelock or busy loop)", ev.inst.label, time.Duration(w.cfg.Watchdog)))
 	case n == w.workload && exitedCleanly(ev.err):
 		w.finished = true
 		w.trace.add(w.now, "workload finished")
+	case w.supervised(n, ev.err):
+		n.restartAt = w.now + int64(uniform(w.sched, w.spec.RestartAfter))
+		w.trace.add(w.now, "%s exited (%v), supervisor restarts it at %s", ev.inst.label, ev.err, fmtTime(n.restartAt))
 	case exitedCleanly(ev.err):
 		w.fail(fmt.Sprintf("%s exited", ev.inst.label))
 	default:
@@ -286,45 +301,8 @@ func (w *world) applyFault(f Fault) {
 }
 
 func (w *world) crashDisk(n *node, until int64) {
-	n.fs.crash(w.diskRand, w.cfg.Faults.TornWrites)
+	n.fs.crash(w.diskRand, w.spec.TornWrites)
 	n.restartAt = until
-}
-
-func (w *world) onDiskOp(n *node) {
-	inst := n.live
-	n.ops++
-	until, crash := w.ioCrashDue(n)
-	if !crash {
-		return
-	}
-	w.trace.add(w.now, "fault crash %s during disk op %d, restart at %s", inst.label, n.ops, fmtTime(until))
-	inst.killed, inst.crashUntil = true, until
-	panic(errKilled)
-}
-
-func (w *world) ioCrashDue(n *node) (int64, bool) {
-	delay, crash := w.ioCrashDelay(n)
-	if !crash {
-		return 0, false
-	}
-	until := w.now + delay
-	w.ioCrashes = append(w.ioCrashes, Fault{At: Duration(w.now), Kind: FaultCrashIO, Node: n.name(), Op: n.ops, Until: Duration(until)})
-	return until, true
-}
-
-func (w *world) ioCrashDelay(n *node) (int64, bool) {
-	if w.explicit {
-		for _, f := range w.faults {
-			if f.Kind == FaultCrashIO && f.Node == n.name() && f.Op == n.ops {
-				return int64(f.Until - f.At), true
-			}
-		}
-		return 0, false
-	}
-	if w.cfg.Faults.CrashOnIO <= 0 || w.ioRand.Float64() >= w.cfg.Faults.CrashOnIO {
-		return 0, false
-	}
-	return int64(uniform(w.ioRand, w.cfg.Faults.RestartAfter)), true
 }
 
 func (w *world) checkLinearizable() {

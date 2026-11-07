@@ -1,0 +1,167 @@
+//go:build wasip1
+
+package net
+
+import (
+	"context"
+	"os"
+	"strconv"
+	"sync"
+	"syscall"
+	"unsafe"
+)
+
+//go:wasmimport seedfall net_listen
+func seedfallListen(p unsafe.Pointer, n uint32) int32
+
+//go:wasmimport seedfall net_dial
+func seedfallDial(p unsafe.Pointer, n uint32) int32
+
+//go:wasmimport seedfall net_accept
+func seedfallAcceptID(lid int32) int32
+
+//go:wasmimport seedfall net_bind
+func seedfallBind(fd, id int32)
+
+const (
+	seedfallAgain     = -1
+	seedfallRefused   = -4
+	seedfallInUse     = -5
+	seedfallPortBase  = 40000
+	seedfallConnFiles = "/.seedfall/conn/"
+)
+
+var (
+	seedfallListeners sync.Map
+	seedfallSelfOnce  sync.Once
+	seedfallSelfIP    IP
+)
+
+func seedfallSelf() IP {
+	seedfallSelfOnce.Do(func() { seedfallSelfIP = seedfallLookupSelf() })
+	return seedfallSelfIP
+}
+
+func socket(ctx context.Context, net string, family, sotype, proto int, ipv6only bool, laddr, raddr sockaddr, ctrlCtxFn func(context.Context, string, string, syscall.RawConn) error) (*netFD, error) {
+	if sotype != syscall.SOCK_STREAM {
+		return fakeSocket(ctx, net, family, sotype, proto, ipv6only, laddr, raddr, ctrlCtxFn)
+	}
+	if raddr == nil {
+		return seedfallListenFD(net, family, laddr)
+	}
+	return seedfallDialFD(net, family, raddr)
+}
+
+func seedfallLookupSelf() IP {
+	name, _ := syscall.Getenv("SEEDFALL_NODE")
+	addrs, err := LookupHost(name)
+	if err != nil || len(addrs) == 0 {
+		return IPv4(127, 0, 0, 1)
+	}
+	return ParseIP(addrs[0])
+}
+
+func seedfallCall(fn func(unsafe.Pointer, uint32) int32, s string) int32 {
+	if s == "" {
+		return fn(nil, 0)
+	}
+	b := []byte(s)
+	return fn(unsafe.Pointer(&b[0]), uint32(len(b)))
+}
+
+func seedfallErr(op string, code int32) error {
+	switch code {
+	case seedfallRefused:
+		return os.NewSyscallError(op, syscall.ECONNREFUSED)
+	case seedfallInUse:
+		return os.NewSyscallError(op, syscall.EADDRINUSE)
+	}
+	return os.NewSyscallError(op, syscall.EIO)
+}
+
+func seedfallTCPAddr(a sockaddr) *TCPAddr {
+	if t, ok := a.(*TCPAddr); ok && t != nil {
+		return t
+	}
+	return &TCPAddr{}
+}
+
+func seedfallHostPort(t *TCPAddr) string {
+	host := ""
+	if len(t.IP) > 0 && !t.IP.IsUnspecified() {
+		host = t.IP.String()
+	}
+	return JoinHostPort(host, strconv.Itoa(t.Port))
+}
+
+func seedfallOpen(net string, family int, id int32) (*netFD, error) {
+	sysfd, err := syscall.Open(seedfallConnFiles+strconv.Itoa(int(id)), syscall.O_RDWR, 0)
+	if err != nil {
+		return nil, os.NewSyscallError("open", err)
+	}
+	if err := syscall.SetNonblock(sysfd, true); err != nil {
+		syscall.Close(sysfd)
+		return nil, os.NewSyscallError("setnonblock", err)
+	}
+	seedfallBind(int32(sysfd), id)
+	fd := newFD(net, sysfd)
+	fd.family, fd.sotype = family, syscall.SOCK_STREAM
+	if err := fd.init(); err != nil {
+		fd.Close()
+		return nil, err
+	}
+	return fd, nil
+}
+
+func seedfallListenFD(net string, family int, laddr sockaddr) (*netFD, error) {
+	local := seedfallTCPAddr(laddr)
+	id := seedfallCall(seedfallListen, seedfallHostPort(local))
+	if id < 0 {
+		return nil, seedfallErr("listen", id)
+	}
+	fd, err := seedfallOpen(net, family, id)
+	if err != nil {
+		return nil, err
+	}
+	fd.setAddr(&TCPAddr{IP: seedfallSelf(), Port: local.Port}, nil)
+	seedfallListeners.Store(fd, id)
+	return fd, nil
+}
+
+func seedfallDialFD(net string, family int, raddr sockaddr) (*netFD, error) {
+	remote := seedfallTCPAddr(raddr)
+	id := seedfallCall(seedfallDial, seedfallHostPort(remote))
+	if id < 0 {
+		return nil, seedfallErr("connect", id)
+	}
+	fd, err := seedfallOpen(net, family, id)
+	if err != nil {
+		return nil, err
+	}
+	fd.isConnected = true
+	fd.setAddr(&TCPAddr{IP: seedfallSelf(), Port: seedfallPortBase + int(id)}, remote)
+	return fd, nil
+}
+
+func seedfallAccept(ln *netFD, lid int32) (*netFD, error) {
+	var ready [1]byte
+	for {
+		if _, err := ln.pfd.Read(ready[:]); err != nil {
+			return nil, err
+		}
+		id := seedfallAcceptID(lid)
+		if id == seedfallAgain {
+			continue
+		}
+		if id < 0 {
+			return nil, seedfallErr("accept", id)
+		}
+		fd, err := seedfallOpen(ln.net, ln.family, id)
+		if err != nil {
+			return nil, err
+		}
+		fd.isConnected = true
+		fd.setAddr(ln.laddr, &TCPAddr{IP: IPv4zero, Port: seedfallPortBase + int(id)})
+		return fd, nil
+	}
+}

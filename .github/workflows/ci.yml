@@ -1,0 +1,31 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - run: go vet -stdmethods=false ./engine ./cmd/... ./seedfalltest ./sim
+      - run: GOOS=wasip1 GOARCH=wasm go vet ./sim
+  simulate:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - config: examples/kvlog/seedfall.fixed.json
+            seeds: 1-100
+          - config: examples/kvlog/seedfall.rewind.json
+            seeds: 1-100
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./
+        with:
+          config: ${{ matrix.config }}
+          seeds: ${{ matrix.seeds }}
+          check: "true"

@@ -81,6 +81,7 @@ func main() {
 	raftPort := flag.String("raft-port", "7000", "raft port")
 	apiPort := flag.String("api-port", "8000", "client API port")
 	noSync := flag.Bool("no-fsync", false, "skip fsync in the log store (unsafe)")
+	stockTCP := flag.Bool("tcp", false, "use raft's stock TCP transport and plain net.Listen (needs net_overlay)")
 	flag.Parse()
 	id := sim.Node()
 
@@ -100,11 +101,10 @@ func main() {
 			log.Fatal(err)
 		}
 	}
-	ln, err := sim.Listen("tcp", ":"+*raftPort)
+	transport, err := newTransport(*stockTCP, id, *raftPort)
 	if err != nil {
 		log.Fatal(err)
 	}
-	transport := raft.NewNetworkTransport(streamLayer{ln}, 3, time.Second, io.Discard)
 
 	cfg := raft.DefaultConfig()
 	cfg.LocalID = raft.ServerID(id)
@@ -130,7 +130,7 @@ func main() {
 		r.BootstrapCluster(raft.Configuration{Servers: servers})
 	}
 
-	api, err := sim.Listen("tcp", ":"+*apiPort)
+	api, err := listen(*stockTCP, ":"+*apiPort)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -184,4 +184,26 @@ func syncDir(dir string) error {
 	}
 	defer d.Close()
 	return d.Sync()
+}
+
+func listen(stockTCP bool, addr string) (net.Listener, error) {
+	if stockTCP {
+		return net.Listen("tcp", addr)
+	}
+	return sim.Listen("tcp", addr)
+}
+
+func newTransport(stockTCP bool, id, port string) (raft.Transport, error) {
+	if !stockTCP {
+		ln, err := sim.Listen("tcp", ":"+port)
+		if err != nil {
+			return nil, err
+		}
+		return raft.NewNetworkTransport(streamLayer{ln}, 3, time.Second, io.Discard), nil
+	}
+	advertise, err := net.ResolveTCPAddr("tcp", net.JoinHostPort(id, port))
+	if err != nil {
+		return nil, err
+	}
+	return raft.NewTCPTransport(":"+port, advertise, 3, time.Second, io.Discard)
 }

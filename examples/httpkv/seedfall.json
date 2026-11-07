@@ -1,0 +1,13 @@
+{
+  "nodes": [{ "name": "server", "pkg": "./server" }],
+  "workload": { "name": "client", "pkg": "./client" },
+  "duration": "30s",
+  "net_overlay": true,
+  "watchdog": "180s",
+  "faults": {
+    "crash_per_sec": 0.5,
+    "restart_after": ["10ms", "300ms"],
+    "torn_writes": true,
+    "crash_on_io": 0.005
+  }
+}

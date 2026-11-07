@@ -70,7 +70,7 @@ func resolve(dir, p string) string {
 }
 
 func (r *Runner) Faults(seed uint64) []Fault {
-	return generateFaults(r.cfg, streams(seed, "faults"))
+	return generateFaults(r.cfg, r.cfg.Faults.forSeed(seed), streams(seed, "faults"))
 }
 
 func (r *Runner) Run(seed uint64, faults []Fault) Result {
@@ -114,15 +114,15 @@ func lineAt(lines []string, i int) string {
 }
 
 func (r *Runner) run(seed uint64, faults []Fault, explicit bool) Result {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(r.cfg.Watchdog))
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	rt := wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfig().WithCompilationCache(r.cache).WithCloseOnContextDone(true))
 	defer rt.Close(context.Background())
 	w := &world{
-		cfg: r.cfg, seed: seed, ctx: ctx, rt: rt,
+		cfg: r.cfg, seed: seed, ctx: ctx, cancel: cancel, rt: rt,
 		sched: streams(seed, "sched"), netRand: streams(seed, "net"), diskRand: streams(seed, "disk"),
 		events: make(chan event), faults: faults, trace: &tracer{}, wasm: r.wasm,
-		explicit: explicit, ioRand: streams(seed, "io"), props: properties{},
+		explicit: explicit, ioRand: streams(seed, "io"), props: properties{}, spec: r.cfg.Faults.forSeed(seed),
 	}
 	w.net = newNetwork(w)
 	res := Result{Seed: seed, Faults: faults}
@@ -141,7 +141,7 @@ func (r *Runner) run(seed uint64, faults []Fault, explicit bool) Result {
 	res.Finished = w.finished
 	res.Steps = w.steps
 	res.Trace = w.trace.lines
-	res.Faults = mergeFaults(faults, w.ioCrashes)
+	res.Faults = mergeFaults(faults, w.ioFaults)
 	return res
 }
 
@@ -159,12 +159,14 @@ func (w *world) setup(ctx context.Context) error {
 		}
 		n := &node{spec: s, crashable: s.Name != w.cfg.Workload.Name, compiled: compiled, restartAt: -1}
 		n.fs = newMemFS(func() int64 { return epochNanos + w.now })
-		if w.cfg.Faults.StrictDirs {
+		if w.spec.StrictDirs {
 			n.fs.strict()
 		}
 		if n.crashable {
 			n.fs.mutated = func() { w.onDiskOp(n) }
+			n.fs.syncFails = func() bool { return w.fsyncFails(n) }
 		}
+		n.skew = w.clockSkew(n)
 		n.fs.special = func(p string) (fsapi.File, fsapi.Errno, bool) { return w.openNetFile(n, p) }
 		w.nodes = append(w.nodes, n)
 		if !n.crashable {
@@ -186,7 +188,7 @@ func (t *tracer) add(at int64, format string, args ...any) {
 }
 
 func mergeFaults(planned, observed []Fault) []Fault {
-	out := slices.DeleteFunc(slices.Clone(planned), func(f Fault) bool { return f.Kind == FaultCrashIO })
+	out := slices.DeleteFunc(slices.Clone(planned), func(f Fault) bool { return observedAtRuntime(f.Kind) })
 	out = append(out, observed...)
 	slices.SortStableFunc(out, func(a, b Fault) int { return int(a.At - b.At) })
 	return out

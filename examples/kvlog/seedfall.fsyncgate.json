@@ -1,0 +1,42 @@
+{
+  "nodes": [
+    {
+      "name": "server",
+      "pkg": "./server",
+      "args": [
+        "-sync",
+        "always",
+        "-repair"
+      ]
+    }
+  ],
+  "workload": {
+    "name": "client",
+    "pkg": "./client",
+    "args": [
+      "-writes",
+      "200"
+    ]
+  },
+  "duration": "60s",
+  "latency": [
+    "1ms",
+    "5ms"
+  ],
+  "faults": {
+    "crash_per_sec": 0.5,
+    "restart_after": [
+      "10ms",
+      "500ms"
+    ],
+    "partition_per_sec": 0.2,
+    "partition_for": [
+      "50ms",
+      "1s"
+    ],
+    "torn_writes": true,
+    "crash_on_io": 0.005,
+    "fsync_eio": 0.02
+  },
+  "supervise": true
+}
