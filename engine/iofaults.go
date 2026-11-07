@@ -47,7 +47,7 @@ func (w *world) fsyncFails(n *node) bool {
 }
 
 func (w *world) draw(rate float64) bool {
-	return !w.explicit && rate > 0 && w.ioRand.Float64() < rate
+	return !w.explicit && rate > 0 && !w.faultsSuppressed() && w.ioRand.Float64() < rate
 }
 
 func (w *world) plannedIOFault(n *node, kind string) (Fault, bool) {

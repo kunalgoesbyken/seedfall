@@ -7,16 +7,16 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"slices"
 	"time"
 
 	"github.com/kunalgoesbyken/seedfall/engine"
+	"github.com/kunalgoesbyken/seedfall/report"
 )
 
 const usage = `seedfall: deterministic simulation testing for Go
 
 usage:
-  seedfall run    [-c seedfall.json] [-seeds 1-1000] [-j N] [-v] [-check]
+  seedfall run    [-c seedfall.json] [-seeds 1-1000] [-j N] [-v] [-check] [-report report.html]
   seedfall replay [-c seedfall.json] -seed N [-faults file.json]
   seedfall shrink [-c seedfall.json] -seed N
   seedfall mcp    serve run, replay and shrink to AI coding agents over MCP (stdio)
@@ -58,32 +58,36 @@ func cmdRun(args []string) error {
 	jobs := fs.Int("j", runtime.NumCPU(), "parallel runs")
 	verbose := fs.Bool("v", false, "print every seed")
 	check := fs.Bool("check", false, "run every seed twice and fail if the traces differ")
+	reportPath := fs.String("report", "", "sweep every seed and write an HTML triage report (plus .json) to this path")
 	fs.Parse(args)
 	lo, hi, err := engine.ParseSeeds(*seeds)
 	if err != nil {
 		return err
 	}
-	r, _, err := load(*conf)
+	r, cfg, err := load(*conf)
 	if err != nil {
 		return err
 	}
 	r.Doublecheck = *check
 	started := time.Now()
-	sum := engine.Sweep(r, lo, hi, *jobs, func(res engine.Result) {
+	sum := engine.Sweep(r, lo, hi, engine.SweepOptions{Jobs: *jobs, KeepGoing: *reportPath != "", OnResult: func(res engine.Result) {
 		if *verbose {
 			fmt.Printf("seed %d: %s\n", res.Seed, status(res))
 		}
-	})
+	}})
 	took := time.Since(started).Round(time.Millisecond)
+	if *reportPath != "" {
+		return writeReport(r, cfg, *conf, *seeds, *reportPath, sum, took)
+	}
 	if sum.First != nil {
-		report(*sum.First, 25)
+		printFailure(*sum.First, 25)
 		fmt.Printf("\n%d seeds passed before the failure, %s\n", sum.Passed, took)
 		fmt.Printf("replay: seedfall replay -c %s -seed %d\nshrink: seedfall shrink -c %s -seed %d\n", *conf, sum.First.Seed, *conf, sum.First.Seed)
 		os.Exit(1)
 	}
 	printCoverage(sum.Coverage)
 	if unmet := sum.Coverage.Unmet(); len(unmet) > 0 {
-		fmt.Printf("FAIL %d properties were never satisfied in %d seeds\n", len(unmet), sum.Passed)
+		fmt.Printf("FAIL %d properties were never reached or never true in %d seeds\n", len(unmet), sum.Passed)
 		os.Exit(1)
 	}
 	fmt.Printf("ok  %d seeds passed (%d hit the time horizon) in %s\n", sum.Passed, sum.Unfinished, took)
@@ -99,12 +103,33 @@ func printCoverage(c engine.Coverage) {
 	for _, msg := range msgs {
 		p := c[msg]
 		mark := ""
-		if p.Unmet() {
-			mark = "  <- never satisfied"
+		if problem := p.Problem(); problem != "" {
+			mark = fmt.Sprintf("  <- %s (%s)", problem, p.Location)
 		}
 		fmt.Printf("  %-12s %12d %11d  %s%s\n", p.Kind, p.SeedsReached, p.SeedsTrue, msg, mark)
 	}
 	fmt.Println()
+}
+
+func writeReport(r *engine.Runner, cfg *engine.Config, conf, seeds, path string, sum engine.Summary, took time.Duration) error {
+	in := report.Input{Config: conf, Seeds: seeds, Faults: cfg.Faults, Summary: sum, Elapsed: took, Replay: func(seed uint64) engine.Result { return r.Run(seed, nil) }}
+	rep, err := report.Generate(in, path, filepath.Join(cfg.Dir, ".seedfall", "history.jsonl"))
+	if err != nil {
+		return err
+	}
+	printCoverage(sum.Coverage)
+	fmt.Printf("%d of %d seeds failed, %d findings, in %s\n", rep.Failed, rep.Total, len(rep.Findings), took)
+	for _, f := range rep.Findings {
+		fmt.Printf("  %-9s %-40s %5d seeds  e.g. seed %d\n", f.Status, f.Key, f.Count, f.Seeds[0])
+	}
+	for _, f := range rep.Cleared {
+		fmt.Printf("  %-9s %-40s %s\n", f.Status, f.Key, f.Note)
+	}
+	fmt.Printf("report: %s\n", path)
+	if rep.Failed > 0 || len(sum.Coverage.Unmet()) > 0 {
+		os.Exit(1)
+	}
+	return nil
 }
 
 func status(res engine.Result) string {
@@ -132,13 +157,13 @@ func saveHistory(res engine.Result) {
 	}
 }
 
-func report(res engine.Result, traceLines int) {
+func printFailure(res engine.Result, traceLines int) {
 	defer saveHistory(res)
 	fmt.Printf("FAIL seed %d at t=%s (%d scheduler steps, %s real)\n  %s\n\n", res.Seed, res.At, res.Steps, res.Elapsed.Round(time.Millisecond), res.Reason)
-	happened := faultsBefore(res)
+	happened := res.FaultsBefore()
 	fmt.Printf("faults before the failure (%d):\n", len(happened))
 	for _, f := range happened {
-		fmt.Printf("  %s\n", describe(f))
+		fmt.Printf("  %s\n", f.Describe())
 	}
 	lines := res.Trace
 	if traceLines > 0 && len(lines) > traceLines {
@@ -150,23 +175,6 @@ func report(res engine.Result, traceLines int) {
 	for _, l := range lines {
 		fmt.Println(l)
 	}
-}
-
-func faultsBefore(res engine.Result) []engine.Fault {
-	return slices.DeleteFunc(slices.Clone(res.Faults), func(f engine.Fault) bool { return time.Duration(f.At) > res.At })
-}
-
-func describe(f engine.Fault) string {
-	at := func(d engine.Duration) time.Duration { return time.Duration(d).Round(time.Microsecond) }
-	switch f.Kind {
-	case engine.FaultFsyncEIO:
-		return fmt.Sprintf("%8s  fsync on %s fails with EIO at disk op #%d, unsynced writes dropped", at(f.At), f.Node, f.Op)
-	case engine.FaultCrashIO:
-		return fmt.Sprintf("%8s  crash %s during disk op #%d, restart at %s", at(f.At), f.Node, f.Op, at(f.Until))
-	case engine.FaultCrash:
-		return fmt.Sprintf("%8s  crash %s, restart at %s", at(f.At), f.Node, at(f.Until))
-	}
-	return fmt.Sprintf("%8s  partition %v from the rest until %s", at(f.At), f.Side, at(f.Until))
 }
 
 func seedFlag(fs *flag.FlagSet) *uint64 { return fs.Uint64("seed", 0, "seed to run") }
@@ -193,7 +201,7 @@ func cmdReplay(args []string) error {
 		fmt.Printf("\nseed %d: %s, %d steps, %s real\n", *seed, status(res), res.Steps, res.Elapsed.Round(time.Millisecond))
 		return nil
 	}
-	report(res, 0)
+	printFailure(res, 0)
 	os.Exit(1)
 	return nil
 }
@@ -218,7 +226,7 @@ func cmdShrink(args []string) error {
 		return err
 	}
 	fmt.Println()
-	report(best, 40)
+	printFailure(best, 40)
 	fmt.Printf("\nminimal schedule: %s\nreplay: seedfall replay -c %s -seed %d -faults %s\n", out, *conf, *seed, out)
 	return nil
 }

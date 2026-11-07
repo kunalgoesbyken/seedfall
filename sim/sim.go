@@ -3,6 +3,7 @@ package sim
 import (
 	"fmt"
 	"os"
+	"time"
 )
 
 func Enabled() bool { return os.Getenv("SEEDFALL") == "1" }
@@ -31,6 +32,10 @@ func Sometimes(cond bool, msg string, details ...any) { property(sometimes, cond
 func Reachable(msg string, details ...any) { property(reachable, true, msg, details) }
 
 func Unreachable(msg string, details ...any) { property(unreachable, false, msg, details) }
+
+func SetupComplete() { setupComplete() }
+
+func QuietFor(d time.Duration) { quietFor(d) }
 
 func Assert(cond bool, msg string) {
 	if !cond {

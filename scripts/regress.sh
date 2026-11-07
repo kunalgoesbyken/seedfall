@@ -23,6 +23,15 @@ expect() {
   fi
 }
 
+expect_replay() {
+  local dir="$1" config="$2" seed="$3" faults="$4" want="$5"
+  local got="pass"
+  (cd "$root/examples/$dir" && "$bin" replay -c "$config" -seed "$seed" -faults "$faults" >/dev/null 2>&1) || got="fail"
+  local verdict="PASS"
+  [ "$got" != "$want" ] && verdict="FAIL" && failures=$((failures + 1))
+  printf '%s  %-8s %-24s want=%-4s  replay seed %s with %s: %s\n' "$verdict" "$dir" "$config" "$want" "$seed" "$faults" "$got"
+}
+
 deterministic() {
   local dir="$1" config="$2" seed="$3"
   local a b
@@ -63,6 +72,10 @@ expect buntdb   seedfall.shrink.strict.json 1-60   fail
 expect etcdraft seedfall.json               1-30   pass
 expect etcdraft seedfall.nofsync.json       1-60   fail
 expect etcdraft seedfall.strict.json        1-30   pass
+expect natsjs seedfall.json          1-20   fail
+expect natsjs seedfall.always.json   1-60   pass
+expect natsjs seedfall.strict.json   1-20   fail
+expect_replay natsjs seedfall.always.json 40 metasum.faults.json fail
 deterministic kvlog  seedfall.always.json 1
 deterministic raftkv seedfall.lin.json    3
 deterministic wals   rosedb.json             1

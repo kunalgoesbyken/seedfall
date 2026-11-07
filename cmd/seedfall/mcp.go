@@ -40,9 +40,10 @@ type failureView struct {
 type propertyView struct {
 	Kind         string `json:"kind"`
 	Message      string `json:"message"`
+	Location     string `json:"location,omitempty"`
+	Problem      string `json:"problem,omitempty"`
 	SeedsReached int    `json:"seeds_reached"`
 	SeedsTrue    int    `json:"seeds_true"`
-	Unmet        bool   `json:"never_satisfied"`
 }
 
 type runView struct {
@@ -96,7 +97,7 @@ func toolRun(_ context.Context, _ *mcp.CallToolRequest, a runArgs) (*mcp.CallToo
 	}
 	r.Doublecheck = a.Check
 	started := time.Now()
-	sum := engine.Sweep(r, lo, hi, runtime.NumCPU(), func(engine.Result) {})
+	sum := engine.Sweep(r, lo, hi, engine.SweepOptions{Jobs: runtime.NumCPU()})
 	out := runView{Passed: sum.Passed, Unfinished: sum.Unfinished, Properties: properties(sum.Coverage), Elapsed: time.Since(started).Round(time.Millisecond).String()}
 	if sum.First != nil {
 		out.Failure = viewFailure(a.Config, *sum.First)
@@ -166,10 +167,10 @@ func saveSchedule(config string, seed uint64, faults []engine.Fault) (string, er
 }
 
 func viewFailure(config string, res engine.Result) *failureView {
-	happened := faultsBefore(res)
+	happened := res.FaultsBefore()
 	described := make([]string, len(happened))
 	for i, f := range happened {
-		described[i] = describe(f)
+		described[i] = f.Describe()
 	}
 	return &failureView{
 		Seed: res.Seed, At: res.At.String(), Reason: res.Reason,
@@ -182,7 +183,7 @@ func properties(c engine.Coverage) []propertyView {
 	out := []propertyView{}
 	for _, msg := range c.Messages() {
 		p := c[msg]
-		out = append(out, propertyView{Kind: p.Kind.String(), Message: msg, SeedsReached: p.SeedsReached, SeedsTrue: p.SeedsTrue, Unmet: p.Unmet()})
+		out = append(out, propertyView{Kind: p.Kind.String(), Message: msg, Location: p.Location, Problem: p.Problem(), SeedsReached: p.SeedsReached, SeedsTrue: p.SeedsTrue})
 	}
 	return out
 }

@@ -21,8 +21,10 @@ jobs:
 | `seeds` | `1-200` | Seed or inclusive range |
 | `check` | `false` | Run every seed twice and fail if the traces differ |
 | `go-version` | `stable` | Go version for building seedfall and your nodes |
+| `report` | `true` | Sweep every seed and upload an HTML triage report |
+| `artifact-name` | `seedfall-report` | Name of the report artifact; make it unique per job in a matrix |
 
-The job fails on the lowest failing seed. The run's output, including the replay command, goes to the job summary. Rotate the seed range over time, for example with the run number, to keep exploring new schedules while each failure stays reproducible.
+The job fails if any seed fails. The output goes to the job summary, and the triage report (see [reports.md](reports.md)) is uploaded as an artifact. Rotate the seed range over time, for example with the run number, to keep exploring new schedules while each failure stays reproducible.
 
 ## `go test`
 

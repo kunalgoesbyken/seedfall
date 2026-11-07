@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="docs/assets/logo.svg" alt="seedfall" width="300">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
+    <img src="docs/assets/logo-light.svg" alt="seedfall" width="300">
+  </picture>
 </p>
 
 <p align="center">
@@ -35,6 +38,7 @@ faults before the failure (2):
 
 | Project | What seedfall found |
 |---|---|
+| **NATS JetStream** | A crash while a stream is being created leaves its config without a checksum. The stream is silently re-created, accepts and acknowledges publishes, and vanishes with all of them on the next restart. 2 faults, `SyncAlways` on, any filesystem. |
 | **rosedblabs/wal** | After one crash mid-write, new fsynced writes are appended after the torn chunk and are lost to replay. rosedb v2 can no longer open. 2 faults. |
 | **tidwall/buntdb** | The automatic AOF shrink renames the rewritten file without fsyncing it. A crash after a shrink can bring the database back empty, even with `SyncPolicy: Always`. |
 | **tidwall/wal** | A crash mid-write makes the log permanently unopenable (known #21), and the pending fix #22 is incomplete. 1 fault. |
@@ -89,6 +93,7 @@ seedfall run    -seeds 1-5000          # parallel sweep, reports the lowest fail
 seedfall replay -seed 9                # exact replay with the full trace
 seedfall shrink -seed 9                # minimal fault schedule, saved to .seedfall/
 seedfall run    -seeds 1-500 -check    # run every seed twice, fail on any divergence
+seedfall run    -seeds 1-500 -report .seedfall/report.html   # triage report of every failure
 ```
 
 The [getting started guide](docs/getting-started.md) walks through finding, shrinking and fixing a real bug in five minutes.
@@ -100,9 +105,11 @@ The [getting started guide](docs/getting-started.md) walks through finding, shri
 - **A real network.** Partitions, latency, resets, through `sim` or with zero code changes via `net_overlay`, including `net/http` and hashicorp/raft's stock TCP transport. [Networking](docs/networking.md)
 - **Real processes.** Every node is its own wasm instance. A crash kills the process; a restart boots fresh over the surviving disk. `supervise` restarts nodes that exit, like systemd.
 - **Clock skew and swarm testing.** Per-node wall-clock offsets, and per-seed random fault mixes in the style of TigerBeetle's VOPR.
-- **Properties with coverage.** `Always`, `Sometimes`, `Reachable` and `Unreachable`, aggregated across the sweep, so you know the dangerous paths actually ran. [Properties](docs/properties.md)
+- **Properties with coverage.** `Always`, `Sometimes`, `Reachable` and `Unreachable`, cataloged from your source and aggregated across the sweep, so a property that never ran fails the build instead of passing silently. [Properties](docs/properties.md)
+- **Liveness checks.** `sim.QuietFor` stops the faults and heals partitions so you can assert the system recovers; `sim.SetupComplete` holds faults until bootstrap is done.
 - **Linearizability.** Record concurrent `sim.Put` / `sim.Get` operations and get a Porcupine check with an HTML timeline.
 - **Exact replay and shrinking.** Same seed, same run, byte for byte. Shrunk schedules replay exactly.
+- **Triage reports.** `-report` groups every failing seed into findings, writes an HTML and JSON report, and tracks each finding across runs as new, ongoing, resolved (with 95% confidence) or regressed. [Reports](docs/reports.md)
 - **AI-agent native.** `seedfall mcp` lets Claude Code, Cursor and other agents run, replay and shrink on their own, and prove a fix before opening a PR. [Agents](docs/agents.md)
 - **CI ready.** A GitHub Action and a `go test` helper. [CI](docs/ci.md)
 
@@ -114,6 +121,7 @@ The [getting started guide](docs/getting-started.md) walks through finding, shri
 | [`examples/raftkv`](examples/raftkv) | hashicorp/raft v1.8 with linearizability checking, over a `sim` stream layer or the stock TCP transport |
 | [`examples/etcdraft`](examples/etcdraft) | etcd-io/raft v3 with a raftexample-style WAL and snapshots, linearizability checked |
 | [`examples/wals`](examples/wals) | tidwall/wal and rosedblabs/wal behind one log server and client |
+| [`examples/natsjs`](examples/natsjs) | An embedded nats-server with JetStream file storage, piped over the simulated network |
 | [`examples/buntdb`](examples/buntdb) | tidwall/buntdb, including the AOF shrink finding |
 | [`examples/httpkv`](examples/httpkv) | A plain `net/http` server with no seedfall code, run through `net_overlay` |
 

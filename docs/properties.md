@@ -22,10 +22,10 @@ sim.Unreachable("two leaders in the same term", term)
 
 | Function | Fails the seed when | Fails the sweep when |
 |---|---|---|
-| `Always(cond, msg, details...)` | `cond` is false | |
+| `Always(cond, msg, details...)` | `cond` is false | it was never reached |
 | `Unreachable(msg, details...)` | it is called | |
-| `Sometimes(cond, msg, details...)` | | `cond` was never true in any seed |
-| `Reachable(msg, details...)` | | (reported only once reached) |
+| `Sometimes(cond, msg, details...)` | | it was never reached, or `cond` was never true |
+| `Reachable(msg, details...)` | | it was never reached |
 
 ```
 property       seeds reached  seeds true
@@ -38,6 +38,37 @@ ok  400 seeds passed (0 hit the time horizon) in 1m32s
 A property is identified by its message, so keep messages constant and pass changing values as details. Details appear in the failure message but do not create a new property. A `Sometimes` that is never satisfied means your faults never reached that path: raise a fault rate, lengthen `duration`, or change the workload.
 
 Properties are evaluated in any node, not only the workload. Outside the simulator, `Always` and `Unreachable` panic on violation and the others do nothing.
+
+### The property catalog
+
+Before a sweep, seedfall scans the Go source of every node and the workload for calls to these functions with a constant message, so it knows about properties even if no seed ever executes them. A property that is never reached is reported with its location and fails the sweep:
+
+```
+property       seeds reached  seeds true
+  reachable               0           0  compaction ran  <- never reached (node/main.go:12)
+  always                  5           5  invariant holds
+
+FAIL 1 properties were never reached or never true in 5 seeds
+```
+
+An `Always` that never runs proves nothing, so it has to be reached too. Calls whose message is not a string literal are still tracked once they run, but they cannot be cataloged in advance.
+
+## Liveness: quiet periods
+
+Safety properties say nothing bad happens. Liveness properties say something good eventually happens, and they can only be checked once the faults stop.
+
+```go
+sim.QuietFor(10 * time.Second)
+started := time.Now()
+waitUntilServed()
+sim.Always(time.Since(started) < 10*time.Second, "cluster serves reads again within the quiet period")
+```
+
+`sim.QuietFor(d)` suppresses every fault for `d` of virtual time and heals any active partition. Nodes that are already down still restart on schedule. The trace records each suppressed fault. `examples/raftkv/client` uses this to check that the cluster recovers after the workload.
+
+## Waiting for setup
+
+With `"faults_after_setup": true`, no faults fire until some node calls `sim.SetupComplete()`. Use it when bootstrapping, such as electing the first leader or creating a stream, is not what you want to test.
 
 ## Linearizability
 

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"fmt"
 	"math"
 	"math/rand/v2"
 	"slices"
@@ -101,4 +102,17 @@ func randomSide(r *rand.Rand, names []string) []string {
 			return side
 		}
 	}
+}
+
+func (f Fault) Describe() string {
+	at := func(d Duration) time.Duration { return time.Duration(d).Round(time.Microsecond) }
+	switch f.Kind {
+	case FaultFsyncEIO:
+		return fmt.Sprintf("%8s  fsync on %s fails with EIO at disk op #%d, unsynced writes dropped", at(f.At), f.Node, f.Op)
+	case FaultCrashIO:
+		return fmt.Sprintf("%8s  crash %s during disk op #%d, restart at %s", at(f.At), f.Node, f.Op, at(f.Until))
+	case FaultCrash:
+		return fmt.Sprintf("%8s  crash %s, restart at %s", at(f.At), f.Node, at(f.Until))
+	}
+	return fmt.Sprintf("%8s  partition %v from the rest until %s", at(f.At), f.Side, at(f.Until))
 }

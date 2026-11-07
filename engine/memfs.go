@@ -86,10 +86,13 @@ func (m *memFS) OpenFile(p string, flag fsapi.Oflag, _ fs.FileMode) (fsapi.File,
 		}
 		return &memFile{fs: m, path: p, dirIno: ino}, 0
 	}
-	if flag&fsapi.O_DIRECTORY != 0 {
+	in, ok := m.files[p]
+	if flag&fsapi.O_DIRECTORY != 0 && ok {
 		return nil, fsapi.ENOTDIR
 	}
-	in, ok := m.files[p]
+	if flag&fsapi.O_DIRECTORY != 0 {
+		return nil, fsapi.ENOENT
+	}
 	switch {
 	case ok && flag&fsapi.O_CREAT != 0 && flag&fsapi.O_EXCL != 0:
 		return nil, fsapi.EEXIST
@@ -102,7 +105,7 @@ func (m *memFS) OpenFile(p string, flag fsapi.Oflag, _ fs.FileMode) (fsapi.File,
 		m.files[p] = in
 		m.logNS(nsOp{kind: nsCreate, path: p, in: in})
 	}
-	f := &memFile{fs: m, path: p, in: in, append: flag&fsapi.O_APPEND != 0}
+	f := &memFile{fs: m, path: p, in: in, append: flag&fsapi.O_APPEND != 0, sync: flag&(fsapi.O_SYNC|fsapi.O_DSYNC) != 0}
 	if flag&fsapi.O_TRUNC != 0 {
 		f.Truncate(0)
 	}
@@ -290,6 +293,7 @@ type memFile struct {
 	dirIno  uint64
 	off     int64
 	append  bool
+	sync    bool
 	dirRead int
 }
 
@@ -383,7 +387,9 @@ func (f *memFile) Pwrite(buf []byte, off int64) (int, fsapi.Errno) {
 	if f.in == nil {
 		return 0, fsapi.EISDIR
 	}
-	f.record(pendingWrite{off: off, data: append([]byte(nil), buf...)})
+	if errno := f.record(pendingWrite{off: off, data: append([]byte(nil), buf...)}); errno != 0 {
+		return 0, errno
+	}
 	return len(buf), 0
 }
 
@@ -391,15 +397,18 @@ func (f *memFile) Truncate(size int64) fsapi.Errno {
 	if f.in == nil {
 		return fsapi.EISDIR
 	}
-	f.record(pendingWrite{off: size, truncate: true})
-	return 0
+	return f.record(pendingWrite{off: size, truncate: true})
 }
 
-func (f *memFile) record(w pendingWrite) {
+func (f *memFile) record(w pendingWrite) fsapi.Errno {
 	f.in.data = w.apply(f.in.data)
 	f.in.pending = append(f.in.pending, w)
 	f.in.mtime = f.fs.clock()
 	f.fs.notify()
+	if f.sync {
+		return f.Sync()
+	}
+	return 0
 }
 
 func (m *memFS) notify() {

@@ -25,10 +25,12 @@ type Result struct {
 	Elapsed    time.Duration
 	History    Linearizability
 	Properties map[string]*Property
+	Failure    Failure
 }
 
 type Runner struct {
 	Doublecheck bool
+	catalog     []CatalogEntry
 	cfg         *Config
 	cache       wazero.CompilationCache
 	wasm        map[string][]byte
@@ -39,7 +41,11 @@ func NewRunner(cfg *Config) (*Runner, error) {
 	if err != nil {
 		return nil, err
 	}
-	r := &Runner{cfg: cfg, cache: cache, wasm: map[string][]byte{}}
+	entries, err := catalog(cfg)
+	if err != nil {
+		return nil, err
+	}
+	r := &Runner{cfg: cfg, cache: cache, wasm: map[string][]byte{}, catalog: entries}
 	for _, s := range cfg.all() {
 		b, err := os.ReadFile(resolve(cfg.Dir, s.Wasm))
 		if err != nil {
@@ -84,7 +90,7 @@ func (r *Runner) Run(seed uint64, faults []Fault) Result {
 	}
 	again := r.timedRun(seed, faults, explicit)
 	if line, diverged := divergence(res.Trace, again.Trace); diverged {
-		res.Failed, res.At = true, 0
+		res.Failed, res.At, res.Failure = true, 0, Failure{Class: FailNondeterminism}
 		res.Reason = fmt.Sprintf("nondeterminism: two runs of seed %d diverge at trace line %d: %q vs %q", seed, line+1, lineAt(res.Trace, line), lineAt(again.Trace, line))
 	}
 	return res
@@ -127,7 +133,7 @@ func (r *Runner) run(seed uint64, faults []Fault, explicit bool) Result {
 	w.net = newNetwork(w)
 	res := Result{Seed: seed, Faults: faults}
 	if err := w.setup(ctx); err != nil {
-		res.Failed, res.Reason = true, err.Error()
+		res.Failed, res.Reason, res.Failure = true, err.Error(), Failure{Class: FailSetup}
 		return res
 	}
 	w.loop()
@@ -137,6 +143,7 @@ func (r *Runner) run(seed uint64, faults []Fault, explicit bool) Result {
 	res.Properties = w.props
 	res.Failed = w.failure != ""
 	res.Reason = w.failure
+	res.Failure = w.failureKind
 	res.At = time.Duration(w.failAt)
 	res.Finished = w.finished
 	res.Steps = w.steps
@@ -192,4 +199,8 @@ func mergeFaults(planned, observed []Fault) []Fault {
 	out = append(out, observed...)
 	slices.SortStableFunc(out, func(a, b Fault) int { return int(a.At - b.At) })
 	return out
+}
+
+func (r Result) FaultsBefore() []Fault {
+	return slices.DeleteFunc(slices.Clone(r.Faults), func(f Fault) bool { return time.Duration(f.At) > r.At })
 }

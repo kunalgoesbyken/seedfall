@@ -1,0 +1,4 @@
+[
+  {"at": "150ms", "kind": "crash_io", "node": "node", "until": "650ms", "op": 9},
+  {"at": "5s", "kind": "crash", "node": "node", "until": "5.5s"}
+]

@@ -36,16 +36,15 @@ seedfall replay -c seedfall.always.json -seed 40 -faults metasum.faults.json
 Two faults are enough:
 
 1. The server crashes during stream creation, after `meta.inf` has been renamed into place and before `meta.sum` is.
-2. Later, after the re-created stream has acknowledged 300 publishes, the server crashes once more.
+2. Later, while the re-created stream is acknowledging publishes, the server crashes once more.
 
 ```
-0.182s  fault crash node#1 during disk op 9, restart at 0.687s
-0.687s  node#2 | [WRN]   Missing stream checksum file ".../EVENTS/meta.sum"
-12.116s client#1| 300 of 300 publishes acknowledged, verifying
-13.105s fault crash node#2, restart at 13.809s
-13.809s node#3 | [WRN]   Missing stream checksum file ".../EVENTS/meta.sum"
-14.222s FAIL  client#1: stream EVENTS lost after restart, 214 acknowledged messages gone
+    0.158s  fault crash node#1 during disk op 9, restart at 0.658s
+    5.000s  fault crash node#2, restart at 5.500s
+   67.397s  FAIL  client#1: stream EVENTS lost after restart, 186 acknowledged messages gone
 ```
+
+The same schedule with the first crash at disk op 10, after `meta.sum` is written, passes. With NATS logging enabled, each restart after the first crash logs `[WRN] Missing stream checksum file ".../EVENTS/meta.sum"` and skips the stream.
 
 Only the first crash has to land at a precise moment. In practice that moment is any process kill, OOM kill or power loss while a stream is being created; after that the stream is a time bomb that goes off on the next restart.
 

@@ -35,6 +35,7 @@ A world is described in a JSON file, `seedfall.json` by default. Paths inside it
 | `workload` | | The checker. Same fields as a node. It is never crashed, and the run passes when it exits 0 |
 | `duration` | `30s` | Virtual-time horizon. A run that reaches it without failing counts as passed and is reported as "hit the time horizon" |
 | `latency` | `["1ms", "10ms"]` | Per-chunk network delay range |
+| `faults_after_setup` | `false` | Suppress all faults until a node calls `sim.SetupComplete()` |
 | `supervise` | `false` | Restart a node that exits with an error, after `restart_after`. Go panics (exit code 2) still fail the run |
 | `net_overlay` | `false` | Route plain `net.Listen` / `net.Dial` through the simulated network. See [networking.md](networking.md) |
 | `watchdog` | `30s` | Real-time limit for one node to run without yielding. Catches busy loops and livelocks |

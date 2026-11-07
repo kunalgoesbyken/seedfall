@@ -4,6 +4,7 @@ Bugs that seedfall found in open-source Go projects. Each report has the root ca
 
 | Project | Finding | Affects | Minimal schedule | Fix verified |
 |---|---|---|---|---|
+| [nats-io/nats-server](nats-stream-meta-checksum-crash.md) v2.15.2 | A crash during stream creation leaves `meta.inf` without `meta.sum`. On restart the stream is skipped; the client re-creates it, but the checksum is never rewritten, so every message acknowledged afterwards vanishes on the next restart. Also, under strict POSIX, new stream directories and message blocks are never directory-fsynced | Any filesystem | 1 crash mid-I/O, 1 crash | 150 seeds |
 | [rosedblabs/wal](rosedblabs-wal-torn-tail.md) v1.3.8 | After a crash mid-write, `Open` appends after the torn chunk. Later fsynced, acknowledged writes are unreachable to replay, and rosedb v2 fails to open | Any filesystem | 2 crashes | 1,000 seeds |
 | [tidwall/buntdb](tidwall-buntdb-shrink-fsync.md) v1.3.2 | The automatic AOF shrink renames the rewritten file into place without fsyncing it or its directory. A crash after a shrink can bring the database back empty or partial, even with `SyncPolicy: Always` | Filesystems without rename-over-write heuristics | 4 crashes, 1 partition | 300 seeds |
 | [tidwall/wal](tidwall-wal-torn-tail.md) v1.2.1 | A crash mid-write makes `Open` fail with `log corrupt` forever (known: #21). The pending fix, PR #22, skips the torn entry but never truncates it, so the segment corrupts again later | Any filesystem | 1 crash | 1,500 seeds |
@@ -15,6 +16,7 @@ Systems that passed (no false alarms):
 |---|---|---|
 | hashicorp/raft v1.8 | 3 nodes, 4 concurrent clients, Porcupine | 600 seeds durable, 60 seeds linearizable, also over the stock `NewTCPTransport` |
 | etcd-io/raft v3.7 | 3 nodes, raftexample-style storage, Porcupine | 100 seeds, plus 100 under strict directories |
+| NATS JetStream v2.15.2 | `SyncAlways`, R1 file stream, 300 publishes | 150 seeds under crashes, torn writes and crashes mid-I/O |
 | tidwall/buntdb v1.3.2 | `SyncPolicy: Always` without shrink | 300 seeds, plus 300 with torn writes and crashes mid-I/O |
 
 Each system also had a negative control (for example, skipping fsync) that seedfall caught, so the passing results are not vacuous.

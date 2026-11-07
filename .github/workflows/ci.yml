@@ -20,8 +20,10 @@ jobs:
         include:
           - config: examples/kvlog/seedfall.fixed.json
             seeds: 1-100
+            name: kvlog-fixed
           - config: examples/kvlog/seedfall.rewind.json
             seeds: 1-100
+            name: kvlog-rewind
     steps:
       - uses: actions/checkout@v4
       - uses: ./
@@ -29,3 +31,4 @@ jobs:
           config: ${{ matrix.config }}
           seeds: ${{ matrix.seeds }}
           check: "true"
+          artifact-name: seedfall-report-${{ matrix.name }}

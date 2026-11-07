@@ -2,7 +2,10 @@
 
 package sim
 
-import "net"
+import (
+	"net"
+	"time"
+)
 
 func Listen(network, address string) (net.Listener, error) { return net.Listen(network, address) }
 
@@ -15,6 +18,10 @@ func property(k kind, cond bool, msg string, details []any) {
 		Fail(msg + ": " + describe(details))
 	}
 }
+
+func setupComplete() {}
+
+func quietFor(time.Duration) {}
 
 func call(int, string, string, string) Op { return Op{} }
 

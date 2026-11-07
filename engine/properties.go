@@ -26,6 +26,15 @@ func (k PropertyKind) violatedBy(cond bool) bool {
 
 func (k PropertyKind) needsWitness() bool { return k == Sometimes || k == Reachable }
 
+func (k PropertyKind) mustBeReached() bool { return k != Unreachable }
+
+func (k PropertyKind) messageArg() int {
+	if k == Reachable || k == Unreachable {
+		return 0
+	}
+	return 1
+}
+
 type Property struct {
 	Kind PropertyKind
 	Hits int
@@ -48,13 +57,34 @@ func (p properties) observe(kind PropertyKind, cond bool, msg string) {
 
 type PropertyCoverage struct {
 	Kind         PropertyKind
+	Location     string
 	SeedsReached int
 	SeedsTrue    int
 }
 
-func (c PropertyCoverage) Unmet() bool { return c.Kind.needsWitness() && c.SeedsTrue == 0 }
+func (c PropertyCoverage) Problem() string {
+	switch {
+	case c.Kind.mustBeReached() && c.SeedsReached == 0:
+		return "never reached"
+	case c.Kind.needsWitness() && c.SeedsTrue == 0:
+		return "never true"
+	}
+	return ""
+}
+
+func (c PropertyCoverage) Unmet() bool { return c.Problem() != "" }
 
 type Coverage map[string]*PropertyCoverage
+
+func newCoverage(entries []CatalogEntry) Coverage {
+	c := Coverage{}
+	for _, e := range entries {
+		if _, ok := c[e.Message]; !ok {
+			c[e.Message] = &PropertyCoverage{Kind: e.Kind, Location: e.Location}
+		}
+	}
+	return c
+}
 
 func (c Coverage) add(props properties) {
 	for msg, p := range props {
@@ -84,12 +114,12 @@ func (c Coverage) Unmet() []string {
 
 func (w *world) observeProperty(inst *instance, kind PropertyKind, cond bool, msg, detail string) {
 	if kind < Always || kind > Unreachable {
-		w.fail(fmt.Sprintf("%s: unknown property kind %d", inst.label, kind))
+		w.fail(Failure{Class: FailAssert, Node: inst.node.name()}, fmt.Sprintf("%s: unknown property kind %d", inst.label, kind))
 		panic(errFailed)
 	}
 	w.props.observe(kind, cond, msg)
 	if kind.violatedBy(cond) {
-		w.fail(strings.TrimSuffix(fmt.Sprintf("%s: %s: %s", inst.label, msg, detail), ": "))
+		w.fail(Failure{Class: FailProperty, Node: inst.node.name(), Property: msg}, strings.TrimSuffix(fmt.Sprintf("%s: %s: %s", inst.label, msg, detail), ": "))
 		panic(errFailed)
 	}
 }

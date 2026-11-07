@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>seedfall triage report · {{.Config}}</title>
+<style>
+:root { --ink: #140c08; --panel: #1d130d; --line: rgba(253,248,241,.12); --text: #fdf8f1; --dim: #b9a99b; --ember: #ff9a5a; --bad: #ff7b6b; --ok: #9fd99a; --warn: #f2d39b; }
+* { box-sizing: border-box; margin: 0; }
+body { background: var(--ink); color: var(--text); font: 15px/1.55 system-ui, sans-serif; padding: 48px 24px; }
+main { max-width: 1100px; margin: 0 auto; }
+h1 { font: 300 40px/1.1 Georgia, serif; }
+h2 { font: 400 26px/1.2 Georgia, serif; margin: 48px 0 16px; }
+.mono, code, pre { font-family: ui-monospace, "IBM Plex Mono", monospace; }
+.dim { color: var(--dim); }
+.brand { display: flex; align-items: center; gap: 10px; color: var(--dim); font-size: 14px; margin-bottom: 18px; }
+.brand i { display: inline-block; width: 5px; border-radius: 3px; background: var(--ember); }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); margin-top: 28px; }
+.stats div { padding: 18px 0; }
+.stats b { display: block; font: 300 38px Georgia, serif; color: var(--ember); }
+.finding { border-top: 1px solid var(--line); padding: 24px 0; }
+.finding header { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: baseline; }
+.finding h3 { font-weight: 500; font-size: 18px; }
+.badge { font: 12px ui-monospace, monospace; padding: 2px 8px; border-radius: 4px; border: 1px solid currentColor; }
+.new, .regressed { color: var(--bad); } .ongoing { color: var(--warn); } .resolved { color: var(--ok); } .not-seen { color: var(--dim); }
+pre { background: #0d0805; border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; overflow-x: auto; font-size: 12.5px; line-height: 1.65; margin-top: 12px; }
+details { margin-top: 12px; } summary { cursor: pointer; color: var(--dim); }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 10px 12px 10px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 500 12px ui-monospace, monospace; color: var(--dim); }
+td.num { font-family: ui-monospace, monospace; white-space: nowrap; }
+.problem { color: var(--bad); }
+.empty { color: var(--ok); padding: 18px 0; border-top: 1px solid var(--line); }
+</style>
+</head>
+<body>
+<main>
+  <p class="brand"><span><i style="height:8px;opacity:.55"></i> <i style="height:18px"></i> <i style="height:12px;opacity:.75"></i></span>seedfall triage report</p>
+  <h1>{{.Config}}</h1>
+  <p class="dim mono">seeds {{.Seeds}} · {{.Elapsed}} · {{.GoVersion}} · {{.Generated.Format "2006-01-02 15:04 MST"}}</p>
+
+  <div class="stats">
+    <div><b>{{.Total}}</b><span class="dim">seeds run</span></div>
+    <div><b>{{.Passed}}</b><span class="dim">passed</span></div>
+    <div><b>{{.Failed}}</b><span class="dim">failed</span></div>
+    <div><b>{{len .Findings}}</b><span class="dim">distinct findings</span></div>
+  </div>
+
+  <h2>Findings</h2>
+  {{if not .Findings}}<p class="empty">No failures in {{.Total}} seeds.</p>{{end}}
+  {{range $f := .Findings}}
+  <section class="finding">
+    <header>
+      <span class="badge {{.Status}}">{{.Status}}</span>
+      <h3>{{.Key}}</h3>
+      <span class="dim mono">{{.Count}} seeds · {{percent .Rate}}{{if .Rare}} · rare{{end}}</span>
+    </header>
+    {{with .Example}}
+    <p style="margin-top:10px">{{.Reason}}</p>
+    <p class="dim mono" style="margin-top:6px">example seeds: {{range $i, $s := $f.Seeds}}{{if $i}}, {{end}}{{$s}}{{end}}</p>
+    <pre>{{.Replay}}
+{{.Shrink}}</pre>
+    {{if .Faults}}<pre>faults before the failure ({{len .Faults}}):
+{{range .Faults}}  {{.}}
+{{end}}</pre>{{end}}
+    <details><summary>trace of seed {{.Seed}}, failing at t={{.At}}</summary><pre>{{range .Trace}}{{.}}
+{{end}}</pre></details>
+    {{end}}
+  </section>
+  {{end}}
+
+  {{if .Cleared}}
+  <h2>Previous findings not seen</h2>
+  {{range .Cleared}}
+  <section class="finding">
+    <header><span class="badge {{if eq .Status "resolved"}}resolved{{else}}not-seen{{end}}">{{.Status}}</span><h3>{{.Key}}</h3></header>
+    <p class="dim" style="margin-top:8px">{{.Note}}</p>
+  </section>
+  {{end}}
+  {{end}}
+
+  <h2>Properties</h2>
+  {{if not .Properties}}<p class="dim">No properties declared. Add sim.Always, sim.Sometimes or sim.Reachable to know which paths the faults reached.</p>{{else}}
+  <table>
+    <tr><th>kind</th><th>property</th><th>seeds reached</th><th>seeds true</th><th>location</th></tr>
+    {{range .Properties}}
+    <tr><td class="mono">{{.Kind}}</td><td>{{.Message}}{{if .Problem}} <span class="problem">· {{.Problem}}</span>{{end}}</td><td class="num">{{.SeedsReached}}</td><td class="num">{{.SeedsTrue}}</td><td class="mono dim">{{.Location}}</td></tr>
+    {{end}}
+  </table>
+  {{end}}
+
+  <h2>Fault profile</h2>
+  <table>
+    <tr><td>crashes per second per node</td><td class="num">{{.Faults.CrashPerSec}}</td></tr>
+    <tr><td>partitions per second</td><td class="num">{{.Faults.PartitionPerSec}}</td></tr>
+    <tr><td>crash probability per disk operation</td><td class="num">{{.Faults.CrashOnIO}}</td></tr>
+    <tr><td>fsync EIO probability</td><td class="num">{{.Faults.FsyncEIO}}</td></tr>
+    <tr><td>torn writes · strict directories · swarm</td><td class="num">{{.Faults.TornWrites}} · {{.Faults.StrictDirs}} · {{.Faults.Swarm}}</td></tr>
+  </table>
+</main>
+</body>
+</html>

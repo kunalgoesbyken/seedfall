@@ -16,6 +16,12 @@ inputs:
   go-version:
     description: Go version used to build the nodes and seedfall
     default: stable
+  report:
+    description: Sweep every seed and upload an HTML triage report as an artifact
+    default: "true"
+  artifact-name:
+    description: Name of the uploaded report artifact; must be unique per workflow run
+    default: seedfall-report
 runs:
   using: composite
   steps:
@@ -32,12 +38,22 @@ runs:
         CONFIG: ${{ inputs.config }}
         SEEDS: ${{ inputs.seeds }}
         CHECK: ${{ inputs.check }}
+        REPORT: ${{ inputs.report }}
       run: |
         set -o pipefail
-        "$RUNNER_TEMP/seedfall" run -c "$CONFIG" -seeds "$SEEDS" -check="$CHECK" | tee "$RUNNER_TEMP/seedfall.txt"
+        args=(run -c "$CONFIG" -seeds "$SEEDS" -check="$CHECK")
+        [ "$REPORT" = "true" ] && args+=(-report "$RUNNER_TEMP/seedfall-report/report.html")
+        "$RUNNER_TEMP/seedfall" "${args[@]}" | tee "$RUNNER_TEMP/seedfall.txt"
     - name: Summarize
       if: always()
       shell: bash
       run: |
         [ -f "$RUNNER_TEMP/seedfall.txt" ] || exit 0
         { echo '### seedfall'; echo '```'; tail -n 60 "$RUNNER_TEMP/seedfall.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+    - name: Upload triage report
+      if: always() && inputs.report == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ runner.temp }}/seedfall-report
+        if-no-files-found: ignore

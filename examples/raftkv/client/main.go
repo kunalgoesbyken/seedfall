@@ -21,6 +21,7 @@ func main() {
 	nodes := flag.String("nodes", "n1:8000,n2:8000,n3:8000", "node API addresses")
 	writes := flag.Int("writes", 150, "number of writes")
 	gap := flag.Duration("gap", 20*time.Millisecond, "pause between writes")
+	recovery := flag.Duration("recovery", 10*time.Second, "quiet period in which the cluster must serve reads again")
 	flag.Parse()
 	c := &cluster{nodes: strings.Split(*nodes, ",")}
 
@@ -33,11 +34,20 @@ func main() {
 		time.Sleep(*gap)
 	}
 	fmt.Printf("%d of %d writes acknowledged, verifying\n", len(acked), *writes)
+	c.recoversWithin(*recovery)
 	for _, e := range acked {
 		reply := c.untilServed("GET " + e.key)
 		sim.Assert(reply == "VAL "+e.value, fmt.Sprintf("acknowledged write lost: %s=%s, leader answers %q", e.key, e.value, reply))
 	}
 	fmt.Println("all acknowledged writes are readable from the leader")
+}
+
+func (c *cluster) recoversWithin(d time.Duration) {
+	sim.QuietFor(d)
+	started := time.Now()
+	c.untilServed("GET k0")
+	took := time.Since(started)
+	sim.Always(took < d, "cluster serves reads again within the quiet period", took)
 }
 
 func (c *cluster) tryLeader(request string, rounds int) string {

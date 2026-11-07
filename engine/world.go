@@ -60,35 +60,38 @@ type partition struct {
 }
 
 type world struct {
-	cfg       *Config
-	seed      uint64
-	ctx       context.Context
-	cancel    context.CancelFunc
-	rt        wazero.Runtime
-	now       int64
-	sched     *rand.Rand
-	netRand   *rand.Rand
-	diskRand  *rand.Rand
-	nodes     []*node
-	workload  *node
-	net       *network
-	events    chan event
-	faults    []Fault
-	nextFault int
-	part      *partition
-	trace     *tracer
-	failure   string
-	failAt    int64
-	finished  bool
-	steps     int
-	explicit  bool
-	ioRand    *rand.Rand
-	ioFaults  []Fault
-	spec      FaultSpec
-	wasm      map[string][]byte
-	history   history
-	lin       Linearizability
-	props     properties
+	cfg         *Config
+	seed        uint64
+	ctx         context.Context
+	cancel      context.CancelFunc
+	rt          wazero.Runtime
+	now         int64
+	sched       *rand.Rand
+	netRand     *rand.Rand
+	diskRand    *rand.Rand
+	nodes       []*node
+	workload    *node
+	net         *network
+	events      chan event
+	faults      []Fault
+	nextFault   int
+	part        *partition
+	trace       *tracer
+	failure     string
+	failAt      int64
+	failureKind Failure
+	finished    bool
+	steps       int
+	explicit    bool
+	ioRand      *rand.Rand
+	ioFaults    []Fault
+	spec        FaultSpec
+	wasm        map[string][]byte
+	history     history
+	lin         Linearizability
+	props       properties
+	setupDone   bool
+	quietUntil  int64
 }
 
 func streams(seed uint64, name string) *rand.Rand {
@@ -150,18 +153,24 @@ func (w *world) hostModule(ctx context.Context) error {
 	export("property", func(ctx context.Context, m api.Module, kind, cond int32, p, n, dp, dn uint32) {
 		w.observeProperty(w.instance(ctx), PropertyKind(kind), cond != 0, string(readBytes(m, p, n)), string(readBytes(m, dp, dn)))
 	})
+	export("setup_complete", func(ctx context.Context) {
+		w.setupComplete(w.instance(ctx))
+	})
+	export("quiet", func(ctx context.Context, ns int64) {
+		w.quietFor(w.instance(ctx), time.Duration(ns))
+	})
 	export("fail", func(ctx context.Context, m api.Module, p, n uint32) {
 		inst := w.instance(ctx)
-		w.fail(fmt.Sprintf("%s: %s", inst.label, readBytes(m, p, n)))
+		w.fail(Failure{Class: FailAssert, Node: inst.node.name()}, fmt.Sprintf("%s: %s", inst.label, readBytes(m, p, n)))
 		panic(errFailed)
 	})
 	_, err := b.Instantiate(ctx)
 	return err
 }
 
-func (w *world) fail(reason string) {
+func (w *world) fail(kind Failure, reason string) {
 	if w.failure == "" {
-		w.failure, w.failAt = reason, w.now
+		w.failure, w.failAt, w.failureKind = reason, w.now, kind
 		w.trace.add(w.now, "FAIL  %s", reason)
 	}
 }
@@ -260,7 +269,7 @@ func (w *world) handle(ev event) {
 			w.crashDisk(n, ev.inst.crashUntil)
 		}
 	case w.ctx.Err() != nil:
-		w.fail(fmt.Sprintf("watchdog: %s ran for more than %s of real time without yielding (livelock or busy loop)", ev.inst.label, time.Duration(w.cfg.Watchdog)))
+		w.fail(Failure{Class: FailWatchdog, Node: n.name()}, fmt.Sprintf("watchdog: %s ran for more than %s of real time without yielding (livelock or busy loop)", ev.inst.label, time.Duration(w.cfg.Watchdog)))
 	case n == w.workload && exitedCleanly(ev.err):
 		w.finished = true
 		w.trace.add(w.now, "workload finished")
@@ -268,9 +277,9 @@ func (w *world) handle(ev event) {
 		n.restartAt = w.now + int64(uniform(w.sched, w.spec.RestartAfter))
 		w.trace.add(w.now, "%s exited (%v), supervisor restarts it at %s", ev.inst.label, ev.err, fmtTime(n.restartAt))
 	case exitedCleanly(ev.err):
-		w.fail(fmt.Sprintf("%s exited", ev.inst.label))
+		w.fail(Failure{Class: FailExit, Node: n.name()}, fmt.Sprintf("%s exited", ev.inst.label))
 	default:
-		w.fail(fmt.Sprintf("%s crashed: %v", ev.inst.label, ev.err))
+		w.fail(Failure{Class: FailCrash, Node: n.name()}, fmt.Sprintf("%s crashed: %v", ev.inst.label, ev.err))
 	}
 }
 
@@ -281,6 +290,10 @@ func (w *world) kill(inst *instance) {
 }
 
 func (w *world) applyFault(f Fault) {
+	if w.faultsSuppressed() {
+		w.trace.add(w.now, "fault %s suppressed by a quiet period", f.Kind)
+		return
+	}
 	switch f.Kind {
 	case FaultCrash:
 		n := w.nodeByName(f.Node)
@@ -314,7 +327,7 @@ func (w *world) checkLinearizable() {
 		w.trace.add(w.now, "checked %d operations for linearizability: %s", w.lin.Ops, map[bool]string{true: "ok", false: "VIOLATION"}[w.lin.Ok])
 	}
 	if w.lin.Checked && !w.lin.Ok {
-		w.fail(fmt.Sprintf("history of %d operations is not linearizable", w.lin.Ops))
+		w.fail(Failure{Class: FailLinearizability}, fmt.Sprintf("history of %d operations is not linearizable", w.lin.Ops))
 	}
 }
 
@@ -371,11 +384,11 @@ func (w *world) loop() {
 	for w.failure == "" && !w.finished {
 		candidates := w.nextSteps()
 		if len(candidates) == 0 {
-			w.fail("deadlock: every node has exited")
+			w.fail(Failure{Class: FailDeadlock}, "deadlock: every node has exited")
 			return
 		}
 		if candidates[0].at == never {
-			w.fail("deadlock: every node is blocked with no timer or pending message")
+			w.fail(Failure{Class: FailDeadlock}, "deadlock: every node is blocked with no timer or pending message")
 			return
 		}
 		s := candidates[w.sched.IntN(len(candidates))]

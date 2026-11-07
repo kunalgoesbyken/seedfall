@@ -49,6 +49,8 @@ A run fails when:
 - a node runs longer than `watchdog` of real time without yielding (livelock or busy loop);
 - the recorded `sim.Put` / `sim.Get` history is not linearizable.
 
+A sweep also fails when a cataloged property is never reached, or a `Sometimes` is never true, in any seed.
+
 See [properties.md](properties.md).
 
 ## Shrinking
