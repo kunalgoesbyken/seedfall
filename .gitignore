@@ -5,3 +5,4 @@
 *.wasm
 /seedfall
 .impeccable/
+.vercel/
