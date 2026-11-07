@@ -10,9 +10,11 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<svg hidden><symbol id="gh" viewBox="0 0 16 16"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></symbol></svg>
 
 <header class="nav">
   <div class="wrap nav-row">
@@ -23,7 +25,7 @@
       <a href="#compare">Compare</a>
       <a href="#start">Quickstart</a>
     </nav>
-    <a class="btn btn-solid btn-sm" href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
+    <a class="gh" href="https://github.com/kunalgoesbyken/seedfall" aria-label="seedfall on GitHub"><svg><use href="#gh"/></svg></a>
   </div>
 </header>
 
@@ -81,19 +83,19 @@
     <p class="eyebrow center">The problem</p>
     <h2 class="center">Bugs your test suite can't reach</h2>
     <p class="sub center">These aren't hypothetical. They keep turning up in mature Go systems years after release.</p>
-    <div class="cards">
-      <article class="card">
-        <p class="card-k">Lost acknowledged writes</p>
+    <div class="cols">
+      <article>
+        <p class="col-k">Lost acknowledged writes</p>
         <p>Jepsen found NATS JetStream 2.12.1 losing <strong>679,153 of 1,367,069</strong> acknowledged writes after file corruption, and acknowledging messages that had not been fsynced.</p>
         <a href="https://jepsen.io/analyses/nats-2.12.1">jepsen.io/analyses/nats-2.12.1</a>
       </article>
-      <article class="card">
-        <p class="card-k">Recovery that misreads its own log</p>
+      <article>
+        <p class="col-k">Recovery that misreads its own log</p>
         <p>A crash mid-append leaves a torn record. Without truncation on recovery, the next write is glued onto garbage and silently lost on the following restart.</p>
         <a href="#proof">Reproduced below</a>
       </article>
-      <article class="card">
-        <p class="card-k">Divergence after a crash</p>
+      <article>
+        <p class="col-k">Divergence after a crash</p>
         <p>etcd 3.5.0–3.5.5 could diverge after a crash during defragmentation, and it went unnoticed for five patch releases.</p>
         <a href="https://groups.google.com/g/etcd-dev/c/8S7u6NqW6C4">etcd-dev notice</a>
       </article>
@@ -118,34 +120,34 @@ $ diff a.txt b.txt
 &lt; FAIL seed 3 at t=4.173s (6252 steps, <b>2.82s</b> real)
 &gt; FAIL seed 3 at t=4.173s (6252 steps, <b>914ms</b> real)</pre>
     </div>
-    <div class="grid4">
-      <div class="tile">
-        <p class="tile-k">Disk</p>
+    <div class="cols tiles">
+      <div>
+        <p class="kicker">Disk</p>
         <h4>Real fsync semantics</h4>
         <p>Your code uses plain <code>os.File</code>. A crash keeps only what was synced. With torn writes on, it keeps a random prefix of pending writes, down to a partial record.</p>
       </div>
-      <div class="tile">
-        <p class="tile-k">Crashes</p>
+      <div>
+        <p class="kicker">Crashes</p>
         <h4>Crash mid-operation</h4>
         <p>Nodes die while idle or in the middle of a disk write. Each node is its own wasm instance, so a restart starts from a clean process over the surviving disk.</p>
       </div>
-      <div class="tile">
-        <p class="tile-k">Network</p>
+      <div>
+        <p class="kicker">Network</p>
         <h4>Partitions and resets</h4>
         <p>Ordered streams with seeded latency, partitions that hold traffic until they heal, and connection resets when a peer dies. Blocked reads use Go's own poller, with no polling.</p>
       </div>
-      <div class="tile">
-        <p class="tile-k">Correctness</p>
+      <div>
+        <p class="kicker">Correctness</p>
         <h4>Linearizability, checked</h4>
         <p>Record operations with <code>sim.Put</code> and <code>sim.Get</code> from concurrent clients. Every run is checked with Porcupine, and violations come with an interactive timeline.</p>
       </div>
-      <div class="tile">
-        <p class="tile-k">Filesystem</p>
+      <div>
+        <p class="kicker">Filesystem</p>
         <h4>Strict POSIX directories</h4>
         <p>Turn on <code>strict_dirs</code> and a create or rename survives a crash only once its parent directory is fsynced. This is the bug class ALICE found in LevelDB.</p>
       </div>
-      <div class="tile">
-        <p class="tile-k">Debugging</p>
+      <div>
+        <p class="kicker">Debugging</p>
         <h4>Shrink to the cause</h4>
         <p><code>seedfall shrink</code> drops faults one at a time while the failure persists and saves the minimal schedule. It cut 75 faults down to 3 on raft.</p>
       </div>
@@ -176,7 +178,7 @@ $ diff a.txt b.txt
 -sync=always           <b class="bad">FAIL</b> seed 1 <s>(torn tail)</s>
 -sync=always -repair   <b class="ok">ok</b>   3000 seeds</pre>
       </article>
-      <article class="case wide">
+      <article class="case">
         <p class="case-k">hashicorp/raft v1.8 · strict POSIX directories · unreported</p>
         <h3>An empty snapshot bricks a node</h3>
         <p>Raft fsyncs <code>state.bin</code> and <code>meta.json</code>, renames the snapshot into place and fsyncs the parent, but never fsyncs the snapshot directory itself. With strict directory semantics, one crash after the first snapshot leaves an empty snapshot directory. The log has already been compacted, so <code>NewRaft</code> panics with <code>log not found</code> on every restart. A five-line directory fsync fixes it, and 120 more seeds pass. On ext4, XFS and btrfs a file fsync usually persists the entry anyway, so the exposure is to POSIX-strict filesystems.</p>
@@ -194,7 +196,7 @@ n2#2 | panic: log not found   <s>raft.NewRaft api.go:617</s>
     <p class="eyebrow center">Compare</p>
     <h2 class="center">Why another DST tool</h2>
     <p class="sub center">Every Go option so far requires you to give something up.</p>
-    <div class="table-wrap">
+    <div class="table-scroll">
       <table>
         <thead><tr><th></th><th>seedfall</th><th>gosim forks</th><th>faultline &amp; co.</th><th>testing/synctest</th><th>Antithesis</th></tr></thead>
         <tbody>
@@ -216,15 +218,15 @@ n2#2 | panic: log not found   <s>raft.NewRaft api.go:617</s>
   <div class="wrap">
     <p class="eyebrow center">Quickstart</p>
     <h2 class="center">Three steps to your first seed</h2>
-    <div class="steps">
-      <div class="step">
-        <p class="tile-k">One line</p>
+    <div class="cols steps">
+      <div>
+        <p class="kicker">One line</p>
         <p>Create listeners and dialers through <code>sim</code>. Outside the simulator it is plain <code>net</code>.</p>
 <pre class="code">ln, err := sim.Listen("tcp", ":7000")
 conn, err := sim.Dial("tcp", "server:7000")</pre>
       </div>
-      <div class="step">
-        <p class="tile-k">Describe the world</p>
+      <div>
+        <p class="kicker">Describe the world</p>
         <p>Nodes, a workload that checks your invariants, and how hostile the world should be.</p>
 <pre class="code">{
   "nodes": [{ "name": "server", "pkg": "./server" }],
@@ -233,8 +235,8 @@ conn, err := sim.Dial("tcp", "server:7000")</pre>
               "crash_on_io": 0.005, "partition_per_sec": 0.2 }
 }</pre>
       </div>
-      <div class="step">
-        <p class="tile-k">Sweep, replay, shrink</p>
+      <div>
+        <p class="kicker">Sweep, replay, shrink</p>
         <p>Failures print the seed. Replays are exact. Shrinking keeps only the faults that matter.</p>
 <pre class="code">$ seedfall run -seeds 1-5000
 $ seedfall replay -seed 9
@@ -249,7 +251,7 @@ $ seedfall shrink -seed 9</pre>
     <p class="eyebrow center">Open source · Apache-2.0</p>
     <h2>Find it on seed 9,<br><em>not in production.</em></h2>
     <div class="cta center-row">
-      <a class="btn btn-solid" href="https://github.com/kunalgoesbyken/seedfall">Star on GitHub</a>
+      <a class="btn btn-solid" href="https://github.com/kunalgoesbyken/seedfall"><svg class="icon"><use href="#gh"/></svg>Star</a>
       <a class="btn btn-ghost" href="#start">Quickstart</a>
     </div>
   </div>
