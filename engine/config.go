@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -94,6 +95,9 @@ func (c *Config) validate() error {
 			return fmt.Errorf("config: duplicate node name %q", s.Name)
 		}
 		seen[s.Name] = true
+		if strings.HasPrefix(s.Pkg, "-") {
+			return fmt.Errorf("config: node %q has an invalid pkg %q", s.Name, s.Pkg)
+		}
 		if s.Pkg == "" && s.Wasm == "" {
 			return fmt.Errorf("config: node %q needs pkg or wasm", s.Name)
 		}
