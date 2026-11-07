@@ -8,17 +8,23 @@ import (
 	"go/token"
 	"os"
 	"os/exec"
+	pathpkg "path"
 	"path/filepath"
+	"slices"
 	"strconv"
 )
 
-const simImportPath = "github.com/kunalgoesbyken/seedfall/sim"
+var propertyFuncs = map[string]PropertyKind{
+	"Always":              Always,
+	"AlwaysOrUnreachable": AlwaysOrUnreachable,
+	"Sometimes":           Sometimes,
+	"Reachable":           Reachable,
+	"Unreachable":         Unreachable,
+}
 
-var catalogKinds = map[string]PropertyKind{
-	"Always":      Always,
-	"Sometimes":   Sometimes,
-	"Reachable":   Reachable,
-	"Unreachable": Unreachable,
+var propertyPackages = []string{
+	"github.com/kunalgoesbyken/seedfall/sim",
+	"github.com/antithesishq/antithesis-sdk-go/assert",
 }
 
 type CatalogEntry struct {
@@ -79,8 +85,8 @@ func catalogPackage(dir, pkg string) ([]CatalogEntry, error) {
 }
 
 func fileProperties(fset *token.FileSet, root string, file *ast.File) []CatalogEntry {
-	alias, ok := simAlias(file)
-	if !ok {
+	aliases := propertyAliases(file)
+	if len(aliases) == 0 {
 		return nil
 	}
 	var out []CatalogEntry
@@ -89,7 +95,7 @@ func fileProperties(fset *token.FileSet, root string, file *ast.File) []CatalogE
 		if !ok {
 			return true
 		}
-		if entry, ok := propertyCall(call, alias); ok {
+		if entry, ok := propertyCall(call, aliases); ok {
 			entry.Location = location(fset, root, call.Pos())
 			out = append(out, entry)
 		}
@@ -98,30 +104,32 @@ func fileProperties(fset *token.FileSet, root string, file *ast.File) []CatalogE
 	return out
 }
 
-func simAlias(file *ast.File) (string, bool) {
+func propertyAliases(file *ast.File) map[string]bool {
+	aliases := map[string]bool{}
 	for _, imp := range file.Imports {
 		path, err := strconv.Unquote(imp.Path.Value)
-		if err != nil || path != simImportPath {
+		if err != nil || !slices.Contains(propertyPackages, path) {
 			continue
 		}
+		name := pathpkg.Base(path)
 		if imp.Name != nil {
-			return imp.Name.Name, true
+			name = imp.Name.Name
 		}
-		return "sim", true
+		aliases[name] = true
 	}
-	return "", false
+	return aliases
 }
 
-func propertyCall(call *ast.CallExpr, alias string) (CatalogEntry, bool) {
+func propertyCall(call *ast.CallExpr, aliases map[string]bool) (CatalogEntry, bool) {
 	sel, ok := call.Fun.(*ast.SelectorExpr)
 	if !ok {
 		return CatalogEntry{}, false
 	}
 	pkg, ok := sel.X.(*ast.Ident)
-	if !ok || pkg.Name != alias {
+	if !ok || !aliases[pkg.Name] {
 		return CatalogEntry{}, false
 	}
-	kind, ok := catalogKinds[sel.Sel.Name]
+	kind, ok := propertyFuncs[sel.Sel.Name]
 	if !ok {
 		return CatalogEntry{}, false
 	}

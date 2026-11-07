@@ -29,14 +29,16 @@ type inode struct {
 
 type memFS struct {
 	fsapi.UnimplementedFS
-	clock     func() int64
-	mutated   func()
-	syncFails func() bool
-	special   func(string) (fsapi.File, fsapi.Errno, bool)
-	nextIno   uint64
-	files     map[string]*inode
-	dirs      map[string]uint64
-	ns        *namespace
+	clock      func() int64
+	mutated    func()
+	syncFails  func() bool
+	weaken     Mutation
+	onWeakened func()
+	special    func(string) (fsapi.File, fsapi.Errno, bool)
+	nextIno    uint64
+	files      map[string]*inode
+	dirs       map[string]uint64
+	ns         *namespace
 }
 
 func newMemFS(clock func() int64) *memFS {
@@ -405,7 +407,7 @@ func (f *memFile) record(w pendingWrite) fsapi.Errno {
 	f.in.pending = append(f.in.pending, w)
 	f.in.mtime = f.fs.clock()
 	f.fs.notify()
-	if f.sync {
+	if f.sync && !f.weakenedTo(OsyncIgnored) {
 		return f.Sync()
 	}
 	return 0
@@ -420,7 +422,7 @@ func (m *memFS) notify() {
 func (f *memFile) Sync() fsapi.Errno {
 	if f.in == nil {
 		f.fs.notify()
-		if f.fs.ns != nil {
+		if f.fs.ns != nil && !f.weakenedTo(DirsyncNoop) {
 			f.fs.ns.commit(f.path)
 		}
 		return 0
@@ -429,6 +431,9 @@ func (f *memFile) Sync() fsapi.Errno {
 	if f.fs.syncFails != nil && f.fs.syncFails() {
 		f.in.pending = nil
 		return fsapi.EIO
+	}
+	if f.weakenedTo(FsyncNoop) {
+		return 0
 	}
 	for _, w := range f.in.pending {
 		f.in.durable = w.apply(f.in.durable)

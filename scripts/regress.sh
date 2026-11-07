@@ -19,6 +19,7 @@ expect() {
     printf 'PASS  %-8s %-24s want=%-4s  %s\n' "$dir" "$config" "$want" "$summary"
   else
     printf 'FAIL  %-8s %-24s want=%-4s  %s\n' "$dir" "$config" "$want" "$summary"
+    printf '%s\n' "$out" | head -n 4 | sed 's/^/      /'
     failures=$((failures + 1))
   fi
 }
@@ -60,6 +61,8 @@ expect raftkv tcp.lin.json           1-20   pass
 expect raftkv pause.lin.json         1-60   pass
 expect raftkv pause.localreads.lin.json 1-30 fail
 expect raftkv tcp.nofsync.lin.json   1-150  fail
+expect ledger seedfall.json          1-60   pass
+expect ledger seedfall.nofsync.json  1-20   fail
 expect httpkv seedfall.json          1-40   pass
 expect httpkv seedfall.nofsync.json  1-20   fail
 expect wals   tidwall.json           1-50   fail

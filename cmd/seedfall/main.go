@@ -20,6 +20,7 @@ usage:
   seedfall replay [-c seedfall.json] -seed N [-faults file.json]
   seedfall shrink [-c seedfall.json] -seed N
   seedfall cause  [-c seedfall.json] -seed N [-points 16] [-branches 20]
+  seedfall mutate [-c seedfall.json] [-seeds 1-100]
   seedfall mcp    serve run, replay and shrink to AI coding agents over MCP (stdio)
 `
 
@@ -28,7 +29,7 @@ func main() {
 		fmt.Print(usage)
 		os.Exit(2)
 	}
-	commands := map[string]func([]string) error{"run": cmdRun, "replay": cmdReplay, "shrink": cmdShrink, "cause": cmdCause, "mcp": cmdMCP}
+	commands := map[string]func([]string) error{"run": cmdRun, "replay": cmdReplay, "shrink": cmdShrink, "cause": cmdCause, "mutate": cmdMutate, "mcp": cmdMCP}
 	cmd, ok := commands[os.Args[1]]
 	if !ok {
 		fmt.Print(usage)

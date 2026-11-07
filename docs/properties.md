@@ -23,6 +23,7 @@ sim.Unreachable("two leaders in the same term", term)
 | Function | Fails the seed when | Fails the sweep when |
 |---|---|---|
 | `Always(cond, msg, details...)` | `cond` is false | it was never reached |
+| `AlwaysOrUnreachable(cond, msg, details...)` | `cond` is false | |
 | `Unreachable(msg, details...)` | it is called | |
 | `Sometimes(cond, msg, details...)` | | it was never reached, or `cond` was never true |
 | `Reachable(msg, details...)` | | it was never reached |

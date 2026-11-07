@@ -92,6 +92,8 @@ type world struct {
 	lin         Linearizability
 	props       properties
 	branch      *branch
+	mutation    Mutation
+	weakened    func()
 	setupDone   bool
 	quietUntil  int64
 }
@@ -185,6 +187,7 @@ func (w *world) moduleConfig(inst *instance) wazero.ModuleConfig {
 		WithArgs(append([]string{n.name()}, n.spec.Args...)...).
 		WithEnv("SEEDFALL", "1").
 		WithEnv("SEEDFALL_NODE", n.name()).
+		WithEnv(antithesisOutputEnv, "/"+antithesisOutputPath).
 		WithStdout(out).WithStderr(out).
 		WithRandSource(w.guestRandom(fmt.Sprintf("%s/%d", n.name(), n.starts))).
 		WithWalltime(func() (int64, int32) {

@@ -14,19 +14,20 @@ const (
 	Sometimes
 	Reachable
 	Unreachable
+	AlwaysOrUnreachable
 )
 
-var kindNames = [...]string{"always", "sometimes", "reachable", "unreachable"}
+var kindNames = [...]string{"always", "sometimes", "reachable", "unreachable", "always_or_unreachable"}
 
 func (k PropertyKind) String() string { return kindNames[k] }
 
 func (k PropertyKind) violatedBy(cond bool) bool {
-	return (k == Always && !cond) || k == Unreachable
+	return ((k == Always || k == AlwaysOrUnreachable) && !cond) || k == Unreachable
 }
 
 func (k PropertyKind) needsWitness() bool { return k == Sometimes || k == Reachable }
 
-func (k PropertyKind) mustBeReached() bool { return k != Unreachable }
+func (k PropertyKind) mustBeReached() bool { return k != Unreachable && k != AlwaysOrUnreachable }
 
 func (k PropertyKind) messageArg() int {
 	if k == Reachable || k == Unreachable {
@@ -113,7 +114,7 @@ func (c Coverage) Unmet() []string {
 }
 
 func (w *world) observeProperty(inst *instance, kind PropertyKind, cond bool, msg, detail string) {
-	if kind < Always || kind > Unreachable {
+	if kind < Always || kind > AlwaysOrUnreachable {
 		w.fail(Failure{Class: FailAssert, Node: inst.node.name()}, fmt.Sprintf("%s: unknown property kind %d", inst.label, kind))
 		panic(errFailed)
 	}

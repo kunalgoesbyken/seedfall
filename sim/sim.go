@@ -23,9 +23,14 @@ const (
 	sometimes
 	reachable
 	unreachable
+	alwaysOrUnreachable
 )
 
 func Always(cond bool, msg string, details ...any) { property(always, cond, msg, details) }
+
+func AlwaysOrUnreachable(cond bool, msg string, details ...any) {
+	property(alwaysOrUnreachable, cond, msg, details)
+}
 
 func Sometimes(cond bool, msg string, details ...any) { property(sometimes, cond, msg, details) }
 

@@ -95,6 +95,7 @@ seedfall shrink -seed 9                # minimal fault schedule, saved to .seedf
 seedfall cause  -seed 9                # probability of failing over time, and the fault that caused it
 seedfall run    -seeds 1-500 -check    # run every seed twice, fail on any divergence
 seedfall run    -seeds 1-500 -report .seedfall/report.html   # triage report of every failure
+seedfall mutate -seeds 1-100           # would your checks notice fsync silently breaking?
 ```
 
 The [getting started guide](docs/getting-started.md) walks through finding, shrinking and fixing a real bug in five minutes.
@@ -112,7 +113,9 @@ The [getting started guide](docs/getting-started.md) walks through finding, shri
 - **Linearizability.** Record concurrent `sim.Put` / `sim.Get` operations and get a Porcupine check with an HTML timeline.
 - **Exact replay and shrinking.** Same seed, same run, byte for byte. Shrunk schedules replay exactly.
 - **Causality analysis.** `seedfall cause` replays a failing seed to many moments, re-randomizes everything after each one, and plots the probability of failing over time. The fault where it jumps is the cause. [Cause](docs/cause.md)
+- **Mutation testing.** `seedfall mutate` silently breaks fsync, directory fsync and `O_SYNC` under your nodes and checks that your sweep notices. A surviving mutant is a blind spot in your checks. [Mutate](docs/mutate.md)
 - **Triage reports.** `-report` groups every failing seed into findings, writes an HTML and JSON report, and tracks each finding across runs as new, ongoing, resolved (with 95% confidence) or regressed. [Reports](docs/reports.md)
+- **Runs Antithesis SDK code.** Programs instrumented with the Antithesis Go SDK run unchanged: `assert.Always`, `Sometimes`, `Reachable` and `lifecycle.SetupComplete` become seedfall properties and setup. [Antithesis compatibility](docs/antithesis.md)
 - **AI-agent native.** `seedfall mcp` lets Claude Code, Cursor and other agents run, replay and shrink on their own, and prove a fix before opening a PR. [Agents](docs/agents.md)
 - **CI ready.** A GitHub Action and a `go test` helper. [CI](docs/ci.md)
 
@@ -126,6 +129,7 @@ The [getting started guide](docs/getting-started.md) walks through finding, shri
 | [`examples/wals`](examples/wals) | tidwall/wal and rosedblabs/wal behind one log server and client |
 | [`examples/natsjs`](examples/natsjs) | An embedded nats-server with JetStream file storage, piped over the simulated network |
 | [`examples/buntdb`](examples/buntdb) | tidwall/buntdb, including the AOF shrink finding |
+| [`examples/ledger`](examples/ledger) | A service with no seedfall imports, checked only with the Antithesis SDK's assertions |
 | [`examples/httpkv`](examples/httpkv) | A plain `net/http` server with no seedfall code, run through `net_overlay` |
 
 `bash scripts/regress.sh` runs every example against its expected result.

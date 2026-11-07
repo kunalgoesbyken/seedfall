@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/tetratelabs/wazero"
@@ -30,6 +31,8 @@ type Result struct {
 
 type Runner struct {
 	Doublecheck bool
+	Mutation    Mutation
+	weakened    atomic.Int64
 	catalog     []CatalogEntry
 	cfg         *Config
 	cache       wazero.CompilationCache
@@ -129,6 +132,7 @@ func (r *Runner) run(seed uint64, faults []Fault, explicit bool, b *branch) Resu
 		sched: streams(seed, "sched"), netRand: streams(seed, "net"), diskRand: streams(seed, "disk"),
 		events: make(chan event), faults: faults, trace: &tracer{}, wasm: r.wasm,
 		explicit: explicit, ioRand: streams(seed, "io"), props: properties{}, spec: r.cfg.Faults.forSeed(seed), branch: b,
+		mutation: r.Mutation, weakened: func() { r.weakened.Add(1) },
 	}
 	w.net = newNetwork(w)
 	res := Result{Seed: seed, Faults: faults}
@@ -172,9 +176,10 @@ func (w *world) setup(ctx context.Context) error {
 		if n.crashable {
 			n.fs.mutated = func() { w.onDiskOp(n) }
 			n.fs.syncFails = func() bool { return w.fsyncFails(n) }
+			n.fs.weaken, n.fs.onWeakened = w.mutation, w.weakened
 		}
 		n.skew = w.clockSkew(n)
-		n.fs.special = func(p string) (fsapi.File, fsapi.Errno, bool) { return w.openNetFile(n, p) }
+		n.fs.special = func(p string) (fsapi.File, fsapi.Errno, bool) { return w.openSpecial(n, p) }
 		w.nodes = append(w.nodes, n)
 		if !n.crashable {
 			w.workload = n

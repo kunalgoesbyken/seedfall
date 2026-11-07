@@ -14,7 +14,7 @@ func Dial(network, address string) (net.Conn, error) { return net.Dial(network, 
 func Fail(msg string) { panic("seedfall: " + msg) }
 
 func property(k kind, cond bool, msg string, details []any) {
-	if (k == always && !cond) || k == unreachable {
+	if ((k == always || k == alwaysOrUnreachable) && !cond) || k == unreachable {
 		Fail(msg + ": " + describe(details))
 	}
 }
