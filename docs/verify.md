@@ -8,9 +8,9 @@ seedfall verify -c seedfall.fixed.json -seed 1 -faults .seedfall/seed-1.faults.j
 
 ```
 verify seedfall.fixed.json
-  pass  replay seed 1 with .seedfall/seed-1.faults.json  passes, twice, with identical traces
+  pass  replay seed 1 with .seedfall/seed-1.faults.json  passes, twice, with identical host calls and traces
   pass  fresh sweep, seeds 2-300                         299 of 299 pass: 95% confidence that a failure with rate >= 0.997% would have shown up
-  pass  determinism, seeds 2-11                          every seed ran twice with identical traces
+  pass  determinism, seeds 2-11                          every seed ran twice with identical host calls and traces
   pass  mutant fsync_noop                                killed by seed 2
   pass  mutant dirsync_noop                              not exercised
   pass  mutant osync_ignored                             not exercised
@@ -32,10 +32,10 @@ FAIL
 
 In order, stopping at the first stage that fails:
 
-1. **Replay.** Every failing schedule you name is replayed and must pass now. Each replay runs twice and must produce identical traces, so a pass cannot be luck.
+1. **Replay.** Every failing schedule you name is replayed and must pass now. Each replay runs twice and must produce identical host calls and traces, so a pass cannot be luck.
 2. **Fresh sweep.** New seeds, starting after the highest seed already known, must all pass. By default verify runs as many as needed for 95% confidence that a failure with the historical rate would have shown up: *n = ⌈ln(0.05) / ln(1 − p)⌉*, the same rule the [triage report](reports.md) uses to call a finding resolved. A finding that failed 27.5% of seeds needs 10 clean seeds; when no rate is known, verify assumes a rare failure (1%) and runs 299. `-seeds` overrides the range.
-3. **Determinism.** The first `-check` fresh seeds (default 10) run twice and must produce identical traces, as with `run -check`.
-4. **Mutants** (with `-mutate`). The [mutants](mutate.md) run over the fresh seeds, and every exercised mutant must still be killed. This catches a "fix" that passes by weakening the checks.
+3. **Determinism.** The first `-check` fresh seeds (default 10) run twice and must produce identical host calls and traces, as with `run -check`.
+4. **Mutants** (with `-mutate`). The [mutants](mutate.md) run over the fresh seeds, and every exercised mutant must still be killed. This catches a "fix" that passes by weakening the checks. With `-app-mutants N`, N [source mutants](mutate.md#source-mutants) of the node packages run too, each as a row naming its line and change, and each one that builds must be killed.
 
 Any failure is printed with its [classification](reports.md#classification), so a determinism leak is not mistaken for the bug coming back.
 
@@ -52,12 +52,12 @@ Any failure is printed with its [classification](reports.md#classification), so 
 ```
 $ seedfall verify -c seedfall.fixed.json -report .seedfall/report.html
 verify seedfall.fixed.json
-  pass  replay assert · client seed 1                                     passes, twice, with identical traces
-  pass  replay assert · client seed 1 with .seedfall/seed-1.faults.json   passes, twice, with identical traces
-  pass  replay assert · client seed 12                                    passes, twice, with identical traces
+  pass  replay assert · client seed 1                                     passes, twice, with identical host calls and traces
+  pass  replay assert · client seed 1 with .seedfall/seed-1.faults.json   passes, twice, with identical host calls and traces
+  pass  replay assert · client seed 12                                    passes, twice, with identical host calls and traces
   ...
   pass  fresh sweep, seeds 41-50                                          10 of 10 pass: 95% confidence that a failure with rate >= 25.9% would have shown up (historical rate 27.5%)
-  pass  determinism, seeds 41-50                                          every seed ran twice with identical traces
+  pass  determinism, seeds 41-50                                          every seed ran twice with identical host calls and traces
 PASS
 ```
 
@@ -72,9 +72,9 @@ Config `seedfall.fixed.json`, reproduce with `seedfall verify -c seedfall.fixed.
 
 | | Check | Result |
 |---|---|---|
-| pass | replay seed 1 with .seedfall/seed-1.faults.json | passes, twice, with identical traces |
+| pass | replay seed 1 with .seedfall/seed-1.faults.json | passes, twice, with identical host calls and traces |
 | pass | fresh sweep, seeds 2-300 | 299 of 299 pass: 95% confidence that a failure with rate >= 0.997% would have shown up |
-| pass | determinism, seeds 2-11 | every seed ran twice with identical traces |
+| pass | determinism, seeds 2-11 | every seed ran twice with identical host calls and traces |
 | pass | mutant fsync_noop | killed by seed 2 |
 | pass | mutant dirsync_noop | not exercised |
 | pass | mutant osync_ignored | not exercised |
@@ -92,6 +92,7 @@ Config `seedfall.fixed.json`, reproduce with `seedfall verify -c seedfall.fixed.
 | `-seeds` | enough for 95% confidence | Fresh seed range to sweep |
 | `-check` | `10` | Fresh seeds to run twice for the determinism check |
 | `-mutate` | off | Also require every exercised mutant to be killed |
+| `-app-mutants` | `0` | Also rebuild the nodes with this many [source mutants](mutate.md#source-mutants), picked from the first fresh seed, and require every one that builds to be killed |
 | `-md` | | Write the Markdown proof block to this file |
 | `-j` | all CPUs | Parallel runs |
 

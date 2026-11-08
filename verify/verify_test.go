@@ -54,7 +54,11 @@ func TestProofRendering(t *testing.T) {
 			Replays:     []Replay{{Target: "seed 9", Seed: 9}},
 			Sweep:       sweep,
 			Determinism: &Sweep{Seeds: "1-20", Count: 20, Passed: 20},
-			Mutants:     []Mutant{{Mutation: engine.DirsyncNoop, Outcome: engine.MutantSurvived}},
+			Mutants: []Mutant{
+				{Mutation: engine.DirsyncNoop, Outcome: engine.MutantSurvived},
+				{Location: "server/main.go:197", Change: `cmd[0] == "PUT" -> cmd[0] != "PUT"`, Outcome: engine.MutantSurvived},
+				{Location: "server/main.go:157", Change: "err != nil -> err == nil", Outcome: engine.MutantKilled, Seed: 1},
+			},
 		},
 		"replay-fails": {
 			Config: "seedfall.json", Command: "seedfall verify -seed 9",

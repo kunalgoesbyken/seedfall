@@ -27,6 +27,7 @@ type verifyArgs struct {
 	Seeds      string  `json:"seeds,omitempty" jsonschema:"fresh seed range to sweep; default is enough seeds for 95% confidence at the historical failure rate"`
 	CheckSeeds int     `json:"check_seeds,omitempty" jsonschema:"fresh seeds to run twice for the determinism check, default 10"`
 	Mutate     bool    `json:"mutate,omitempty" jsonschema:"also require every exercised mutant to be killed"`
+	AppMutants int     `json:"app_mutants,omitempty" jsonschema:"also rebuild the nodes with this many source mutants picked from the first fresh seed, and require each one that builds to be killed"`
 	Markdown   string  `json:"-"`
 	jobs       int
 }
@@ -75,6 +76,7 @@ func parseVerify(args []string) (verifyArgs, error) {
 	fs.StringVar(&a.Seeds, "seeds", "", "fresh seed range to sweep (default: enough for 95% confidence at the historical failure rate)")
 	fs.IntVar(&a.CheckSeeds, "check", defaultCheckSeeds, "fresh seeds to run twice for the determinism check")
 	fs.BoolVar(&a.Mutate, "mutate", false, "also require every exercised mutant to be killed")
+	fs.IntVar(&a.AppMutants, "app-mutants", 0, "also rebuild the nodes with N source mutants and require each one that builds to be killed")
 	fs.StringVar(&a.Markdown, "md", "", "write a Markdown proof block for the pull request to this file")
 	fs.IntVar(&a.jobs, "j", runtime.NumCPU(), "parallel runs")
 	fs.Parse(args)
@@ -96,6 +98,8 @@ func (a verifyArgs) validate() error {
 		return errors.New("-faults needs -seed")
 	case a.CheckSeeds < 1:
 		return errors.New("-check must be at least 1")
+	case a.AppMutants < 0:
+		return errors.New("-app-mutants cannot be negative")
 	}
 	return nil
 }
@@ -115,6 +119,9 @@ func (a verifyArgs) command() string {
 	}
 	if a.Mutate {
 		parts = append(parts, "-mutate")
+	}
+	if a.AppMutants > 0 {
+		parts = append(parts, "-app-mutants", strconv.Itoa(a.AppMutants))
 	}
 	return strings.Join(parts, " ")
 }
@@ -141,7 +148,7 @@ func runVerify(a verifyArgs) (verify.Proof, error) {
 }
 
 func verifyPlan(a verifyArgs, targets []verify.Target, last uint64) (verify.Plan, error) {
-	plan := verify.Plan{Targets: targets, CheckSeeds: a.CheckSeeds, Mutate: a.Mutate, Jobs: a.jobs}
+	plan := verify.Plan{Targets: targets, CheckSeeds: a.CheckSeeds, Mutate: a.Mutate, AppMutants: a.AppMutants, Jobs: a.jobs}
 	if a.Seeds != "" {
 		lo, hi, err := engine.ParseSeeds(a.Seeds)
 		plan.Lo, plan.Hi = lo, hi

@@ -1,6 +1,7 @@
 package verify
 
 import (
+	"cmp"
 	"fmt"
 	"strconv"
 	"strings"
@@ -49,9 +50,9 @@ func (p Proof) rows() []row {
 		out = append(out, row{mark(rp.Failure == nil), "replay " + rp.Target, replayResult(rp)})
 	}
 	out = append(out, sweepRow("fresh sweep", p.Sweep, cleanSweep))
-	out = append(out, sweepRow("determinism", p.Determinism, func(*Sweep) string { return "every seed ran twice with identical traces" }))
+	out = append(out, sweepRow("determinism", p.Determinism, func(*Sweep) string { return "every seed ran twice with identical host calls and traces" }))
 	for _, m := range p.Mutants {
-		out = append(out, row{mark(m.Outcome != engine.MutantSurvived), "mutant " + string(m.Mutation), mutantResult(m)})
+		out = append(out, row{mark(m.Outcome != engine.MutantSurvived), "mutant " + cmp.Or(string(m.Mutation), m.Location), mutantResult(m)})
 	}
 	return out
 }
@@ -60,7 +61,7 @@ func replayResult(rp Replay) string {
 	if rp.Failure != nil {
 		return failureText(rp.Failure)
 	}
-	return "passes, twice, with identical traces"
+	return "passes, twice, with identical host calls and traces"
 }
 
 func sweepRow(name string, s *Sweep, clean func(*Sweep) string) row {
@@ -83,11 +84,17 @@ func cleanSweep(s *Sweep) string {
 }
 
 func mutantResult(m Mutant) string {
-	switch m.Outcome {
-	case engine.MutantKilled:
+	switch {
+	case m.Outcome == engine.MutantKilled && m.Change != "":
+		return fmt.Sprintf("killed by seed %d: %s", m.Seed, m.Change)
+	case m.Outcome == engine.MutantKilled:
 		return fmt.Sprintf("killed by seed %d", m.Seed)
-	case engine.MutantSurvived:
-		return "SURVIVED: the checks no longer notice this durability guarantee disappearing"
+	case m.Outcome == engine.MutantSurvived && m.Change != "":
+		return "SURVIVED: the checks still pass with " + m.Change
+	case m.Outcome == engine.MutantSurvived:
+		return "SURVIVED: the checks no longer notice this guarantee disappearing"
+	case m.Change != "":
+		return string(m.Outcome) + ": " + m.Change
 	}
 	return string(m.Outcome)
 }

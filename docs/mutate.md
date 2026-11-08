@@ -66,6 +66,39 @@ baseline: seeds 1-20 pass
 
 A duplicated `ADD` is applied twice and the upper bound on the total catches it. `truncate_not_durable` survives because the ledger cuts off a torn final entry with `Truncate` at every start, so a truncation that does not persist only brings back bytes that the next recovery drops again: a survivor you can explain as equivalent. In `examples/liveness`, `rename_not_atomic` survives 991 weakenings for a similar reason: when a crash loses the client's progress file, the client resends adds the servers have already deduplicated.
 
+## Source mutants
+
+The mutants above break the world under your program. `-app` breaks the program itself: seedfall parses the Go files of every node package (not the workload or the `finally` check), lists every place it can make one of three changes, picks `-mutants` of them (default 10) with the first seed of the range, and rebuilds the node once per mutant through a `go build -overlay`, so your files are never touched:
+
+| Change | What it does |
+|---|---|
+| `flip_comparison` | Negates one comparison: `<` and `>=`, `>` and `<=`, `==` and `!=` |
+| `skip_error_return` | `if x != nil { ...; return ... }` becomes `if false && x != nil`, so the early return never runs |
+| `skip_sync` | `f.Sync()` becomes a call that returns `nil` without syncing |
+
+```
+$ seedfall mutate -c seedfall.fixed.json -seeds 1-10 -app -mutants 4
+baseline: seeds 1-10 pass
+
+  server/main.go:95     SURVIVED   10 seeds passed (or the mutated code never ran)
+                        complete < len(data) -> complete >= len(data)
+
+  server/main.go:97     killed     seed 1: server#2 crashed: module closed with exit_code(2)
+                        err != nil -> err == nil
+
+  server/main.go:157    killed     seed 1: client#1: acknowledged write lost: k61=v61, server now answers "NONE"
+                        err != nil -> err == nil
+
+  server/main.go:197    SURVIVED   10 seeds passed (or the mutated code never ran)
+                        cmd[0] == "PUT" -> cmd[0] != "PUT"
+
+2 mutants survived: your workload does not notice those guarantees disappearing
+```
+
+That is `examples/kvlog`. The survivor at line 197 is a real blind spot: with the comparison flipped, the server answers every `PUT` with an error, the client counts no write as acknowledged, and nothing asserts that writes are ever acknowledged, so the sweep still passes. The survivor at line 95 only changes the condition of a `sim.Sometimes`, which records coverage and never fails a seed.
+
+seedfall cannot tell whether a mutated line ever ran, so a source mutant has no "not exercised" verdict: a survivor may be dead code. A mutant that does not compile (for example a `Sync` method with no error result) is reported as `did not build` and does not count as a survivor. The same seed range and `-mutants` count pick the same mutants every time. Each mutant costs one `go build` and one sweep, so start with a small count. `seedfall verify -app-mutants N` adds the same mutants to a proof ([verify.md](verify.md)), and over MCP `seedfall_mutate` takes `app` and `mutants`.
+
 ## Verdicts
 
 - **killed**: some seed failed, so your workload notices this guarantee disappearing. That is the goal.

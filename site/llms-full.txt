@@ -63,8 +63,8 @@ Config paths in tool calls are resolved against the server's working directory, 
 | `seedfall_shrink` | `config`, `seed`, optional `budget` (runs such as `300`, or time such as `10m`) | The original and minimal sizes (faults, duration and, with [`sim.Budget`](properties.md#workload-size), workload operations), the runs used, whether the budget ran out, the path of the saved schedule, and the failure view under that schedule with its replay command ([shrinking](how-it-works.md#shrinking)) |
 | `seedfall_inspect` | `config`, `seed`, optional `faults`, `at`, `node`, `path` | Every node's disk at the failure or at virtual time `at`: per file the live and durable sizes, the byte ranges a crash would lose, whether its directory entry is durable, the last torn write, and removed entries a crash would bring back. With `path`, one file's durable content as text or a hex dump ([inspect.md](inspect.md)) |
 | `seedfall_check` | `history`, optional `model` | Re-checks a recorded history file against a model: the verdict, each anomaly with its cycle, and on a linearizability violation the HTML timeline file ([properties.md](properties.md#history-files)) |
-| `seedfall_verify` | `config`, `seed` and optional `faults`, and/or `report`; optional `seeds`, `check_seeds`, `mutate` | Whether the fix holds: each replayed schedule, the fresh sweep with its confidence, the determinism check and the mutants, plus a Markdown proof block for the PR ([verify.md](verify.md)) |
-| `seedfall_mutate` | `config`, optional `seeds` (default `1-100`), `only` | Sweeps the seeds unmutated, then once per [mutant](mutate.md) (disk, rename, truncate, network and clock guarantees): each mutant's `outcome` (`killed`, `survived` or `not exercised`), the seed and reason that killed it, and how often the operation was weakened |
+| `seedfall_verify` | `config`, `seed` and optional `faults`, and/or `report`; optional `seeds`, `check_seeds`, `mutate`, `app_mutants` | Whether the fix holds: each replayed schedule, the fresh sweep with its confidence, the determinism check and the mutants, plus a Markdown proof block for the PR ([verify.md](verify.md)) |
+| `seedfall_mutate` | `config`, optional `seeds` (default `1-100`), `only`, `app`, `mutants` | Sweeps the seeds unmutated, then once per [mutant](mutate.md) (disk, rename, truncate, network and clock guarantees), or with `app` once per [source mutant](mutate.md#source-mutants) of the node packages: each mutant's `outcome` (`killed`, `survived`, `not exercised` or `did not build`), its `location` and change for source mutants, the seed and reason that killed it, and how often the operation was weakened |
 | `seedfall_findings` | `report`, optional `history` | Reads a triage report from `seedfall run -report` without running anything: each finding with its status, failing seeds, rate, classification and example failure with replay and shrink commands, findings not seen this time, unmet properties, and the run history of that config from `.seedfall/history.jsonl` ([reports.md](reports.md)) |
 | `seedfall_cause` | `config`, `seed`, optional `points`, `branches` | The probability of failing from each moment of the run, with the faults between moments, so the agent can see which event made the failure inevitable ([cause.md](cause.md)) |
 
@@ -1142,6 +1142,39 @@ baseline: seeds 1-20 pass
 
 A duplicated `ADD` is applied twice and the upper bound on the total catches it. `truncate_not_durable` survives because the ledger cuts off a torn final entry with `Truncate` at every start, so a truncation that does not persist only brings back bytes that the next recovery drops again: a survivor you can explain as equivalent. In `examples/liveness`, `rename_not_atomic` survives 991 weakenings for a similar reason: when a crash loses the client's progress file, the client resends adds the servers have already deduplicated.
 
+## Source mutants
+
+The mutants above break the world under your program. `-app` breaks the program itself: seedfall parses the Go files of every node package (not the workload or the `finally` check), lists every place it can make one of three changes, picks `-mutants` of them (default 10) with the first seed of the range, and rebuilds the node once per mutant through a `go build -overlay`, so your files are never touched:
+
+| Change | What it does |
+|---|---|
+| `flip_comparison` | Negates one comparison: `<` and `>=`, `>` and `<=`, `==` and `!=` |
+| `skip_error_return` | `if x != nil { ...; return ... }` becomes `if false && x != nil`, so the early return never runs |
+| `skip_sync` | `f.Sync()` becomes a call that returns `nil` without syncing |
+
+```
+$ seedfall mutate -c seedfall.fixed.json -seeds 1-10 -app -mutants 4
+baseline: seeds 1-10 pass
+
+  server/main.go:95     SURVIVED   10 seeds passed (or the mutated code never ran)
+                        complete < len(data) -> complete >= len(data)
+
+  server/main.go:97     killed     seed 1: server#2 crashed: module closed with exit_code(2)
+                        err != nil -> err == nil
+
+  server/main.go:157    killed     seed 1: client#1: acknowledged write lost: k61=v61, server now answers "NONE"
+                        err != nil -> err == nil
+
+  server/main.go:197    SURVIVED   10 seeds passed (or the mutated code never ran)
+                        cmd[0] == "PUT" -> cmd[0] != "PUT"
+
+2 mutants survived: your workload does not notice those guarantees disappearing
+```
+
+That is `examples/kvlog`. The survivor at line 197 is a real blind spot: with the comparison flipped, the server answers every `PUT` with an error, the client counts no write as acknowledged, and nothing asserts that writes are ever acknowledged, so the sweep still passes. The survivor at line 95 only changes the condition of a `sim.Sometimes`, which records coverage and never fails a seed.
+
+seedfall cannot tell whether a mutated line ever ran, so a source mutant has no "not exercised" verdict: a survivor may be dead code. A mutant that does not compile (for example a `Sync` method with no error result) is reported as `did not build` and does not count as a survivor. The same seed range and `-mutants` count pick the same mutants every time. Each mutant costs one `go build` and one sweep, so start with a small count. `seedfall verify -app-mutants N` adds the same mutants to a proof ([verify.md](verify.md)), and over MCP `seedfall_mutate` takes `app` and `mutants`.
+
 ## Verdicts
 
 - **killed**: some seed failed, so your workload notices this guarantee disappearing. That is the goal.
@@ -1635,7 +1668,7 @@ seedfall is only useful if its own model of crashes, faults and replay is right,
 | Liveness and workload faults | `engine/liveness_test.go` | Against the guest: with `liveness`, a workload that never finishes fails as `liveness` at `duration + within` and without it only hits the horizon; the recovery phase restarts a node that would stay down and heals a partition, so the workload finishes; a `finally` check starts only after the workload, with no fault after it, and its `sim.Eventually` counts as a property; an `Eventually` that never holds fails as `liveness` with its message; `include_workload` crashes and pauses the client, open operations are reported and stay sound for linearizability, and a replay of the recorded faults is byte-identical; every one of several workloads must finish. Without the guest: `supervise` never restarts a workload that exits with an error, `"faults": false` keeps a node out of every planned fault and every partition, the workload is a fault target only when asked, configs with `workloads[]`, `finally` and `liveness` are validated, and `sim.Eventually` is cataloged |
 | Assertions and events | `engine/assertions_test.go`, `sim/sim_test.go` | The catalog finds numeric and grouped assertions with their message at the right argument; Antithesis guidance records keep the smallest margin for `always` and the largest for `sometimes`, and guidance without an assertion creates nothing; `lifecycle.SendEvent` becomes a trace event; margins aggregate across seeds; outside the simulator the numeric and grouped forms fail with JSON details and `sim.Event` does nothing |
 | Determinism hash | `engine/hostcalls_test.go` | The host-call hash is stable, checkpointed every 4,096 calls and sensitive to field boundaries, and a divergence report names the first differing call with the call before it, including a run that ends early |
-| Mutants | `engine/mutation_test.go` | `rename_not_atomic` loses both names in a crash before the next fsync in loose and strict mode, but not a rename to a new name or one a later fsync closed; `truncate_not_durable` brings back the old tail; `net_drop_after_close` drops only an unread last chunk; `net_dup_chunk` duplicates a seeded share of writes and replays them identically; network mutants skip nodes that take no faults; `monotonic_jump` moves the monotonic clock only when active; `-only` parses and rejects typos |
+| Mutants | `engine/mutation_test.go` | `rename_not_atomic` loses both names in a crash before the next fsync in loose and strict mode, but not a rename to a new name or one a later fsync closed; `truncate_not_durable` brings back the old tail; `net_drop_after_close` drops only an unread last chunk; `net_dup_chunk` duplicates a seeded share of writes and replays them identically; network mutants skip nodes that take no faults; `monotonic_jump` moves the monotonic clock only when active; `-only` parses and rejects typos. `engine/appmutant_test.go`: source mutants find comparisons, early error returns and `Sync` calls and still parse, the selection is seeded and ordered, and a mutant's overlay merges with the `net_overlay` one |
 | Confidence math | `report/report_test.go` | `SeedsToConfirm` and the detectable failure rate against known values, findings moving through new, ongoing, not seen, resolved and regressed across runs, and the JSON report against a golden file |
 | Proof rendering | `verify/verify_test.go` | How many seeds a proof needs, and the text and Markdown proof blocks against golden files |
 
@@ -1678,9 +1711,9 @@ seedfall verify -c seedfall.fixed.json -seed 1 -faults .seedfall/seed-1.faults.j
 
 ```
 verify seedfall.fixed.json
-  pass  replay seed 1 with .seedfall/seed-1.faults.json  passes, twice, with identical traces
+  pass  replay seed 1 with .seedfall/seed-1.faults.json  passes, twice, with identical host calls and traces
   pass  fresh sweep, seeds 2-300                         299 of 299 pass: 95% confidence that a failure with rate >= 0.997% would have shown up
-  pass  determinism, seeds 2-11                          every seed ran twice with identical traces
+  pass  determinism, seeds 2-11                          every seed ran twice with identical host calls and traces
   pass  mutant fsync_noop                                killed by seed 2
   pass  mutant dirsync_noop                              not exercised
   pass  mutant osync_ignored                             not exercised
@@ -1702,10 +1735,10 @@ FAIL
 
 In order, stopping at the first stage that fails:
 
-1. **Replay.** Every failing schedule you name is replayed and must pass now. Each replay runs twice and must produce identical traces, so a pass cannot be luck.
+1. **Replay.** Every failing schedule you name is replayed and must pass now. Each replay runs twice and must produce identical host calls and traces, so a pass cannot be luck.
 2. **Fresh sweep.** New seeds, starting after the highest seed already known, must all pass. By default verify runs as many as needed for 95% confidence that a failure with the historical rate would have shown up: *n = ⌈ln(0.05) / ln(1 − p)⌉*, the same rule the [triage report](reports.md) uses to call a finding resolved. A finding that failed 27.5% of seeds needs 10 clean seeds; when no rate is known, verify assumes a rare failure (1%) and runs 299. `-seeds` overrides the range.
-3. **Determinism.** The first `-check` fresh seeds (default 10) run twice and must produce identical traces, as with `run -check`.
-4. **Mutants** (with `-mutate`). The [mutants](mutate.md) run over the fresh seeds, and every exercised mutant must still be killed. This catches a "fix" that passes by weakening the checks.
+3. **Determinism.** The first `-check` fresh seeds (default 10) run twice and must produce identical host calls and traces, as with `run -check`.
+4. **Mutants** (with `-mutate`). The [mutants](mutate.md) run over the fresh seeds, and every exercised mutant must still be killed. This catches a "fix" that passes by weakening the checks. With `-app-mutants N`, N [source mutants](mutate.md#source-mutants) of the node packages run too, each as a row naming its line and change, and each one that builds must be killed.
 
 Any failure is printed with its [classification](reports.md#classification), so a determinism leak is not mistaken for the bug coming back.
 
@@ -1722,12 +1755,12 @@ Any failure is printed with its [classification](reports.md#classification), so 
 ```
 $ seedfall verify -c seedfall.fixed.json -report .seedfall/report.html
 verify seedfall.fixed.json
-  pass  replay assert · client seed 1                                     passes, twice, with identical traces
-  pass  replay assert · client seed 1 with .seedfall/seed-1.faults.json   passes, twice, with identical traces
-  pass  replay assert · client seed 12                                    passes, twice, with identical traces
+  pass  replay assert · client seed 1                                     passes, twice, with identical host calls and traces
+  pass  replay assert · client seed 1 with .seedfall/seed-1.faults.json   passes, twice, with identical host calls and traces
+  pass  replay assert · client seed 12                                    passes, twice, with identical host calls and traces
   ...
   pass  fresh sweep, seeds 41-50                                          10 of 10 pass: 95% confidence that a failure with rate >= 25.9% would have shown up (historical rate 27.5%)
-  pass  determinism, seeds 41-50                                          every seed ran twice with identical traces
+  pass  determinism, seeds 41-50                                          every seed ran twice with identical host calls and traces
 PASS
 ```
 
@@ -1742,9 +1775,9 @@ Config `seedfall.fixed.json`, reproduce with `seedfall verify -c seedfall.fixed.
 
 | | Check | Result |
 |---|---|---|
-| pass | replay seed 1 with .seedfall/seed-1.faults.json | passes, twice, with identical traces |
+| pass | replay seed 1 with .seedfall/seed-1.faults.json | passes, twice, with identical host calls and traces |
 | pass | fresh sweep, seeds 2-300 | 299 of 299 pass: 95% confidence that a failure with rate >= 0.997% would have shown up |
-| pass | determinism, seeds 2-11 | every seed ran twice with identical traces |
+| pass | determinism, seeds 2-11 | every seed ran twice with identical host calls and traces |
 | pass | mutant fsync_noop | killed by seed 2 |
 | pass | mutant dirsync_noop | not exercised |
 | pass | mutant osync_ignored | not exercised |
@@ -1762,6 +1795,7 @@ Config `seedfall.fixed.json`, reproduce with `seedfall verify -c seedfall.fixed.
 | `-seeds` | enough for 95% confidence | Fresh seed range to sweep |
 | `-check` | `10` | Fresh seeds to run twice for the determinism check |
 | `-mutate` | off | Also require every exercised mutant to be killed |
+| `-app-mutants` | `0` | Also rebuild the nodes with this many [source mutants](mutate.md#source-mutants), picked from the first fresh seed, and require every one that builds to be killed |
 | `-md` | | Write the Markdown proof block to this file |
 | `-j` | all CPUs | Parallel runs |
 
@@ -1808,10 +1842,10 @@ seedfall verify -c C -seed N -faults S -mutate -md proof.md
 
 If the failures came from a triage report, use `-report .seedfall/report.html` instead of, or as well as, `-seed`. Verify stops at the first stage that fails:
 
-1. **Replay.** Each named schedule passes, twice, with identical traces.
+1. **Replay.** Each named schedule passes, twice, with identical host calls and traces.
 2. **Fresh sweep.** Enough new seeds for 95% confidence at the failure's historical rate. Without a rate, verify assumes 1% and runs 299 seeds. `-seeds` overrides the range.
 3. **Determinism.** `-check` fresh seeds (default 10) run twice with identical host calls and traces.
-4. **Mutants** (`-mutate`). Every exercised mutant is still killed, so the fix did not pass by making the checks blind.
+4. **Mutants** (`-mutate`, `-app-mutants N`). Every exercised mutant is still killed, so the fix did not pass by making the checks blind. `-app-mutants` also rebuilds the nodes with N source mutants.
 
 It prints `PASS` or `FAIL` and exits 0 or 1. Over MCP, `seedfall_verify` with `{"config": "C", "seed": N, "faults": "S", "mutate": true}` returns the same verdict, and its `markdown` field holds the proof block.
 
@@ -1903,6 +1937,8 @@ The baseline must pass first. Then each mutant weakens one disk, network or cloc
 | `monotonic_jump` | Timeouts and leases never meet a clock that runs backwards, or nothing checks what they protect | Turn on `clock_jump_per_sec`, then check lease-protected reads with a linearizability checker |
 
 `not exercised` means the operation never ran, or had no effect in this config. That is fine when the service never uses it, such as `dirsync_noop` without `strict_dirs`, or `monotonic_jump` without `clock_jump_per_sec`.
+
+Then mutate the service's own code: `seedfall mutate -c seedfall.json -seeds 1-20 -app -mutants 10` flips comparisons, skips early error returns and skips `Sync` calls in the node packages, one rebuild per mutant. A surviving source mutant names a line and a change the checks do not notice; it may also be dead code, so read the line before strengthening the workload.
 
 Repeat steps 2 to 4 until every exercised mutant is killed, or until you can state why a survivor is equivalent, for example data the service never promises to keep. `seedfall mutate` exits 1 while any mutant survives.
 

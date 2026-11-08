@@ -80,6 +80,8 @@ The baseline must pass first. Then each mutant weakens one disk, network or cloc
 
 `not exercised` means the operation never ran, or had no effect in this config. That is fine when the service never uses it, such as `dirsync_noop` without `strict_dirs`, or `monotonic_jump` without `clock_jump_per_sec`.
 
+Then mutate the service's own code: `seedfall mutate -c seedfall.json -seeds 1-20 -app -mutants 10` flips comparisons, skips early error returns and skips `Sync` calls in the node packages, one rebuild per mutant. A surviving source mutant names a line and a change the checks do not notice; it may also be dead code, so read the line before strengthening the workload.
+
 Repeat steps 2 to 4 until every exercised mutant is killed, or until you can state why a survivor is equivalent, for example data the service never promises to keep. `seedfall mutate` exits 1 while any mutant survives.
 
 ## 5. Widen the fault model

@@ -194,7 +194,7 @@ func newMCPServer() (*mcp.Server, error) {
 	}, toolInspect)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "seedfall_mutate",
-		Description: "Grade the checks: sweep the seed range once unmutated (it must pass), then once per mutant, each of which silently breaks one guarantee under the nodes: fsync, directory fsync, O_SYNC, fsync data integrity, rename atomicity, durable truncation, data before a close, no duplicated TCP writes, and a monotonic clock. Returns each mutant as killed (with the seed and reason), survived (a blind spot in the checks) or not exercised.",
+		Description: "Grade the checks: sweep the seed range once unmutated (it must pass), then once per mutant, each of which silently breaks one guarantee under the nodes: fsync, directory fsync, O_SYNC, fsync data integrity, rename atomicity, durable truncation, data before a close, no duplicated TCP writes, and a monotonic clock. With app, rebuilds the node packages once per source mutant instead (flipped comparisons, skipped early error returns, skipped Sync calls), picked from the first seed. Returns each mutant as killed (with the seed and reason), survived (a blind spot in the checks), not exercised or did not build.",
 	}, toolMutate)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "seedfall_findings",

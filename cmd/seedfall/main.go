@@ -22,9 +22,9 @@ usage:
   seedfall shrink [-c seedfall.json] -seed N [-j N] [-budget 500 | -budget 10m]
   seedfall cause  [-c seedfall.json] -seed N [-points 16] [-branches 20]
   seedfall inspect [-c seedfall.json] -seed N [-faults file.json] [-at DURATION] [-node name] [-cat path | -out dir]
-  seedfall mutate [-c seedfall.json] [-seeds 1-100] [-only fsync_noop,net_dup_chunk,...]
+  seedfall mutate [-c seedfall.json] [-seeds 1-100] [-only fsync_noop,net_dup_chunk,...] [-app [-mutants 10]]
   seedfall check  -history .seedfall/seed-N.history.jsonl [-model kv] [-timeline file.html]
-  seedfall verify [-c seedfall.json] [-seed N [-faults file.json]] [-report report.html] [-seeds range] [-check 10] [-mutate] [-md proof.md]
+  seedfall verify [-c seedfall.json] [-seed N [-faults file.json]] [-report report.html] [-seeds range] [-check 10] [-mutate] [-app-mutants N] [-md proof.md]
   seedfall mcp    serve init, run, replay, shrink, cause, inspect, check, mutate, findings and verify to AI coding agents over MCP (stdio)
   seedfall hook   Claude Code Stop hook: sweep $SEEDFALL_HOOK_SEEDS (unset: do nothing) and block the stop on a failure
 `

@@ -22,6 +22,7 @@ type Plan struct {
 	Rate       float64
 	CheckSeeds int
 	Mutate     bool
+	AppMutants int
 	Jobs       int
 }
 
@@ -47,7 +48,9 @@ type Sweep struct {
 }
 
 type Mutant struct {
-	Mutation engine.Mutation      `json:"mutation"`
+	Mutation engine.Mutation      `json:"mutation,omitempty"`
+	Location string               `json:"location,omitempty"`
+	Change   string               `json:"change,omitempty"`
 	Outcome  engine.MutantOutcome `json:"outcome"`
 	Seed     uint64               `json:"killed_by_seed,omitempty"`
 	Reason   string               `json:"reason,omitempty"`
@@ -87,6 +90,9 @@ func Run(r *engine.Runner, p Plan) Proof {
 	proof.Determinism = doublecheck(r, p.Lo, min(p.Hi, p.Lo+uint64(max(p.CheckSeeds, 1))-1), opts)
 	if proof.Determinism.Failure == nil && p.Mutate {
 		proof.Mutants = mutants(r, p.Lo, p.Hi, opts)
+	}
+	if proof.Determinism.Failure == nil && p.AppMutants > 0 {
+		proof.Mutants = append(proof.Mutants, appMutants(r, p.AppMutants, p.Lo, p.Hi, opts)...)
 	}
 	proof.Passed = proof.Determinism.Failure == nil && !survived(proof.Mutants)
 	return proof
@@ -132,6 +138,22 @@ func mutants(r *engine.Runner, lo, hi uint64, opts engine.SweepOptions) []Mutant
 	var out []Mutant
 	for _, m := range engine.SweepMutants(r, engine.Mutations, lo, hi, opts) {
 		v := Mutant{Mutation: m.Mutation, Outcome: m.Outcome()}
+		if m.KilledBy != nil {
+			v.Seed, v.Reason = m.KilledBy.Seed, m.KilledBy.Reason
+		}
+		out = append(out, v)
+	}
+	return out
+}
+
+func appMutants(r *engine.Runner, n int, lo, hi uint64, opts engine.SweepOptions) []Mutant {
+	all, err := engine.AppMutants(r)
+	if err != nil {
+		return []Mutant{{Change: err.Error(), Outcome: engine.MutantUnbuilt}}
+	}
+	var out []Mutant
+	for _, m := range engine.SweepAppMutants(r, engine.SelectAppMutants(all, n, lo), lo, hi, opts) {
+		v := Mutant{Location: m.Mutant.Location, Change: m.Mutant.From + " -> " + m.Mutant.To, Outcome: m.Outcome()}
 		if m.KilledBy != nil {
 			v.Seed, v.Reason = m.KilledBy.Seed, m.KilledBy.Reason
 		}

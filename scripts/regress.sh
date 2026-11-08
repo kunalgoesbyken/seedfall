@@ -51,6 +51,15 @@ expect_mutant() {
   printf '%s  %-8s %-24s mutant %s on seeds %s: want %s, got %s\n' "$verdict" "$dir" "$config" "$mutant" "$seeds" "$want" "$got"
 }
 
+expect_app_mutant() {
+  local dir="$1" config="$2" seeds="$3" count="$4" site="$5" want="$6"
+  local got
+  got="$(cd "$root/examples/$dir" && "$bin" mutate -c "$config" -seeds "$seeds" -app -mutants "$count" 2>&1 | awk -v s="$site" '$1 == s {print $2}')"
+  local verdict="PASS"
+  [ "$got" != "$want" ] && verdict="FAIL" && failures=$((failures + 1))
+  printf '%s  %-8s %-24s source mutant %s of %s on seeds %s: want %s, got %s\n' "$verdict" "$dir" "$config" "$site" "$count" "$seeds" "$want" "$got"
+}
+
 deterministic() {
   local dir="$1" config="$2" seed="$3"
   local a b
@@ -76,6 +85,8 @@ expect kvlog  seedfall.diskerrors.json 1-60 pass
 expect kvlog  seedfall.lostwrite.json 1-20  fail
 expect kvlog  seedfall.misdirected.json 1-20 fail
 expect kvlog  seedfall.bitrot.json   1-20   fail
+expect_app_mutant kvlog seedfall.fixed.json 1-10 4 server/main.go:157 killed
+expect_app_mutant kvlog seedfall.fixed.json 1-10 4 server/main.go:197 SURVIVED
 expect_replay kvlog seedfall.readcorrupt.json 1 readcorrupt.faults.json fail
 expect_replay kvlog seedfall.checksum.json    1 readcorrupt.faults.json pass
 expect_replay kvlog seedfall.always.json      1 torntail.faults.json fail

@@ -37,10 +37,10 @@ seedfall verify -c C -seed N -faults S -mutate -md proof.md
 
 If the failures came from a triage report, use `-report .seedfall/report.html` instead of, or as well as, `-seed`. Verify stops at the first stage that fails:
 
-1. **Replay.** Each named schedule passes, twice, with identical traces.
+1. **Replay.** Each named schedule passes, twice, with identical host calls and traces.
 2. **Fresh sweep.** Enough new seeds for 95% confidence at the failure's historical rate. Without a rate, verify assumes 1% and runs 299 seeds. `-seeds` overrides the range.
 3. **Determinism.** `-check` fresh seeds (default 10) run twice with identical host calls and traces.
-4. **Mutants** (`-mutate`). Every exercised mutant is still killed, so the fix did not pass by making the checks blind.
+4. **Mutants** (`-mutate`, `-app-mutants N`). Every exercised mutant is still killed, so the fix did not pass by making the checks blind. `-app-mutants` also rebuilds the nodes with N source mutants.
 
 It prints `PASS` or `FAIL` and exits 0 or 1. Over MCP, `seedfall_verify` with `{"config": "C", "seed": N, "faults": "S", "mutate": true}` returns the same verdict, and its `markdown` field holds the proof block.
 

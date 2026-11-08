@@ -90,17 +90,25 @@ func catalog(cfg *Config) ([]CatalogEntry, error) {
 	return out, nil
 }
 
-func catalogPackage(dir, pkg string) ([]CatalogEntry, error) {
+func listPackage(dir, pkg string) (goPackage, error) {
 	cmd := exec.Command("go", "list", "-json", pkg)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "GOOS=wasip1", "GOARCH=wasm")
 	out, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("catalog %s: %w", pkg, err)
+		return goPackage{}, fmt.Errorf("go list %s: %w", pkg, err)
 	}
 	var p goPackage
 	if err := json.Unmarshal(out, &p); err != nil {
-		return nil, fmt.Errorf("catalog %s: %w", pkg, err)
+		return goPackage{}, fmt.Errorf("go list %s: %w", pkg, err)
+	}
+	return p, nil
+}
+
+func catalogPackage(dir, pkg string) ([]CatalogEntry, error) {
+	p, err := listPackage(dir, pkg)
+	if err != nil {
+		return nil, fmt.Errorf("catalog: %w", err)
 	}
 	root, err := filepath.Abs(dir)
 	if err != nil {
