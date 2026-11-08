@@ -24,6 +24,8 @@ const (
 	DirIn   = "in"
 	DirOut  = "out"
 	DirBoth = "both"
+
+	splitNodes = 2
 )
 
 var (
@@ -51,6 +53,9 @@ func (c *Config) validateNetwork(names map[string]bool) error {
 	}
 	if err := oneOf("faults.clog_modes", f.ClogModes, clogModes); err != nil {
 		return err
+	}
+	if max(f.PartitionPerSec, f.ClogPerSec, f.SwizzlePerSec) > 0 && len(names) < splitNodes {
+		return fmt.Errorf("config: partitions, clogs and swizzles need at least %d nodes, workload included", splitNodes)
 	}
 	for _, t := range f.PartitionTopologies {
 		if f.PartitionPerSec > 0 && len(names) < minNodes[t] {
@@ -170,20 +175,16 @@ func slowFactor(r *rand.Rand, max float64) float64 {
 	return 1 + math.Round((max-1)*r.Float64()*10)/10
 }
 
-func (f Fault) groups(names []string) [][]string {
-	if len(f.Groups) > 0 {
-		return f.Groups
-	}
-	return [][]string{f.Side, slices.DeleteFunc(slices.Clone(names), func(n string) bool { return slices.Contains(f.Side, n) })}
-}
-
-func (f Fault) affects(from, to string, names []string) bool {
+func (f Fault) affects(from, to string) bool {
 	if from == to {
 		return false
 	}
 	switch f.Kind {
 	case FaultPartition:
-		return !slices.ContainsFunc(f.groups(names), func(g []string) bool { return slices.Contains(g, from) && slices.Contains(g, to) })
+		if len(f.Groups) == 0 {
+			return slices.Contains(f.Side, from) != slices.Contains(f.Side, to)
+		}
+		return !slices.ContainsFunc(f.Groups, func(g []string) bool { return slices.Contains(g, from) && slices.Contains(g, to) })
 	case FaultClog:
 		switch f.Dir {
 		case "":
@@ -213,12 +214,8 @@ type linkState struct {
 
 func (w *world) link(from, to string) linkState {
 	var s linkState
-	if len(w.netFaults) == 0 {
-		return s
-	}
-	names := nodeNames(w.cfg)
 	for _, f := range w.netFaults {
-		if int64(f.Until) <= w.now || !f.affects(from, to, names) {
+		if int64(f.Until) <= w.now || !f.affects(from, to) {
 			continue
 		}
 		switch f.mode() {

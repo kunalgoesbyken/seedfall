@@ -10,7 +10,7 @@ import (
 func sees(f Fault, names []string, a string) []string {
 	var out []string
 	for _, b := range names {
-		if !f.affects(a, b, names) {
+		if !f.affects(a, b) {
 			out = append(out, b)
 		}
 	}
@@ -134,6 +134,23 @@ func TestResetBreaksConnectionsWithoutClosingListeners(t *testing.T) {
 	}
 }
 
+func TestResetBreaksConnectionsWaitingToBeAccepted(t *testing.T) {
+	f := connected(t, Range{ms(3), ms(3)})
+	waiting := f.w.net.dial(f.client, "server:7000")
+	f.w.now += int64(ms(3))
+	inFlight := f.w.net.dial(f.client, "server:7000")
+	if got := f.w.net.reset(f.server); got != 2 {
+		t.Fatalf("reset %d connections, want the open one and the one waiting in the backlog", got)
+	}
+	buf := make([]byte, 8)
+	if got := f.w.net.write(f.client, waiting, buf); got != codeReset {
+		t.Fatalf("write on a reset backlog connection = %d, want codeReset", got)
+	}
+	if got := f.w.net.write(f.client, inFlight, buf); got < 0 {
+		t.Fatalf("write on a connection still in flight = %d, want it to survive the reset", got)
+	}
+}
+
 func TestSlowNodeStretchesItsLatency(t *testing.T) {
 	f := connected(t, Range{ms(4), ms(4)})
 	f.w.nodes = []*node{f.server.node, f.client.node}
@@ -223,17 +240,24 @@ func TestSwizzleClogsOneAtATimeThenUnclogsInRandomOrder(t *testing.T) {
 
 func TestValidateNetwork(t *testing.T) {
 	small := map[string]bool{"n1": true, "client": true}
-	for name, mutate := range map[string]func(*Config){
-		"unknown link node": func(c *Config) { c.Links = []Link{{From: "nope"}} },
-		"unknown topology":  func(c *Config) { c.Faults.PartitionTopologies = []string{"star"} },
-		"unknown clog mode": func(c *Config) { c.Faults.ClogModes = []string{"drop"} },
-		"ring too small":    func(c *Config) { c.Faults.PartitionPerSec, c.Faults.PartitionTopologies = 1, []string{TopologyRing} },
-		"no clog modes":     func(c *Config) { c.Faults.ClogPerSec, c.Faults.ClogModes = 1, nil },
-		"slow factor of 1":  func(c *Config) { c.Faults.SlowPerSec, c.Faults.SlowFactor = 1, 1 },
+	alone := map[string]bool{"client": true}
+	for name, c := range map[string]struct {
+		names  map[string]bool
+		mutate func(*Config)
+	}{
+		"unknown link node":     {small, func(c *Config) { c.Links = []Link{{From: "nope"}} }},
+		"unknown topology":      {small, func(c *Config) { c.Faults.PartitionTopologies = []string{"star"} }},
+		"unknown clog mode":     {small, func(c *Config) { c.Faults.ClogModes = []string{"drop"} }},
+		"ring too small":        {small, func(c *Config) { c.Faults.PartitionPerSec, c.Faults.PartitionTopologies = 1, []string{TopologyRing} }},
+		"no clog modes":         {small, func(c *Config) { c.Faults.ClogPerSec, c.Faults.ClogModes = 1, nil }},
+		"slow factor of 1":      {small, func(c *Config) { c.Faults.SlowPerSec, c.Faults.SlowFactor = 1, 1 }},
+		"partition on one node": {alone, func(c *Config) { c.Faults.PartitionPerSec = 1 }},
+		"clog on one node":      {alone, func(c *Config) { c.Faults.ClogPerSec = 1 }},
+		"swizzle on one node":   {alone, func(c *Config) { c.Faults.SwizzlePerSec = 1 }},
 	} {
 		cfg := defaultConfig()
-		mutate(&cfg)
-		if cfg.validateNetwork(small) == nil {
+		c.mutate(&cfg)
+		if cfg.validateNetwork(c.names) == nil {
 			t.Errorf("%s: accepted", name)
 		}
 	}

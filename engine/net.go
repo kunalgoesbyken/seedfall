@@ -244,15 +244,29 @@ func (n *network) ids() []int32 {
 func (n *network) reset(inst *instance) int {
 	count := 0
 	for _, id := range n.ids() {
-		ep, ok := n.handles[id].(*endpoint)
-		if !ok || ep.owner != inst || ep.gone || ep.peer.gone {
-			continue
+		switch h := n.handles[id].(type) {
+		case *listener:
+			if h.owner != inst {
+				continue
+			}
+			h.backlog = slices.DeleteFunc(h.backlog, func(ep *endpoint) bool {
+				if ep.acceptAt > n.w.now || ep.gone || ep.peer.gone {
+					return false
+				}
+				n.closeEndpoint(ep, chunkReset)
+				count++
+				return true
+			})
+		case *endpoint:
+			if h.owner != inst || h.gone || h.peer.gone {
+				continue
+			}
+			n.send(h, chunkReset, nil)
+			h.inbox = []chunk{{at: n.w.now, kind: chunkReset}}
+			h.gone, h.peer.gone = true, true
+			inst.wakeAt = min(inst.wakeAt, n.w.now)
+			count++
 		}
-		n.send(ep, chunkReset, nil)
-		ep.inbox = []chunk{{at: n.w.now, kind: chunkReset}}
-		ep.gone, ep.peer.gone = true, true
-		inst.wakeAt = min(inst.wakeAt, n.w.now)
-		count++
 	}
 	return count
 }
