@@ -1,0 +1,1347 @@
+# seedfall
+
+
+<!-- docs/agents.md -->
+
+# Using seedfall from AI coding agents
+
+`seedfall mcp` serves seedfall's core operations over the [Model Context Protocol](https://modelcontextprotocol.io) on stdio. An agent such as Claude Code, Cursor or Codex can then sweep seeds, replay a failure and shrink it on its own, then use the exact fault schedule and trace to fix the bug and prove the fix. No API key and no hosted service are involved: the agent you already use does the reasoning.
+
+## Setup
+
+Install the binary first. Every integration below runs it:
+
+```sh
+go install github.com/kunalgoesbyken/seedfall/cmd/seedfall@latest
+```
+
+### Claude Code plugin
+
+One command installs the MCP server, the four skills and the opt-in Stop hook:
+
+```sh
+claude plugin install seedfall --marketplace kunalgoesbyken/seedfall
+```
+
+Inside a session, `/plugin install seedfall --marketplace kunalgoesbyken/seedfall` does the same. On Claude Code versions before 2.1.275, add the marketplace first with `/plugin marketplace add kunalgoesbyken/seedfall`, then run `/plugin install seedfall@seedfall`. The skills then run as `/seedfall:seedfall-setup` and so on, and Claude also loads them on its own when a task matches.
+
+### Skills for other agents
+
+The skills follow the [Agent Skills](https://agentskills.io/specification) format, so any agent that reads `SKILL.md` files can use them. To install them with the [`skills` CLI](https://github.com/vercel-labs/skills):
+
+```sh
+npx skills add kunalgoesbyken/seedfall
+```
+
+### MCP server only
+
+Claude Code:
+
+```sh
+claude mcp add seedfall -- seedfall mcp
+```
+
+Cursor, or any client that reads an `mcpServers` file:
+
+```json
+{
+  "mcpServers": {
+    "seedfall": { "command": "seedfall", "args": ["mcp"] }
+  }
+}
+```
+
+Config paths in tool calls are resolved against the server's working directory, which is normally your project root.
+
+## Tools
+
+| Tool | Arguments | Returns |
+|---|---|---|
+| `seedfall_init` | optional `dir`, `config`, `nodes`, `workload`, `dry_run` | The module's `main` packages and which become nodes, the packages that block a `GOOS=wasip1` build (compile errors and cgo, each with its import chain), the starter config, the files written, and the next steps. See [onboarding](#onboarding-a-new-module) |
+| `seedfall_run` | `config`, `seeds` (for example `1-200`), optional `check` | Seeds passed, the lowest failing seed with its reason, [classification](reports.md#classification), the faults before the failure, the trace tail and a replay command, plus property coverage |
+| `seedfall_replay` | `config`, `seed`, optional `faults` file | The same failure view for one seed, or the trace tail if it passes |
+| `seedfall_shrink` | `config`, `seed` | The original and minimal fault counts, the path of the saved minimal schedule, and the failure view under that schedule |
+| `seedfall_inspect` | `config`, `seed`, optional `faults`, `at`, `node`, `path` | Every node's disk at the failure or at virtual time `at`: per file the live and durable sizes, the byte ranges a crash would lose, whether its directory entry is durable, the last torn write, and removed entries a crash would bring back. With `path`, one file's durable content as text or a hex dump ([inspect.md](inspect.md)) |
+| `seedfall_verify` | `config`, `seed` and optional `faults`, and/or `report`; optional `seeds`, `check_seeds`, `mutate` | Whether the fix holds: each replayed schedule, the fresh sweep with its confidence, the determinism check and the mutants, plus a Markdown proof block for the PR ([verify.md](verify.md)) |
+| `seedfall_cause` | `config`, `seed`, optional `points`, `branches` | The probability of failing from each moment of the run, with the faults between moments, so the agent can see which event made the failure inevitable ([cause.md](cause.md)) |
+
+Every result is structured JSON, so the agent can read the seed, the faults and the trace directly.
+
+## Prompts and resources
+
+The server also serves what an agent needs in order to work without guessing:
+
+| Kind | Name | Contents |
+|---|---|---|
+| Prompt | `seedfall-setup`, `seedfall-properties`, `seedfall-triage`, `seedfall-fix-and-prove` | The four [skills](#skills), so MCP clients without skill support get the same workflows |
+| Resource | `seedfall://schema/config` | JSON Schema of `seedfall.json`, generated from the config types, with every field's default |
+| Resource | `seedfall://docs/<name>` | Each page of these docs, for example `seedfall://docs/properties` for the property API and `seedfall://docs/faults` for what each fault does |
+
+## Onboarding a new module
+
+`seedfall init` (MCP: `seedfall_init`) is the first step in a repository that has never run seedfall:
+
+```sh
+seedfall init -n                     # report only
+seedfall init                        # write seedfall.json and seedfall/workload/main.go
+seedfall init -node ./cmd/server     # choose the nodes yourself; repeatable
+seedfall init -json                  # the same report as JSON
+```
+
+It runs `go list` twice. The first run uses `GOOS=wasip1 -export -deps`, so every package is compiled for wasip1, and any package that fails is reported with its compiler error and the import chain from the node that pulls it in. The second uses `GOOS=linux CGO_ENABLED=1` and lists the dependencies that contain cgo files. Every `main` package that imports `net` becomes a node. `net_overlay` is turned on unless every node already uses `sim`.
+
+The scaffolded workload follows the pattern every example shares: write keys, remember which ones were acknowledged, then read each one back after the faults. Its `put` and `get` return `errors.ErrUnsupported` until the agent implements them against the service's API. Until then the sweep fails with `the workload got acknowledged writes` never true, so an unwired workload can never pass. Existing files are never overwritten.
+
+On a fresh copy of `examples/kvlog` with its configs removed, `seedfall init -node ./server` writes a config and a workload. Wiring `put` and `get` to kvlog's line protocol takes about twenty lines. The first sweep then fails on seed 1 with `acknowledged write lost`, and shrink brings it down to the same two faults as the [getting started guide](getting-started.md).
+
+## Skills
+
+The `skills/` directory holds four skills. They follow the order of a real adoption, and every command in them runs as written:
+
+| Skill | Use it to |
+|---|---|
+| `seedfall-setup` | Install, run `seedfall init`, clear the wasip1 blockers, wire the workload and run the first sweep |
+| `seedfall-properties` | Read the storage and replication code, write `sim` properties for its durability and consistency promises, and grade them with `seedfall mutate` until every exercised mutant is killed |
+| `seedfall-triage` | Classify, shrink, find the decisive fault with `cause`, inspect the disk, and confirm the explanation with a replay of an edited schedule |
+| `seedfall-fix-and-prove` | Fix the cause, replay the saved schedule, sweep, run `seedfall verify -mutate -md proof.md` and paste the proof into the pull request |
+
+## Stop hook
+
+The Claude Code plugin registers a Stop hook that runs `seedfall hook`. It does nothing unless you opt in by setting `SEEDFALL_HOOK_SEEDS`, for example in `.claude/settings.json`:
+
+```json
+{ "env": { "SEEDFALL_HOOK_SEEDS": "1-20" } }
+```
+
+When Claude finishes a turn in a directory that has `seedfall.json` (or the file named by `SEEDFALL_HOOK_CONFIG`), the hook sweeps those seeds. On a failure or an unmet property, it blocks the stop and hands Claude the seed and the replay and shrink commands. To avoid loops, it skips a stop that a hook has already continued once.
+
+## Docs for models
+
+The site serves [`llms.txt`](https://seedfall-lemon.vercel.app/llms.txt), an index of these docs and the skills, and [`llms-full.txt`](https://seedfall-lemon.vercel.app/llms-full.txt), their full text. `bash scripts/site-llms.sh` generates both from `docs/` and `skills/`.
+
+## A verification loop
+
+Ask the agent to treat a seed sweep as the definition of done for storage or replication changes:
+
+1. Run `seedfall_run` over a few hundred seeds before changing anything, to record the baseline.
+2. When a seed fails, run `seedfall_shrink` and read the minimal fault schedule. It usually names the exact window: "crash during disk op #56", then "crash". `seedfall_cause` shows which of those faults made the failure likely.
+3. Fix the code, then `seedfall_replay` the saved schedule until it passes.
+4. Run `seedfall_verify` with the seed and schedule and paste its `markdown` proof block into the pull request.
+
+Shrunk schedules are small enough that an agent can reason about them step by step. `examples/kvlog` is a good first exercise: its `seedfall.always.json` shrinks to two faults.
+
+
+<!-- docs/antithesis.md -->
+
+# Running Antithesis SDK code
+
+Code instrumented with the [Antithesis Go SDK](https://github.com/antithesishq/antithesis-sdk-go) runs under seedfall unchanged. Assertions become seedfall properties, `lifecycle.SetupComplete` becomes seedfall's setup signal, and `random.GetRandom` draws from the seed.
+
+`examples/ledger` has no seedfall imports at all. It uses plain `net` (through `net_overlay`) and only the Antithesis SDK:
+
+```go
+lifecycle.SetupComplete(map[string]any{"ledger": addr})
+amount := int(random.GetRandom()%100) + 1
+assert.Sometimes(unacked > 0, "a crash interrupted a deposit", nil)
+assert.Always(total >= acked, "ledger total accounts for every acknowledged deposit", map[string]any{"total": total, "acked": acked})
+```
+
+```
+$ seedfall run -c seedfall.json -seeds 1-100
+property       seeds reached  seeds true
+  sometimes             100          94  a crash interrupted a deposit
+  always                100         100  ledger total accounts for every acknowledged deposit
+  sometimes             100          23  recovery dropped a partial entry
+
+ok  100 seeds passed (0 hit the time horizon) in 16.96s
+
+$ seedfall run -c seedfall.nofsync.json -seeds 1-50
+FAIL seed 1 at t=2.940789965s (618 scheduler steps, 607ms real)
+  client#1: ledger total accounts for every acknowledged deposit: {"acked":5608,"total":4203,"unacked":1729}
+```
+
+## How it works
+
+On `wasip1` the SDK has no native Antithesis library to talk to, so it writes each event as a JSON line to the file named by `ANTITHESIS_SDK_LOCAL_OUTPUT`. seedfall sets that variable for every node and serves the path as a virtual file. Each line is decoded as it is written:
+
+| SDK call | seedfall property |
+|---|---|
+| `assert.Always` | `always`: fails the seed when false, fails the sweep if never reached |
+| `assert.AlwaysOrUnreachable` | `always_or_unreachable`: fails the seed when false |
+| `assert.Sometimes` | `sometimes`: fails the sweep if never true |
+| `assert.Reachable` | `reachable`: fails the sweep if never reached |
+| `assert.Unreachable` | `unreachable`: fails the seed when reached |
+| `lifecycle.SetupComplete` | ends the setup phase when `faults_after_setup` is on |
+
+The SDK's details map appears as JSON in the failure message. seedfall's source catalog also recognizes `assert.*` calls with a constant message, so Antithesis assertions that never run are reported too.
+
+The SDK's numeric and grouped variants (`AlwaysGreaterThan`, `SometimesAll` and similar) are evaluated by the SDK and reported with their result, so they work at run time, but they are not cataloged in advance. `lifecycle.SendEvent` output is ignored.
+
+## What you get compared with Antithesis
+
+The same assertions and the same setup signal, run locally or in CI for free, with seed replay, shrinking, causality analysis and triage reports. What you don't get: Antithesis runs arbitrary containers in a deterministic hypervisor, while seedfall runs Go programs that build for `wasip1`.
+
+
+<!-- docs/cause.md -->
+
+# Causality analysis
+
+`seedfall shrink` tells you which faults are *needed* for a failure. `seedfall cause` tells you *when the failure became likely*, and which event made it so.
+
+```sh
+seedfall cause -c seedfall.always.json -seed 1
+```
+
+```
+seed 1 fails at t=2.891820635s: client#1: acknowledged write lost: k96=v96, server now answers "NONE"
+
+chance of failing when everything after a moment is re-randomized (20 futures each):
+
+         0s     5%  ██
+  292.108ms     5%  ██                              <- after 292.108ms  partition [client] from the rest until 627.143ms
+  722.955ms     0%
+  757.268ms     0%
+  757.268ms    75%  ███████████████████████         <- after 757.268ms  crash server during disk op #56, restart at 1.121388s
+  1.084433s    75%  ███████████████████████
+    1.7052s    65%  ████████████████████
+    1.7052s   100%  ██████████████████████████████  <- after 1.7052s  crash server, restart at 1.942589s
+  2.711082s   100%  ██████████████████████████████
+
+biggest jump: 0% -> 75% at 757.268ms  <- after 757.268ms  crash server during disk op #56, restart at 1.121388s
+
+440 runs in 24.296s
+```
+
+(Abridged: the full output has one row per moment.)
+
+Read it from top to bottom. Before anything happens, a random future of this world fails 5% of the time. The partition changes nothing, so it is a bystander. The crash in the middle of disk operation #56 takes the odds from 0% to 75%: that is when the torn record lands on disk. The second crash makes the failure certain. Even before reading any code, you know which event to look at.
+
+## How it works
+
+For each moment *T*, seedfall replays the seed exactly up to *T*. At the first scheduler step at or after *T*, it re-keys every random stream: scheduling, network latency, disk tearing, I/O faults, each node's own randomness, and the remaining fault schedule. Then it lets the run continue into a new future. Running many such branches from the same moment estimates the probability of failing from that state.
+
+This needs no snapshots. Because replay is exact, "the state at *T*" is reproduced by running the seed to *T*. That is the same property Antithesis's multiverse debugging relies on, with deterministic replay standing in for VM snapshots.
+
+Moments are chosen evenly across the run (`-points`, default 16), plus just before and just after every fault. Each moment gets `-branches` futures (default 20), so the default costs a few hundred runs, all in parallel.
+
+## From an agent
+
+The MCP server exposes the same analysis as `seedfall_cause`, returning the curve as JSON with the faults between consecutive moments. See [agents.md](agents.md).
+
+
+<!-- docs/ci.md -->
+
+# Running seedfall in CI
+
+## GitHub Actions
+
+```yaml
+jobs:
+  simulate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: kunalgoesbyken/seedfall@v0.2.0
+        with:
+          config: seedfall.json
+          seeds: 1-500
+          check: "true"
+```
+
+| Input | Default | Meaning |
+|---|---|---|
+| `config` | `seedfall.json` | Path to the world description |
+| `seeds` | `1-200` | Seed or inclusive range |
+| `check` | `false` | Run every seed twice and fail if the traces differ |
+| `go-version` | `stable` | Go version for building seedfall and your nodes |
+| `report` | `true` | Sweep every seed and upload an HTML triage report |
+| `artifact-name` | `seedfall-report` | Name of the report artifact; make it unique per job in a matrix |
+
+The job fails if any seed fails. The output goes to the job summary, and the triage report (see [reports.md](reports.md)) is uploaded as an artifact. Rotate the seed range over time, for example with the run number, to keep exploring new schedules while each failure stays reproducible.
+
+## Machine-readable output
+
+`seedfall run -json` sweeps every seed in the range and prints one JSON object per line as each seed finishes, then a summary object. Seeds finish in parallel, so lines are not in seed order.
+
+```sh
+seedfall run -c seedfall.always.json -seeds 1-100 -json | jq -c 'select(.type == "seed" and .passed == false)'
+```
+
+```json
+{"type":"seed","seed":1,"passed":false,"finished":false,"failure":{"class":"assert","node":"client"},"reason":"client#1: acknowledged write lost: k96=v96, server now answers \"NONE\"","virtual_seconds":2.891820635,"faults":3}
+```
+
+| Field | Meaning |
+|---|---|
+| `type` | `seed` or `summary` |
+| `seed`, `passed`, `finished` | The seed, whether it passed, and whether the workload finished before the time horizon |
+| `failure` | `class`, plus `node` and `property` when known, the same key the triage report groups by |
+| `reason` | The failure message |
+| `virtual_seconds` | Simulated time the run covered |
+| `faults` | Faults that happened during the run |
+
+The summary has `passed`, `failed`, `unfinished`, `unmet_properties` and `properties`, the same coverage table `seedfall_run` returns over MCP, with a `problem` on each property that was never reached or never true. The exit code is 1 if any seed failed or any property is unmet. `-json` cannot be combined with `-report`.
+
+## `go test`
+
+```go
+import "github.com/kunalgoesbyken/seedfall/seedfalltest"
+
+func TestDurabilityUnderCrashes(t *testing.T) {
+	seedfalltest.Sweep(t, "seedfall.json", "1-100")
+}
+```
+
+A failure reports the seed, the reason, the trace tail and the replay command. A `Sometimes` property that is never satisfied also fails the test. `examples/kvlog/seedfall_test.go` is a working example.
+
+## Speed
+
+Runs are independent, so a sweep scales with cores: `seedfall run -j N` defaults to every CPU. Light servers take tens of milliseconds per seed; a 3-node hashicorp/raft cluster takes a few seconds. Compiled modules are cached in `.seedfall/cache`, so add that directory to your CI cache to skip compilation.
+
+
+<!-- docs/faults.md -->
+
+# Configuration and faults
+
+A world is described in a JSON file, `seedfall.json` by default. Paths inside it are relative to the file.
+
+```json
+{
+  "nodes": [
+    { "name": "n1", "pkg": "./node", "args": ["-id", "n1"] },
+    { "name": "n2", "pkg": "./node", "args": ["-id", "n2"] }
+  ],
+  "workload": { "name": "client", "pkg": "./client" },
+  "duration": "60s",
+  "latency": ["1ms", "5ms"],
+  "supervise": true,
+  "faults": {
+    "crash_per_sec": 0.5,
+    "restart_after": ["10ms", "500ms"],
+    "partition_per_sec": 0.2,
+    "partition_for": ["50ms", "1s"],
+    "torn_writes": true,
+    "crash_on_io": 0.005,
+    "fsync_eio": 0.01,
+    "strict_dirs": true,
+    "clock_skew": "200ms",
+    "pause_per_sec": 0.2,
+    "clock_jump_per_sec": 0.05,
+    "swarm": true
+  }
+}
+```
+
+## World
+
+| Field | Default | Meaning |
+|---|---|---|
+| `nodes[]` | | Crashable nodes. Each has a `name`, then either `pkg` (a Go package, built for wasip1 automatically) or `wasm` (a prebuilt module), plus optional `args` and `env` |
+| `workload` | | The checker. Same fields as a node. It is never crashed, and the run passes when it exits 0 |
+| `duration` | `30s` | Virtual-time horizon. A run that reaches it without failing counts as passed and is reported as "hit the time horizon" |
+| `latency` | `["1ms", "10ms"]` | Per-chunk network delay range |
+| `faults_after_setup` | `false` | Suppress all faults until a node calls `sim.SetupComplete()` |
+| `supervise` | `false` | Restart a node that exits with an error, after `restart_after`. Go panics (exit code 2) still fail the run |
+| `net_overlay` | `false` | Route plain `net.Listen` / `net.Dial` through the simulated network. See [networking.md](networking.md) |
+| `watchdog` | `30s` | Real-time limit for one node to run without yielding. Catches busy loops and livelocks |
+
+Every node sees the environment variables `SEEDFALL=1` and `SEEDFALL_NODE=<name>`, so `sim.Enabled()` and `sim.Node()` work.
+
+## Faults
+
+All faults come from the seed. Faults that depend on what the program does, such as which disk operation a crash lands on, are recorded when they happen so that shrinking and replay are exact.
+
+| Field | Default | Meaning |
+|---|---|---|
+| `crash_per_sec` | `0` | Rate of crashes per node, at random points in time |
+| `restart_after` | `["10ms", "1s"]` | Downtime after a crash, and the delay before a supervised restart |
+| `partition_per_sec` | `0` | Rate of network partitions. A partition splits all nodes, workload included, into two random sides |
+| `partition_for` | `["50ms", "2s"]` | Partition duration. Traffic across the cut is held and delivered after the heal |
+| `torn_writes` | `false` | A crash keeps a random in-order prefix of unsynced writes, possibly ending in a partial write |
+| `crash_on_io` | `0` | Probability that a node crashes *during* each disk operation. This is how you hit the window between a write and its fsync |
+| `fsync_eio` | `0` | Probability that a file fsync fails with `EIO`. The unsynced writes stay readable but are dropped from durable storage, and the next fsync succeeds (Linux "fsyncgate" semantics) |
+| `strict_dirs` | `false` | Directory entries survive a crash only after the parent directory is fsynced (strict POSIX) |
+| `clock_skew` | `0` | Each node's wall clock is offset by a seeded amount in `[-skew, +skew]`. The monotonic clock is untouched, so timers and `time.Since` are unaffected |
+| `pause_per_sec` | `0` | Rate of process pauses per node. A paused node stops running, like a long GC pause or a stalled VM, then resumes without crashing. Its connections stay open and messages queue up |
+| `pause_for` | `["100ms", "3s"]` | Pause duration |
+| `clock_jump_per_sec` | `0` | Rate of wall-clock jumps per node. Each jump moves the node's wall clock forward or back by up to `clock_jump_max`; the monotonic clock is untouched |
+| `clock_jump_max` | `10s` | Largest clock jump in either direction |
+| `swarm` | `false` | Swarm testing. Each seed turns every fault type on or off and rescales its rate between 0 and 2× the configured value, so faults that hide each other get explored separately |
+
+## Choosing rates
+
+Start with crashes and torn writes, then add `crash_on_io` around `0.005`, so a few hundred disk operations per run produce one or two mid-operation crashes. Add `fsync_eio` and `strict_dirs` once the basic durability path passes. Turn on `swarm` for long CI sweeps. Use property coverage ([properties.md](properties.md)) to confirm the faults are actually reaching the code you care about.
+
+## Durations
+
+Every duration is a Go duration string, such as `"250ms"` or `"2s"`. Ranges are two-element arrays.
+
+
+<!-- docs/getting-started.md -->
+
+# Getting started
+
+This walkthrough uses `examples/kvlog`, a small log-structured key-value server, to find a real durability bug, shrink it, fix it and prove the fix. It takes about five minutes.
+
+## 1. Install
+
+seedfall needs Go 1.25 or newer. It runs on Linux, macOS and Windows.
+
+```sh
+go install github.com/kunalgoesbyken/seedfall/cmd/seedfall@latest
+git clone https://github.com/kunalgoesbyken/seedfall
+cd seedfall/examples/kvlog
+```
+
+## 2. Look at the world
+
+`seedfall.always.json` runs one server and one client (abridged):
+
+```json
+{
+  "nodes": [{ "name": "server", "pkg": "./server", "args": ["-sync", "always"] }],
+  "workload": { "name": "client", "pkg": "./client", "args": ["-writes", "200"] },
+  "faults": { "crash_per_sec": 0.5, "torn_writes": true, "crash_on_io": 0.005 }
+}
+```
+
+The server appends `key=value` lines to `data/kv.log` and fsyncs before every acknowledgement. The client writes 200 keys, then checks that every acknowledged key is still there, using `sim.Assert`. The only seedfall-specific code in the server is `sim.Listen`.
+
+## 3. Sweep
+
+```sh
+seedfall run -c seedfall.always.json -seeds 1-100
+```
+
+```
+FAIL seed 1 at t=2.891820635s (737 scheduler steps, 445ms real)
+  client#1: acknowledged write lost: k96=v96, server now answers "NONE"
+```
+
+Even with an fsync before every acknowledgement, data is lost.
+
+## 4. Shrink
+
+```sh
+seedfall shrink -c seedfall.always.json -seed 1
+```
+
+```
+faults before the failure (2):        # shrunk from 33
+  427.268ms  crash server during disk op #56, restart at 791.388ms
+   1.7052s  crash server, restart at 1.942589s
+```
+
+The first crash lands in the middle of an append and leaves a torn, half-written line. On restart, recovery skips the bad line but keeps appending after it, so the next record is glued onto the garbage. The second crash forces another recovery, which can no longer parse that record.
+
+`seedfall replay -c seedfall.always.json -seed 1` prints the full trace, and adding `-faults .seedfall/seed-1.faults.json` replays exactly the minimal schedule.
+
+## 5. Fix and prove it
+
+The fix is to truncate the torn tail during recovery. The server already has it behind `-repair`, and `seedfall.fixed.json` enables it:
+
+```sh
+seedfall run -c seedfall.fixed.json -seeds 1-1000
+```
+
+```
+property       seeds reached  seeds true
+  sometimes            1000         994  a crash interrupted the workload
+  sometimes            1000         406  recovery found a torn tail
+
+ok  1000 seeds passed (0 hit the time horizon) in 1m28.94s
+```
+
+The property table shows that the recovery path really ran: hundreds of seeds produced a torn tail, and every one was recovered correctly.
+
+## 6. Go further
+
+- `seedfall.fsyncgate.json` adds `fsync_eio`, and the "fixed" server fails again: a failed fsync leaves a hole in the durable log. `seedfall.rewind.json` adds the fix.
+- `seedfall.strict.json` adds strict POSIX directory durability.
+
+## Your own project
+
+1. Make your nodes reachable: either switch `net.Listen` and `net.Dial` to `sim.Listen` and `sim.Dial`, or set `"net_overlay": true` to run unmodified code ([networking.md](networking.md)).
+2. Write a workload: any Go `main` package that drives your system and checks invariants with `sim.Assert`, `sim.Always` and friends ([properties.md](properties.md)).
+3. Describe the world in `seedfall.json` ([faults.md](faults.md)).
+4. Sweep locally, then in CI ([ci.md](ci.md)), and from your coding agent ([agents.md](agents.md)).
+
+Your code must build for `GOOS=wasip1`. cgo is not available, and dependencies that need `mmap` or `flock` (for example bbolt) will not compile.
+
+
+<!-- docs/gostman.md -->
+
+# Use your Gostman collections as workloads
+
+A [Gostman](https://github.com/kunalgoesbyken/gostman) collection already says what your API promises: each request carries checks such as `res.status equals 200` or `res.body equals {{value}}`. Gostman's Go `runner` package builds for `wasip1`, so a seedfall workload can load the collection and send it while seedfall crashes your service, tears its writes and partitions its network. A check that fails after the faults stop is a broken promise, reported with the request and the check, and replayable from its seed.
+
+[`examples/gostman`](../examples/gostman) is a complete world: `examples/httpkv`'s server and a client that runs the collection in [`examples/gostman/collection`](../examples/gostman/collection).
+
+## The pattern
+
+Split the collection into two folders:
+
+- **Write**: requests that change state. They are sent while faults run and retried until their checks pass, so a pass means the server acknowledged the change.
+- **Verify**: requests that check state. They are sent after `sim.QuietFor`, when faults are paused and partitions healed. A request that gets no answer, because the server is still restarting, is sent again. A check that fails on an answer fails the seed.
+
+The client copies the embedded collection onto its simulated disk, loads it and sends one request at a time through a single session:
+
+```go
+//go:embed collection
+var Collection embed.FS
+
+os.CopyFS(".", Collection)
+collection, _ := runner.Load("collection")
+session, _ := runner.NewSession(engine.Policy{})
+session.Enter(collection, "", "Simulation", nil)
+listed, _ := session.Catalog(collection, "Verify")
+result := session.Send(ctx, listed[0].Request, listed[0].Folder, vars).Result
+sim.Always(!result.Failed, "Gostman checks pass once the faults stop", details)
+```
+
+Nodes cannot read files on the host, which is why the collection is embedded. Variables passed to `Send` (`key`, `value`, `deleted_key` in the example) win over the environment, so each round uses fresh keys. The `Simulation` environment points `base_url` at `http://server:8080`, the node name; a `Local` environment points at `127.0.0.1` so the same files run with the Gostman command line.
+
+## Run it
+
+```sh
+cd examples/gostman
+seedfall run -seeds 1-120
+seedfall replay -c seedfall.nofsync.json -seed 1
+```
+
+With fsync before every acknowledgement every seed passes. With `-fsync=false` the first seed fails once a crash drops an acknowledged write:
+
+```
+FAIL seed 1 at t=13.104695555s (108 scheduler steps, 29.398s real)
+  client#1: Gostman checks pass once the faults stop: GET http://server:8080/kv/k6 (Verify/Get value)
+  res.status equals 200: The value was 404
+  res.body equals v6: The value was "404 page not found\n"
+```
+
+The client embeds the Gostman runner and its JavaScript sandbox, so each seed takes about a minute of real time; sweeps get their speed from running seeds in parallel.
+
+## Use your own collection
+
+1. Copy `examples/gostman/client` and `collection.go` next to your service's seedfall config, and put your Gostman workspace folder in `collection/`.
+2. Add a `Simulation` environment whose base URL uses the node name from `seedfall.json`.
+3. Put the requests that write in one folder and the requests that check in another, and pass their names with `-write` and `-verify`.
+4. Enable `"net_overlay": true` so the runner's plain `net/http` client reaches the simulated network.
+
+The example uses HTTP requests with assertions. Anything that needs the host, such as `{{$file(...)}}`, local commands or an OAuth sign-in in a browser, cannot work inside a node.
+
+
+<!-- docs/how-it-works.md -->
+
+# How seedfall works
+
+## One process, one clock, many nodes
+
+seedfall compiles every node with the stock Go toolchain for `GOOS=wasip1` and runs each one as its own [wazero](https://wazero.io) module instance. On `wasip1` the Go runtime is single-threaded and has no async preemption, and every source of nondeterminism reaches the outside world through three WASI calls. seedfall implements all three in the host:
+
+| WASI call | seedfall behavior |
+|---|---|
+| `random_get` | A ChaCha8 stream derived from the seed and the node's incarnation. This fixes map iteration order, `select` choice, `math/rand` and crypto randomness. |
+| `clock_time_get` | A virtual clock shared by every node. With `clock_skew`, each node's wall clock is offset by a seeded amount; the monotonic clock is never skewed. |
+| `poll_oneoff` | Parks the node until its earliest timer or its next network arrival. |
+
+A node gives up control only when all of its goroutines are blocked. The scheduler runs exactly one node at a time, picks the next one by earliest wake-up time, breaks ties with the seed, and jumps virtual time forward. Ten seconds of `time.Sleep` cost no real time.
+
+There is no `linkname`, no source rewriting and no forked runtime, so new Go releases keep working.
+
+## Determinism
+
+Scheduling, network latency, disk tearing, fault timing and I/O faults each draw from their own seeded stream. Removing one fault therefore barely disturbs the rest of the run, which is what makes shrinking work. The same seed produces the same trace byte for byte across processes and machines. `seedfall run -check` verifies this on every seed.
+
+## Disk
+
+Each node gets an in-memory file system mounted at `/` with an explicit durability model. Your code uses plain `os.File`.
+
+- Writes land in the page cache immediately and are visible to reads.
+- `Sync` makes the file's pending writes durable.
+- A crash keeps only durable data. A file that was never synced disappears.
+- With `torn_writes`, a crash also keeps a random in-order prefix of the pending writes, possibly ending in a partial write.
+- With `strict_dirs`, creating, renaming or unlinking a file survives a crash only after its parent directory is fsynced. This is strict POSIX, the model used by ALICE and CrashMonkey. Without it, directory entries are durable as soon as they are made, which matches ext4 and XFS in practice.
+- With `fsync_eio`, a file `Sync` can fail with `EIO`. The unsynced writes stay readable but are dropped from durable storage, and the next `Sync` succeeds. These are Linux's post-2018 "fsyncgate" semantics.
+
+See [faults.md](faults.md) for every fault type.
+
+## Network
+
+Connections are ordered byte streams with seeded per-chunk latency. Partitions hold traffic until they heal, and a crashed node's connections are reset. Every connection is a virtual file registered with Go's own network poller, so blocking reads, deadlines and `Accept` behave exactly like `net`, and nothing polls. See [networking.md](networking.md).
+
+## Crashes and restarts
+
+Every incarnation of a node is a fresh module instance. A crash kills the whole process at a host call, including in the middle of a disk operation with `crash_on_io`, then applies the disk durability model. A restart instantiates the module again over the surviving disk. With `supervise`, a node that exits with an error is restarted the way systemd or Kubernetes would restart it.
+
+## Checking
+
+A run fails when:
+- any node calls `sim.Fail`, fails `sim.Assert` or `sim.Always`, or reaches `sim.Unreachable`;
+- the workload exits non-zero;
+- a node exits or panics, unless `supervise` restarts it (Go panics always fail);
+- every node is blocked with no timer or pending message (deadlock);
+- a node runs longer than `watchdog` of real time without yielding (livelock or busy loop);
+- the recorded `sim.Put` / `sim.Get` history is not linearizable.
+
+A sweep also fails when a cataloged property is never reached, or a `Sometimes` is never true, in any seed.
+
+See [properties.md](properties.md).
+
+## Shrinking
+
+`seedfall shrink` removes faults one at a time for as long as the run still fails the same way (same class, node, property and message, ignoring numbers), so it never trades the bug for a different one. It then writes the minimal schedule to `.seedfall/seed-N.faults.json`. Faults that happen at run time, such as a crash during the N-th disk operation or an fsync EIO, are recorded with their operation index so the schedule replays exactly.
+
+
+<!-- docs/inspect.md -->
+
+# Inspecting the disk at the moment of failure
+
+`seedfall replay` tells you what happened. `seedfall inspect` shows you what is on disk when it goes wrong: every file on every node, how much of it is durable, which bytes a crash would lose, which directory entries are not durable yet, and where the last crash tore a write.
+
+```sh
+seedfall inspect -c rosedb.json -seed 1
+```
+
+```
+seed 1 failed at t=3.12130224s: client#1: acknowledged entry 27 lost: server now answers "VAL e141-1111111111111111111111"
+disk state at t=3.12130224s, the moment of failure
+
+node server (directory entries are durable once made; torn_writes: a crash may also keep a prefix of the pending writes)
+  path                                                   size    durable  state
+  data/                                                     -          -  durable
+    wal/                                                    -          -  durable
+      000000001.SEG                                      4029       4029  durable
+        ^ torn by the crash at t=427.268199ms: kept 60 of a 73-byte write at offset 2019
+      000000002.SEG                                      3979       3979  durable
+      000000003.SEG                                      2054       2054  durable
+  2 dirs, 3 files: 10062 bytes durable, 0 bytes pending, 0 entries lost on crash, 0 removed entries that come back
+
+node client (directory entries are durable once made; torn_writes: a crash may also keep a prefix of the pending writes)
+  empty disk
+```
+
+The crash at 427ms left a 60-byte fragment of entry 26 at offset 2019, and every later entry was appended after it. That is the rosedblabs/wal bug in [findings](findings/rosedblabs-wal-torn-tail.md), visible without reading any code.
+
+## Usage
+
+```sh
+seedfall inspect [-c seedfall.json] -seed N [-faults file.json] [-at DURATION] [-node name] [-cat path | -out dir]
+```
+
+| Flag | Meaning |
+|---|---|
+| `-seed` | Seed to replay |
+| `-faults` | Replay with a fault schedule from `seedfall shrink` |
+| `-at` | Snapshot at this virtual time instead of at the failure, for example `-at 4.4s`. The snapshot is taken at the last scheduler step at or before it. If the run fails or ends first, the snapshot is taken there. |
+| `-node` | Only this node |
+| `-cat` | Print the durable content of one file: text as is, binary as a hex dump. The file must exist in the durable image. |
+| `-out` | Write each node's durable disk image to `dir/<node>/`, so you can open it with the library's own tools. The target must not exist yet. |
+
+The run is the same as `seedfall replay`: same seed, same faults, same trace. Inspecting changes nothing about it.
+
+## Reading the output
+
+Each file has its live size (what the program reads now) and its durable size (what survives a crash), and one state:
+
+| State | Meaning |
+|---|---|
+| `durable` | The live content and the durable content are the same, and the name survives a crash |
+| `PENDING: N bytes lost on crash at [a,b) ...` | These byte ranges of the live content differ from the durable content: they were written but not fsynced |
+| `PENDING truncate` | The file was truncated but not fsynced; a crash restores the old bytes |
+| `NOT DURABLE: never fsynced` | Without `strict_dirs`, a file that was never fsynced disappears on crash |
+| `NOT DURABLE: entry vanishes on crash` | With `strict_dirs`, the directory entry is not durable until the parent directory is fsynced, even if the file's data is |
+
+A `^ torn by the crash at t=...` line under a file says the last crash kept only part of one write: how many bytes of it, and at which offset. Those partial bytes are now durable and are what recovery code has to cope with.
+
+With `strict_dirs`, a file that was unlinked or renamed away while its parent directory was not fsynced is listed separately as an entry that a crash brings back. Renaming a temporary file over an existing one without fsyncing the directory shows up as the new name `NOT DURABLE` and the old content coming back.
+
+The durable image is the disk a crash would leave without `torn_writes`. With `torn_writes`, a crash can also keep an in-order prefix of the pending writes and, with `strict_dirs`, of the pending directory operations.
+
+## Examples
+
+NATS JetStream, the stream that vanishes ([finding](findings/nats-stream-meta-checksum-crash.md)):
+
+```sh
+cd examples/natsjs
+seedfall inspect -c seedfall.always.json -seed 40 -faults metasum.faults.json
+```
+
+```
+          EVENTS/                                           -          -  durable
+            meta.inf                                      517        517  durable
+            meta.sum.tmp                                    6          6  durable
+              ^ torn by the crash at t=158.20724ms: kept 6 of a 16-byte write at offset 0
+            msgs/                                           -          -  durable
+              1.blk                                      7702       7702  durable
+```
+
+`meta.inf` exists, `meta.sum` does not, and only a torn `meta.sum.tmp` is left. NATS skips a stream without a checksum on restart, and because `meta.inf` exists it never writes `meta.sum` again, so the 1.blk messages acknowledged since are skipped on every later restart.
+
+tidwall/buntdb, one step before the crash that empties the database ([finding](findings/tidwall-buntdb-shrink-fsync.md)):
+
+```sh
+cd examples/buntdb
+seedfall inspect -c seedfall.shrink.json -seed 27 -at 4.417s -node server
+```
+
+```
+  data/                                                     -          -  durable
+    db                                                   1255          0  NOT DURABLE: never fsynced, vanishes on crash
+```
+
+The AOF shrink renamed its rewritten file into place without fsyncing it: 1255 bytes live, none durable. At the failure, `db` holds only the 211 bytes that the crash at 4.417s happened to keep.
+
+## From an agent
+
+The MCP server exposes the same snapshot as `seedfall_inspect`, with the per-file sizes, volatile byte ranges, entry durability and last tear as JSON, and optionally one file's durable content. See [agents.md](agents.md).
+
+## Limitations
+
+- The snapshot covers the simulated disk only, not process memory or in-flight network messages.
+- The last tear is recorded per file. A later write over the same range does not clear it.
+- `-cat` prints the whole file. Pipe it through `tail` for large files.
+
+
+<!-- docs/mutate.md -->
+
+# Mutation testing your durability checks
+
+A sweep that passes is only meaningful if your workload would notice when durability breaks. `seedfall mutate` tests that directly: it weakens the simulated disk under your nodes, one guarantee at a time, and checks whether your sweep catches it.
+
+```sh
+seedfall mutate -c seedfall.always.json -seeds 1-30
+```
+
+```
+baseline: seeds 1-30 pass
+
+  fsync_noop     killed     seed 1: client#1: stream EVENTS lost after restart, 133 acknowledged messages gone
+                 file fsync returns success without making anything durable
+
+  dirsync_noop   not exercised (the operation never ran, or has no effect in this configuration)
+                 directory fsync does nothing (matters with strict_dirs)
+
+  osync_ignored  killed     seed 1: client#1: stream EVENTS lost after restart, 133 acknowledged messages gone
+                 writes to O_SYNC and O_DSYNC files are no longer synchronous
+
+every exercised mutant was killed
+```
+
+That run is NATS JetStream (`examples/natsjs`). Both guarantees NATS relies on are protected by the workload: when either one silently stops working, acknowledged messages are lost and the sweep fails.
+
+## Mutants
+
+| Mutant | What breaks |
+|---|---|
+| `fsync_noop` | File `fsync` reports success but makes nothing durable |
+| `dirsync_noop` | Directory `fsync` does nothing. Only observable with `strict_dirs`, where directory entries need it to survive a crash |
+| `osync_ignored` | Writes to files opened with `O_SYNC` or `O_DSYNC` stop being synchronous |
+
+Mutants apply to nodes only, never to the workload, and need no changes to your code.
+
+## Verdicts
+
+- **killed**: some seed failed, so your workload notices this guarantee disappearing. That is the goal.
+- **SURVIVED**: every seed passed even though the operation was weakened. Either your checks miss acknowledged data loss, or your faults never hit the window where it matters. Raise `crash_per_sec` or `crash_on_io`, lengthen the run, or strengthen the invariant. `seedfall mutate` exits non-zero when any mutant survives.
+- **not exercised**: the weakened operation never ran, or had no effect in this configuration. For example, `dirsync_noop` without `strict_dirs`.
+
+The baseline must pass first; otherwise mutants would be killed by the existing bug.
+
+
+<!-- docs/networking.md -->
+
+# Networking
+
+seedfall gives every node a simulated network: ordered byte streams with seeded latency, partitions that hold traffic until they heal, and connection resets when a peer crashes. Node names are host names, so a node named `server` is reachable at `server:7000`.
+
+There are two ways to connect your code to it.
+
+## Option 1: `sim.Listen` and `sim.Dial`
+
+```go
+import "github.com/kunalgoesbyken/seedfall/sim"
+
+ln, err := sim.Listen("tcp", ":7000")
+conn, err := sim.Dial("tcp", "server:7000")
+```
+
+They return a standard `net.Listener` and `net.Conn`. Outside the simulator they call `net.Listen` and `net.Dial`, so production builds are unaffected. This works on every Go version seedfall supports, and it is how most of the examples are written.
+
+If a library takes a custom dialer or listener, pass these in. hashicorp/raft's `NewNetworkTransport` accepts a `StreamLayer` built on them, and NATS clients accept `nats.SetCustomDialer`.
+
+## Option 2: zero code changes with `net_overlay`
+
+```json
+{ "net_overlay": true }
+```
+
+With `net_overlay`, unmodified programs that call `net.Listen` and `net.Dial` use the simulated network, and so do `net/http` servers and clients, and libraries such as hashicorp/raft's stock `NewTCPTransport`. `examples/httpkv` is a plain `net/http` server and client with no seedfall imports in the server.
+
+How it works: on `wasip1`, Go's `net` package uses an in-process fake network. At build time, seedfall reads that package from your own `GOROOT` and builds an overlay with `go build -overlay`. It makes two exact-text patches: `socket()` is renamed so a seedfall version can wrap it, and `accept()` gets a hook for seedfall listeners. Then it adds one file to package `net` that sends TCP sockets to the simulator. Node names resolve through a simulated `/etc/hosts`, and `localhost` means the node itself.
+
+If a future Go release changes those internals, the build fails with a clear "this Go version is not supported yet" error instead of misbehaving. Verified on Go 1.27.
+
+Current limits:
+- TCP only. UDP keeps using Go's in-process fake network, so gossip protocols (memberlist, serf) are not simulated.
+- Listening on port 0 is not supported.
+- `CloseRead` and `CloseWrite` are not supported.
+- The remote address of an accepted connection is a placeholder.
+
+## Without either
+
+Go's unmodified `net` package on `wasip1` is an in-process fake. A `net.Listen` succeeds but can never be reached from another node. If nodes cannot reach each other, enable `net_overlay` or switch to `sim`.
+
+
+<!-- docs/properties.md -->
+
+# Properties, linearizability and determinism
+
+## Failing a run
+
+```go
+sim.Fail("replica diverged")
+sim.Assert(got == want, fmt.Sprintf("acknowledged write lost: %s=%s", key, want))
+```
+
+`Fail` and `Assert` stop the run with a message. Outside the simulator they panic, so the same code works in ordinary tests.
+
+## Properties with coverage
+
+A green sweep only means something if the dangerous paths actually ran. Properties are tracked across every seed and printed after a sweep:
+
+```go
+sim.Always(len(log) >= committed, "log never shrinks below the commit index", len(log), committed)
+sim.Sometimes(tornTail, "recovery found a torn tail")
+sim.Reachable("a node restored from a snapshot")
+sim.Unreachable("two leaders in the same term", term)
+```
+
+| Function | Fails the seed when | Fails the sweep when |
+|---|---|---|
+| `Always(cond, msg, details...)` | `cond` is false | it was never reached |
+| `AlwaysOrUnreachable(cond, msg, details...)` | `cond` is false | |
+| `Unreachable(msg, details...)` | it is called | |
+| `Sometimes(cond, msg, details...)` | | it was never reached, or `cond` was never true |
+| `Reachable(msg, details...)` | | it was never reached |
+
+```
+property       seeds reached  seeds true
+  sometimes             400         400  a crash interrupted the workload
+  sometimes             400         172  recovery found a torn tail
+
+ok  400 seeds passed (0 hit the time horizon) in 1m32s
+```
+
+A property is identified by its message, so keep messages constant and pass changing values as details. Details appear in the failure message but do not create a new property. A `Sometimes` that is never satisfied means your faults never reached that path: raise a fault rate, lengthen `duration`, or change the workload.
+
+Properties are evaluated in any node, not only the workload. Outside the simulator, `Always` and `Unreachable` panic on violation and the others do nothing.
+
+### The property catalog
+
+Before a sweep, seedfall scans the Go source of every node and the workload for calls to these functions with a constant message, so it knows about properties even if no seed ever executes them. A property that is never reached is reported with its location and fails the sweep:
+
+```
+property       seeds reached  seeds true
+  reachable               0           0  compaction ran  <- never reached (node/main.go:12)
+  always                  5           5  invariant holds
+
+FAIL 1 properties were never reached or never true in 5 seeds
+```
+
+An `Always` that never runs proves nothing, so it has to be reached too. Calls whose message is not a string literal are still tracked once they run, but they cannot be cataloged in advance.
+
+## Liveness: quiet periods
+
+Safety properties say nothing bad happens. Liveness properties say something good eventually happens, and they can only be checked once the faults stop.
+
+```go
+sim.QuietFor(10 * time.Second)
+started := time.Now()
+waitUntilServed()
+sim.Always(time.Since(started) < 10*time.Second, "cluster serves reads again within the quiet period")
+```
+
+`sim.QuietFor(d)` suppresses every fault for `d` of virtual time and heals any active partition. Nodes that are already down still restart on schedule. The trace records each suppressed fault. `examples/raftkv/client` uses this to check that the cluster recovers after the workload.
+
+## Waiting for setup
+
+With `"faults_after_setup": true`, no faults fire until some node calls `sim.SetupComplete()`. Use it when bootstrapping, such as electing the first leader or creating a stream, is not what you want to test.
+
+## Linearizability
+
+Workloads can record key-value operations from any number of concurrent clients. When the workload finishes, seedfall checks the history with [Porcupine](https://github.com/anishathalye/porcupine).
+
+```go
+op := sim.Put(clientID, "k1", "v7")
+reply, err := client.Put("k1", "v7")
+switch {
+case err != nil:          op.Unknown()
+case reply == "redirect": op.Failed()
+default:                  op.Ok("")
+}
+
+op = sim.Get(clientID, "k1")
+value, err := client.Get("k1")
+if err != nil {
+	op.Unknown()
+} else {
+	op.Ok(value)
+}
+```
+
+- `Ok(value)` means the operation took effect. For a read, `value` is what was read, with `""` meaning absent.
+- `Unknown()` means it may or may not have taken effect, such as a timeout. Unknown writes may land any time after they start; unknown reads are dropped.
+- `Failed()` means it definitely did not take effect, such as a redirect to the leader.
+
+On a violation, seedfall writes an interactive timeline to `.seedfall/seed-N.history.html`.
+
+## Determinism check
+
+```sh
+seedfall run -seeds 1-200 -check
+```
+
+Every seed runs twice, and the sweep fails with the first differing trace line if the two runs diverge. Run it in CI to make sure nothing in your program escapes the simulator.
+
+
+<!-- docs/reports.md -->
+
+# Triage reports
+
+```sh
+seedfall run -c seedfall.json -seeds 1-500 -report .seedfall/report.html
+```
+
+With `-report`, a sweep keeps going after the first failure, groups every failing seed into findings, and writes an HTML report plus a JSON version next to it (`report.json`). The terminal prints a summary:
+
+```
+16 of 60 seeds failed, 1 findings, in 4.867s
+  new       assert · client                             16 seeds  e.g. seed 1  bug
+report: .seedfall/report.html
+```
+
+## Findings
+
+Failures are grouped by what failed, not by message text: the failure class (`property`, `assert`, `crash`, `exit`, `watchdog`, `deadlock`, `linearizability`, `nondeterminism`), the node, and, for properties, the property name. Use `sim.Always` with a constant message to get one finding per invariant.
+
+For each finding the report shows:
+- how many seeds failed and the rate, with findings under 1% marked rare;
+- up to ten example seeds;
+- ready-to-run `replay` and `shrink` commands;
+- the faults before the failure and the trace of the lowest failing seed. seedfall re-runs that seed to get them, which works because replays are exact.
+
+## Classification
+
+Every finding, and the failure `seedfall run` stops at, gets a class that says whether it is worth blocking on:
+
+| Class | Meaning |
+|---|---|
+| `bug` | Replaying the seed fails again with the same trace. A real, reproducible failure of the system under test |
+| `nondeterministic` | The replay diverges from the original run: something in the harness or the system leaks host nondeterminism. The first diverging trace line is shown |
+| `timeout` | The real-time watchdog fired. This depends on host speed and load, not only on the seed |
+
+```
+FAIL seed 1 at t=2.892s ...
+class: bug
+```
+
+Classification replays only the failure that `run` reports and one representative seed per finding, so it adds one run per finding, never one per seed. It appears in the terminal summary, in the HTML report, as `classification` in `report.json`, and in the MCP `seedfall_run` and `seedfall_replay` results, so CI and agents can block on `bug` and quarantine the rest.
+
+## History: new, ongoing, resolved, regressed
+
+Every report appends a line to `.seedfall/history.jsonl`, keyed by config path. Findings are classified against that history:
+
+| Status | Meaning |
+|---|---|
+| `new` | Never seen before for this config |
+| `ongoing` | Seen in earlier runs and still failing |
+| `not seen` | Absent from this run, but not enough clean seeds yet to be sure it is fixed |
+| `resolved` | Absent for enough consecutive clean seeds to be 95% confident it is fixed |
+| `regressed` | Failing again after it was resolved |
+
+"Enough" depends on how often the finding used to fail. A finding that failed in a fraction *p* of seeds needs *n ≥ ln(0.05) / ln(1 − p)* clean seeds, counted across runs since it was last seen. A bug that failed 1 seed in 4 is resolved after 11 clean seeds; one that failed 1 seed in 100 needs 299.
+
+```
+  new       assert · client          16 seeds  e.g. seed 1
+  ongoing   assert · client          15 seeds  e.g. seed 61
+  not seen  assert · client          not seen in 5 seeds, but 11 are needed to be 95% sure it is fixed
+  resolved  assert · client          not seen in 20 seeds since it failed 15 of 60
+  regressed assert · client           6 seeds  e.g. seed 1
+```
+
+Keep `.seedfall/history.jsonl` between CI runs (cache or commit it) to get this classification on every pull request.
+
+## Properties and fault profile
+
+The report also lists every property with how many seeds reached it and how many saw it true, flagging properties that were never reached or never true, and the fault profile the sweep ran with.
+
+
+<!-- docs/verify.md -->
+
+# Proving a fix with `seedfall verify`
+
+`seedfall verify` is the definition of done for a change that fixes a seedfall failure, whether a person or an AI agent wrote it. It answers one question with evidence: is the failure gone, and how sure are we?
+
+```sh
+seedfall verify -c seedfall.fixed.json -seed 1 -faults .seedfall/seed-1.faults.json -mutate -md proof.md
+```
+
+```
+verify seedfall.fixed.json
+  pass  replay seed 1 with .seedfall/seed-1.faults.json  passes, twice, with identical traces
+  pass  fresh sweep, seeds 2-300                         299 of 299 pass: 95% confidence that a failure with rate >= 0.997% would have shown up
+  pass  determinism, seeds 2-11                          every seed ran twice with identical traces
+  pass  mutant fsync_noop                                killed by seed 2
+  pass  mutant dirsync_noop                              not exercised
+  pass  mutant osync_ignored                             not exercised
+PASS
+```
+
+Against the unfixed config the same command stops at the first check and exits 1:
+
+```
+verify seedfall.always.json
+  FAIL  replay seed 1 with .seedfall/seed-1.faults.json  seed 1 FAILS [bug]: client#1: acknowledged write lost: k63=v63, server now answers "NONE"
+  skip  fresh sweep                                      an earlier check failed
+  skip  determinism                                      an earlier check failed
+FAIL
+```
+
+## What it checks
+
+In order, stopping at the first stage that fails:
+
+1. **Replay.** Every failing schedule you name is replayed and must pass now. Each replay runs twice and must produce identical traces, so a pass cannot be luck.
+2. **Fresh sweep.** New seeds, starting after the highest seed already known, must all pass. By default verify runs as many as needed for 95% confidence that a failure with the historical rate would have shown up: *n = ⌈ln(0.05) / ln(1 − p)⌉*, the same rule the [triage report](reports.md) uses to call a finding resolved. A finding that failed 27.5% of seeds needs 10 clean seeds; when no rate is known, verify assumes a rare failure (1%) and runs 299. `-seeds` overrides the range.
+3. **Determinism.** The first `-check` fresh seeds (default 10) run twice and must produce identical traces, as with `run -check`.
+4. **Mutants** (with `-mutate`). The [durability mutants](mutate.md) run over the fresh seeds, and every exercised mutant must still be killed. This catches a "fix" that passes by weakening the checks.
+
+Any failure is printed with its [classification](reports.md#classification), so a determinism leak is not mistaken for the bug coming back.
+
+## What to verify
+
+| Flags | Replays |
+|---|---|
+| `-seed N` | seed N with its generated faults |
+| `-seed N -faults file.json` | seed N under a saved schedule, for example one written by `seedfall shrink` |
+| `-report .seedfall/report.html` | every example seed of every finding in a [triage report](reports.md), plus any schedule `shrink` saved for those seeds in `.seedfall/`. The findings' failure rates set the sweep size |
+
+`-seed` and `-report` can be combined. Point `-c` at the config of the code you changed; the report can come from an earlier run of the same or another config.
+
+```
+$ seedfall verify -c seedfall.fixed.json -report .seedfall/report.html
+verify seedfall.fixed.json
+  pass  replay assert · client seed 1                                     passes, twice, with identical traces
+  pass  replay assert · client seed 1 with .seedfall/seed-1.faults.json   passes, twice, with identical traces
+  pass  replay assert · client seed 12                                    passes, twice, with identical traces
+  ...
+  pass  fresh sweep, seeds 41-50                                          10 of 10 pass: 95% confidence that a failure with rate >= 25.9% would have shown up (historical rate 27.5%)
+  pass  determinism, seeds 41-50                                          every seed ran twice with identical traces
+PASS
+```
+
+## The proof block
+
+`-md proof.md` writes the result as Markdown for the pull request description:
+
+```markdown
+### seedfall verify: PASS
+
+Config `seedfall.fixed.json`, reproduce with `seedfall verify -c seedfall.fixed.json -seed 1 -faults .seedfall/seed-1.faults.json -mutate`
+
+| | Check | Result |
+|---|---|---|
+| pass | replay seed 1 with .seedfall/seed-1.faults.json | passes, twice, with identical traces |
+| pass | fresh sweep, seeds 2-300 | 299 of 299 pass: 95% confidence that a failure with rate >= 0.997% would have shown up |
+| pass | determinism, seeds 2-11 | every seed ran twice with identical traces |
+| pass | mutant fsync_noop | killed by seed 2 |
+| pass | mutant dirsync_noop | not exercised |
+| pass | mutant osync_ignored | not exercised |
+```
+
+## Flags
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `-c` | `seedfall.json` | Config of the code under test |
+| `-seed` | | Failing seed to replay |
+| `-faults` | | Fault schedule for `-seed` |
+| `-report` | | Triage report (`.html` or `.json`) whose findings to replay |
+| `-seeds` | enough for 95% confidence | Fresh seed range to sweep |
+| `-check` | `10` | Fresh seeds to run twice for the determinism check |
+| `-mutate` | off | Also require every exercised durability mutant to be killed |
+| `-md` | | Write the Markdown proof block to this file |
+| `-j` | all CPUs | Parallel runs |
+
+The exit status is 0 only when every check passes.
+
+## From an agent
+
+The MCP tool `seedfall_verify` takes the same inputs (`config`, `seed`, `faults`, `report`, `seeds`, `check_seeds`, `mutate`) and returns each check as structured JSON, the overall `passed` verdict, and the proof block as `markdown`. See [agents.md](agents.md).
+
+
+<!-- skills/seedfall-fix-and-prove/SKILL.md -->
+
+
+# Fix a seedfall failure and prove it
+
+The fix is done when `seedfall verify` passes, not when one replay goes green. Below, `C` is the config that failed, `N` the seed, and `S` the schedule from `seedfall shrink`, `.seedfall/seed-N.faults.json`.
+
+## 1. Fix the cause, not the symptom
+
+Change the code that triage identified: fsync before acknowledging, truncate a torn tail during recovery, fsync the directory after a rename, stop acknowledging after a failed fsync. Do not change `C`, the workload's checks or the fault rates to make the failure go away. A fix that weakens the checks fails step 4 anyway.
+
+## 2. Replay until it passes
+
+```sh
+seedfall replay -c C -seed N -faults S
+seedfall replay -c C -seed N
+```
+
+Both must end with `seed N: ok, ... steps`. Seeds and schedules replay exactly, so a pass here is not luck. If it still fails, read the new failure: it may be the same bug further along, or a second bug the first one was hiding.
+
+## 3. Sweep
+
+```sh
+seedfall run -c C -seeds 1-200
+```
+
+A new failure on another seed is a new finding. Triage it before going on.
+
+## 4. Verify
+
+```sh
+seedfall verify -c C -seed N -faults S -mutate -md proof.md
+```
+
+If the failures came from a triage report, use `-report .seedfall/report.html` instead of, or as well as, `-seed`. Verify stops at the first stage that fails:
+
+1. **Replay.** Each named schedule passes, twice, with identical traces.
+2. **Fresh sweep.** Enough new seeds for 95% confidence at the failure's historical rate. Without a rate, verify assumes 1% and runs 299 seeds. `-seeds` overrides the range.
+3. **Determinism.** `-check` fresh seeds (default 10) run twice with identical traces.
+4. **Mutants** (`-mutate`). Every exercised durability mutant is still killed, so the fix did not pass by making the checks blind.
+
+It prints `PASS` or `FAIL` and exits 0 or 1. Over MCP, `seedfall_verify` with `{"config": "C", "seed": N, "faults": "S", "mutate": true}` returns the same verdict, and its `markdown` field holds the proof block.
+
+## 5. Put the proof in the pull request
+
+Paste `proof.md`, or the MCP `markdown` field, into the pull request description unchanged, under a heading such as `## Crash-safety proof`. It names the config, the replayed schedules, the seed ranges and the confidence, so a reviewer can rerun the exact command it shows.
+
+## 6. Keep it fixed
+
+- Copy the schedule out of `.seedfall/`, which is usually gitignored, into the repository, for example `seedfall/seed-N.faults.json`. Then `seedfall replay -c C -seed N -faults seedfall/seed-N.faults.json` stays a regression test.
+- Run the sweep from `go test` with `seedfalltest.Sweep(t, "seedfall.json", "1-100")` from `github.com/kunalgoesbyken/seedfall/seedfalltest`, or in CI with the `kunalgoesbyken/seedfall` GitHub Action.
+
+
+<!-- skills/seedfall-properties/SKILL.md -->
+
+
+# Write properties that catch real durability bugs
+
+A passing sweep proves only what the workload checks. Find the service's promises, check each one, prove that the faults reached the dangerous paths, then break the disk on purpose and confirm the checks notice.
+
+## 1. Find the promises
+
+Read the code, not the README. For each item below, note the file and line:
+
+- **Acknowledgement.** Where does the service answer OK, return 2xx or ack a producer? What must already be fsynced at that point: the data file, the directory entry, the index?
+- **Recovery.** What does startup do with a torn last record, a missing file, a leftover temp file or a half-finished compaction?
+- **Atomic replace.** For each write-temp-then-rename, is the file fsynced before the rename, and is the parent directory fsynced after it?
+- **Deletes and compaction.** Can a crash bring back deleted data, or lose data that had been copied?
+- **Replication.** When is a write committed? Can a follower serve stale reads? Can two leaders coexist?
+
+Write each promise as one sentence, for example "every acknowledged write is readable after any number of crashes".
+
+## 2. Turn each promise into a check
+
+The full reference is the MCP resource `seedfall://docs/properties` (docs/properties.md).
+
+| Promise | Check |
+|---|---|
+| Acknowledged writes survive | The workload records each acknowledged write, then reads it back after the faults: `sim.Assert(got == want, "acknowledged write lost: "+key)` |
+| State never goes backwards | In the node: `sim.Always(len(log) >= committed, "log never shrinks below the commit index", len(log), committed)` |
+| Something must never happen | `sim.Unreachable("two leaders in the same term", term)` |
+| A dangerous path actually ran | `sim.Sometimes(tornTail, "recovery found a torn tail")`, `sim.Reachable("a node restored from a snapshot")` |
+| Concurrent clients see a linearizable history | Wrap each call: `op := sim.Put(client, key, value)`, then `op.Ok("")`, `op.Unknown()` on a timeout, or `op.Failed()` when it definitely did not apply. Use `sim.Get` for reads |
+| The system recovers | `sim.QuietFor(10 * time.Second)`, then assert that it serves again within that window |
+
+Rules:
+- Keep messages constant string literals and pass changing values as extra arguments. seedfall catalogs literal messages before the sweep, and an `Always` or `Reachable` that no seed reaches fails the sweep.
+- Add a `Sometimes` for each fault-dependent path you care about. The coverage table then proves the faults reached it.
+- Properties can live in nodes. Outside the simulator, `Always` and `Unreachable` panic on violation and the others do nothing, so only put invariants in node code that must hold in production too.
+
+## 3. Sweep and read the coverage table
+
+```sh
+seedfall run -c seedfall.json -seeds 1-100
+```
+
+Over MCP: `seedfall_run`, which returns `properties` with `seeds_reached`, `seeds_true` and a `problem` for each one.
+
+- A `Sometimes` that is never true means the faults never reached that path. Raise `crash_on_io` (around 0.005 to 0.02), set `torn_writes`, lengthen `duration`, or make the workload write more.
+- A failure here may be a real bug. Switch to the `seedfall-triage` skill.
+
+## 4. Grade the checks with mutants
+
+```sh
+seedfall mutate -c seedfall.json -seeds 1-30
+```
+
+The baseline must pass first. Then each mutant weakens one disk guarantee under the nodes:
+
+| Mutant survived | Meaning | Fix |
+|---|---|---|
+| `fsync_noop` | Nothing checks that acknowledged data survives a crash, or crashes never land between a write and its fsync | Read back every acknowledged write after crashes. Raise `crash_on_io` and set `torn_writes` |
+| `dirsync_noop` | Directory fsyncs are untested | Add `"strict_dirs": true` to `faults`, then check data that depends on a create or rename |
+| `osync_ignored` | Writes to `O_SYNC` files are untested | Check the data written through those files |
+
+`not exercised` means the operation never ran, or had no effect in this config. That is fine when the service never uses it, such as `dirsync_noop` without `strict_dirs`.
+
+Repeat steps 2 to 4 until every exercised mutant is killed, or until you can state why a survivor is equivalent, for example data the service never promises to keep. `seedfall mutate` exits 1 while any mutant survives.
+
+## 5. Widen the fault model
+
+Once the basic sweep and the mutants pass, add one fault class at a time and sweep again: `fsync_eio` (around 0.01), `strict_dirs`, `partition_per_sec`, then `pause_per_sec` and `clock_jump_per_sec` for lease and timeout logic. Set `swarm` for long CI sweeps. A fault class that breaks the service is a finding, not noise: triage it.
+
+
+<!-- skills/seedfall-setup/SKILL.md -->
+
+
+# Set up seedfall in a Go module
+
+seedfall builds each node (a Go `main` package) for `GOOS=wasip1`, runs every node on one simulated clock, and crashes, tears and partitions them from a seed. The workload is another `main` package: it drives the nodes and checks invariants with `sim.Assert` and friends. Setup is done when a 20-seed sweep runs and its property table shows that the workload got acknowledged writes and that a fault interrupted it.
+
+## 1. Install
+
+```sh
+go install github.com/kunalgoesbyken/seedfall/cmd/seedfall@latest
+```
+
+## 2. Inspect and scaffold
+
+From the module root:
+
+```sh
+seedfall init -n      # report only, write nothing
+seedfall init         # write seedfall.json and seedfall/workload/main.go
+```
+
+Add `-json` for the structured report. Over MCP, call `seedfall_init` with `{"dir": ".", "dry_run": true}`, then without `dry_run`. Init never overwrites: existing files are listed as kept.
+
+Read the report in this order:
+
+1. **wasip1 blockers.** Packages that fail to compile for wasip1, each with the compiler error and the import chain from the node. Nothing else works until these are gone.
+   - `own_module: true`: move the platform-specific file behind a build tag and give wasip1 a portable version.
+   - A dependency: upgrade it first, since newer versions often build for wasip1. Otherwise add a `replace` in go.mod that points at a small in-process shim. `examples/flockshim` in the seedfall repository replaces `github.com/gofrs/flock` this way.
+2. **cgo packages.** cgo is off under wasip1, so these either fail to build or fall back to a stub. Use a pure-Go alternative or stub them behind a build tag.
+3. **main packages.** Every `main` package that imports `net` becomes a node. If init picked the wrong ones, such as a CLI, an admin tool or an existing test client, delete `seedfall.json` and rerun with one `-node` per real server, for example `seedfall init -node ./cmd/server`.
+4. **next steps.** Follow them in order.
+
+Some dependencies compile but fail at runtime under wasip1. For example, gofrs/flock returns `ErrUnsupported`. These show up as node errors in the first run's trace; shim them the same way.
+
+If the module does not require seedfall yet, run `go get github.com/kunalgoesbyken/seedfall@latest`. The workload imports `github.com/kunalgoesbyken/seedfall/sim`.
+
+## 3. Wire the workload
+
+Open `seedfall/workload/main.go` and implement `put` and `get` against the service's real API:
+
+- **Address.** A node is reachable by its name from `seedfall.json`. Set the workload's `-addr` argument in `seedfall.json` to `<node>:<port the service listens on>`. Init guesses port 8080.
+- **Network.** If the nodes import `github.com/kunalgoesbyken/seedfall/sim`, dial with `sim.Dial`. Otherwise init turned on `net_overlay`, and plain `net.Dial` and `net/http` reach the simulated nodes.
+- **Acknowledgement.** `put` returns nil only when the service acknowledged the write. Return an error for everything else. Writes whose outcome is unknown are simply not tracked.
+- **Timeouts.** Set a deadline on every request (`conn.SetDeadline`, or `http.Client{Timeout: ...}`), so a crash or partition does not block the workload forever.
+
+Keep the two `sim.Sometimes` lines. They prove the workload exercised the service and that faults hit it.
+
+## 4. First sweep
+
+```sh
+seedfall run -c seedfall.json -seeds 1-20
+```
+
+Over MCP: `seedfall_run` with `{"config": "seedfall.json", "seeds": "1-20"}`.
+
+| Output | Meaning | Next |
+|---|---|---|
+| `build ...` error | A wasip1 compile error | Go back to step 2 |
+| `the workload got acknowledged writes` never true | `put` never succeeded | Check `-addr` and the port. `seedfall replay -c seedfall.json -seed 1` prints every node's output in the trace |
+| `a fault interrupted the workload` never true | Faults never reached the workload | Raise `crash_per_sec` or lengthen `duration` |
+| `FAIL seed N` with `class: bug` | Possibly a real bug | Use the `seedfall-triage` skill |
+| `ok  20 seeds passed` | Setup is done | Use the `seedfall-properties` skill |
+
+Then confirm that nothing leaks host nondeterminism:
+
+```sh
+seedfall run -c seedfall.json -seeds 1-20 -check
+```
+
+The config fields and their defaults are in the MCP resource `seedfall://schema/config`. What each one means is in `seedfall://docs/faults` (docs/faults.md).
+
+
+<!-- skills/seedfall-triage/SKILL.md -->
+
+
+# Triage a failing seed
+
+Every seedfall failure replays exactly from its seed. Do not guess from the failure message. Narrow the run to the few faults that matter, find where the outcome was decided, look at the bytes, and test the explanation by replaying a variation before you edit code. Below, `C` is the config and `N` the seed.
+
+## 1. Classify
+
+```sh
+seedfall run -c C -seeds N
+```
+
+The output ends with `class:`.
+- `bug`: the replay fails with the same trace. Continue.
+- `nondeterministic`: something leaks host nondeterminism, such as real time, unseeded randomness or map iteration feeding I/O. The first diverging trace line is shown. Fix the leak first: it is a harness problem, not the bug.
+- `timeout`: the real-time watchdog fired. A busy loop that never yields, or a host that is too slow. Rerun on an idle machine, or raise `watchdog`, before treating it as a bug.
+
+Many failing seeds? `seedfall run -c C -seeds 1-500 -report .seedfall/report.html` groups them into findings, each with an example seed. Triage one example seed per finding.
+
+## 2. Shrink
+
+```sh
+seedfall shrink -c C -seed N
+```
+
+This writes the minimal schedule to `.seedfall/seed-N.faults.json` and prints it, for example:
+
+```
+  427.268ms  crash server during disk op #56, restart at 791.388ms
+   1.7052s  crash server, restart at 1.942589s
+```
+
+Every fault left is needed for the failure. `crash ... during disk op #k` means the node died in the middle of its k-th disk operation, usually between a write and its fsync, or between a rename and the directory fsync.
+
+## 3. Find the decisive moment
+
+```sh
+seedfall cause -c C -seed N
+```
+
+seedfall replays the run up to many moments, re-randomizes everything after each one, and prints the probability of failing from that moment on. The fault just before the jump to near 100% is the cause; faults after it are just how the damage gets observed. Raise `-points` and `-branches` for a finer curve.
+
+## 4. Look at the disk
+
+```sh
+seedfall inspect -c C -seed N -faults .seedfall/seed-N.faults.json
+seedfall inspect -c C -seed N -faults .seedfall/seed-N.faults.json -at 427ms
+seedfall inspect -c C -seed N -faults .seedfall/seed-N.faults.json -node server -cat data/kv.log
+```
+
+Inspect shows each node's files at the failure, or at the virtual time `-at`, with live and durable sizes, the byte ranges a crash would lose, directory entries that are not durable yet, the last torn write, and removed entries a crash would bring back. Take `-at` just before and just after the decisive fault from step 3. `-cat` prints one file's durable content. `-out dir` exports the durable images so the project's own tools can open them.
+
+## 5. Check the hypothesis with a replay
+
+Write the explanation down as one sentence, for example "the crash in op #56 leaves a torn record, and recovery appends after it instead of truncating". Then test it by changing one thing and replaying.
+
+- **Drop a fault.** Copy `.seedfall/seed-N.faults.json` to `hypothesis.json` and delete one entry. The schedule is a JSON array of `{"at", "kind", "node", "until", "op", ...}`. Then run `seedfall replay -c C -seed N -faults hypothesis.json`. If it now passes, that fault is necessary. If it still fails, compare the failure message with the original: a different message means you uncovered a second bug, so note it and triage it separately.
+- **Move a fault.** Change `op` on a `crash_io` entry, or `at` on a `crash`, to put the crash just before or after the suspect operation, then replay again.
+- **Change the world.** In a copy of `C`, turn off `torn_writes`, or turn `strict_dirs` on or off, and replay the same seed. If the failure needs torn writes, the bug is in recovery parsing. If it needs `strict_dirs`, a directory fsync is missing.
+
+`replay` exits 1 and prints the trace when the seed fails, and ends with `seed N: ok, ... steps` when it passes. Over MCP, use `seedfall_replay` with `faults`, `seedfall_shrink`, `seedfall_cause` and `seedfall_inspect`, which take the same arguments as JSON.
+
+Then confirm the explanation in the source: find the code that issued the disk operation named in the trace, and the code that read it back on restart.
+
+## 6. Hand off
+
+Record the seed, the minimal schedule file, the decisive fault, what inspect showed, and the replay that confirmed the hypothesis. Then use the `seedfall-fix-and-prove` skill.

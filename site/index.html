@@ -350,6 +350,8 @@ n2#2 | panic: log not found
           <button role="tab" id="tab-gha" aria-controls="panel-gha" aria-selected="false" tabindex="-1"><svg class="logo" aria-hidden="true"><use href="#gha"/></svg>GitHub Actions</button>
         </div>
         <div class="panel" role="tabpanel" id="panel-claude" aria-labelledby="tab-claude">
+          <button class="install" data-copy="claude plugin install seedfall --marketplace kunalgoesbyken/seedfall"><span class="prompt">$</span><span class="cmd">claude plugin install seedfall --marketplace kunalgoesbyken/seedfall</span><span class="copy">copy</span></button>
+          <p class="setup-note">The plugin adds the MCP server, four skills (setup, properties, triage, fix and prove) and an opt-in Stop hook. For the MCP server only:</p>
           <button class="install" data-copy="claude mcp add seedfall -- seedfall mcp"><span class="prompt">$</span><span class="cmd">claude mcp add seedfall -- seedfall mcp</span><span class="copy">copy</span></button>
         </div>
         <div class="panel" role="tabpanel" id="panel-cursor" aria-labelledby="tab-cursor" hidden>
@@ -360,7 +362,8 @@ n2#2 | panic: log not found
         </div>
         <div class="panel" role="tabpanel" id="panel-other" aria-labelledby="tab-other" hidden>
           <button class="install" data-copy="{&quot;mcpServers&quot;: {&quot;seedfall&quot;: {&quot;command&quot;: &quot;seedfall&quot;, &quot;args&quot;: [&quot;mcp&quot;]}}}"><span class="cmd">{&quot;mcpServers&quot;: {&quot;seedfall&quot;: {&quot;command&quot;: &quot;seedfall&quot;, &quot;args&quot;: [&quot;mcp&quot;]}}}</span><span class="copy">copy</span></button>
-          <p class="setup-note">Paste into any MCP client that reads an <code>mcpServers</code> config.</p>
+          <p class="setup-note">Paste into any MCP client that reads an <code>mcpServers</code> config. For the same skills in any agent that reads <code>SKILL.md</code>:</p>
+          <button class="install" data-copy="npx skills add kunalgoesbyken/seedfall"><span class="prompt">$</span><span class="cmd">npx skills add kunalgoesbyken/seedfall</span><span class="copy">copy</span></button>
         </div>
         <div class="panel" role="tabpanel" id="panel-gha" aria-labelledby="tab-gha" hidden>
           <button class="install" data-copy="- uses: kunalgoesbyken/seedfall@v0.2.0"><span class="cmd">- uses: kunalgoesbyken/seedfall@v0.2.0</span><span class="copy">copy</span></button>

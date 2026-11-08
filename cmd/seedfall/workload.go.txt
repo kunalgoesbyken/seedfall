@@ -1,0 +1,50 @@
+package main
+
+import (
+	"errors"
+	"flag"
+	"fmt"
+	"time"
+
+	"github.com/kunalgoesbyken/seedfall/sim"
+)
+
+func main() {
+	addr := flag.String("addr", "", "host:port of the node under test")
+	ops := flag.Int("ops", 100, "number of writes")
+	gap := flag.Duration("gap", 10*time.Millisecond, "pause between writes")
+	flag.Parse()
+
+	var acked []string
+	for i := range *ops {
+		key := fmt.Sprintf("k%d", i)
+		if err := put(*addr, key, "v"+key); err == nil {
+			acked = append(acked, key)
+		}
+		time.Sleep(*gap)
+	}
+	fmt.Printf("%d of %d writes acknowledged, verifying\n", len(acked), *ops)
+	sim.Sometimes(len(acked) > 0, "the workload got acknowledged writes")
+	sim.Sometimes(len(acked) < *ops, "a fault interrupted the workload")
+	for _, key := range acked {
+		got := getUntilServed(*addr, key)
+		sim.Assert(got == "v"+key, fmt.Sprintf("acknowledged write lost: %s, node now answers %q", key, got))
+	}
+}
+
+func put(addr, key, value string) error {
+	return errors.ErrUnsupported
+}
+
+func get(addr, key string) (string, error) {
+	return "", errors.ErrUnsupported
+}
+
+func getUntilServed(addr, key string) string {
+	for {
+		if value, err := get(addr, key); err == nil {
+			return value
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
