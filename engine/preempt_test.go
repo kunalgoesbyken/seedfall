@@ -73,11 +73,11 @@ func TestInstrumentedLoopsCompile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	calls, err := instrument(raw, false)
+	calls, err := instrument(raw, false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	loops, err := instrument(raw, true)
+	loops, err := instrument(raw, true, false)
 	if err != nil {
 		t.Fatal(err)
 	}

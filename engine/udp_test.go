@@ -273,11 +273,11 @@ func TestDatagramLostToAConnectedSocketSaysSo(t *testing.T) {
 
 func TestBranchRerandomizesUDPLoss(t *testing.T) {
 	w, _ := buggifyWorld(13)
-	w.branch, w.udpRand = &branch{key: 1}, streams(13, "udp")
+	w.branches, w.udpRand = []Branch{{Key: 1}}, streams(13, "udp")
 	if !w.takeBranch(0) {
 		t.Fatal("branch not taken")
 	}
-	if got, want := w.udpRand.Uint64(), streams(w.streamSeed(), "udp").Uint64(); got != want {
+	if got, want := w.udpRand.Uint64(), streams(w.streamSeed("udp"), "udp").Uint64(); got != want {
 		t.Fatalf("udp stream after a branch drew %d, want the branch's %d", got, want)
 	}
 }

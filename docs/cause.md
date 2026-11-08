@@ -32,11 +32,13 @@ Read it from top to bottom. Before anything happens, a random future of this wor
 
 ## How it works
 
-For each moment *T*, seedfall replays the seed exactly up to *T*. At the first scheduler step at or after *T*, it re-keys every random stream: scheduling, network latency, disk tearing, I/O faults, each node's own randomness, and the remaining fault schedule. Then it lets the run continue into a new future. Running many such branches from the same moment estimates the probability of failing from that state.
+For each moment *T*, seedfall replays the seed exactly up to *T*. At the first scheduler step at or after *T*, it re-keys every random stream: scheduling, network latency, disk tearing, I/O faults, what `random_get` hands each node (so `crypto/rand` and `sim.Random`, but not Go's runtime-seeded `math/rand`), and the remaining fault schedule. Then it lets the run continue into a new future. Running many such branches from the same moment estimates the probability of failing from that state.
 
 This needs no snapshots. Because replay is exact, "the state at *T*" is reproduced by running the seed to *T*. That is the same property Antithesis's multiverse debugging relies on, with deterministic replay standing in for VM snapshots.
 
 Moments are chosen evenly across the run (`-points`, default 16), plus just before and just after every fault. Each moment gets `-branches` futures (default 20), so the default costs a few hundred runs, all in parallel.
+
+Branches are also the basis of [feedback-guided exploration](explore.md), which keeps branching from runs that reached something new.
 
 ## From an agent
 

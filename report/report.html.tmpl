@@ -42,7 +42,7 @@ textarea.issue { width: 100%; height: 220px; margin-top: 8px; background: #0d080
 <main>
   <p class="brand"><span><i style="height:8px;opacity:.55"></i> <i style="height:18px"></i> <i style="height:12px;opacity:.75"></i></span>seedfall triage report</p>
   <h1>{{.Config}}</h1>
-  <p class="dim mono">seeds {{.Seeds}} · {{.Elapsed}} · seedfall {{.Version}} · {{.GoVersion}}{{with .Commit}} · commit {{.}}{{end}} · {{.Generated.Format "2006-01-02 15:04 MST"}}</p>
+  <p class="dim mono">seeds {{.Seeds}} · {{.Elapsed}} · {{printf "%.1f" .SeedsPerSec}} seeds/s · {{printf "%.0f" .VirtualPerWall}}x virtual time · seedfall {{.Version}} · {{.GoVersion}}{{with .Commit}} · commit {{.}}{{end}} · {{.Generated.Format "2006-01-02 15:04 MST"}}</p>
 
   <div class="stats">
     <div><b>{{.Total}}</b><span class="dim">seeds run</span></div>
@@ -96,6 +96,15 @@ textarea.issue { width: 100%; height: 220px; margin-top: 8px; background: #0d080
     <p class="dim" style="margin-top:8px">{{.Note}}</p>
   </section>
   {{end}}
+  {{end}}
+
+  {{if .Exploration}}
+  <h2>Exploration</h2>
+  <p class="dim">{{with .Stopped}}Stopped: {{.}}. {{end}}How the signal set grew: each row is one batch of runs.</p>
+  <table>
+    <tr><th>round</th><th>runs</th><th>new signals</th><th>signals</th><th>new functions</th><th>functions</th><th>corpus</th><th>failures</th></tr>
+    {{range .Exploration}}<tr><td class="num">{{.Round}}</td><td class="num">{{.Runs}}</td><td class="num">{{.NewSignals}}</td><td class="num">{{.Signals}}</td><td class="num">{{.NewFunctions}}</td><td class="num">{{.Functions}}</td><td class="num">{{.Corpus}}</td><td class="num">{{.Failures}}</td></tr>{{end}}
+  </table>
   {{end}}
 
   <h2>Properties</h2>

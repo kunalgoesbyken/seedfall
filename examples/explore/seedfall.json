@@ -1,0 +1,5 @@
+{
+  "workload": { "name": "client", "pkg": "./client" },
+  "duration": "10s",
+  "faults": "none"
+}

@@ -24,9 +24,11 @@ const mcpInstructions = "seedfall runs Go services as wasip1 guests under simula
 
 type runArgs struct {
 	configArgs
-	Seeds      string `json:"seeds" jsonschema:"seed or inclusive range, for example 1-200"`
-	Check      bool   `json:"check,omitempty" jsonschema:"run every seed twice and fail at the first host call or trace line that differs"`
-	SkipPinned bool   `json:"skip_pinned,omitempty" jsonschema:"do not replay the schedules pinned in seedfall-regressions/ before the sweep"`
+	Seeds        string `json:"seeds" jsonschema:"seed or inclusive range, for example 1-200"`
+	Check        bool   `json:"check,omitempty" jsonschema:"run every seed twice and fail at the first host call or trace line that differs"`
+	SkipPinned   bool   `json:"skip_pinned,omitempty" jsonschema:"do not replay the schedules pinned in seedfall-regressions/ before the sweep"`
+	UntilNovelty int    `json:"until_novelty,omitempty" jsonschema:"stop once this many batches of seeds in a row add no new property outcome, fault shape, buggify firing or function"`
+	Batch        int    `json:"batch,omitempty" jsonschema:"seeds per batch for until_novelty, default 20"`
 }
 
 type seedArgs struct {
@@ -82,6 +84,11 @@ type runView struct {
 	Properties  []propertyView      `json:"properties"`
 	Buggify     []buggifyView       `json:"buggify_sites,omitempty"`
 	Elapsed     string              `json:"elapsed"`
+
+	SeedsPerSecond float64              `json:"seeds_per_second"`
+	VirtualPerWall float64              `json:"virtual_seconds_per_wall_second"`
+	Stopped        string               `json:"stopped,omitempty"`
+	Growth         []engine.GrowthPoint `json:"exploration,omitempty"`
 }
 
 type seedView struct {
@@ -229,6 +236,10 @@ func newMCPServer() (*mcp.Server, error) {
 		Description: "Sweep a seed range under simulated crashes, torn writes, fsync errors, disk corruption, full disks, partitions, clogs and slow nodes. First replays every schedule pinned in seedfall-regressions/ and stops at the first one that fails. Returns the regressions, the lowest failing seed with its fault schedule, trace tail, classification and artifacts_dir (report.json, trace.txt, a replayable faults.json, history and disk images), plus property coverage and, with faults.buggify on, how often each sim.Buggify site was reached, enabled and fired.",
 	}, toolRun)
 	mcp.AddTool(server, &mcp.Tool{
+		Name:        "seedfall_explore",
+		Description: "Search for rare failures with feedback instead of fresh seeds: run a seed range as the first round, keep the runs that reached something new (a property outcome, a fault shape, a buggify firing or a function), and spend later rounds branching from the moment those signals fired, re-keying a random stream, and adding, removing or shifting faults. The search is deterministic for any job count, and a failure comes back as a schedule file that seedfall_replay, seedfall_shrink and seedfall_inspect accept. Stops on rounds, a time budget, or until_novelty rounds with nothing new. The corpus persists in .seedfall/corpus/.",
+	}, toolExplore)
+	mcp.AddTool(server, &mcp.Tool{
 		Name:        "seedfall_replay",
 		Description: "Replay one seed exactly, optionally with a fault schedule file, and return its trace.",
 	}, toolReplay)
@@ -293,7 +304,7 @@ func toolRun(_ context.Context, _ *mcp.CallToolRequest, a runArgs) (*mcp.CallToo
 	if err != nil {
 		return nil, runView{}, err
 	}
-	r, cfg, err := load(a.ref())
+	r, cfg, err := loadWith(a.ref(), a.UntilNovelty > 0)
 	if err != nil {
 		return nil, runView{}, err
 	}
@@ -318,8 +329,9 @@ func toolRun(_ context.Context, _ *mcp.CallToolRequest, a runArgs) (*mcp.CallToo
 		out.Elapsed = time.Since(started).Round(time.Millisecond).String()
 		return nil, out, nil
 	}
-	sum := engine.Sweep(r, lo, hi, engine.SweepOptions{Jobs: runtime.NumCPU()})
+	sum := engine.Sweep(r, lo, hi, engine.SweepOptions{Jobs: runtime.NumCPU(), UntilNovelty: a.UntilNovelty, Batch: cmp.Or(a.Batch, defaultSweepBatch)})
 	out.Passed, out.Unfinished, out.Properties, out.Buggify = sum.Passed, sum.Unfinished, properties(sum.Coverage), buggifySites(sum.Buggify)
+	out.SeedsPerSecond, out.VirtualPerWall, out.Stopped, out.Growth = sum.SeedsPerSecond(), sum.VirtualPerWall(), sum.Stopped, sum.Growth
 	out.Elapsed = time.Since(started).Round(time.Millisecond).String()
 	if sum.First != nil {
 		out.Failure = viewFailure(a.ref().String(), *sum.First)

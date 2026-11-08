@@ -41,6 +41,8 @@ shrunk from 33 faults, 1m0s, 200 workload ops
 
 Every fault left is needed for the failure. Shrink also shortens downtimes, partitions and pauses, shrinks clock jumps, narrows partition sides and moves faults earlier, so the times that are left matter too. It trims the run's duration and, if the workload sizes itself with `sim.Budget`, its operation count. On a long run, add `-budget 300` (runs) or `-budget 10m` (time); if the output says the budget ran out, the schedule still fails the same way but may not be minimal. `crash ... during disk op #k` means the node died in the middle of its k-th disk operation, usually between a write and its fsync, or between a rename and the directory fsync.
 
+A failure found by `seedfall explore` exists only under its schedule: pass the artifact's file to `seedfall shrink -c C -seed N -faults .seedfall/failures/<name>/faults.json`, and to the replay and inspect commands below (the output of `seedfall explore` prints all of them).
+
 A failure with class `liveness` (the workload or the `finally` check did not finish within `liveness.within`, or a `sim.Eventually` never held) shrinks the same way. The faults left are the ones that leave the system stuck even after the `recovery:` line in the trace, where every fault stops and crashed nodes restart. Read the node output after that line to see which node stopped making progress.
 
 ## 3. Find the decisive moment

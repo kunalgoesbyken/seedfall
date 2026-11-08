@@ -213,7 +213,7 @@ func TestBuggifyBranchRerandomizesFiringsButNotEnables(t *testing.T) {
 	base, inst := buggifyWorld(13)
 	want := hits(base, inst, site, 0.5, 64)
 	branched, inst := buggifyWorld(13)
-	branched.branch = &branch{key: 1, taken: true}
+	branched.branches, branched.taken = []Branch{{Key: 1}}, 1
 	got := hits(branched, inst, site, 0.5, 64)
 	if !branched.bugs.sites[site].Enabled {
 		t.Fatal("taking a branch changed which sites are enabled")

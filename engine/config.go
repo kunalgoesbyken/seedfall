@@ -132,6 +132,7 @@ type Config struct {
 	Path             string       `json:"-"`
 	Profile          string       `json:"-"`
 	Sets             []string     `json:"-"`
+	Feedback         bool         `json:"-"`
 
 	resolved []byte
 	disks    map[string][]seedFile

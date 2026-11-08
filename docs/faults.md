@@ -297,6 +297,14 @@ Positions in `-remove` and `-shift` always refer to the schedule as it was befor
 
 Without any edit, `seedfall faults` only lists and checks the schedule, and writes it only when it came from the seed's own faults, so that there is a file to edit. Over MCP, `seedfall_faults_edit` takes the same edits as JSON ([agents.md](agents.md#tools)).
 
+A schedule file can also hold `branches`, which [`seedfall explore`](explore.md) writes for a failure it found by branching:
+
+```json
+"branches": [{ "at": "921.003003ms", "key": 257366709774643251 }, { "at": "1.2s", "key": 9, "stream": "sched" }]
+```
+
+Each branch re-keys the seed's random streams at the first scheduler step at or after `at`, in order. Without `stream` it re-keys every stream; with one of `sched`, `net`, `disk`, `io`, `udp`, `disklatency`, `mutant` or `random` it re-keys only that one. `replay`, `shrink`, `inspect`, `debug`, `logs` and `pin` all honor them, and `at` values must not decrease.
+
 ## Choosing rates
 
 Start with crashes and torn writes, then add `crash_on_io` around `0.005`, so a few hundred disk operations per run produce one or two mid-operation crashes. Add `fsync_eio`, `strict_dirs` and `reorder_writes` once the basic durability path passes. For consensus and leader-election code, add `partition_topologies` beyond `half`, then `clog_per_sec` and `slow_per_sec`: one-way links and slow leaders are the gray failures that break leases and stale-read checks. For a storage engine, add `disk_bytes` and `write_eio` to test the error paths of every write, then `read_corrupt` and `corrupt_on_crash` to test checksums. `lost_write`, `misdirected_write` and `bitrot_per_sec` lose data that a single copy cannot get back, so use them on replicated systems, or to check that a single node notices and stops instead of serving wrong data. Turn on `buggify` once you have marked sites in your code that should sometimes take the rare path. Turn on `swarm` for long CI sweeps. Use property coverage ([properties.md](properties.md)) to confirm the faults are actually reaching the code you care about.

@@ -35,6 +35,10 @@ type Result struct {
 	Buggify    map[string]*BuggifySite
 	HostCalls  int64
 	Timeline   *Timeline
+	Branches   []Branch
+	Scheduled  bool
+	Signals    []Signal
+	Functions  map[string][]uint64
 
 	hostHash    uint64
 	checkpoints []uint64
@@ -70,7 +74,7 @@ func NewRunner(cfg *Config) (*Runner, error) {
 		if err != nil {
 			return "", fmt.Errorf("node %s: %w", name, err)
 		}
-		if modules[path], err = instrument(b, cfg.Preempt.Loops); err != nil {
+		if modules[path], err = instrument(b, cfg.Preempt.Loops, cfg.Feedback); err != nil {
 			return "", fmt.Errorf("node %s: %w", name, err)
 		}
 		order = append(order, path)
@@ -134,6 +138,7 @@ type Schedule struct {
 	Faults   []Fault  `json:"faults"`
 	Duration Duration `json:"duration,omitempty"`
 	Ops      int64    `json:"ops,omitempty"`
+	Branches []Branch `json:"branches,omitempty"`
 }
 
 func (r *Runner) schedule(seed uint64, s Schedule) (Schedule, bool) {
@@ -219,7 +224,6 @@ func LineAt(lines []string, i int) string {
 
 type runOptions struct {
 	explicit bool
-	branch   *branch
 	probe    *probe
 	capture  int64
 	record   bool
@@ -233,15 +237,18 @@ func (r *Runner) run(seed uint64, s Schedule, o runOptions) Result {
 		cfg: r.cfg, seed: seed, ctx: ctx, cancel: cancel, rt: r.rt,
 		sched: streams(seed, "sched"), netRand: streams(seed, "net"), diskRand: streams(seed, "disk"), latRand: streams(seed, "disklatency"), mutantRand: streams(seed, "mutant"),
 		events: make(chan event), faults: slices.Clone(s.Faults), horizon: int64(cmp.Or(s.Duration, r.cfg.Duration)), opsLimit: s.Ops, trace: &tracer{detail: o.record || o.debug != nil}, compiled: r.compiled,
-		upgrades: r.upgrades, explicit: o.explicit, ioRand: streams(seed, "io"), udpRand: streams(seed, "udp"), props: properties{}, spec: r.cfg.Faults.forSeed(seed), branch: o.branch, probe: o.probe,
+		upgrades: r.upgrades, explicit: o.explicit, ioRand: streams(seed, "io"), udpRand: streams(seed, "udp"), props: properties{}, spec: r.cfg.Faults.forSeed(seed), branches: s.Branches, probe: o.probe,
 		mutation: r.Mutation, weakened: func() { r.weakened.Add(1) }, shielded: map[string]bool{}, deadline: never,
 		history: history{model: r.cfg.Checker.Model}, calls: newHostCalls(o.capture), netTrace: r.NetTrace, debug: o.debug,
 	}
 	if o.record {
 		w.rec = &recorder{}
 	}
+	if r.cfg.Feedback {
+		w.feedback = &feedbackRun{}
+	}
 	w.net = newNetwork(w)
-	res := Result{Seed: seed, Faults: s.Faults, Horizon: time.Duration(w.horizon)}
+	res := Result{Seed: seed, Faults: s.Faults, Horizon: time.Duration(w.horizon), Branches: replayable(s.Branches), Scheduled: o.explicit || len(s.Branches) > 0}
 	w.setup()
 	w.loop()
 	w.preemptSummary()
@@ -264,6 +271,9 @@ func (r *Runner) run(seed uint64, s Schedule, o runOptions) Result {
 	res.Ops = w.opsWanted
 	res.Trace = w.trace.lines
 	res.Faults = mergeFaults(w.faults, w.ioFaults)
+	if w.feedback != nil {
+		res.Signals, res.Functions = w.feedback.signals(res), w.feedback.functions
+	}
 	if w.rec != nil {
 		res.Timeline = w.timeline(res)
 	}

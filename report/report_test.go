@@ -88,7 +88,8 @@ func input(seeds string, passed int, failures ...engine.Result) Input {
 			"never runs":                       {Kind: engine.Reachable},
 		}},
 		Elapsed: 1234 * time.Millisecond,
-		Replay: func(seed uint64) Replayed {
+		Replay: func(failed engine.Result) Replayed {
+			seed := failed.Seed
 			return Replayed{Result: byseed[seed], Class: engine.Classification{Verdict: engine.VerdictBug}, Artifacts: fmt.Sprintf(".seedfall/failures/seedfall-seed-%d", seed)}
 		},
 	}
@@ -170,7 +171,8 @@ func TestReportEmbedsTheArtifactTimeline(t *testing.T) {
 		t.Fatal(err)
 	}
 	in := input("1-10", 8, failing(3), failing(4))
-	in.Replay = func(seed uint64) Replayed {
+	in.Replay = func(failed engine.Result) Replayed {
+		seed := failed.Seed
 		return Replayed{Result: failing(seed), Artifacts: filepath.ToSlash(filepath.Join(dir, ".seedfall", "failures", fmt.Sprintf("seedfall-seed-%d", seed)))}
 	}
 	path := filepath.Join(dir, "out", "report.html")
@@ -188,8 +190,8 @@ func TestReportEmbedsTheArtifactTimeline(t *testing.T) {
 	if !bytes.Contains(page, []byte(`<iframe class="timeline" src="../.seedfall/failures/seedfall-seed-3/timeline.html"`)) {
 		t.Fatal("the report does not embed the timeline")
 	}
-	in.Replay = func(seed uint64) Replayed {
-		return Replayed{Result: failing(seed), Artifacts: filepath.ToSlash(filepath.Join(dir, "nowhere"))}
+	in.Replay = func(failed engine.Result) Replayed {
+		return Replayed{Result: failing(failed.Seed), Artifacts: filepath.ToSlash(filepath.Join(dir, "nowhere"))}
 	}
 	if r, _ := Generate(in, path, filepath.Join(dir, "history.jsonl")); r.Findings[0].Example.Timeline != "" {
 		t.Fatal("a missing timeline was linked")

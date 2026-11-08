@@ -116,7 +116,9 @@ type world struct {
 	props       properties
 	sent        []Event
 	calls       hostCalls
-	branch      *branch
+	branches    []Branch
+	taken       int
+	feedback    *feedbackRun
 	probe       *probe
 	mutation    Mutation
 	weakened    func()
@@ -380,6 +382,7 @@ func (w *world) start(n *node) {
 			inst.preempt.settle()
 		}
 		if mod != nil {
+			w.feedback.collect(n, n.upgrade != nil && n.starts > 1, mod)
 			n.fs.endInstance(inst.killed)
 			mod.Close(context.Background())
 		}
@@ -524,7 +527,7 @@ func (w *world) crashDisk(n *node, until int64, crash string) {
 	if w.spec.CorruptOnCrash {
 		c.corrupt = streams(w.seed, "corrupt/"+n.name()+"/"+crash)
 	}
-	mapped := streams(w.streamSeed(), "mmap/"+n.name()+"/"+crash)
+	mapped := streams(w.streamSeed("disk"), "mmap/"+n.name()+"/"+crash)
 	c.mapped = func(p string, off int64) bool { return w.mappedPageFate(n, p, off, mapped) }
 	w.traceDamage(n, n.fs.crash(w.diskRand, c))
 	n.restartAt = until

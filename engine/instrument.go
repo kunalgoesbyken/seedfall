@@ -10,9 +10,11 @@ var errTruncated = errors.New("truncated wasm code section")
 
 const (
 	callsExport = "seedfall.calls"
+	coverExport = "seedfall.cover."
 	gExport     = "seedfall.g"
 
 	goGlobalG = 2
+	coverWord = 64
 
 	secCustom = 0
 	secImport = 2
@@ -51,11 +53,13 @@ const (
 	opF64Const   = 0x44
 	opI32Eqz     = 0x45
 	opI32Sub     = 0x6b
+	opI64Or      = 0x84
 	opLastNum    = 0xc4
 	opRefNull    = 0xd0
 	opRefFunc    = 0xd2
 	opPrefixFC   = 0xfc
 	typeI32      = 0x7f
+	typeI64      = 0x7e
 	blockEmpty   = 0x40
 	mutable      = 0x01
 )
@@ -237,7 +241,26 @@ func countdown(calls, yield uint64) []byte {
 	return append(binary.AppendUvarint(code, yield), opDrop, opEnd)
 }
 
-func rewriteBodies(code []byte, rewrite func(locals, body []byte) ([]byte, error)) ([]byte, error) {
+func sleb(v int64) []byte {
+	var out []byte
+	for {
+		b := byte(v & 0x7f)
+		v >>= 7
+		if (v == 0 && b&0x40 == 0) || (v == -1 && b&0x40 != 0) {
+			return append(out, b)
+		}
+		out = append(out, b|0x80)
+	}
+}
+
+func coverBit(word uint64, bit int) []byte {
+	get := binary.AppendUvarint([]byte{opGlobalGet}, word)
+	code := append(append(get, opI64Const), sleb(int64(uint64(1)<<bit))...)
+	code = append(code, opI64Or, opGlobalSet)
+	return binary.AppendUvarint(code, word)
+}
+
+func rewriteBodies(code []byte, rewrite func(index uint64, locals, body []byte) ([]byte, error)) ([]byte, error) {
 	r := &wasmReader{b: code, ok: true}
 	count := r.uleb()
 	out := binary.AppendUvarint(nil, count)
@@ -252,7 +275,7 @@ func rewriteBodies(code []byte, rewrite func(locals, body []byte) ([]byte, error
 		if !fn.ok {
 			return nil, errTruncated
 		}
-		body, err := rewrite(locals, rest)
+		body, err := rewrite(i, locals, rest)
 		if err != nil {
 			return nil, fmt.Errorf("function %d: %w", i, err)
 		}
@@ -283,7 +306,7 @@ func countLoops(out, body, countdown []byte) ([]byte, error) {
 	return out, nil
 }
 
-func instrument(wasm []byte, loops bool) ([]byte, error) {
+func instrument(wasm []byte, loops, coverage bool) ([]byte, error) {
 	secs, ok := readSections(wasm)
 	imports, globals, exports, code := section(secs, secImport), section(secs, secGlobal), section(secs, secExport), section(secs, secCode)
 	if !ok || !builtByGo(secs) || imports == nil || globals == nil || exports == nil || code == nil {
@@ -293,17 +316,32 @@ func instrument(wasm []byte, loops bool) ([]byte, error) {
 	if !ok {
 		return wasm, nil
 	}
-	globalBody, calls, ok := appendEntries(globals.body, []byte{typeI32, mutable, opI32Const, 0, opEnd})
+	words := uint64(0)
+	if coverage {
+		words = ((&wasmReader{b: code.body, ok: true}).uleb() + coverWord - 1) / coverWord
+	}
+	newGlobals := [][]byte{{typeI32, mutable, opI32Const, 0, opEnd}}
+	for range words {
+		newGlobals = append(newGlobals, []byte{typeI64, mutable, opI64Const, 0, opEnd})
+	}
+	globalBody, calls, ok := appendEntries(globals.body, newGlobals...)
 	if !ok {
 		return wasm, nil
 	}
-	exportBody, _, ok := appendEntries(exports.body, exportEntry(callsExport, kindGlobal, calls), exportEntry(gExport, kindGlobal, goGlobalG))
+	newExports := [][]byte{exportEntry(callsExport, kindGlobal, calls), exportEntry(gExport, kindGlobal, goGlobalG)}
+	for word := range words {
+		newExports = append(newExports, exportEntry(fmt.Sprintf("%s%d", coverExport, word), kindGlobal, calls+1+word))
+	}
+	exportBody, _, ok := appendEntries(exports.body, newExports...)
 	if !ok {
 		return wasm, nil
 	}
 	tick := countdown(calls, yield)
-	codeBody, err := rewriteBodies(code.body, func(locals, body []byte) ([]byte, error) {
+	codeBody, err := rewriteBodies(code.body, func(i uint64, locals, body []byte) ([]byte, error) {
 		out := append(append([]byte(nil), locals...), tick...)
+		if coverage {
+			out = append(out, coverBit(calls+1+i/coverWord, int(i%coverWord))...)
+		}
 		if !loops {
 			return append(out, body...), nil
 		}

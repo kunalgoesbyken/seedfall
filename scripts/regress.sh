@@ -42,6 +42,17 @@ expect_shrink() {
   printf '%s  %-8s %-24s shrink seed %s: want %s, got %s\n' "$verdict" "$dir" "$config" "$seed" "$want" "$got"
 }
 
+expect_explore() {
+  local dir="$1" config="$2" flags="$3" want="$4"
+  local out status got="pass"
+  out="$(cd "$root/examples/$dir" && rm -rf .seedfall/corpus && "$bin" explore -c $config $flags 2>&1)"
+  status=$?
+  [ $status -ne 0 ] && got="fail"
+  local verdict="PASS"
+  [ "$got" != "$want" ] && verdict="FAIL" && failures=$((failures + 1))
+  printf '%s  %-8s %-24s want=%-4s  explore %s: %s\n' "$verdict" "$dir" "$config" "$want" "$flags" "$(printf '%s\n' "$out" | grep -m1 -E '^(stopped|FAIL)')"
+}
+
 expect_mutant() {
   local dir="$1" config="$2" seeds="$3" mutant="$4" want="$5"
   local got
@@ -286,6 +297,8 @@ expect buggify "seedfall.json -profile off"     1-20  fail
 expect_replay buggify seedfall.json 2 lost-reply.faults.json fail
 expect_replay buggify "seedfall.json -profile fixed" 2 lost-reply.faults.json pass
 deterministic buggify seedfall.json 2
+expect explore seedfall.json 1-20 pass
+expect_explore explore seedfall.json "-seeds 1-8 -rounds 30 -batch 8" fail
 expect liveness seedfall.json            1-20  pass
 expect liveness noredial.json            1-20  fail
 expect liveness noredial.noliveness.json 1-20  fail

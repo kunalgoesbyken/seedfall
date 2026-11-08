@@ -170,6 +170,7 @@ func (w *world) observeNumeric(inst *instance, kind PropertyKind, cond bool, mar
 func (w *world) observeProperty(inst *instance, kind PropertyKind, cond bool, msg, detail string) {
 	w.knownKind(inst, kind)
 	w.props.observe(kind, cond, msg)
+	w.feedback.property(w, msg, cond)
 	w.rec.property(inst, w.now, kind, cond, msg, w.props[msg])
 	if kind.violatedBy(cond) {
 		w.fail(Failure{Class: kind.failureClass(), Node: inst.node.name(), Property: msg}, strings.TrimSuffix(fmt.Sprintf("%s: %s: %s", inst.label, msg, detail), ": "))

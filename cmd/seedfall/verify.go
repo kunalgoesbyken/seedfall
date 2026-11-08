@@ -194,6 +194,14 @@ func reportTargets(config, path string) ([]verify.Target, uint64, error) {
 	}
 	var targets []verify.Target
 	for _, f := range rep.Findings {
+		if f.Example != nil && f.Example.Schedule != "" {
+			sched, err := readSchedule(f.Example.Schedule)
+			if err != nil {
+				return nil, 0, err
+			}
+			targets = append(targets, verify.Target{Label: fmt.Sprintf("%s %s", f.Key, scheduleLabel(f.Example.Seed, f.Example.Schedule)), Seed: f.Example.Seed, Schedule: sched, Rate: f.Rate})
+			continue
+		}
 		for _, seed := range f.Seeds {
 			targets = append(targets, verify.Target{Label: fmt.Sprintf("%s %s", f.Key, scheduleLabel(seed, "")), Seed: seed, Rate: f.Rate})
 			saved, err := savedSchedule(config, seed, f)

@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"fmt"
 	"math"
+	"path"
 	"runtime"
 	"slices"
 	"time"
@@ -37,6 +38,7 @@ type Example struct {
 	Replay    string   `json:"replay"`
 	Shrink    string   `json:"shrink"`
 	Artifacts string   `json:"artifacts,omitempty"`
+	Schedule  string   `json:"schedule_file,omitempty"`
 	Timeline  string   `json:"timeline,omitempty"`
 }
 
@@ -75,22 +77,26 @@ type Regression struct {
 }
 
 type Report struct {
-	Config      string           `json:"config"`
-	History     string           `json:"history,omitempty"`
-	Seeds       string           `json:"seeds"`
-	Total       int              `json:"seeds_run"`
-	Passed      int              `json:"seeds_passed"`
-	Failed      int              `json:"seeds_failed"`
-	Elapsed     string           `json:"elapsed"`
-	Generated   time.Time        `json:"generated"`
-	GoVersion   string           `json:"go_version"`
-	Version     string           `json:"seedfall_version"`
-	Commit      string           `json:"commit,omitempty"`
-	Faults      engine.FaultSpec `json:"faults"`
-	Regressions []Regression     `json:"regressions,omitempty"`
-	Findings    []Finding        `json:"findings"`
-	Cleared     []Finding        `json:"previous_findings_not_seen"`
-	Properties  []Property       `json:"properties"`
+	Config         string               `json:"config"`
+	History        string               `json:"history,omitempty"`
+	Seeds          string               `json:"seeds"`
+	Total          int                  `json:"seeds_run"`
+	Passed         int                  `json:"seeds_passed"`
+	Failed         int                  `json:"seeds_failed"`
+	Elapsed        string               `json:"elapsed"`
+	Generated      time.Time            `json:"generated"`
+	GoVersion      string               `json:"go_version"`
+	Version        string               `json:"seedfall_version"`
+	Commit         string               `json:"commit,omitempty"`
+	Faults         engine.FaultSpec     `json:"faults"`
+	Regressions    []Regression         `json:"regressions,omitempty"`
+	Findings       []Finding            `json:"findings"`
+	Cleared        []Finding            `json:"previous_findings_not_seen"`
+	Properties     []Property           `json:"properties"`
+	Exploration    []engine.GrowthPoint `json:"exploration,omitempty"`
+	Stopped        string               `json:"stopped,omitempty"`
+	SeedsPerSec    float64              `json:"seeds_per_second"`
+	VirtualPerWall float64              `json:"virtual_seconds_per_wall_second"`
 }
 
 type Replayed struct {
@@ -108,7 +114,7 @@ type Input struct {
 	Summary     engine.Summary
 	Regressions []Regression
 	Elapsed     time.Duration
-	Replay      func(seed uint64) Replayed
+	Replay      func(failed engine.Result) Replayed
 }
 
 func Build(in Input, history map[string]known) Report {
@@ -117,6 +123,7 @@ func Build(in Input, history map[string]known) Report {
 		Config: in.Config, Seeds: in.Seeds, Total: total, Passed: in.Summary.Passed, Failed: len(in.Summary.Failures),
 		Elapsed: in.Elapsed.Round(time.Millisecond).String(), Generated: time.Now(), GoVersion: runtime.Version(), Version: in.Version, Commit: in.Commit,
 		Faults: in.Faults, Regressions: in.Regressions, Properties: properties(in.Summary.Coverage),
+		Exploration: in.Summary.Growth, Stopped: in.Summary.Stopped, SeedsPerSec: in.Summary.SeedsPerSecond(), VirtualPerWall: in.Summary.VirtualPerWall(),
 	}
 	for _, group := range groupFailures(in.Summary.Failures) {
 		r.Findings = append(r.Findings, finding(in, group, total, history))
@@ -163,18 +170,22 @@ func finding(in Input, group []engine.Result, total int, history map[string]know
 	for _, res := range group[:min(len(group), exampleSeeds)] {
 		f.Seeds = append(f.Seeds, res.Seed)
 	}
-	replayed := in.Replay(first.Seed)
-	f.Example = example(in, replayed.Result)
-	f.Example.Artifacts = replayed.Artifacts
+	replayed := in.Replay(first)
+	f.Example = example(in, first, replayed)
 	f.Classification = &replayed.Class
 	return f
 }
 
-func example(in Input, res engine.Result) *Example {
+func example(in Input, first engine.Result, replayed Replayed) *Example {
+	res := replayed.Result
 	e := &Example{
-		Seed: res.Seed, At: res.At.String(), Reason: res.Reason,
+		Seed: res.Seed, At: res.At.String(), Reason: res.Reason, Artifacts: replayed.Artifacts,
 		Replay: fmt.Sprintf("seedfall replay -c %s -seed %d", in.Config, res.Seed),
 		Shrink: fmt.Sprintf("seedfall shrink -c %s -seed %d", in.Config, res.Seed),
+	}
+	if first.Scheduled {
+		faults := path.Join(replayed.Artifacts, engine.ArtifactFaults)
+		e.Replay, e.Shrink, e.Schedule = e.Replay+" -faults "+faults, e.Shrink+" -faults "+faults, faults
 	}
 	for _, fault := range res.FaultsBefore() {
 		e.Faults = append(e.Faults, fault.Describe())

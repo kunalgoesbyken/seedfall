@@ -25,6 +25,8 @@ func TestSchemaDescribesEveryCommandAndTool(t *testing.T) {
 		"seedfall trace grep": {"c", "seed", "e", "context", "node", "from", "to", "limit", "json"},
 		"seedfall findings":   {"report", "history", "status", "json"},
 		"seedfall pin":        {"c", "seed", "faults"},
+		"seedfall explore":    {"c", "seeds", "rounds", "batch", "until-novelty", "budget", "explore-seed", "keep-going", "corpus", "report", "json", "cpuprofile"},
+		"seedfall shrink":     {"c", "seed", "faults"},
 	} {
 		for _, name := range want {
 			if !slices.Contains(flags[command], name) {

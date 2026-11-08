@@ -42,7 +42,7 @@ func TestMCPListsInitPromptsAndResources(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"seedfall_init", "seedfall_pin"} {
+	for _, name := range []string{"seedfall_init", "seedfall_pin", "seedfall_explore"} {
 		if !slices.ContainsFunc(tools.Tools, func(tl *mcp.Tool) bool { return tl.Name == name }) {
 			t.Errorf("%s is not listed", name)
 		}

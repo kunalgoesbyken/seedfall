@@ -80,7 +80,7 @@ func (w *world) rated(n *node, kind string, rate float64, op int64, r *rand.Rand
 }
 
 func (w *world) detail(kind string, n *node, op int64) *rand.Rand {
-	return streams(w.streamSeed(), fmt.Sprintf("%s/%s/%d", kind, n.name(), op))
+	return streams(w.streamSeed("disk"), fmt.Sprintf("%s/%s/%d", kind, n.name(), op))
 }
 
 func (w *world) recordDisk(f Fault) {
@@ -163,7 +163,7 @@ func (w *world) rot(f *Fault) {
 	if n == nil || !n.crashable {
 		return
 	}
-	p, d, ok := n.fs.rot(streams(w.streamSeed(), fmt.Sprintf("%s/%s/%d", FaultBitrot, f.Node, f.At)))
+	p, d, ok := n.fs.rot(streams(w.streamSeed("disk"), fmt.Sprintf("%s/%s/%d", FaultBitrot, f.Node, f.At)))
 	if !ok {
 		w.trace.about(w.now, nodeLine(f.Node), "fault bit rot on %s: nothing durable to corrupt", f.Node)
 		return

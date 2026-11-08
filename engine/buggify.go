@@ -57,7 +57,7 @@ func (w *world) buggifyFires(s *BuggifySite, key, node, site string, op int64, p
 	}
 	r, ok := w.bugs.fire[key]
 	if !ok {
-		r = streams(w.streamSeed(), "buggify-fire/"+key)
+		r = streams(w.streamSeed("buggify"), "buggify-fire/"+key)
 		w.bugs.fire[key] = r
 	}
 	return r.Float64() < p

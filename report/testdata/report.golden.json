@@ -148,5 +148,7 @@
       "seeds_true": 0,
       "problem": "never reached"
     }
-  ]
+  ],
+  "seeds_per_second": 0,
+  "virtual_seconds_per_wall_second": 0
 }

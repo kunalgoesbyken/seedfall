@@ -121,11 +121,11 @@ func (s *Session) Branch(key uint64) error {
 	}
 	var err error
 	s.inspect(func(w *world) {
-		if w.branch != nil {
+		if len(w.branches) > 0 {
 			err = errors.New("this run has already branched; start a new session to branch again")
 			return
 		}
-		w.branch = &branch{at: w.now, key: key}
+		w.branches = []Branch{{At: Duration(w.now), Key: key, reroll: true}}
 	})
 	return err
 }

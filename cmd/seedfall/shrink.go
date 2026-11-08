@@ -16,6 +16,7 @@ import (
 type shrinkArgs struct {
 	configArgs
 	Seed   uint64 `json:"seed" jsonschema:"failing seed to shrink"`
+	Faults string `json:"faults,omitempty" jsonschema:"fault schedule file to shrink, for a failure found by seedfall_explore; default is the seed's own faults"`
 	Budget string `json:"budget,omitempty" jsonschema:"optional limit: a number of runs such as 300, or a wall-clock duration such as 10m; default is no limit"`
 }
 
@@ -36,6 +37,7 @@ func cmdShrink(args []string) error {
 	seed := seedFlag(fs)
 	jobs := fs.Int("j", runtime.NumCPU(), "candidate schedules run at once; the result is the same for any value")
 	budget := fs.String("budget", "", "stop after this many runs (300) or this much wall-clock time (10m) and keep the smallest schedule so far")
+	faultsFile := fs.String("faults", "", "fault schedule to shrink, for a failure found by seedfall explore (default: the seed's own faults)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -49,7 +51,11 @@ func cmdShrink(args []string) error {
 	if err != nil {
 		return err
 	}
-	original := r.Run(*seed, nil)
+	sched, err := readSchedule(*faultsFile)
+	if err != nil {
+		return err
+	}
+	original := r.Replay(*seed, sched)
 	if !original.Failed {
 		return errors.New("seed does not fail, nothing to shrink")
 	}
@@ -87,7 +93,11 @@ func toolShrink(_ context.Context, _ *mcp.CallToolRequest, a shrinkArgs) (*mcp.C
 	if err != nil {
 		return nil, shrinkView{}, err
 	}
-	original := r.Run(a.Seed, nil)
+	sched, err := readSchedule(a.Faults)
+	if err != nil {
+		return nil, shrinkView{}, err
+	}
+	original := r.Replay(a.Seed, sched)
 	if !original.Failed {
 		return nil, shrinkView{}, errors.New("seed does not fail, nothing to shrink")
 	}

@@ -53,6 +53,16 @@ func guestWasm(t *testing.T) string {
 
 func guestRunner(t *testing.T, fsync bool) *Runner {
 	t.Helper()
+	r, err := NewRunner(guestConfig(t, fsync))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { r.rt.Close(context.Background()) })
+	return r
+}
+
+func guestConfig(t *testing.T, fsync bool) *Config {
+	t.Helper()
 	wasm := guestWasm(t)
 	cfg := defaultConfig()
 	durable := "-fsync=true"
@@ -75,12 +85,7 @@ func guestRunner(t *testing.T, fsync bool) *Runner {
 	if err := cfg.validate(); err != nil {
 		t.Fatal(err)
 	}
-	r, err := NewRunner(&cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { r.rt.Close(context.Background()) })
-	return r
+	return &cfg
 }
 
 type outcome struct {

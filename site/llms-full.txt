@@ -58,12 +58,13 @@ Config paths in tool calls are resolved against the server's working directory, 
 | Tool | Arguments | Returns |
 |---|---|---|
 | `seedfall_init` | optional `dir`, `config`, `nodes`, `workload`, `dry_run` | The module's `main` packages and which become nodes, the packages that block a `GOOS=wasip1` build (compile errors and cgo, each with its import chain and the shim that covers it), `compat_shims` for every dependency `compat_overlay` would swap, the starter config and its starter profiles, the files written, and the next steps. See [onboarding](#onboarding-a-new-module) |
-| `seedfall_run` | `config`, `seeds` (for example `1-200`), optional `check`, `skip_pinned` | First the [pinned regressions](verify.md#pinned-regressions), stopping at one that fails again. Then seeds passed, the lowest failing seed with its reason, [classification](reports.md#classification), the faults before the failure, the trace tail, a replay command and `artifacts_dir` ([failure artifacts](reports.md#failure-artifacts)), plus property coverage and, with `faults.buggify` on, `buggify_sites` ([buggify](buggify.md#coverage)) |
+| `seedfall_run` | `config`, `seeds` (for example `1-200`), optional `check`, `skip_pinned`, `until_novelty`, `batch` | First the [pinned regressions](verify.md#pinned-regressions), stopping at one that fails again. Then seeds passed, the lowest failing seed with its reason, [classification](reports.md#classification), the faults before the failure, the trace tail, a replay command and `artifacts_dir` ([failure artifacts](reports.md#failure-artifacts)), plus property coverage, `seeds_per_second` and `virtual_seconds_per_wall_second`, and, with `faults.buggify` on, `buggify_sites` ([buggify](buggify.md#coverage)). With `until_novelty`, `stopped` and the `exploration` growth table ([explore.md](explore.md#stopping-a-plain-sweep)) |
+| `seedfall_explore` | `config`, optional `seeds`, `rounds`, `batch`, `until_novelty`, `budget`, `explore_seed`, `keep_going`, `corpus` | Feedback-guided search: every round with the new signals and functions it added, the stop reason, the corpus size, property coverage, throughput, and the first failure with `artifacts_dir` and a replay command ([explore.md](explore.md)) |
 | `seedfall_replay` | `config`, `seed`, optional `faults` file | The same failure view for one seed, or the trace tail if it passes, with a `note` when a shrunk schedule's shorter duration ended the run before the workload finished. A failure view of a run that recorded operations also names its `history_file` and, on a linearizability violation, its `timeline_file`. Every result has the run's `determinism_hash` and its `events` from `sim.Event` or `lifecycle.SendEvent` |
 | `seedfall_logs` | `config`, `seed`, optional `faults`, `node`, `grep`, `from`, `to`, `net_trace`, `limit` | The run's trace lines filtered by node, regular expression and virtual time, each with its node, instance and time, and a node's slog JSON output parsed into `fields`, plus how many lines matched ([timeline.md](timeline.md#logs)) |
 | `seedfall_trace_search` | `config`, `seed`, `pattern`, optional `faults`, `context` (default 3), `node`, `from`, `to`, `net_trace`, `limit` | Each line that matches the regular expression (on the given nodes, inside the virtual time window) with `context` trace lines of every node before and after it, as windows of numbered lines with their virtual time, node and instance, overlapping windows merged, plus how many lines matched ([timeline.md](timeline.md#searching-the-trace)) |
 | `seedfall_debug` | `config`, `seed`, optional `faults`, `at`, `net_trace`, `commands` | Replays to `at`, runs each debugger command (`where`, `net`, `faults`, `ls`, `stat`, `cat`, `step`, `until <regex>`, `to <time>`, `branch`, `log`, `grep`) and returns each output and the final state of every node ([timeline.md](timeline.md#debugger)) |
-| `seedfall_shrink` | `config`, `seed`, optional `budget` (runs such as `300`, or time such as `10m`) | The original and minimal sizes (faults, duration and, with [`sim.Budget`](properties.md#workload-size), workload operations), the runs used, whether the budget ran out, the path of the saved schedule, and the failure view under that schedule with its replay command ([shrinking](how-it-works.md#shrinking)) |
+| `seedfall_shrink` | `config`, `seed`, optional `faults` (a schedule file, for a failure found by `seedfall_explore`), `budget` (runs such as `300`, or time such as `10m`) | The original and minimal sizes (faults, duration and, with [`sim.Budget`](properties.md#workload-size), workload operations), the runs used, whether the budget ran out, the path of the saved schedule, and the failure view under that schedule with its replay command ([shrinking](how-it-works.md#shrinking)) |
 | `seedfall_faults_edit` | `config`, `seed`, optional `faults`, `remove`, `shift`, `add`, `out` | Edits a fault schedule to test a hypothesis: `remove` takes positions counting from 1, `shift` takes `{"fault": 2, "by": "-50ms"}` (a count such as `"+2"` for a fault that fires at a disk operation, read, buggify hit, counted call or udp datagram), `add` takes faults in the [schedule format](faults.md#editing-a-schedule). Starts from `faults`, else `.seedfall/seed-N.faults.json`, else the seed's own faults, checks every fault against the config and writes nothing if one is wrong. Returns the numbered schedule, the file written (`out`, or the file it came from) and the replay command |
 | `seedfall_inspect` | `config`, `seed`, optional `faults`, `at`, `node`, `path` | Every node's disk at the failure or at virtual time `at`: per file the live and durable sizes, the byte ranges a crash would lose, whether its directory entry is durable, the last torn write, and removed entries a crash would bring back. With `path`, one file's durable content as text or a hex dump ([inspect.md](inspect.md)) |
 | `seedfall_check` | `history`, optional `model` | Re-checks a recorded history file against a model: the verdict, each anomaly with its cycle, and on a linearizability violation the HTML timeline file ([properties.md](properties.md#history-files)) |
@@ -81,7 +82,7 @@ Every tool has a command, so a person can repeat what the agent did and an agent
 
 | Tool | Command |
 |---|---|
-| `seedfall_init`, `seedfall_run`, `seedfall_replay`, `seedfall_logs`, `seedfall_debug`, `seedfall_shrink`, `seedfall_cause`, `seedfall_inspect`, `seedfall_check`, `seedfall_verify`, `seedfall_mutate`, `seedfall_pin` | `seedfall init`, `run`, `replay`, `logs`, `debug`, `shrink`, `cause`, `inspect`, `check`, `verify`, `mutate`, `pin` |
+| `seedfall_init`, `seedfall_run`, `seedfall_explore`, `seedfall_replay`, `seedfall_logs`, `seedfall_debug`, `seedfall_shrink`, `seedfall_cause`, `seedfall_inspect`, `seedfall_check`, `seedfall_verify`, `seedfall_mutate`, `seedfall_pin` | `seedfall init`, `run`, `explore`, `replay`, `logs`, `debug`, `shrink`, `cause`, `inspect`, `check`, `verify`, `mutate`, `pin` |
 | `seedfall_trace_search` | `seedfall trace grep -seed N -e re [-context 3]` |
 | `seedfall_faults_edit` | `seedfall faults -seed N [-remove 2] [-shift 1=-50ms] [-add '{...}'] [-out file]` |
 | `seedfall_findings` | `seedfall findings [-status new,regressed] [-json]` |
@@ -344,11 +345,13 @@ Read it from top to bottom. Before anything happens, a random future of this wor
 
 ## How it works
 
-For each moment *T*, seedfall replays the seed exactly up to *T*. At the first scheduler step at or after *T*, it re-keys every random stream: scheduling, network latency, disk tearing, I/O faults, each node's own randomness, and the remaining fault schedule. Then it lets the run continue into a new future. Running many such branches from the same moment estimates the probability of failing from that state.
+For each moment *T*, seedfall replays the seed exactly up to *T*. At the first scheduler step at or after *T*, it re-keys every random stream: scheduling, network latency, disk tearing, I/O faults, what `random_get` hands each node (so `crypto/rand` and `sim.Random`, but not Go's runtime-seeded `math/rand`), and the remaining fault schedule. Then it lets the run continue into a new future. Running many such branches from the same moment estimates the probability of failing from that state.
 
 This needs no snapshots. Because replay is exact, "the state at *T*" is reproduced by running the seed to *T*. That is the same property Antithesis's multiverse debugging relies on, with deterministic replay standing in for VM snapshots.
 
 Moments are chosen evenly across the run (`-points`, default 16), plus just before and just after every fault. Each moment gets `-branches` futures (default 20), so the default costs a few hundred runs, all in parallel.
+
+Branches are also the basis of [feedback-guided exploration](explore.md), which keeps branching from runs that reached something new.
 
 ## From an agent
 
@@ -686,6 +689,127 @@ seedfall run -set nodes.ledger.disk=state/ledger -seeds 1-20
 Together with `disk`, this tests the upgrade path FoundationDB's restart tests cover: real old data, a crash, and the new version's recovery code. [examples/upgrade](../examples/upgrade) seeds a v1 ledger, upgrades it to v2 on the first crash, and catches an in-place migration that a crash leaves half done.
 
 
+<!-- docs/explore.md -->
+
+# Feedback-guided exploration
+
+A plain sweep draws a fresh random seed every time. A failure that needs two rare things to happen in the same run, each with odds of one in a thousand, needs on the order of a million seeds. `seedfall explore` looks for that kind of failure with feedback: it keeps the runs that reached something new, and spends further runs going deeper from there instead of starting over.
+
+```sh
+seedfall explore -c seedfall.json -seeds 1-8 -rounds 30 -batch 8
+```
+
+```
+round 1   runs 8     +4 signals (4)  +625 functions (625)  corpus 4  failures 0  551ms
+    new: property "level 1 reached" = true
+    new: property "level 2 reached" = true
+    new: property "level 3 reached" = true
+    new: property "level 4 reached" = true
+round 2   runs 16    +0 signals (4)  +0 functions (625)  corpus 4  failures 0  935ms
+round 3   runs 24    +1 signals (5)  +0 functions (625)  corpus 5  failures 0  1.289s
+    new: property "level 5 reached" = true
+round 4   runs 32    +1 signals (6)  +2 functions (627)  corpus 5  failures 1  1.628s
+    new: property "level 6 reached" = true
+
+stopped: failure found
+FAIL seed 6 at t=923.003008ms (924 scheduler steps, 56ms real)
+  client#1: the vault opened after 6 consecutive lucky draws
+```
+
+That is [examples/explore](../examples/explore): 20 plain seeds never reach level 6 (and the sweep passes), while exploration finds it in 32 runs. A failure is reported the usual way, and the artifact is an ordinary schedule file.
+
+## How it works
+
+Round 1 runs the `-seeds` range and any entries left in the corpus by earlier runs. Every run reports **signals**:
+
+| Signal | Meaning |
+|---|---|
+| `property "msg" = true` | a property fired with this outcome, optionally `during crash,partition`: the fault kinds with an open window when it first fired |
+| `fault crash server` | a fault of this kind applied to this node, including a `buggify` firing with its site |
+| function | a function reached for the first time, per node, counting every function in the binary (the Go runtime included, so some of them are the runtime reacting to the run). This is coarse, function-entry coverage, not basic blocks |
+
+A run that adds a signal or a function joins the corpus as a schedule: its seed, recorded faults and branches. Every further round draws `-batch` children, one at a time from the exploration's own seed:
+
+- pick a corpus entry, more often when it holds rare signals
+- with odds 3 of 5, branch at the moment just after one of its signals fired, more often a rare one, and re-randomize the future. This is the checkpoint step: a run that reached the rare state continues from there, so a rare state followed by another rare event no longer needs both to happen in the same attempt
+- with odds 1 of 5, re-key one stream (`sched`, `net`, `disk`, `io`, `udp`, `disklatency`, `mutant` or `random`) from a random moment
+- otherwise add, remove or shift a fault
+
+Branching uses the machinery [`seedfall cause`](cause.md) already had, with branches now recorded in the run and chained, so a child of a child branches again. A branch at virtual time *T* re-keys the streams at the first scheduler step at or after *T*. Nothing is snapshotted: replay is exact, so reaching *T* again means re-running the seed.
+
+The exploration stops at the first of these:
+
+| Flag | Stops after |
+|---|---|
+| a failure | the first failing run, unless `-keep-going` |
+| `-rounds N` | N rounds |
+| `-budget 10m` | that much wall-clock time, checked between rounds |
+| `-until-novelty N` (default 8) | N rounds in a row that added nothing |
+
+## Determinism
+
+The choices come from `-explore-seed` (default 1) and every result is merged in a fixed order, so a given corpus and flags produce the same rounds at any `-j` as long as a `-budget` does not cut them short: a `-budget` depends on the machine's speed, so use `-rounds` for an exploration that must repeat exactly in CI.
+
+Every failure is a seed plus a schedule file, so nothing is lost for the rest of the tools:
+
+```sh
+seedfall replay  -seed 6 -faults .seedfall/failures/seedfall-seed-6-explore-504fa1fb9883/faults.json
+seedfall shrink  -seed 6 -faults .seedfall/failures/seedfall-seed-6-explore-504fa1fb9883/faults.json
+seedfall inspect -seed 6 -faults .seedfall/failures/seedfall-seed-6-explore-504fa1fb9883/faults.json
+seedfall pin     -seed 6 -faults .seedfall/failures/seedfall-seed-6-explore-504fa1fb9883/faults.json
+```
+
+Those commands and the report's replay and shrink lines use the file because the seed alone would not reproduce the run. See [the schedule format](faults.md#editing-a-schedule).
+
+## Corpus
+
+Corpus entries are written to `.seedfall/corpus/<config>/<seed>-<id>.json` and replayed in the first round of the next `seedfall explore`, so a search keeps building where it left off. Pass `-corpus dir` to keep them somewhere committed, like Go fuzz testdata. An entry whose faults no longer fit the config (a node was renamed, for example) is skipped and counted as stale. Delete the directory to start over.
+
+## What re-keying does not reach
+
+Re-keying a run changes the random streams seedfall owns: the scheduler, the network, the disk, I/O faults, buggify firings and what `random_get` returns to the guest, which reaches `crypto/rand` and `sim.Random`. Go's `math/rand` and `math/rand/v2` top-level functions are seeded once, when the process starts, and keep their own sequence, so a branch does not change what they return in a process that is already running. Workload randomness that should re-roll on a branch has to come from `crypto/rand` or `sim.Random`.
+
+## Stopping a plain sweep
+
+`seedfall run -until-novelty N` stops a sweep once N batches of seeds in a row added nothing, so a wide range does not need to be run in full once coverage has flattened out. `-batch` sets the seeds per batch (default 20) and the verdict for each seed is the same as without the flag; only how many seeds run changes, and the point a run stops does not depend on `-j`:
+
+```sh
+seedfall run -seeds 1-5000 -until-novelty 5 -batch 50
+```
+
+```
+round  runs  new signals  signals  new functions  functions
+  1     4     3            3        624            624
+  2     8     1            4        1              625
+  3     12    0            4        0              625
+stopped: seed range finished
+```
+
+The same growth table is in the JSON output (`exploration`), `seedfall_run` and the **Exploration** section of the [triage report](reports.md).
+
+## Throughput
+
+Every sweep reports runs per second and virtual time simulated per wall second, the kind of efficiency numbers a deterministic simulation lives on. They are in the last lines of `seedfall run`, the JSON summary as `seeds_per_second` and `virtual_seconds_per_wall_second`, and the report header.
+
+Numbers from one Windows 11 machine, `-j 2`, seedfall built with this repository's Go toolchain:
+
+| Example | Seeds | Time | Note |
+|---|---|---|---|
+| `examples/kvlog` `seedfall.fixed.json` | 20 | 1.84 s to 2.12 s, 39 to 45x virtual time | without feedback instrumentation |
+| `examples/kvlog` `seedfall.fixed.json` | 20 | 1.90 s to 2.13 s | with `-until-novelty`, which adds the function bitmap: no measurable slowdown |
+| `examples/natscluster` | 3 | 15.2 s at `-j 1` | a 3-node cluster, about 5 s a seed |
+
+A CPU profile of kvlog (10 seeds, `-j 1`, taken with a one-off build because `-cpuprofile` is refused on Windows) spent 55% of its samples in the guest's compiled code, 22% in wazero's call path to and from the guest, and 3.7% instantiating modules; the per-step watchdog timer did not appear in the top of the profile.
+
+`seedfall run -cpuprofile cpu.pprof` writes a Go pprof profile on the platforms where Go's profiler can unwind through wazero's compiled code. seedfall refuses it on Windows: the Go runtime crashes unwinding those frames, consistently with parallel guests and intermittently at one guest, reported with a `fatal error` from `runtime.sigprof`.
+
+There is no snapshotting. `seedfall cause` and every branched run re-execute the seed from the start, in parallel on `-j` workers.
+
+## From an agent
+
+The MCP tool `seedfall_explore` takes the same options and returns the rounds, the stop reason and the failure. `seedfall_run` accepts `until_novelty` and `batch`. See [agents.md](agents.md).
+
+
 <!-- docs/faults.md -->
 
 # Configuration and faults
@@ -986,6 +1110,14 @@ Positions in `-remove` and `-shift` always refer to the schedule as it was befor
 | `op` is at least 1, a `buggify` fault names its `site`, and a `preempt` fault needs `preempt.strategy` `pct` in the config | faults that fire at a disk operation, read, buggify hit, counted call or udp datagram |
 
 Without any edit, `seedfall faults` only lists and checks the schedule, and writes it only when it came from the seed's own faults, so that there is a file to edit. Over MCP, `seedfall_faults_edit` takes the same edits as JSON ([agents.md](agents.md#tools)).
+
+A schedule file can also hold `branches`, which [`seedfall explore`](explore.md) writes for a failure it found by branching:
+
+```json
+"branches": [{ "at": "921.003003ms", "key": 257366709774643251 }, { "at": "1.2s", "key": 9, "stream": "sched" }]
+```
+
+Each branch re-keys the seed's random streams at the first scheduler step at or after `at`, in order. Without `stream` it re-keys every stream; with one of `sched`, `net`, `disk`, `io`, `udp`, `disklatency`, `mutant` or `random` it re-keys only that one. `replay`, `shrink`, `inspect`, `debug`, `logs` and `pin` all honor them, and `at` values must not decrease.
 
 ## Choosing rates
 
@@ -2046,6 +2178,10 @@ It lists each finding with its status, failing seeds, rate, example seed, reason
 
 The report also lists every property with how many seeds reached it and how many saw it true, flagging properties that were never reached or never true, and the fault profile the sweep ran with. Its header names the seedfall version, the Go version and, when the config is in a git repository, the commit it was run at. Schedules pinned with `seedfall pin` are replayed before the sweep and listed in a **Regressions** section ([pinned regressions](verify.md#pinned-regressions)); a regression that fails again fails the run.
 
+## Exploration and throughput
+
+A report from `seedfall run -until-novelty` or `seedfall explore -report` has an **Exploration** section: one row per batch or round with the runs so far, the new signals and functions it added, and the corpus size, so you can see where coverage flattened out, plus why it stopped. Every report's header and JSON (`seeds_per_second`, `virtual_seconds_per_wall_second`) also state throughput. A finding that needs a schedule to reproduce, as `seedfall explore` findings do, carries `schedule_file` in its example and its replay and shrink commands use it; `seedfall verify -report` replays that schedule instead of the bare seed ([explore.md](explore.md)).
+
 ## Failure artifacts
 
 Every failure seedfall reports gets a folder you can attach to an issue or upload from CI:
@@ -2618,6 +2754,8 @@ Over MCP: `seedfall_run`, which returns `properties` with `seeds_reached`, `seed
 - If goroutines inside one node share state, sweep with `"preempt": {"strategy": "random"}` for short check-then-act windows and `"strategy": "pct"` for bugs that need one goroutine to stall while another runs a long stretch; set `preempt.steps` near the counted calls the trace's `pct:` line reports. Add `"loops": true` when the code has call-free loops (checksums, spin-waits). See `seedfall://docs/how-it-works`, section Preemption.
 - A failure here may be a real bug. Switch to the `seedfall-triage` skill.
 
+If a sweep keeps passing but a rare state or a deep `Sometimes` stays out of reach (a property the coverage table shows as never true, a bug that needs two rare things in one run), run `seedfall explore -c C` before raising the seed count. It branches from runs that reached something new, and a failure comes with a schedule file for shrink and replay. Randomness in the workload that should re-roll on a branch has to come from `crypto/rand` or `sim.Random`, not `math/rand`.
+
 ## 4. Grade the checks with mutants
 
 ```sh
@@ -2771,6 +2909,8 @@ shrunk from 33 faults, 1m0s, 200 workload ops
 ```
 
 Every fault left is needed for the failure. Shrink also shortens downtimes, partitions and pauses, shrinks clock jumps, narrows partition sides and moves faults earlier, so the times that are left matter too. It trims the run's duration and, if the workload sizes itself with `sim.Budget`, its operation count. On a long run, add `-budget 300` (runs) or `-budget 10m` (time); if the output says the budget ran out, the schedule still fails the same way but may not be minimal. `crash ... during disk op #k` means the node died in the middle of its k-th disk operation, usually between a write and its fsync, or between a rename and the directory fsync.
+
+A failure found by `seedfall explore` exists only under its schedule: pass the artifact's file to `seedfall shrink -c C -seed N -faults .seedfall/failures/<name>/faults.json`, and to the replay and inspect commands below (the output of `seedfall explore` prints all of them).
 
 A failure with class `liveness` (the workload or the `finally` check did not finish within `liveness.within`, or a `sim.Eventually` never held) shrinks the same way. The faults left are the ones that leave the system stuck even after the `recovery:` line in the trace, where every fault stops and crashed nodes restart. Read the node output after that line to see which node stopped making progress.
 

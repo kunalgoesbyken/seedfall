@@ -53,8 +53,8 @@ func writeTestReport(t *testing.T) (string, string) {
 	byseed := map[uint64]engine.Result{3: lost, 5: crash}
 	in := report.Input{
 		Config: config, Seeds: "1-20", Version: "v1.2.3", Summary: engine.Summary{Passed: 18, Failures: []engine.Result{lost, crash}},
-		Replay: func(seed uint64) report.Replayed {
-			return report.Replayed{Result: byseed[seed], Class: engine.Classification{Verdict: engine.VerdictBug}}
+		Replay: func(failed engine.Result) report.Replayed {
+			return report.Replayed{Result: byseed[failed.Seed], Class: engine.Classification{Verdict: engine.VerdictBug}}
 		},
 	}
 	path := filepath.Join(dir, "report.html")

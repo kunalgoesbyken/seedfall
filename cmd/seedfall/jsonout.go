@@ -36,9 +36,14 @@ type summaryLine struct {
 	Unmet       int            `json:"unmet_properties"`
 	Properties  []propertyView `json:"properties"`
 	Buggify     []buggifyView  `json:"buggify_sites,omitempty"`
+
+	SeedsPerSecond float64              `json:"seeds_per_second"`
+	VirtualPerWall float64              `json:"virtual_seconds_per_wall_second"`
+	Stopped        string               `json:"stopped,omitempty"`
+	Growth         []engine.GrowthPoint `json:"exploration,omitempty"`
 }
 
-func runJSON(r *engine.Runner, config string, regs []engine.RegressionResult, lo, hi uint64, jobs int) error {
+func runJSON(r *engine.Runner, config string, regs []engine.RegressionResult, lo, hi uint64, opts engine.SweepOptions) error {
 	enc := json.NewEncoder(os.Stdout)
 	var encodeErr error
 	regressionsFailed := 0
@@ -48,9 +53,11 @@ func runJSON(r *engine.Runner, config string, regs []engine.RegressionResult, lo
 			regressionsFailed++
 		}
 	}
-	sum := engine.Sweep(r, lo, hi, engine.SweepOptions{Jobs: jobs, KeepGoing: true, OnResult: func(res engine.Result) {
+	opts.KeepGoing = true
+	opts.OnResult = func(res engine.Result) {
 		encodeErr = cmp.Or(encodeErr, enc.Encode(seedJSON(res)))
-	}})
+	}
+	sum := engine.Sweep(r, lo, hi, opts)
 	if encodeErr != nil {
 		return encodeErr
 	}
@@ -70,12 +77,12 @@ func seedJSON(res engine.Result) seedLine {
 
 func printSummaryJSON(enc *json.Encoder, sum engine.Summary, regressionsFailed int) error {
 	unmet := len(sum.Coverage.Unmet())
-	line := summaryLine{Type: "summary", Passed: sum.Passed, Failed: len(sum.Failures), Unfinished: sum.Unfinished, Regressions: regressionsFailed, Unmet: unmet, Properties: properties(sum.Coverage), Buggify: buggifySites(sum.Buggify)}
+	line := summaryLine{Type: "summary", Passed: sum.Passed, Failed: len(sum.Failures), Unfinished: sum.Unfinished, Regressions: regressionsFailed, Unmet: unmet, Properties: properties(sum.Coverage), Buggify: buggifySites(sum.Buggify), SeedsPerSecond: sum.SeedsPerSecond(), VirtualPerWall: sum.VirtualPerWall(), Stopped: sum.Stopped, Growth: sum.Growth}
 	if err := enc.Encode(line); err != nil {
 		return err
 	}
 	if line.Failed > 0 || regressionsFailed > 0 || unmet > 0 {
-		os.Exit(1)
+		exit(1)
 	}
 	return nil
 }

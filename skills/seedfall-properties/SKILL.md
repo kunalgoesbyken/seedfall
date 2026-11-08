@@ -59,6 +59,8 @@ Over MCP: `seedfall_run`, which returns `properties` with `seeds_reached`, `seed
 - If goroutines inside one node share state, sweep with `"preempt": {"strategy": "random"}` for short check-then-act windows and `"strategy": "pct"` for bugs that need one goroutine to stall while another runs a long stretch; set `preempt.steps` near the counted calls the trace's `pct:` line reports. Add `"loops": true` when the code has call-free loops (checksums, spin-waits). See `seedfall://docs/how-it-works`, section Preemption.
 - A failure here may be a real bug. Switch to the `seedfall-triage` skill.
 
+If a sweep keeps passing but a rare state or a deep `Sometimes` stays out of reach (a property the coverage table shows as never true, a bug that needs two rare things in one run), run `seedfall explore -c C` before raising the seed count. It branches from runs that reached something new, and a failure comes with a schedule file for shrink and replay. Randomness in the workload that should re-roll on a branch has to come from `crypto/rand` or `sim.Random`, not `math/rand`.
+
 ## 4. Grade the checks with mutants
 
 ```sh

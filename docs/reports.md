@@ -87,6 +87,10 @@ It lists each finding with its status, failing seeds, rate, example seed, reason
 
 The report also lists every property with how many seeds reached it and how many saw it true, flagging properties that were never reached or never true, and the fault profile the sweep ran with. Its header names the seedfall version, the Go version and, when the config is in a git repository, the commit it was run at. Schedules pinned with `seedfall pin` are replayed before the sweep and listed in a **Regressions** section ([pinned regressions](verify.md#pinned-regressions)); a regression that fails again fails the run.
 
+## Exploration and throughput
+
+A report from `seedfall run -until-novelty` or `seedfall explore -report` has an **Exploration** section: one row per batch or round with the runs so far, the new signals and functions it added, and the corpus size, so you can see where coverage flattened out, plus why it stopped. Every report's header and JSON (`seeds_per_second`, `virtual_seconds_per_wall_second`) also state throughput. A finding that needs a schedule to reproduce, as `seedfall explore` findings do, carries `schedule_file` in its example and its replay and shrink commands use it; `seedfall verify -report` replays that schedule instead of the bare seed ([explore.md](explore.md)).
+
 ## Failure artifacts
 
 Every failure seedfall reports gets a folder you can attach to an issue or upload from CI:

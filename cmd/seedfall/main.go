@@ -27,13 +27,14 @@ var commands []command
 func init() {
 	commands = []command{
 		{"init", "[-dir .] [-c seedfall.json] [-node ./cmd/server]... [-workload seedfall/workload] [-n] [-json]", cmdInit},
-		{"run", "[-c seedfall.json] [-seeds 1-1000] [-j N] [-v] [-check] [-net-trace] [-report report.html | -json] [-pinned=false] [-seeds-file file]", cmdRun},
+		{"run", "[-c seedfall.json] [-seeds 1-1000] [-j N] [-v] [-check] [-net-trace] [-report report.html | -json] [-pinned=false] [-seeds-file file] [-until-novelty N [-batch 20]] [-cpuprofile file]", cmdRun},
+		{"explore", "[-c seedfall.json] [-seeds 1-32] [-rounds N] [-batch 16] [-until-novelty 8] [-budget 10m] [-explore-seed 1] [-keep-going] [-corpus dir] [-report report.html | -json] [-cpuprofile file]", cmdExplore},
 		{"replay", "[-c seedfall.json] -seed N [-faults file.json] [-net-trace] [-html timeline.html | -html timeline.mmd]", cmdReplay},
 		{"logs", "[-c seedfall.json] -seed N [-faults file.json] [-node a,b] [-grep re] [-from 1s] [-to 2s] [-json] [-net-trace]", cmdLogs},
 		{"debug", "[-c seedfall.json] -seed N [-faults file.json] [-at DURATION] [-net-trace]", cmdDebug},
 		{"trace grep", "[-c seedfall.json] -seed N [-faults file.json] -e re [-context 3] [-node a,b] [-from 1s] [-to 2s] [-limit 200] [-json] [-net-trace]", cmdTraceGrep},
 		{"trace diff", "[-context 3] <trace.txt or artifacts dir> <trace.txt or artifacts dir>", cmdTraceDiff},
-		{"shrink", "[-c seedfall.json] -seed N [-j N] [-budget 500 | -budget 10m]", cmdShrink},
+		{"shrink", "[-c seedfall.json] -seed N [-faults file.json] [-j N] [-budget 500 | -budget 10m]", cmdShrink},
 		{"faults", "[-c seedfall.json] -seed N [-faults file.json] [-remove 2]... [-shift 1=-50ms]... [-add '{\"at\":\"1s\",...}']... [-out file.json]", cmdFaults},
 		{"cause", "[-c seedfall.json] -seed N [-points 16] [-branches 20]", cmdCause},
 		{"inspect", "[-c seedfall.json] -seed N [-faults file.json] [-at DURATION] [-node name] [-cat path | -out dir]", cmdInspect},
@@ -45,7 +46,7 @@ func init() {
 		{"report issue", "-repo owner/name [-report .seedfall/report.html] [-dry-run]", cmdIssue},
 		{"verify", "[-c seedfall.json] [-seed N [-faults file.json]] [-report report.html] [-seeds range] [-check 10] [-mutate] [-app-mutants N] [-md proof.md]", cmdVerify},
 		{"schema", "print every command with its flags and every MCP tool, prompt and resource as JSON", cmdSchema},
-		{"mcp", "serve init, run, replay, logs, trace search, debug, shrink, faults edit, cause, inspect, check, mutate, pin, findings and verify to AI coding agents over MCP (stdio)", cmdMCP},
+		{"mcp", "serve init, run, explore, replay, logs, trace search, debug, shrink, faults edit, cause, inspect, check, mutate, pin, findings and verify to AI coding agents over MCP (stdio)", cmdMCP},
 		{"hook", "Claude Code Stop hook: sweep $SEEDFALL_HOOK_SEEDS (unset: do nothing) and block the stop on a failure", cmdHook},
 	}
 }
@@ -96,10 +97,15 @@ func newFlags(name string) *flag.FlagSet {
 }
 
 func load(ref engine.ConfigRef) (*engine.Runner, *engine.Config, error) {
+	return loadWith(ref, false)
+}
+
+func loadWith(ref engine.ConfigRef, feedback bool) (*engine.Runner, *engine.Config, error) {
 	cfg, err := engine.Load(ref)
 	if err != nil {
 		return nil, nil, err
 	}
+	cfg.Feedback = feedback
 	if err := engine.Build(cfg); err != nil {
 		return nil, nil, err
 	}
@@ -119,6 +125,9 @@ func cmdRun(args []string) error {
 	netTrace := fs.Bool("net-trace", false, "also trace every connection, message sent and message read")
 	pinned := fs.Bool("pinned", true, "replay the schedules pinned in "+engine.RegressionsDir+"/ before the sweep")
 	seedsFile := fs.String("seeds-file", "", "file of known-bad seeds, one or more per line with # comments, replayed before the sweep")
+	untilNovelty := fs.Int("until-novelty", 0, "stop once this many batches of seeds in a row add no new property outcome, fault shape, buggify firing or function; 0 sweeps the whole range")
+	batch := fs.Int("batch", defaultSweepBatch, "seeds per batch for -until-novelty")
+	cpuProfile := fs.String("cpuprofile", "", "write a pprof CPU profile of the sweep to this file")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -130,10 +139,16 @@ func cmdRun(args []string) error {
 	if err != nil {
 		return err
 	}
-	r, cfg, err := load(ca.ref())
+	r, cfg, err := loadWith(ca.ref(), *untilNovelty > 0)
 	if err != nil {
 		return err
 	}
+	stop, err := startProfile(*cpuProfile)
+	if err != nil {
+		return err
+	}
+	defer stop()
+	sweep := engine.SweepOptions{Jobs: *jobs, Batch: *batch, UntilNovelty: *untilNovelty}
 	r.Doublecheck, r.NetTrace = *check, *netTrace
 	started := time.Now()
 	regs, err := replayRegressions(r, cfg, *pinned, *seedsFile, *jobs)
@@ -141,7 +156,7 @@ func cmdRun(args []string) error {
 		return err
 	}
 	if *jsonOut {
-		return runJSON(r, conf, regs, lo, hi, *jobs)
+		return runJSON(r, conf, regs, lo, hi, sweep)
 	}
 	printRegressions(regs)
 	if bad := engine.FirstFailed(regs); bad != nil && *reportPath == "" {
@@ -150,16 +165,18 @@ func cmdRun(args []string) error {
 		a, err := regressionArtifacts(r, conf, *bad)
 		printArtifacts(a, err)
 		fmt.Printf("replay: %s\n", a.Replay)
-		os.Exit(1)
+		exit(1)
 	}
-	sum := engine.Sweep(r, lo, hi, engine.SweepOptions{Jobs: *jobs, KeepGoing: *reportPath != "", OnResult: func(res engine.Result) {
+	sweep.KeepGoing = *reportPath != ""
+	sweep.OnResult = func(res engine.Result) {
 		if *verbose {
 			fmt.Printf("seed %d: %s\n", res.Seed, status(res))
 		}
-	}})
+	}
+	sum := engine.Sweep(r, lo, hi, sweep)
 	took := time.Since(started).Round(time.Millisecond)
 	if *reportPath != "" {
-		return writeReport(r, cfg, conf, *seeds, *reportPath, sum, viewRegressions(r, conf, regs), took)
+		return writeReport(r, cfg, conf, *seeds, *reportPath, sum, viewRegressions(r, conf, regs), took, true)
 	}
 	if sum.First != nil {
 		printFailure(*sum.First, 25)
@@ -167,15 +184,17 @@ func cmdRun(args []string) error {
 		printArtifacts(a, err)
 		fmt.Printf("\n%d seeds passed before the failure, %s\n", sum.Passed, took)
 		fmt.Printf("replay: seedfall replay -c %s -seed %d\nshrink: seedfall shrink -c %s -seed %d\n", conf, sum.First.Seed, conf, sum.First.Seed)
-		os.Exit(1)
+		exit(1)
 	}
 	printCoverage(sum.Coverage)
 	printBuggify(sum.Buggify)
+	printGrowth(sum)
 	if unmet := sum.Coverage.Unmet(); len(unmet) > 0 {
 		fmt.Printf("FAIL %d properties were never reached or never true in %d seeds\n", len(unmet), sum.Passed)
-		os.Exit(1)
+		exit(1)
 	}
 	fmt.Printf("ok  %d seeds passed (%d hit the time horizon) in %s\n", sum.Passed, sum.Unfinished, took)
+	printEfficiency(sum)
 	return nil
 }
 
@@ -219,12 +238,17 @@ func printBuggify(c engine.BuggifySites) {
 	fmt.Println()
 }
 
-func writeReport(r *engine.Runner, cfg *engine.Config, conf, seeds, path string, sum engine.Summary, regs []report.Regression, took time.Duration) error {
+func writeReport(r *engine.Runner, cfg *engine.Config, conf, seeds, path string, sum engine.Summary, regs []report.Regression, took time.Duration, failOnUnmet bool) error {
 	in := report.Input{Config: conf, Seeds: seeds, Version: engine.Version(), Commit: engine.Commit(cfg.Dir), Faults: cfg.Faults, Summary: sum, Elapsed: took}
-	in.Replay = func(seed uint64) report.Replayed {
-		a, res, err := r.SaveArtifacts(seed, engine.Schedule{}, engine.ArtifactOptions{Config: conf})
+	in.Replay = func(failed engine.Result) report.Replayed {
+		s, opts := engine.Schedule{}, engine.ArtifactOptions{Config: conf}
+		if failed.Scheduled {
+			s, opts = failed.Schedule(engine.Schedule{}), exploreArtifact(conf, &failed)
+			opts.Original = nil
+		}
+		a, res, err := r.SaveArtifacts(failed.Seed, s, opts)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "seedfall: artifacts of seed %d: %v\n", seed, err)
+			fmt.Fprintf(os.Stderr, "seedfall: artifacts of seed %d: %v\n", failed.Seed, err)
 			a.Dir = ""
 		}
 		return report.Replayed{Result: res, Class: a.Classification, Artifacts: filepath.ToSlash(a.Dir)}
@@ -236,6 +260,8 @@ func writeReport(r *engine.Runner, cfg *engine.Config, conf, seeds, path string,
 	}
 	printCoverage(sum.Coverage)
 	printBuggify(sum.Buggify)
+	printGrowth(sum)
+	printEfficiency(sum)
 	for _, reg := range rep.Regressions {
 		if !reg.Passed {
 			fmt.Printf("FAIL regression seed %d from %s: %s\n  artifacts: %s\n", reg.Seed, reg.Source, reg.Reason, reg.Artifacts)
@@ -249,8 +275,8 @@ func writeReport(r *engine.Runner, cfg *engine.Config, conf, seeds, path string,
 		fmt.Printf("  %-9s %-40s %s\n", f.Status, f.Key, f.Note)
 	}
 	fmt.Printf("report: %s\n", path)
-	if rep.Failed > 0 || rep.RegressionsFailed() > 0 || len(sum.Coverage.Unmet()) > 0 {
-		os.Exit(1)
+	if rep.Failed > 0 || rep.RegressionsFailed() > 0 || (failOnUnmet && len(sum.Coverage.Unmet()) > 0) {
+		exit(1)
 	}
 	return nil
 }
