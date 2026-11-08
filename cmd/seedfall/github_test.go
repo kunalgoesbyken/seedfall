@@ -29,6 +29,24 @@ func TestReportGitHubAppendsOutputs(t *testing.T) {
 	}
 }
 
+func TestReportGitHubWritesTheCommentMarkdown(t *testing.T) {
+	path, _ := writeTestReport(t)
+	dir := t.TempDir()
+	md := filepath.Join(dir, "summary.md")
+	if err := cmdGitHub([]string{"-report", path, "-output", filepath.Join(dir, "output"), "-md", md}); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(md)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"### seedfall: FAIL", "seedfall replay -c "} {
+		if !strings.Contains(string(b), want) {
+			t.Errorf("summary lacks %q:\n%s", want, b)
+		}
+	}
+}
+
 func useFakeGH(t *testing.T, existing string) string {
 	t.Helper()
 	log := filepath.Join(t.TempDir(), "gh.log")
@@ -89,14 +107,14 @@ func TestReportCommentPostsABodyFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	log := useFakeGH(t, "")
-	if err := cmdComment([]string{"-body", proof, "-repo", "o/r", "-pr", "12"}); err != nil {
+	if err := cmdComment([]string{"-body", proof, "-repo", "o/r", "-pr", "12", "-link", "https://example.test/run"}); err != nil {
 		t.Fatal(err)
 	}
 	b, err := os.ReadFile(log)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(b), "seedfall verify: PASS") {
+	if !strings.Contains(string(b), "seedfall verify: PASS") || !strings.Contains(string(b), "[Workflow run](https://example.test/run)") {
 		t.Fatalf("calls:\n%s", b)
 	}
 }

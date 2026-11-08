@@ -30,7 +30,7 @@ func TestSchemaDescribesEveryCommandAndTool(t *testing.T) {
 		"seedfall explore":        {"c", "seeds", "rounds", "batch", "until-novelty", "budget", "explore-seed", "keep-going", "corpus", "report", "json", "cpuprofile"},
 		"seedfall shrink":         {"c", "seed", "faults"},
 		"seedfall mutate":         {"c", "seeds", "only", "app", "md"},
-		"seedfall report github":  {"report", "output"},
+		"seedfall report github":  {"report", "output", "md"},
 		"seedfall report comment": {"report", "body", "repo", "pr", "marker", "link", "dry-run"},
 	} {
 		for _, name := range want {

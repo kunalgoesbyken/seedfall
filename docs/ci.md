@@ -60,7 +60,7 @@ The job fails if any seed or [pinned regression](verify.md#pinned-regressions) f
         run: echo "replay with seed ${{ steps.seedfall.outputs.failing-seed }}"
 ```
 
-The outcome also appears in the job summary, and as error annotations on the run and the pull request's changed files. A finding from a property with a constant message is annotated at its source line, from the same catalog that reports properties that were never reached. Other failures, such as a crash or a `sim.Assert`, are annotated without a file. GitHub only shows a limited number of annotations per step, so failing regressions come first, then regressed, new and ongoing findings, then unmet properties.
+The job summary shows the same Markdown as the [pull request comment](#pull-request-comments), with seedfall's output folded below it. When seedfall cannot finish, such as a config that does not build or a `mutate` baseline that already fails, the summary says so with the last lines of output. Problems also appear as error annotations on the run and the pull request's changed files. A finding from a property with a constant message is annotated at its source line, from the same catalog that reports properties that were never reached. Other failures, such as a crash or a `sim.Assert`, are annotated without a file. GitHub only shows a limited number of annotations per step, so failing regressions come first, then regressed, new and ongoing findings, then unmet properties.
 
 ### Which seedfall runs
 
@@ -78,7 +78,7 @@ Set `cache: "false"` if you keep `.seedfall/history.jsonl` some other way, such 
 
 ### Pull request comments
 
-`comment: "true"` posts one comment per job and edits it on later pushes, so a pull request does not collect one per run. It lists new, regressed and resolved findings, ongoing ones, failing pinned regressions and unmet properties, each failure with its replay command, and links the workflow run. With `verify` or `mutate` the comment is the same Markdown as the job summary. A clean run also updates it, so a stale failure does not linger.
+`comment: "true"` posts one comment per job and edits it on later pushes, so a pull request does not collect one per run. It lists new, regressed and resolved findings, ongoing ones, failing pinned regressions and unmet properties, each failure with its replay command, and links the workflow run. It is the job summary's Markdown, so with `verify` or `mutate` it is the proof or the mutant table, and when seedfall cannot finish it says so. A clean run also updates it, so a stale failure does not linger.
 
 The job needs `pull-requests: write`. Pull requests from forks run with a read-only token, so the action logs a warning and the job's result is unaffected. `seedfall report comment` does the same from any CI, and `seedfall report github` writes the annotations and outputs ([reports.md](reports.md#github)).
 

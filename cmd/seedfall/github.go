@@ -19,12 +19,22 @@ func cmdGitHub(args []string) error {
 	fs := newFlags("report github")
 	path := fs.String("report", defaultReport, "triage report written by seedfall run -report")
 	output := fs.String("output", os.Getenv("GITHUB_OUTPUT"), "file to append failing-seed and findings to (default: $GITHUB_OUTPUT, or print them)")
+	md := fs.String("md", "", "also write the pull request comment's Markdown to this file, for a job summary or report comment -body")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	rep, err := report.Load(*path)
 	if err != nil {
 		return err
+	}
+	if *md != "" {
+		text, err := rep.CommentMarkdown("")
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(*md, []byte(text), 0o644); err != nil {
+			return err
+		}
 	}
 	workdir, err := os.Getwd()
 	if err != nil {
@@ -81,7 +91,10 @@ func cmdComment(args []string) error {
 func commentText(reportPath, bodyFile, link string) (string, error) {
 	if bodyFile != "" {
 		b, err := os.ReadFile(bodyFile)
-		return string(b), err
+		if err != nil || link == "" {
+			return string(b), err
+		}
+		return fmt.Sprintf("%s\n\n[Workflow run](%s)\n", strings.TrimRight(string(b), "\n"), link), nil
 	}
 	rep, err := report.Load(reportPath)
 	if err != nil {

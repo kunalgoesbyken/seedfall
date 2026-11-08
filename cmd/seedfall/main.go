@@ -44,7 +44,7 @@ func init() {
 		{"findings", "[-report .seedfall/report.html] [-history file] [-status new,regressed] [-json]", cmdFindings},
 		{"report notify", "[-report .seedfall/report.html] [-webhook URL] [-link URL] [-dry-run]", cmdNotify},
 		{"report issue", "-repo owner/name [-report .seedfall/report.html] [-dry-run]", cmdIssue},
-		{"report github", "[-report .seedfall/report.html] [-output file]", cmdGitHub},
+		{"report github", "[-report .seedfall/report.html] [-output file] [-md summary.md]", cmdGitHub},
 		{"report comment", "-repo owner/name -pr N [-report .seedfall/report.html | -body file] [-marker name] [-link URL] [-dry-run]", cmdComment},
 		{"verify", "[-c seedfall.json] [-seed N [-faults file.json]] [-report report.html] [-seeds range] [-check 10] [-mutate] [-app-mutants N] [-md proof.md]", cmdVerify},
 		{"doctor", "[-json]", cmdDoctor},

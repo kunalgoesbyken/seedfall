@@ -7,10 +7,19 @@ log="$RUNNER_TEMP/seedfall.txt"
 rm -rf "$out"
 mkdir -p "$out"
 
+fail_with() {
+  local body="$out/error.md"
+  printf '### seedfall: ERROR\n\n%s\n' "$1" >"$body"
+  {
+    echo "status=error"
+    echo "body=$body"
+  } >>"$GITHUB_OUTPUT"
+  cat "$body" >>"$GITHUB_STEP_SUMMARY"
+}
+
 refuse() {
   echo "::error title=seedfall::$1"
-  echo "status=error" >>"$GITHUB_OUTPUT"
-  printf '### seedfall\n\n%s\n' "$1" >>"$GITHUB_STEP_SUMMARY"
+  fail_with "$1"
   exit 1
 }
 
@@ -47,34 +56,36 @@ read -r -a extra <<<"$EXTRA_ARGS" || true
 "$bin" "${args[@]}" ${extra[@]+"${extra[@]}"} 2>&1 | tee "$log"
 code="${PIPESTATUS[0]}"
 
+if [ "$code" -ne 0 ] && [ -n "$produced" ] && [ ! -f "$produced" ]; then
+  fail_with "$(printf 'seedfall could not finish:\n\n```\n%s\n```' "$(tail -n 60 "$log")")"
+  exit "$code"
+fi
+
 status=passed
-if [ "$code" -ne 0 ]; then
-  status=failed
-  [ -z "$produced" ] || [ -f "$produced" ] || status=error
+[ "$code" -eq 0 ] || status=failed
+body=""
+if [ "$COMMAND" != run ]; then
+  body="$report_path"
+elif [ -f "$produced" ]; then
+  body="$out/summary.md"
+  "$bin" report github -report "$report_path" -md "$body"
 fi
 {
   echo "status=$status"
-  [ ! -f "$report_path" ] || echo "report-path=$report_path"
+  echo "body=$body"
+  [ -z "$report_path" ] || echo "report-path=$report_path"
 } >>"$GITHUB_OUTPUT"
-
-[ ! -f "$out/report.json" ] || "$bin" report github -report "$out/report.html"
-
-body=""
-[ "$COMMAND" = run ] || [ ! -f "$report_path" ] || body="$report_path"
-if [ "$status" = error ]; then
-  body="$out/error.md"
-  printf '### seedfall: ERROR\n\nseedfall could not finish; see the job log.\n' >"$body"
-fi
-echo "body=$body" >>"$GITHUB_OUTPUT"
 
 {
   [ -z "$body" ] || cat "$body"
-  if [ -z "$body" ] || [ "$status" = error ]; then
-    echo '### seedfall'
-    echo '```'
-    tail -n 60 "$log"
-    echo '```'
-  fi
+  echo
+  echo '<details><summary>seedfall output</summary>'
+  echo
+  echo '```'
+  tail -n 60 "$log"
+  echo '```'
+  echo
+  echo '</details>'
 } >>"$GITHUB_STEP_SUMMARY"
 
 exit "$code"

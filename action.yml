@@ -105,6 +105,7 @@ runs:
         EXTRA_ARGS: ${{ inputs.args }}
         REPORT: ${{ inputs.report }}
         COMMENT: ${{ inputs.comment }}
+        LINK: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       run: bash "$GITHUB_ACTION_PATH/scripts/action-run.sh"
     - name: Collect failure artifacts
       if: always()
@@ -134,7 +135,7 @@ runs:
         [ -f "$RUNNER_TEMP/seedfall-report/report.json" ] || exit 0
         "$RUNNER_TEMP/seedfall" report issue -report "$RUNNER_TEMP/seedfall-report/report.html" -repo "$REPO"
     - name: Comment on the pull request
-      if: always() && inputs.comment == 'true' && github.event.pull_request.number != '' && steps.run.outputs.status != ''
+      if: always() && inputs.comment == 'true' && github.event.pull_request.number != '' && steps.run.outputs.body != ''
       shell: bash
       env:
         GH_TOKEN: ${{ github.token }}
@@ -142,11 +143,8 @@ runs:
         PR: ${{ github.event.pull_request.number }}
         MARKER: ${{ inputs.artifact-name }}
         BODY: ${{ steps.run.outputs.body }}
-        LINK: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       run: |
-        source=(-report "$RUNNER_TEMP/seedfall-report/report.html")
-        [ -z "$BODY" ] || source=(-body "$BODY")
-        "$RUNNER_TEMP/seedfall" report comment "${source[@]}" -repo "$REPO" -pr "$PR" -marker "$MARKER" -link "$LINK" \
+        "$RUNNER_TEMP/seedfall" report comment -body "$BODY" -repo "$REPO" -pr "$PR" -marker "$MARKER" \
           || echo "::warning title=seedfall::could not post the pull request comment; the job needs the pull-requests write permission, which pull requests from forks do not get"
     - name: Save the history
       if: always() && inputs.cache == 'true'
