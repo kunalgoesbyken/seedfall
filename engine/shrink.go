@@ -138,8 +138,7 @@ func (s *shrinker) withFaults(faults []Fault) Schedule {
 	return c
 }
 
-func (s *shrinker) removeFaults() bool {
-	removed := false
+func (s *shrinker) removeFaults() {
 	for n := 2; len(s.sched.Faults) > 0 && !s.exhausted; {
 		before := len(s.sched.Faults)
 		n = min(n, before)
@@ -157,7 +156,6 @@ func (s *shrinker) removeFaults() bool {
 			}
 		}
 		if i, ok := s.first(candidates); ok {
-			removed = true
 			n = max(n-1, 2)
 			if i < len(chunks) {
 				n = 2
@@ -170,7 +168,6 @@ func (s *shrinker) removeFaults() bool {
 		}
 		n = min(2*n, before)
 	}
-	return removed
 }
 
 func split(faults []Fault, n int) [][]Fault {

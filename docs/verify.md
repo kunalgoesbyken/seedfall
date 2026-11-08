@@ -22,7 +22,7 @@ Against the unfixed config the same command stops at the first check and exits 1
 
 ```
 verify seedfall.always.json
-  FAIL  replay seed 1 with .seedfall/seed-1.faults.json  seed 1 FAILS [bug]: client#1: acknowledged write lost: k63=v63, server now answers "NONE"
+  FAIL  replay seed 1 with .seedfall/seed-1.faults.json  seed 1 FAILS [bug]: client#1: acknowledged write lost: k60=v60, server now answers "NONE"
   skip  fresh sweep                                      an earlier check failed
   skip  determinism                                      an earlier check failed
 FAIL

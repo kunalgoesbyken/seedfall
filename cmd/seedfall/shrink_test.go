@@ -103,3 +103,22 @@ func TestMCPShrinkTakesABudget(t *testing.T) {
 	}
 	t.Fatal("seedfall_shrink is not listed")
 }
+
+func TestCutShortNotesOnlyAPassEndedByAShorterDuration(t *testing.T) {
+	cfg := &engine.Config{Duration: engine.Duration(time.Minute)}
+	tests := []struct {
+		name string
+		res  engine.Result
+		note bool
+	}{
+		{"shorter duration hit the horizon", engine.Result{Horizon: time.Second}, true},
+		{"workload finished within the shorter duration", engine.Result{Horizon: time.Second, Finished: true}, false},
+		{"run failed", engine.Result{Horizon: time.Second, Failed: true}, false},
+		{"full duration", engine.Result{Horizon: time.Minute}, false},
+	}
+	for _, tt := range tests {
+		if got := cutShort(tt.res, cfg) != ""; got != tt.note {
+			t.Errorf("%s: note %v, want %v", tt.name, got, tt.note)
+		}
+	}
+}

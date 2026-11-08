@@ -73,7 +73,7 @@ See [properties.md](properties.md).
 3. **Trim the duration** by bisecting the run's horizon down toward the failure.
 4. **Simplify each fault**: shorten crash downtimes, partitions, pauses, clogs and slowdowns (`until` moves toward `at`), shrink clock jumps toward zero, take nodes off the cut side of a partition (a partition into groups keeps its groups), and move planned faults earlier. Faults recorded at run time, such as a crash during a disk operation, keep their operation index; only their downtime shrinks.
 
-Passes 2 to 4 repeat, with another removal round after each, until nothing changes. Times are bisected to the millisecond. The shrinker makes no random choices of its own, so a seed always shrinks to the same schedule.
+Passes 2 to 4 repeat, with another removal round after each, until nothing changes. Times are bisected to within two milliseconds. The shrinker makes no random choices of its own, so a seed always shrinks to the same schedule.
 
 Candidates of one round run at once on `-j` workers (all cores by default), and the shrinker takes the first one that fails, in the order it would have tried them one by one. The schedule and run count are the same for any `-j`. `-budget` stops early: a number (`-budget 300`) counts those runs, so the result is still reproducible, while a duration (`-budget 10m`) is wall-clock time and depends on the machine. With more than one job, a round can also start runs whose results are thrown away. When the budget runs out, shrink saves the smallest failing schedule so far and says it may not be minimal.
 

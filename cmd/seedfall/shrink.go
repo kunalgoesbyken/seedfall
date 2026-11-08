@@ -62,7 +62,7 @@ func cmdShrink(args []string) error {
 	if !original.Failed {
 		return errors.New("seed does not fail, nothing to shrink")
 	}
-	fmt.Printf("seed %d fails with %d faults: %s\nshrinking with %d jobs%s...\n", *seed, len(original.Faults), original.Reason, opts.Jobs, budgetNote(*budget))
+	fmt.Printf("seed %d fails with %d faults: %s\nshrinking with %d jobs%s...\n", *seed, len(original.Faults), original.Reason, opts.Jobs, budgetNote(opts))
 	opts.Progress = func(p engine.ShrinkStep) { fmt.Printf("  run %4d  %3d faults  %s\n", p.Runs, p.Faults, p.Change) }
 	started := time.Now()
 	shrunk := engine.Shrink(r, original, opts)
@@ -136,14 +136,14 @@ func parseBudget(s string) (engine.ShrinkOptions, error) {
 	return engine.ShrinkOptions{MaxTime: d}, nil
 }
 
-func budgetNote(budget string) string {
-	if budget == "" {
-		return ""
+func budgetNote(opts engine.ShrinkOptions) string {
+	switch {
+	case opts.MaxRuns > 0:
+		return fmt.Sprintf(", budget %d runs", opts.MaxRuns)
+	case opts.MaxTime > 0:
+		return fmt.Sprintf(", budget %s", opts.MaxTime)
 	}
-	if _, err := strconv.Atoi(budget); err == nil {
-		return fmt.Sprintf(", budget %s runs", budget)
-	}
-	return ", budget " + budget
+	return ""
 }
 
 func readSchedule(path string) (engine.Schedule, error) {

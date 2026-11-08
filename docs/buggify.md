@@ -45,7 +45,7 @@ faults before the failure (1):
 { "at": "465.631252ms", "kind": "buggify", "node": "counter", "site": "reply lost after apply", "until": "0s", "op": 35 }
 ```
 
-When a schedule is replayed with `-faults`, a site fires exactly at the hits the schedule lists and nowhere else, so `seedfall shrink` removes firings one at a time like any other fault, and you can hand-edit a schedule to add or drop one. Replaying a schedule needs `"buggify": true` in the config, and with `swarm` it must be on for that seed: otherwise every site returns false. The trace shows when each site is first reached and whether it is enabled for the run, and every firing.
+When a schedule is replayed with `-faults`, a site fires exactly at the hits the schedule lists and nowhere else, so `seedfall shrink` removes firings like any other fault, and you can hand-edit a schedule to add or drop one. Replaying a schedule needs `"buggify": true` in the config, and with `swarm` it must be on for that seed: otherwise every site returns false. The trace shows when each site is first reached and whether it is enabled for the run, and every firing.
 
 ## Coverage
 
