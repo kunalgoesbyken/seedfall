@@ -28,16 +28,22 @@ func main() {
 	least := flag.Int("least", 0, "count the finally check waits for")
 	within := flag.Duration("within", time.Second, "how long the finally check waits")
 	iters := flag.Int("iters", 1<<22, "loop iterations the spin role runs without a function call")
+	naps := flag.Int("naps", 0, "how many more times the spin role sleeps a millisecond and spins again")
 	flag.Parse()
 	switch *role {
 	case "race":
 		race(*writes)
 	case "spin":
-		h := uint64(0)
-		for i := range *iters {
-			h = h*31 + uint64(i)
+		for nap := range *naps + 1 {
+			if nap > 0 {
+				time.Sleep(time.Millisecond)
+			}
+			h := uint64(0)
+			for i := range *iters {
+				h = h*31 + uint64(i)
+			}
+			fmt.Println(h)
 		}
-		fmt.Println(h)
 	case "client":
 		client(sim.Budget(*writes), *record, *forever)
 	case "finally":

@@ -5,7 +5,9 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -109,9 +111,17 @@ func preemptRunner(t *testing.T, args []string, spec PreemptSpec) *Runner {
 	return r
 }
 
+func spinArgs(timeSlices int) []string {
+	return []string{"-role", "spin", "-iters", strconv.Itoa(timeSlices * preemptCalls)}
+}
+
+func napArgs(naps, iters int) []string {
+	return []string{"-role", "spin", "-naps", strconv.Itoa(naps), "-iters", strconv.Itoa(iters)}
+}
+
 func TestGuestCountedLoopsUseVirtualTime(t *testing.T) {
-	slices := 3
-	args := []string{"-role", "spin", "-iters", "12582912"}
+	timeSlices := 3
+	args := spinArgs(timeSlices)
 	without := preemptRunner(t, args, PreemptSpec{Strategy: StrategyNone}).Run(1, nil)
 	with := preemptRunner(t, args, PreemptSpec{Strategy: StrategyNone, Loops: true}).Run(1, nil)
 	if without.Failed || with.Failed {
@@ -120,7 +130,7 @@ func TestGuestCountedLoopsUseVirtualTime(t *testing.T) {
 	if without.Duration >= time.Millisecond {
 		t.Fatalf("without loop counting the loop took %s of virtual time, want almost none", without.Duration)
 	}
-	if want := time.Duration(slices) * time.Duration(preemptSlice); with.Duration < want {
+	if want := time.Duration(timeSlices) * time.Duration(preemptSlice); with.Duration < want {
 		t.Fatalf("with loop counting the loop took %s of virtual time, want at least %s", with.Duration, want)
 	}
 }
@@ -177,5 +187,44 @@ func TestGuestCallsStrategyPreemptsEveryNCalls(t *testing.T) {
 	}
 	if !strings.Contains(a.Trace[0], "every 2000 counted function calls") {
 		t.Fatalf("trace starts %q, want the strategy", a.Trace[0])
+	}
+}
+
+func TestGuestPCTChangePointsFireAcrossParks(t *testing.T) {
+	timeSlices, depth := 3, 4
+	spec := PreemptSpec{Strategy: StrategyPCT, Depth: depth, Steps: int64(timeSlices * preemptCalls), Loops: true}
+	r := preemptRunner(t, spinArgs(timeSlices), spec)
+	res := r.Run(1, nil)
+	points := preemptFaults(res.Faults)
+	if res.Failed || len(points) != depth-1 {
+		t.Fatalf("failed %v (%q), change points %v, want %d", res.Failed, res.Reason, points, depth-1)
+	}
+	for _, f := range points {
+		if parked := time.Duration(f.Op/preemptCalls) * time.Duration(preemptSlice); time.Duration(f.At) < parked {
+			t.Fatalf("change point at counted call %d fired at %s, before the %s its earlier time slices park for", f.Op, time.Duration(f.At), parked)
+		}
+	}
+	replay := r.Run(1, res.Faults)
+	if !reflect.DeepEqual(preemptFaults(replay.Faults), points) {
+		t.Fatalf("replay fired %v, want %v", preemptFaults(replay.Faults), points)
+	}
+}
+
+func TestGuestPCTChangePointsFireAcrossSleeps(t *testing.T) {
+	naps, depth := 16, 8
+	iters := preemptCalls / naps
+	spec := PreemptSpec{Strategy: StrategyPCT, Depth: depth, Steps: int64(naps * iters), Loops: true}
+	r := preemptRunner(t, napArgs(naps, iters), spec)
+	res := r.Run(1, nil)
+	points := preemptFaults(res.Faults)
+	if res.Failed || len(points) != depth-1 {
+		t.Fatalf("failed %v (%q), change points %v, want %d", res.Failed, res.Reason, points, depth-1)
+	}
+	if last := points[len(points)-1]; last.At == 0 {
+		t.Fatalf("every change point fired at t=0, so none came after a sleep: %v", points)
+	}
+	replay := r.Run(1, res.Faults)
+	if !reflect.DeepEqual(preemptFaults(replay.Faults), points) {
+		t.Fatalf("replay fired %v, want %v", preemptFaults(replay.Faults), points)
 	}
 }

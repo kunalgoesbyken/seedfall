@@ -48,7 +48,7 @@ A world is described in a JSON file, `seedfall.json` by default. Paths inside it
 | `compat_overlay` | `false` | Build dependencies that need `mmap` or `flock` (bbolt, pebble, badger) with `wasip1` shims. See [compat.md](compat.md) |
 | `watchdog` | `30s` | Real-time limit for one node to run without yielding. Catches busy loops and livelocks. With `preempt.loops`, a busy loop parks like any other node and a run that never finishes fails on `liveness` instead, which does not depend on the host |
 | `preempt.strategy` | `none` | When the running goroutine is preempted inside a node: `none` only at the end of a 4,194,304-call time slice, `random` after a seeded 1 to 4,096 counted calls, `pct` at `depth` - 1 seeded change points per node, each recorded as a `preempt` fault, `calls` every `preempt.calls` counted calls. See [how-it-works.md](how-it-works.md#strategies) |
-| `preempt.interleave` | `false` | Shorthand for `"strategy": "random"` |
+| `preempt.interleave` | `false` | Shorthand for `"strategy": "random"`. While it is `true`, `strategy` can only be `random` or `none`, and `none` still means `random`, so a profile that switches strategy sets `interleave` to `false` |
 | `preempt.depth` | `3` | `pct`: the bug depth d to look for, giving d - 1 change points per node |
 | `preempt.steps` | `1048576` | `pct`: the change points are drawn over each node's first `steps` counted calls. The trace's last `pct:` line shows how many each node ran |
 | `preempt.calls` | `4096` | `calls`: counted calls between preemptions, at most 4,194,304 |

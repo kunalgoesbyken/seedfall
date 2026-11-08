@@ -37,7 +37,7 @@ Two limits. The Go runtime on `wasip1` can switch goroutines only at a function 
 
 `random` finds shallow races quickly: a check-then-act window that any preemption opens shows up within a few seeds ([`examples/interleave`](../examples/interleave), `interleave.json`). But it preempts every goroutine every few thousand calls, so no goroutine ever runs long without being interrupted. A bug that needs one goroutine to stop inside a window while another runs a long stretch to completion is almost never hit.
 
-`pct` is probabilistic concurrency testing (Burckhardt, Kothari, Musuvathi and Nagarakatte, ASPLOS 2010), as in shuttle's `check_pct`. A run is left alone except at `depth` - 1 seeded change points; at each one the running goroutine is preempted and goes to the back of the Go run queue, and whatever runs next keeps running until it blocks. For a priority scheduler with n threads and k steps, PCT finds any bug of depth d (one that needs d ordering constraints) with probability at least 1/(n·k^(d-1)) per run. In `examples/interleave`, a checkpointer that copies a journal up to its reserved length instead of its committed length fails on 20 of seeds 1-20 with `pct` at depth 2, on 2 of 20 with `random`, and on none with `none`, because the bug needs the checkpointer to format a long header without being interrupted (`journal.json`).
+`pct` is probabilistic concurrency testing (Burckhardt, Kothari, Musuvathi and Nagarakatte, ASPLOS 2010), as in shuttle's `check_pct`. A run is left alone except at `depth` - 1 seeded change points; at each one the running goroutine is preempted and goes to the back of the Go run queue, and whatever runs next keeps running until it blocks or its time slice ends. For a priority scheduler with n threads and k steps, PCT finds any bug of depth d (one that needs d ordering constraints) with probability at least 1/(nÂ·k^(d-1)) per run. In `examples/interleave`, a checkpointer that copies a journal up to its reserved length instead of its committed length fails on 20 of seeds 1-20 with `pct` at depth 2, on 2 of 20 with `random`, and on none with `none`, because the bug needs the checkpointer to format a long header without being interrupted (`journal.json`).
 
 Every change point that fires is recorded as a `preempt` fault with its node and counted call (`op`), and the trace says so:
 
@@ -47,7 +47,13 @@ Every change point that fires is recorded as a `preempt` fault with its node and
     0.000s  pct: journal ran 271681 counted calls, change points fired: 1
 ```
 
-So replay is exact, `shrink` drops change points the failure does not need, and `seedfall faults` can move one (`-shift 1=-1000`) or remove it to test an explanation. A schedule's `preempt` faults replace the seed's own change points, and they fire only when the config's strategy is `pct`. The last trace line shows how many counted calls each node ran: set `steps` near that number, because change points drawn beyond it never fire.
+In the schedule file it is
+
+```json
+{ "at": "10ns", "kind": "preempt", "node": "journal", "until": "0s", "op": 259662 }
+```
+
+so replay is exact, `shrink` drops change points the failure does not need, and `seedfall faults` can move one (`-shift 1=-1000`) or remove it to test an explanation. A schedule's `preempt` faults replace the seed's own change points, and they fire only when the config's strategy is `pct`. The last trace line shows how many counted calls each node ran: set `steps` near that number, because change points drawn beyond it never fire.
 
 The bound is a guide for choosing `depth` and `steps`, not a guarantee seedfall gives. seedfall picks only the change points. It cannot see goroutines from the host, so it does not assign them priorities: which goroutine runs after a preemption is the Go scheduler's choice, under the seed's random source. Change points are drawn per node, k is counted in calls (and loop iterations with `loops`), and preemption takes effect at the goroutine's next function call. None of the strategies is a data race detector: they find races that change behaviour, not unsynchronized accesses that happen not to. Run your tests under `go test -race` as well.
 
