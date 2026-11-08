@@ -7,4 +7,4 @@ The server also answers `PUT`, `GET` and `DELETE /kv/{key}` and `GET /health`, w
 | Config | Result |
 |---|---|
 | `seedfall.json` | fsync before every response: passes (40 seeds tested) |
-| `seedfall.nofsync.json` | `-fsync=false`: fails on seed 1, an acknowledged write lost |
+| `-profile nofsync` | `-fsync=false`: fails on seed 1, an acknowledged write lost |

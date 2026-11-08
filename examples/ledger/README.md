@@ -5,6 +5,6 @@ A deposit ledger written with plain `net` and the [Antithesis Go SDK](https://gi
 | Config | Result |
 |---|---|
 | `seedfall.json` | passes (100 seeds tested) under crashes, torn writes and crashes mid-I/O |
-| `seedfall.nofsync.json` | `-fsync=false`: fails on seed 1, acknowledged deposits lost (`{"left":4203,"right":5608,...}`) |
+| `-profile nofsync` | `-fsync=false`: fails on seed 1, acknowledged deposits lost (`{"left":4203,"right":5608,...}`) |
 
 See [docs/antithesis.md](../../docs/antithesis.md).

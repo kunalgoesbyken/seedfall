@@ -24,11 +24,11 @@ FAIL seed 1 at t=13.104695555s (108 scheduler steps, 29.398s real)
 | Config | Result |
 |---|---|
 | `seedfall.json` | fsync before every acknowledgement: passes (120 seeds tested) |
-| `seedfall.nofsync.json` | `-fsync=false`: fails on seed 1, an acknowledged write is gone after a crash |
+| `-profile nofsync` | `-fsync=false`: fails on seed 1, an acknowledged write is gone after a crash |
 
 ```sh
 seedfall run -seeds 1-120
-seedfall replay -c seedfall.nofsync.json -seed 1
+seedfall replay -c seedfall.json -profile nofsync -seed 1
 ```
 
 The client embeds the collection with `go:embed`, because nodes only see their simulated disk. Check the same collection against a server on your machine with the Gostman command line:

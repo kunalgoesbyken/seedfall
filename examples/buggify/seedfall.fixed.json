@@ -1,6 +1,0 @@
-{
-  "nodes": [{ "name": "counter", "pkg": "./counter", "args": ["-dedupe"] }],
-  "workload": { "name": "client", "pkg": "./client" },
-  "duration": "20s",
-  "faults": { "buggify": true }
-}

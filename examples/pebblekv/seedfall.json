@@ -12,5 +12,9 @@
     "partition_per_sec": 0.2,
     "partition_for": ["50ms", "1s"],
     "strict_dirs": true
+  },
+  "profiles": {
+    "nosync": { "nodes": [{ "name": "server", "args": ["-nosync"] }] },
+    "torn": { "faults": { "crash_on_io": 0.005, "torn_writes": true } }
   }
 }

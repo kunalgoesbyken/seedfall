@@ -7,5 +7,5 @@ Every config sets `strict_dirs`. pebble's manifest marker is an empty file made 
 | Config | Result |
 |---|---|
 | `seedfall.json` | `pebble.Sync`, crashes and partitions: passes (200 seeds tested) |
-| `seedfall.torn.json` | adds torn writes and crashes mid-I/O: passes (200 seeds tested) |
-| `seedfall.nosync.json` | `pebble.NoSync`: fails on seed 1, as expected (negative control) |
+| `-profile torn` | adds torn writes and crashes mid-I/O: passes (200 seeds tested) |
+| `-profile nosync` | `pebble.NoSync`: fails on seed 1, as expected (negative control) |

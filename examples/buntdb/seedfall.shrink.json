@@ -1,16 +1,6 @@
 {
-  "nodes": [
-    { "name": "server", "pkg": "./server", "args": ["-sync", "always", "-shrink-at", "2048"] }
-  ],
-  "workload": { "name": "client", "pkg": "./client", "args": ["-writes", "400", "-keys", "40"] },
-  "duration": "60s",
-  "latency": ["1ms", "5ms"],
-  "faults": {
-    "crash_per_sec": 0.5,
-    "restart_after": ["10ms", "500ms"],
-    "partition_per_sec": 0.2,
-    "partition_for": ["50ms", "1s"],
-    "torn_writes": true,
-    "crash_on_io": 0.005
-  }
+  "extends": "seedfall.json",
+  "nodes": [{ "name": "server", "args": ["-sync", "always", "-shrink-at", "2048"] }],
+  "workload": { "args": ["-writes", "400", "-keys", "40"] },
+  "faults": { "crash_on_io": 0.005, "torn_writes": true }
 }

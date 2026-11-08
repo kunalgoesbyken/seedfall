@@ -7,5 +7,5 @@ badger is a heavy guest: a seed takes tens of seconds, so it is not part of `scr
 | Config | Result |
 |---|---|
 | `seedfall.json` | `SyncWrites: true`, crashes and partitions: passes (4 seeds tested) |
-| `seedfall.nosync.json` | `SyncWrites: false`: fails on seed 1, as expected (negative control) |
-| `seedfall.strict.json` | strict POSIX directories: fails on seed 1 after one crash. badger creates each memtable WAL (`*.mem`) without fsyncing the directory, which is the likely cause; not yet shrunk or verified with a fix |
+| `-profile nosync` | `SyncWrites: false`: fails on seed 1, as expected (negative control) |
+| `-profile strict` | strict POSIX directories: fails on seed 1 after one crash. badger creates each memtable WAL (`*.mem`) without fsyncing the directory, which is the likely cause; not yet shrunk or verified with a fix |

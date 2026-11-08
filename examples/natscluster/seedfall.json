@@ -37,5 +37,28 @@
     ],
     "torn_writes": true,
     "crash_on_io": 0.002
+  },
+  "profiles": {
+    "pause": {
+      "faults": {
+        "clock_jump_max": "5s",
+        "clock_jump_per_sec": 0.1,
+        "crash_on_io": 0,
+        "partition_for": ["50ms", "2s"],
+        "partition_per_sec": 0,
+        "pause_for": ["200ms", "3s"],
+        "pause_per_sec": 0.5
+      }
+    },
+    "r1.nosync": {
+      "faults": { "crash_on_io": 0, "crash_per_sec": 0.3, "partition_for": ["50ms", "2s"], "partition_per_sec": 0 },
+      "nodes": [
+        { "name": "n1", "args": ["-sync-always=false"] },
+        { "name": "n2", "args": ["-sync-always=false"] },
+        { "name": "n3", "args": ["-sync-always=false"] }
+      ],
+      "workload": { "args": ["-replicas", "1", "-messages", "60"] }
+    },
+    "strict": { "faults": { "strict_dirs": true } }
   }
 }

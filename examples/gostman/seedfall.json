@@ -10,5 +10,8 @@
     "torn_writes": true,
     "crash_on_io": 0.005,
     "partition_per_sec": 0.2
+  },
+  "profiles": {
+    "nofsync": { "nodes": [{ "name": "server", "args": ["-fsync=false"] }] }
   }
 }

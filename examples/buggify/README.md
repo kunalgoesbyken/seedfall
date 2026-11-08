@@ -15,15 +15,15 @@ if sim.Buggify("reply lost after apply") {
 | Config | Result |
 |---|---|
 | `seedfall.json` | `"buggify": true`: fails on seed 2 (6 of the first 20 seeds), `counter is 51 after 40 increments` |
-| `seedfall.fixed.json` | the same with `-dedupe`, which remembers applied request ids: passes 20 seeds, and the client's `Sometimes` shows the retry path ran in 6 of them |
-| `seedfall.off.json` | buggify off: no assertion fails, but the sweep fails because `an increment was retried after its reply was lost` was never true. The retry path never ran, so a green run would have proved nothing |
-| `lost-reply.faults.json` | seed 2 shrunk to one firing. It fails `seedfall.json` and passes `seedfall.fixed.json` |
+| `-profile fixed` | the same with `-dedupe`, which remembers applied request ids: passes 20 seeds, and the client's `Sometimes` shows the retry path ran in 6 of them |
+| `-profile off` | buggify off: no assertion fails, but the sweep fails because `an increment was retried after its reply was lost` was never true. The retry path never ran, so a green run would have proved nothing |
+| `lost-reply.faults.json` | seed 2 shrunk to one firing. It fails `seedfall.json` and passes `-profile fixed` |
 
 ```sh
 seedfall run    -c seedfall.json -seeds 1-20
 seedfall shrink -c seedfall.json -seed 2
 seedfall replay -c seedfall.json -seed 2 -faults lost-reply.faults.json
-seedfall run    -c seedfall.fixed.json -seeds 1-20
+seedfall run    -c seedfall.json -profile fixed -seeds 1-20
 ```
 
 After a sweep with buggify on, seedfall lists every site it found in the source with how often it was reached, enabled and fired:

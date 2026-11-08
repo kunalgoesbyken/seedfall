@@ -2,5 +2,9 @@
   "nodes": [{ "name": "counter", "pkg": "./counter" }],
   "workload": { "name": "client", "pkg": "./client" },
   "duration": "20s",
-  "faults": { "buggify": true }
+  "faults": { "buggify": true },
+  "profiles": {
+    "fixed": { "nodes": [{ "name": "counter", "args": ["-dedupe"] }] },
+    "off": { "faults": "none" }
+  }
 }

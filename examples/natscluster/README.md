@@ -5,10 +5,10 @@ A 3-node [nats-server](https://github.com/nats-io/nats-server) v2.15.2 cluster w
 | Config | Result |
 |---|---|
 | `seedfall.json` | crashes, partitions, torn writes, crashes during disk I/O: passes (200 seeds tested), with publishes interrupted in 198 of them |
-| `seedfall.pause.json` | crashes, torn writes, process pauses and wall-clock jumps: passes (100 seeds tested) |
-| `seedfall.strict.json` | adds strict POSIX directories: fails on seed 3: acknowledged messages are gone and their sequence numbers reused (`seq 1 holds "m45", but m0 was acknowledged there`). Three crashes are enough, one node at a time, never two down together (`strict.faults.json`). This is the cluster-wide consequence of the directory fsyncs missing from the file store, already described in the strict-POSIX part of the [stream checksum finding](../../docs/findings/nats-stream-meta-checksum-crash.md): a restarted node can come back without its copy of the stream, and Raft cannot survive replicas that forget acknowledged entries. The same schedule passes without strict directories, and a server with that finding's directory fixes passes it and 60 strict seeds |
-| `seedfall.r1.nosync.json` | an R1 stream without `sync_always`: fails on seed 1, the stream lost on restart. The negative control |
+| `-profile pause` | crashes, torn writes, process pauses and wall-clock jumps: passes (100 seeds tested) |
+| `-profile strict` | adds strict POSIX directories: fails on seed 3: acknowledged messages are gone and their sequence numbers reused (`seq 1 holds "m45", but m0 was acknowledged there`). Three crashes are enough, one node at a time, never two down together (`strict.faults.json`). This is the cluster-wide consequence of the directory fsyncs missing from the file store, already described in the strict-POSIX part of the [stream checksum finding](../../docs/findings/nats-stream-meta-checksum-crash.md): a restarted node can come back without its copy of the stream, and Raft cannot survive replicas that forget acknowledged entries. The same schedule passes without strict directories, and a server with that finding's directory fixes passes it and 60 strict seeds |
+| `-profile r1.nosync` | an R1 stream without `sync_always`: fails on seed 1, the stream lost on restart. The negative control |
 
 ```sh
-seedfall replay -c seedfall.strict.json -seed 3 -faults strict.faults.json
+seedfall replay -c seedfall.json -profile strict -seed 3 -faults strict.faults.json
 ```

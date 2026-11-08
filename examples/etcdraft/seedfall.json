@@ -14,5 +14,15 @@
     "partition_for": ["100ms", "2s"],
     "torn_writes": true,
     "crash_on_io": 0.002
+  },
+  "profiles": {
+    "nofsync": {
+      "nodes": [
+        { "name": "n1", "args": ["-id", "1", "-no-fsync"] },
+        { "name": "n2", "args": ["-id", "2", "-no-fsync"] },
+        { "name": "n3", "args": ["-id", "3", "-no-fsync"] }
+      ]
+    },
+    "strict": { "faults": { "strict_dirs": true } }
   }
 }

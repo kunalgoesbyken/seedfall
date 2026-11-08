@@ -1,14 +1,4 @@
 {
-  "nodes": [
-    { "name": "server", "pkg": "./server", "args": ["-sync=false", "-fsync-meta"] }
-  ],
-  "workload": { "name": "client", "pkg": "./client", "args": ["-writes", "300"] },
-  "duration": "60s",
-  "latency": ["1ms", "5ms"],
-  "faults": {
-    "crash_per_sec": 0.5,
-    "restart_after": ["10ms", "500ms"],
-    "partition_per_sec": 0.2,
-    "partition_for": ["50ms", "1s"]
-  }
+  "extends": "seedfall.json",
+  "nodes": [{ "name": "server", "args": ["-sync=false", "-fsync-meta"] }]
 }

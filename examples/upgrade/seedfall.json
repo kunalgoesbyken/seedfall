@@ -1,0 +1,22 @@
+{
+  "nodes": [
+    {
+      "name": "ledger",
+      "pkg": "./v1",
+      "upgrade_to": "./v2",
+      "disk": "image",
+      "files": { "etc/ledger.conf": "fixtures/atomic.conf" }
+    }
+  ],
+  "workload": {
+    "name": "client",
+    "pkg": "./client",
+    "files": { "expected": "image/data/ledger" }
+  },
+  "duration": "20s",
+  "faults": "durability",
+  "profiles": {
+    "nomigrate": { "nodes": [{ "name": "ledger", "files": { "etc/ledger.conf": "fixtures/none.conf" } }] },
+    "inplace": { "nodes": [{ "name": "ledger", "files": { "etc/ledger.conf": "fixtures/inplace.conf" } }] }
+  }
+}

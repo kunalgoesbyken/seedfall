@@ -33,7 +33,7 @@ Nodes cannot read files on the host, which is why the collection is embedded. Va
 ```sh
 cd examples/gostman
 seedfall run -seeds 1-120
-seedfall replay -c seedfall.nofsync.json -seed 1
+seedfall replay -c seedfall.json -profile nofsync -seed 1
 ```
 
 With fsync before every acknowledgement every seed passes. With `-fsync=false` the first seed fails once a crash drops an acknowledged write:

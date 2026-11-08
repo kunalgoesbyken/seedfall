@@ -1,18 +1,4 @@
 {
-  "nodes": [
-    { "name": "n1", "pkg": "./node" },
-    { "name": "n2", "pkg": "./node" },
-    { "name": "n3", "pkg": "./node" }
-  ],
-  "workload": { "name": "client", "pkg": "./linclient" },
-  "duration": "120s",
-  "latency": ["1ms", "8ms"],
-  "faults": {
-    "crash_per_sec": 0.15,
-    "restart_after": ["50ms", "1s"],
-    "partition_per_sec": 0.2,
-    "partition_for": ["100ms", "2s"],
-    "torn_writes": true,
-    "crash_on_io": 0.002
-  }
+  "extends": "seedfall.json",
+  "workload": { "pkg": "./linclient" }
 }

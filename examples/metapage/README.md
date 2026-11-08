@@ -7,13 +7,13 @@ Torn writes cannot break it: a crash keeps an in-order prefix of the pending wri
 | Config | Server flags | Result |
 |---|---|---|
 | `seedfall.json` | none, `torn_writes` | passes (100 seeds tested). In 93 of them recovery finds a record the slot does not commit, so the crash window is covered |
-| `seedfall.reorder.json` | none, `torn_writes` and `reorder_writes` | **fails** on seed 16: the meta slot commits a record that never reached the disk. Shrinks to 1 fault |
-| `seedfall.fixed.json` | `-sync-body` (fsync the record before writing the slot) | passes (100 seeds tested) |
+| `-profile reorder` | none, `torn_writes` and `reorder_writes` | **fails** on seed 16: the meta slot commits a record that never reached the disk. Shrinks to 1 fault |
+| `-profile fixed` | `-sync-body` (fsync the record before writing the slot) | passes (100 seeds tested) |
 
 ```sh
-seedfall run     -c seedfall.reorder.json -seeds 1-30
-seedfall shrink  -c seedfall.reorder.json -seed 16
-seedfall inspect -c seedfall.reorder.json -seed 16 -faults reorder.faults.json -node server
+seedfall run     -c seedfall.json -profile reorder -seeds 1-30
+seedfall shrink  -c seedfall.json -profile reorder -seed 16
+seedfall inspect -c seedfall.json -profile reorder -seed 16 -faults reorder.faults.json -node server
 ```
 
 ```

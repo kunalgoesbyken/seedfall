@@ -10,5 +10,12 @@
     "restart_after": ["10ms", "500ms"],
     "torn_writes": true,
     "crash_on_io": 0.01
+  },
+  "profiles": {
+    "fixed": {
+      "faults": { "reorder_writes": true },
+      "nodes": [{ "name": "server", "args": ["-dir", "data", "-sync-body"] }]
+    },
+    "reorder": { "faults": { "reorder_writes": true } }
   }
 }

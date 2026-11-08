@@ -5,5 +5,5 @@ A 3-node key-value store on [etcd-io/raft](https://github.com/etcd-io/raft) v3, 
 | Config | Result |
 |---|---|
 | `seedfall.json` | passes (100 seeds tested), linearizable, with elections, PreVote, CheckQuorum and snapshot transfer exercised |
-| `seedfall.strict.json` | passes under strict POSIX directories (100 seeds tested) |
-| `seedfall.nofsync.json` | `-no-fsync` skips the WAL fsync: fails on seed 2. The node lost its unsynced log but kept a newer snapshot, and raft panics on restart |
+| `-profile strict` | passes under strict POSIX directories (100 seeds tested) |
+| `-profile nofsync` | `-no-fsync` skips the WAL fsync: fails on seed 2. The node lost its unsynced log but kept a newer snapshot, and raft panics on restart |

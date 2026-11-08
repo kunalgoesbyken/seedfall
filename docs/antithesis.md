@@ -25,7 +25,7 @@ property       seeds reached  seeds true
 
 ok  20 seeds passed (0 hit the time horizon) in 908ms
 
-$ seedfall run -c seedfall.nofsync.json -seeds 1-20
+$ seedfall run -c seedfall.json -profile nofsync -seeds 1-20
 FAIL seed 1 at t=2.940793302s (618 scheduler steps, 336ms real)
   client#1: ledger total covers every acknowledged deposit: {"left":4203,"right":5608,"unacked":1729}
 ```

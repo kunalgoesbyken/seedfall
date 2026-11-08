@@ -1,13 +1,5 @@
 {
-  "nodes": [{ "name": "node", "pkg": "./node", "args": ["-sync-always"] }],
-  "workload": { "name": "client", "pkg": "./client" },
-  "duration": "120s",
-  "watchdog": "120s",
-  "faults": {
-    "crash_per_sec": 0.3,
-    "restart_after": ["50ms", "1s"],
-    "torn_writes": true,
-    "crash_on_io": 0.003,
-    "strict_dirs": true
-  }
+  "extends": "seedfall.json",
+  "nodes": [{ "name": "node", "args": ["-sync-always"] }],
+  "faults": { "crash_on_io": 0.003, "strict_dirs": true, "torn_writes": true }
 }

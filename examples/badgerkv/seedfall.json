@@ -11,5 +11,9 @@
     "restart_after": ["10ms", "500ms"],
     "partition_per_sec": 0.2,
     "partition_for": ["50ms", "1s"]
+  },
+  "profiles": {
+    "nosync": { "nodes": [{ "name": "server", "args": ["-sync=false"] }] },
+    "strict": { "faults": { "strict_dirs": true } }
   }
 }
