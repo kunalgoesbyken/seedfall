@@ -19,6 +19,11 @@
   <a href="https://pkg.go.dev/github.com/kunalgoesbyken/seedfall">Go reference</a>
 </p>
 
+<p align="center">
+  <a href="https://github.com/kunalgoesbyken/seedfall/actions/workflows/ci.yml"><img src="https://github.com/kunalgoesbyken/seedfall/actions/workflows/ci.yml/badge.svg" alt="ci"></a>
+  <a href="https://github.com/kunalgoesbyken/seedfall/actions/workflows/regress.yml"><img src="https://github.com/kunalgoesbyken/seedfall/actions/workflows/regress.yml/badge.svg" alt="regress"></a>
+</p>
+
 ---
 
 seedfall compiles your unmodified Go services for `wasip1`, runs a whole cluster on one simulated clock, and owns every source of nondeterminism: time, randomness, goroutine scheduling, disk and network. When an invariant breaks you get the seed, the exact fault schedule and a full trace, and `seedfall shrink` cuts the schedule down to the few faults that matter.
@@ -150,6 +155,7 @@ The [getting started guide](docs/getting-started.md) walks through finding, shri
 - **Proof of fix.** `seedfall verify` replays the failing schedules, sweeps enough fresh seeds for 95% confidence, checks determinism and mutants, and writes a Markdown proof block for the pull request. [Verify](docs/verify.md)
 - **AI-agent native.** `seedfall mcp` lets Claude Code, Cursor and other agents run, replay and shrink on their own, and prove a fix before opening a PR. [Agents](docs/agents.md)
 - **CI ready.** A GitHub Action, a `go test` helper, and `run -json` for one JSON object per seed. [CI](docs/ci.md)
+- **Tested itself.** Unit tests pin down the crash, torn-write, writeback, fsync `EIO`, `strict_dirs`, network, shrink and confidence models, and an end-to-end guest proves byte-identical replay. CI runs them with `-race` on Linux, macOS and Windows, plus staticcheck, govulncheck and CodeQL, and every example nightly. [Testing](docs/testing.md)
 - **Gostman collections as workloads.** Run the API checks you already keep in a [Gostman](https://github.com/kunalgoesbyken/gostman) collection while seedfall crashes and partitions the service behind them. [Gostman](docs/gostman.md)
 
 ## Examples
@@ -177,7 +183,7 @@ The [getting started guide](docs/getting-started.md) walks through finding, shri
 | [`examples/aikv`](examples/aikv) | Nine key-value stores written by Claude from one prompt, each under five fault profiles and two durability mutants |
 | [`examples/gostman`](examples/gostman) | A [Gostman](https://github.com/kunalgoesbyken/gostman) collection as the workload: its checks must pass after every fault window |
 
-`bash scripts/regress.sh` runs every example against its expected result.
+`bash scripts/regress.sh` runs every example against its expected result; CI runs it nightly. [Testing seedfall itself](docs/testing.md) covers the unit tests and CI.
 
 ## Limitations
 

@@ -2,7 +2,11 @@ package engine
 
 import "slices"
 
-func Shrink(r *Runner, failing Result, progress func(int)) Result {
+type Replayer interface {
+	Run(seed uint64, faults []Fault) Result
+}
+
+func Shrink(r Replayer, failing Result, progress func(int)) Result {
 	best := failing
 	for changed := true; changed; {
 		changed = false

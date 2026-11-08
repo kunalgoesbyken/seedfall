@@ -10,6 +10,7 @@ Install with `go install github.com/kunalgoesbyken/seedfall/cmd/seedfall@latest`
 - [Running Antithesis SDK code](https://raw.githubusercontent.com/kunalgoesbyken/seedfall/main/docs/antithesis.md): Code instrumented with the [Antithesis Go SDK](https://github.com/antithesishq/antithesis-sdk-go) runs under seedfall unchanged. Assertions become seedfall properties, `lifecycle.SetupComplete` becomes seedfall's setup signal, and `random.GetRandom` draws from the seed.
 - [Causality analysis](https://raw.githubusercontent.com/kunalgoesbyken/seedfall/main/docs/cause.md): `seedfall shrink` tells you which faults are *needed* for a failure. `seedfall cause` tells you *when the failure became likely*, and which event made it so.
 - [Running seedfall in CI](https://raw.githubusercontent.com/kunalgoesbyken/seedfall/main/docs/ci.md)
+- [Storage engines that need mmap or flock](https://raw.githubusercontent.com/kunalgoesbyken/seedfall/main/docs/compat.md): Some storage libraries don't build or run for `GOOS=wasip1` because they call `mmap`, `flock` or other syscalls that WASI doesn't have. With `compat_overlay`, seedfall swaps their platform files for small `wasip1` versions at build time, so you test the library you ship, unmodified:
 - [Configuration and faults](https://raw.githubusercontent.com/kunalgoesbyken/seedfall/main/docs/faults.md): A world is described in a JSON file, `seedfall.json` by default. Paths inside it are relative to the file.
 - [Getting started](https://raw.githubusercontent.com/kunalgoesbyken/seedfall/main/docs/getting-started.md): This walkthrough uses `examples/kvlog`, a small log-structured key-value server, to find a real durability bug, shrink it, fix it and prove the fix. It takes about five minutes.
 - [Use your Gostman collections as workloads](https://raw.githubusercontent.com/kunalgoesbyken/seedfall/main/docs/gostman.md): A [Gostman](https://github.com/kunalgoesbyken/gostman) collection already says what your API promises: each request carries checks such as `res.status equals 200` or `res.body equals {{value}}`. Gostman's Go `runner` package builds for `wasip1`, so a seedfall workload can load the collection and send it while seedfall crashes your service, tears its writes and partitions its network. A check that fails after the faults stop is a broken promise, reported with the request and the check, and replayable from its seed.
@@ -19,6 +20,7 @@ Install with `go install github.com/kunalgoesbyken/seedfall/cmd/seedfall@latest`
 - [Networking](https://raw.githubusercontent.com/kunalgoesbyken/seedfall/main/docs/networking.md): seedfall gives every node a simulated network: ordered byte streams with seeded latency, partitions that hold traffic until they heal, and connection resets when a peer crashes. Node names are host names, so a node named `server` is reachable at `server:7000`.
 - [Properties, linearizability and determinism](https://raw.githubusercontent.com/kunalgoesbyken/seedfall/main/docs/properties.md)
 - [Triage reports](https://raw.githubusercontent.com/kunalgoesbyken/seedfall/main/docs/reports.md)
+- [Testing seedfall itself](https://raw.githubusercontent.com/kunalgoesbyken/seedfall/main/docs/testing.md): seedfall is only useful if its own model of crashes, faults and replay is right, so that model has its own tests. This page lists what they check and how to run them.
 - [Proving a fix with `seedfall verify`](https://raw.githubusercontent.com/kunalgoesbyken/seedfall/main/docs/verify.md): `seedfall verify` is the definition of done for a change that fixes a seedfall failure, whether a person or an AI agent wrote it. It answers one question with evidence: is the failure gone, and how sure are we?
 
 ## Agent skills
@@ -32,6 +34,7 @@ Install with `go install github.com/kunalgoesbyken/seedfall/cmd/seedfall@latest`
 
 - [README](https://raw.githubusercontent.com/kunalgoesbyken/seedfall/main/README.md): bugs found, quickstart, features, examples and limitations
 - [Findings](https://seedfall-lemon.vercel.app/proof/)
+- [Open creates the database file without fsyncing its directory, so one crash can lose the whole database](https://seedfall-lemon.vercel.app/proof/bbolt-create-dir-fsync.html)
 - [AutoRecovery fails on ordinary torn tails, so Open errors out after a crash mid-Put](https://seedfall-lemon.vercel.app/proof/bitcask-autorecovery-torn-tail.html)
 - [Open rewrites config.json in place without fsync, so a crash can leave the database permanently unopenable](https://seedfall-lemon.vercel.app/proof/bitcask-config-json-torn.html)
 - [AutoRecovery renames an unsynced copy over the last datafile, so a second crash can wipe acknowledged writes](https://seedfall-lemon.vercel.app/proof/bitcask-recovered-datafile-fsync.html)

@@ -4,15 +4,34 @@ on:
     branches: [main]
   pull_request:
 jobs:
-  build:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version: stable
-      - run: go vet -stdmethods=false ./engine ./cmd/... ./seedfalltest ./sim
+      - name: gofmt
+        run: |
+          unformatted="$(gofmt -l .)"
+          [ -z "$unformatted" ] || { echo "run gofmt -w on:"; echo "$unformatted"; exit 1; }
+      - run: go vet -stdmethods=false ./...
       - run: GOOS=wasip1 GOARCH=wasm go vet ./sim
+      - run: go run honnef.co/go/tools/cmd/staticcheck@latest ./...
+      - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - run: go test -race ./...
   simulate:
     runs-on: ubuntu-latest
     strategy:

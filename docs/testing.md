@@ -1,0 +1,47 @@
+# Testing seedfall itself
+
+seedfall is only useful if its own model of crashes, faults and replay is right, so that model has its own tests. This page lists what they check and how to run them.
+
+## What the tests check
+
+| Area | Test file | What it proves |
+|---|---|---|
+| Disk durability | `engine/memfs_test.go` | Synced writes survive a crash, unsynced writes and never-synced files do not, `O_SYNC` makes every write durable, an unsynced truncate is undone |
+| Torn writes | `engine/memfs_test.go` | A torn crash keeps an in-order prefix of the pending writes, the last one possibly cut mid-way, and records the tear |
+| Out-of-order writeback | `engine/memfs_test.go` | Writes split at 4 KiB page boundaries, pages persist independently (a later page can survive without an earlier one), and writes to one page persist in order |
+| fsync `EIO` | `engine/memfs_test.go` | A failed fsync drops the pending writes while they stay readable, and a retried fsync does not bring them back |
+| File system calls | `engine/memfs_test.go` | `OpenFile` flags, `Mkdir`, `Rename`, `Unlink`, `Rmdir` and `Readdir` return the POSIX errors and results |
+| `strict_dirs` | `engine/namespace_test.go` | New entries need the parent directory fsynced to survive, a rename reverts without a directory fsync, and a torn crash recovers an in-order prefix of directory operations |
+| Fault schedules | `engine/faults_test.go` | Schedules are identical for the same seed and differ across seeds, stay inside the time horizon and in order, never crash the workload, and never plan runtime-only faults; swarm rates stay in `[0, 2 x rate)`, swarm mixes are deterministic per seed, and partition sides are never empty |
+| Shrinking | `engine/shrink_test.go` | Against a fake runner, `Shrink` keeps the original failure, ignores a different failure, and returns a 1-minimal schedule; failure matching ignores numbers only |
+| Network | `engine/net_test.go` | Messages on one connection arrive in order under random latency, reads wait for arrival, a partition holds messages until it heals, close delivers EOF after data, and a crash resets every connection |
+| Linearizability | `engine/history_test.go` | The key-value model accepts and rejects known histories, including unknown, pending and failed operations |
+| End to end | `engine/guest_test.go` | A small guest in `engine/testdata/guest` runs under crashes, partitions, torn writes, out-of-order writeback, crashes during disk operations and pauses: two runs of a seed give byte-identical traces, `-check` passes, a sweep finds the same failing seeds with 1 or 4 jobs, a failure replays exactly from its saved fault schedule, and a shrunk schedule keeps the failure, replays exactly and is 1-minimal |
+| Confidence math | `report/report_test.go` | `SeedsToConfirm` and the detectable failure rate against known values, findings moving through new, ongoing, not seen, resolved and regressed across runs, and the JSON report against a golden file |
+| Proof rendering | `verify/verify_test.go` | How many seeds a proof needs, and the text and Markdown proof blocks against golden files |
+
+`scripts/regress.sh` then runs every example against its expected pass or fail result, replays saved fault schedules, and checks that replays are identical.
+
+## Running them
+
+```sh
+go test ./...                 # everything, including the wasip1 guest build
+go test -short ./...          # skip the tests that build and run a wasip1 guest
+go test -race ./...           # what CI runs; needs cgo
+go test ./report ./verify -update   # rewrite golden files after an intended change, then review the diff
+go run honnef.co/go/tools/cmd/staticcheck@latest ./...
+go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+bash scripts/regress.sh       # every example; takes hours
+```
+
+govulncheck also reports standard library vulnerabilities, so run it with the latest Go patch release, as CI does with `go-version: stable`.
+
+## CI
+
+| Workflow | When | What |
+|---|---|---|
+| `ci.yml` | every push to `main` and every pull request | gofmt, `go vet`, staticcheck and govulncheck; `go test -race ./...` on Ubuntu, macOS and Windows; and two example sweeps through the GitHub Action with `-check` |
+| `regress.yml` | nightly, or by hand | `bash scripts/regress.sh` |
+| `codeql.yml` | every push to `main`, every pull request, weekly | CodeQL analysis of the Go code |
+
+Dependabot opens weekly updates for the root module and the GitHub Actions. The examples are left alone on purpose: each pins the library version its findings were made against.

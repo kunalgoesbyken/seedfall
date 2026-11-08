@@ -1,0 +1,113 @@
+{
+  "config": "seedfall.json",
+  "seeds": "1-100",
+  "seeds_run": 100,
+  "seeds_passed": 96,
+  "seeds_failed": 4,
+  "elapsed": "1.234s",
+  "generated": "0001-01-01T00:00:00Z",
+  "go_version": "go",
+  "faults": {
+    "crash_per_sec": 0,
+    "restart_after": [
+      "0s",
+      "0s"
+    ],
+    "partition_per_sec": 0,
+    "partition_for": [
+      "0s",
+      "0s"
+    ],
+    "torn_writes": false,
+    "reorder_writes": false,
+    "crash_on_io": 0,
+    "strict_dirs": false,
+    "fsync_eio": 0,
+    "clock_skew": "0s",
+    "swarm": false,
+    "pause_per_sec": 0,
+    "pause_for": [
+      "0s",
+      "0s"
+    ],
+    "clock_jump_per_sec": 0,
+    "clock_jump_max": "0s"
+  },
+  "findings": [
+    {
+      "key": "assert · client",
+      "failure": {
+        "class": "assert",
+        "node": "client"
+      },
+      "classification": {
+        "class": "bug"
+      },
+      "status": "new",
+      "failing_seeds": 3,
+      "rate": 0.03,
+      "rare": false,
+      "example_seeds": [
+        3,
+        9,
+        30
+      ],
+      "example": {
+        "seed": 3,
+        "at": "2s",
+        "reason": "client#1: acknowledged write lost",
+        "faults_before_failure": [
+          "      1s  crash server, restart at 1.5s"
+        ],
+        "trace_tail": [
+          "      0.000  start server#1",
+          "      2.000  FAIL  client#1: acknowledged write lost"
+        ],
+        "replay": "seedfall replay -c seedfall.json -seed 3",
+        "shrink": "seedfall shrink -c seedfall.json -seed 3"
+      }
+    },
+    {
+      "key": "crash · server",
+      "failure": {
+        "class": "crash",
+        "node": "server"
+      },
+      "classification": {
+        "class": "bug"
+      },
+      "status": "new",
+      "failing_seeds": 1,
+      "rate": 0.01,
+      "rare": false,
+      "example_seeds": [
+        4
+      ],
+      "example": {
+        "seed": 4,
+        "at": "0s",
+        "reason": "server#2 crashed: panic",
+        "faults_before_failure": null,
+        "trace_tail": null,
+        "replay": "seedfall replay -c seedfall.json -seed 4",
+        "shrink": "seedfall shrink -c seedfall.json -seed 4"
+      }
+    }
+  ],
+  "previous_findings_not_seen": null,
+  "properties": [
+    {
+      "kind": "sometimes",
+      "message": "a crash interrupted the workload",
+      "seeds_reached": 100,
+      "seeds_true": 3
+    },
+    {
+      "kind": "reachable",
+      "message": "never runs",
+      "seeds_reached": 0,
+      "seeds_true": 0,
+      "problem": "never reached"
+    }
+  ]
+}

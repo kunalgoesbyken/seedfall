@@ -23,6 +23,8 @@ func setupComplete() {}
 
 func quietFor(time.Duration) {}
 
+type Op struct{}
+
 func call(int, string, string, string) Op { return Op{} }
 
 func (o Op) Ok(string) {}

@@ -55,8 +55,6 @@ func describe(details []any) string {
 	return fmt.Sprint(details...)
 }
 
-type Op struct{ id int32 }
-
 func Put(client int, key, value string) Op { return call(client, "put", key, value) }
 
 func Get(client int, key string) Op { return call(client, "get", key, "") }

@@ -296,7 +296,54 @@ A failure reports the seed, the reason, the trace tail and the replay command. A
 
 ## Speed
 
-Runs are independent, so a sweep scales with cores: `seedfall run -j N` defaults to every CPU. Light servers take tens of milliseconds per seed; a 3-node hashicorp/raft cluster takes a few seconds. Compiled modules are cached in `.seedfall/cache`, so add that directory to your CI cache to skip compilation.
+Runs are independent, so a sweep scales with cores: `seedfall run -j N` defaults to every CPU. Light servers take tens of milliseconds per seed; a 3-node hashicorp/raft cluster takes a few seconds. Each guest is compiled once per process and every seed reuses the compiled module, so per-seed cost is booting the nodes and running them. Compiled modules are also cached in `.seedfall/cache`, one entry per set of guest binaries, and only the 8 most recently used entries are kept, so the cache stays bounded however often you rebuild. Add that directory to your CI cache to skip compilation; the first build of a large guest such as nats-server takes about a minute.
+
+
+<!-- docs/compat.md -->
+
+# Storage engines that need mmap or flock
+
+Some storage libraries don't build or run for `GOOS=wasip1` because they call `mmap`, `flock` or other syscalls that WASI doesn't have. With `compat_overlay`, seedfall swaps their platform files for small `wasip1` versions at build time, so you test the library you ship, unmodified:
+
+```json
+{ "compat_overlay": true }
+```
+
+| Library | Without `compat_overlay` | With it | Example |
+|---|---|---|---|
+| `go.etcd.io/bbolt` v1.5 | doesn't build: no `MaxMapSize` for `GOARCH=wasm`, then `bolt_unix.go` needs `syscall.Flock` and `unix.Mmap` | runs; 300 seeds pass, `NoSync` is caught, and it found a [missing directory fsync](findings/bbolt-create-dir-fsync.md) | [`examples/bboltkv`](../examples/bboltkv) |
+| `github.com/cockroachdb/pebble/v2` v2.1 | doesn't build: `vfs` has no `wasip1` file system (its generic lock file refers to an undefined `defFS`), `rawalloc` has no `maxArrayLen` for `wasm`, and prometheus/procfs v0.10 calls `syscall.Statfs` | runs; needs `strict_dirs` (see below) | [`examples/pebblekv`](../examples/pebblekv) |
+| `github.com/dgraph-io/badger/v4` v4.9 | builds, but `Open` fails: ristretto's `mmap` returns `ENOSYS` on `wasip1` | runs, with small memtable and value log sizes | [`examples/badgerkv`](../examples/badgerkv) |
+
+## What the shims do, and why crash results stay real
+
+A shim only replaces calls that WASI can't make. Every write still goes to a file, and every durability point is still a real fsync on seedfall's simulated disk, so crashes, torn writes and fsync errors behave as they do for any other code.
+
+- **Read-only `mmap`** (bbolt) becomes a heap copy of the file, re-read on every remap. bbolt writes pages with `pwrite` and syncs with `fdatasync`, never through the mapping. A `MAP_SHARED` mapping sees those writes immediately, so the shim copies each successful `pwrite` into the heap image too. The file stays the only source of truth after a crash.
+- **Writable `mmap`** (badger, through ristretto's `z` package) becomes a heap copy plus a clean copy. `msync` writes back the pages that differ and then fsyncs the file. `munmap` writes them back without an fsync, like dirty pages left in the page cache. Changes made through the mapping and never `msync`ed are lost on a crash. Real kernels may also write some of those pages back early; that outcome isn't generated.
+- **`flock` and file locks** become an in-process lock table. Each node is one process, and a crash starts a fresh process, so this matches what the lock guarantees.
+- **`madvise`, `mlock` and disk-usage queries** are no-ops or report "unsupported". They are hints that don't change what is on disk.
+
+## How it works
+
+The shims are Go files embedded in seedfall, one directory per import path under [`engine/compat`](../engine/compat). At build time seedfall runs `go list -deps` for your nodes. For each dependency package with a shim, it copies the dependency's module into `.seedfall/compat`, adds the shim files, and removes every file the shim replaces. It builds with `-modfile` pointing at a copy of your `go.mod` that has a `replace` for each copied module. Your `go.mod`, `go.sum` and module cache are not touched. (`go build -overlay` can't be used here: Go refuses overlays for files in the module cache.)
+
+Nothing is patched by text. A file is replaced when it declares something the shim declares, and then every top-level function, method, type, variable and constant it declares must be in the shim. If a new release adds a declaration to a replaced file, the build stops with an error that names it:
+
+```
+compat overlay: go.etcd.io/bbolt/bolt_unix.go declares fdatasync2, which the wasip1 shim does not provide; this version is not supported yet
+```
+
+Adding support for another library is adding a directory of `.go.txt` files.
+
+## Pebble and directory fsyncs
+
+Pebble records which manifest is current with an empty marker file. It creates the file and fsyncs the directory, but never fsyncs the empty file itself. On a real filesystem the directory fsync makes it durable. seedfall's default disk model drops every file that was never fsynced on a crash, so pebble would fail on its first restart with `database already exists and is not pristine`. Run pebble with `"strict_dirs": true`, where directory fsyncs decide which entries survive, as on a real filesystem.
+
+## Not covered
+
+- Writable `mmap` for libraries other than ristretto. Each library's `mmap` wrapper needs its own shim.
+- Libraries that need cgo, such as RocksDB bindings or `mattn/go-sqlite3`.
 
 
 <!-- docs/faults.md -->
@@ -343,7 +390,9 @@ A world is described in a JSON file, `seedfall.json` by default. Paths inside it
 | `faults_after_setup` | `false` | Suppress all faults until a node calls `sim.SetupComplete()` |
 | `supervise` | `false` | Restart a node that exits with an error, after `restart_after`. Go panics (exit code 2) still fail the run |
 | `net_overlay` | `false` | Route plain `net.Listen` / `net.Dial` through the simulated network. See [networking.md](networking.md) |
+| `compat_overlay` | `false` | Build dependencies that need `mmap` or `flock` (bbolt, pebble, badger) with `wasip1` shims. See [compat.md](compat.md) |
 | `watchdog` | `30s` | Real-time limit for one node to run without yielding. Catches busy loops and livelocks |
+| `preempt.interleave` | `false` | Preempt the running goroutine after a seeded random number of function calls, so goroutines inside a node interleave at seeded points. See [how-it-works.md](how-it-works.md#preemption) |
 
 Every node sees the environment variables `SEEDFALL=1` and `SEEDFALL_NODE=<name>`, so `sim.Enabled()` and `sim.Node()` work.
 
@@ -358,6 +407,7 @@ All faults come from the seed. Faults that depend on what the program does, such
 | `partition_per_sec` | `0` | Rate of network partitions. A partition splits all nodes, workload included, into two random sides |
 | `partition_for` | `["50ms", "2s"]` | Partition duration. Traffic across the cut is held and delivered after the heal |
 | `torn_writes` | `false` | A crash keeps a random in-order prefix of unsynced writes, possibly ending in a partial write |
+| `reorder_writes` | `false` | A crash keeps any subset of the dirty 4 KiB pages of each file, keeping writes in order within a page. This finds a commit record or header that reaches the disk before the data it points to. Combine with `torn_writes` to also tear the last write kept in each page. See [how-it-works.md](how-it-works.md#disk) |
 | `crash_on_io` | `0` | Probability that a node crashes *during* each disk operation. This is how you hit the window between a write and its fsync |
 | `fsync_eio` | `0` | Probability that a file fsync fails with `EIO`. The unsynced writes stay readable but are dropped from durable storage, and the next fsync succeeds (Linux "fsyncgate" semantics) |
 | `strict_dirs` | `false` | Directory entries survive a crash only after the parent directory is fsynced (strict POSIX) |
@@ -370,7 +420,7 @@ All faults come from the seed. Faults that depend on what the program does, such
 
 ## Choosing rates
 
-Start with crashes and torn writes, then add `crash_on_io` around `0.005`, so a few hundred disk operations per run produce one or two mid-operation crashes. Add `fsync_eio` and `strict_dirs` once the basic durability path passes. Turn on `swarm` for long CI sweeps. Use property coverage ([properties.md](properties.md)) to confirm the faults are actually reaching the code you care about.
+Start with crashes and torn writes, then add `crash_on_io` around `0.005`, so a few hundred disk operations per run produce one or two mid-operation crashes. Add `fsync_eio`, `strict_dirs` and `reorder_writes` once the basic durability path passes. Turn on `swarm` for long CI sweeps. Use property coverage ([properties.md](properties.md)) to confirm the faults are actually reaching the code you care about.
 
 ## Durations
 
@@ -466,7 +516,7 @@ The property table shows that the recovery path really ran: hundreds of seeds pr
 3. Describe the world in `seedfall.json` ([faults.md](faults.md)).
 4. Sweep locally, then in CI ([ci.md](ci.md)), and from your coding agent ([agents.md](agents.md)).
 
-Your code must build for `GOOS=wasip1`. cgo is not available, and dependencies that need `mmap` or `flock` (for example bbolt) will not compile.
+Your code must build for `GOOS=wasip1`. cgo is not available. Dependencies that need `mmap` or `flock`, such as bbolt, pebble and badger, work with `"compat_overlay": true` ([compat.md](compat.md)).
 
 
 <!-- docs/gostman.md -->
@@ -536,17 +586,23 @@ The example uses HTTP requests with assertions. Anything that needs the host, su
 
 ## One process, one clock, many nodes
 
-seedfall compiles every node with the stock Go toolchain for `GOOS=wasip1` and runs each one as its own [wazero](https://wazero.io) module instance. On `wasip1` the Go runtime is single-threaded and has no async preemption, and every source of nondeterminism reaches the outside world through three WASI calls. seedfall implements all three in the host:
+seedfall compiles every node with the stock Go toolchain for `GOOS=wasip1` and runs each one as its own [wazero](https://wazero.io) module instance. On `wasip1` the Go runtime is single-threaded and has no async preemption, and every source of nondeterminism reaches the outside world through three WASI calls. seedfall implements all three in the host, and adds a deterministic preemption point of its own (below):
 
 | WASI call | seedfall behavior |
 |---|---|
 | `random_get` | A ChaCha8 stream derived from the seed and the node's incarnation. This fixes map iteration order, `select` choice, `math/rand` and crypto randomness. |
-| `clock_time_get` | A virtual clock shared by every node. With `clock_skew`, each node's wall clock is offset by a seeded amount; the monotonic clock is never skewed. |
+| `clock_time_get` | A virtual clock shared by every node. Every read advances it by one nanosecond, so two `time.Now()` calls in a row never return the same value, as on real hardware; wall and monotonic clocks advance together. With `clock_skew` and `clock_jump`, each node's wall clock is offset by a seeded amount; the monotonic clock is never skewed. |
 | `poll_oneoff` | Parks the node until its earliest timer or its next network arrival. |
 
-A node gives up control only when all of its goroutines are blocked. The scheduler runs exactly one node at a time, picks the next one by earliest wake-up time, breaks ties with the seed, and jumps virtual time forward. Ten seconds of `time.Sleep` cost no real time.
+A node gives up control when all of its goroutines are blocked, or when it is preempted after a long run without blocking (see [Preemption](#preemption)). The scheduler runs exactly one node at a time, picks the next one by earliest wake-up time, breaks ties with the seed, and jumps virtual time forward. Ten seconds of `time.Sleep` cost no real time.
 
 There is no `linkname`, no source rewriting and no forked runtime, so new Go releases keep working.
+
+## Preemption
+
+Real Go preempts a goroutine that has run for 10ms. On `wasip1` nothing does, so a goroutine that spins without a syscall would starve every other goroutine in its node, and its node would never yield. seedfall loads each Go module with a call counter added to the start of every function. After 4,194,304 function calls without the node blocking, the counter calls back into the host, which triggers the Go runtime's own cooperative preemption path for the running goroutine (the same `stackguard0` request the runtime's `sysmon` makes on other platforms) and parks the node for 10ms of virtual time, so other nodes run too. The count is part of the execution, so preemption points are as deterministic as everything else. A loop that makes no function call at all is still not preempted.
+
+With `"preempt": {"interleave": true}`, the counter is also re-armed after a seeded random number of calls, up to 4,096, and every expiry preempts the running goroutine. Goroutines inside a node then interleave at seeded points, so a check-then-act race between goroutines shows up as an ordinary failing seed that replays exactly. See [`examples/interleave`](../examples/interleave).
 
 ## Determinism
 
@@ -560,6 +616,8 @@ Each node gets an in-memory file system mounted at `/` with an explicit durabili
 - `Sync` makes the file's pending writes durable.
 - A crash keeps only durable data. A file that was never synced disappears.
 - With `torn_writes`, a crash also keeps a random in-order prefix of the pending writes, possibly ending in a partial write.
+- With `reorder_writes`, a crash writes back dirty pages out of order, as kernel writeback does between fsyncs. Each pending write is split into 4 KiB pages. For every page the crash keeps a random in-order prefix of the writes to it, and pages are chosen independently, so a later write can be durable while an earlier write to another page is lost. Pending truncates are size changes and form their own in-order group. With `torn_writes` as well, the last write kept in each page can be partial. This is the page-cache behavior that ALICE ("All File Systems Are Not Created Equal", OSDI '14) found on ext4 `data=ordered` with delayed allocation: overwrites and appends can reach the disk after later operations, and only fsync orders them. Directory operations are not reordered: they stay journaled and in order, as on ext4 and XFS. Which pages survive is drawn from a stream keyed by the crash itself, its time or its `crash_on_io` disk operation, so shrinking away other faults does not change it.
+- `Sync` and `Datasync` behave the same: both make every pending write to the file durable, and neither makes the file's directory entry durable, which is what `strict_dirs` models.
 - With `strict_dirs`, creating, renaming or unlinking a file survives a crash only after its parent directory is fsynced. This is strict POSIX, the model used by ALICE and CrashMonkey. Without it, directory entries are durable as soon as they are made, which matches ext4 and XFS in practice.
 - With `fsync_eio`, a file `Sync` can fail with `EIO`. The unsynced writes stay readable but are dropped from durable storage, and the next `Sync` succeeds. These are Linux's post-2018 "fsyncgate" semantics.
 
@@ -590,6 +648,16 @@ See [properties.md](properties.md).
 ## Shrinking
 
 `seedfall shrink` removes faults one at a time for as long as the run still fails the same way (same class, node, property and message, ignoring numbers), so it never trades the bug for a different one. It then writes the minimal schedule to `.seedfall/seed-N.faults.json`. Faults that happen at run time, such as a crash during the N-th disk operation or an fsync EIO, are recorded with their operation index so the schedule replays exactly.
+
+## Speed
+
+Virtual time never waits on the wall clock. When every node is blocked, the scheduler jumps straight to the next timer, message or fault; the only real-time limit is the `watchdog`. Real time therefore goes to three things:
+
+- **Guest CPU.** Nodes run as wasm compiled to native code by wazero, with a check on every loop iteration so the watchdog can stop a busy loop. That check costs about a third of guest CPU and is what makes livelocks reportable instead of hanging the run. Host calls (clock, `poll_oneoff`, files, network) are a few percent.
+- **Booting nodes.** Every start and restart is a fresh module instance: wazero sets up memory and data segments, then the Go runtime and your `main` run. For nats-server this is 0.1-0.3s per start, so short seeds with many crashes are dominated by boots.
+- **Compiling, once.** Each guest is compiled once per process and shared by every seed and every node that runs the same binary. Compiled code is cached in `.seedfall/cache`, so later processes only load it. The cache keeps the 8 most recently used sets of binaries and deletes older ones, so rebuilding a guest many times does not fill the disk.
+
+A busy 3-node NATS JetStream cluster under crashes and partitions simulates about 2.5-3x faster than real time; a JetStream node that mostly waits on its client about 7x. Seeds are independent, so `seedfall run -j N` runs N at once.
 
 
 <!-- docs/inspect.md -->
@@ -653,9 +721,11 @@ Each file has its live size (what the program reads now) and its durable size (w
 
 A `^ torn by the crash at t=...` line under a file says the last crash kept only part of one write: how many bytes of it, and at which offset. Those partial bytes are now durable and are what recovery code has to cope with.
 
+With `reorder_writes`, a `^ the crash at t=... wrote back pages out of order` line lists the writes that were pending at the last crash, numbered in program order, and says which of them reached the disk: `kept`, `lost`, or `partial` when only some of its pages did. A later write marked `kept` above an earlier one marked `lost` is the reordering your recovery code has to survive. The same list is in `last_writeback` in the MCP inspect output.
+
 With `strict_dirs`, a file that was unlinked or renamed away while its parent directory was not fsynced is listed separately as an entry that a crash brings back. Renaming a temporary file over an existing one without fsyncing the directory shows up as the new name `NOT DURABLE` and the old content coming back.
 
-The durable image is the disk a crash would leave without `torn_writes`. With `torn_writes`, a crash can also keep an in-order prefix of the pending writes and, with `strict_dirs`, of the pending directory operations.
+The durable image is the disk a crash would leave without `torn_writes` or `reorder_writes`. With `torn_writes`, a crash can also keep an in-order prefix of the pending writes and, with `strict_dirs`, of the pending directory operations. With `reorder_writes`, it can keep any subset of the dirty pages.
 
 ## Examples
 
@@ -974,6 +1044,57 @@ Keep `.seedfall/history.jsonl` between CI runs (cache or commit it) to get this 
 ## Properties and fault profile
 
 The report also lists every property with how many seeds reached it and how many saw it true, flagging properties that were never reached or never true, and the fault profile the sweep ran with.
+
+
+<!-- docs/testing.md -->
+
+# Testing seedfall itself
+
+seedfall is only useful if its own model of crashes, faults and replay is right, so that model has its own tests. This page lists what they check and how to run them.
+
+## What the tests check
+
+| Area | Test file | What it proves |
+|---|---|---|
+| Disk durability | `engine/memfs_test.go` | Synced writes survive a crash, unsynced writes and never-synced files do not, `O_SYNC` makes every write durable, an unsynced truncate is undone |
+| Torn writes | `engine/memfs_test.go` | A torn crash keeps an in-order prefix of the pending writes, the last one possibly cut mid-way, and records the tear |
+| Out-of-order writeback | `engine/memfs_test.go` | Writes split at 4 KiB page boundaries, pages persist independently (a later page can survive without an earlier one), and writes to one page persist in order |
+| fsync `EIO` | `engine/memfs_test.go` | A failed fsync drops the pending writes while they stay readable, and a retried fsync does not bring them back |
+| File system calls | `engine/memfs_test.go` | `OpenFile` flags, `Mkdir`, `Rename`, `Unlink`, `Rmdir` and `Readdir` return the POSIX errors and results |
+| `strict_dirs` | `engine/namespace_test.go` | New entries need the parent directory fsynced to survive, a rename reverts without a directory fsync, and a torn crash recovers an in-order prefix of directory operations |
+| Fault schedules | `engine/faults_test.go` | Schedules are identical for the same seed and differ across seeds, stay inside the time horizon and in order, never crash the workload, and never plan runtime-only faults; swarm rates stay in `[0, 2 x rate)`, swarm mixes are deterministic per seed, and partition sides are never empty |
+| Shrinking | `engine/shrink_test.go` | Against a fake runner, `Shrink` keeps the original failure, ignores a different failure, and returns a 1-minimal schedule; failure matching ignores numbers only |
+| Network | `engine/net_test.go` | Messages on one connection arrive in order under random latency, reads wait for arrival, a partition holds messages until it heals, close delivers EOF after data, and a crash resets every connection |
+| Linearizability | `engine/history_test.go` | The key-value model accepts and rejects known histories, including unknown, pending and failed operations |
+| End to end | `engine/guest_test.go` | A small guest in `engine/testdata/guest` runs under crashes, partitions, torn writes, out-of-order writeback, crashes during disk operations and pauses: two runs of a seed give byte-identical traces, `-check` passes, a sweep finds the same failing seeds with 1 or 4 jobs, a failure replays exactly from its saved fault schedule, and a shrunk schedule keeps the failure, replays exactly and is 1-minimal |
+| Confidence math | `report/report_test.go` | `SeedsToConfirm` and the detectable failure rate against known values, findings moving through new, ongoing, not seen, resolved and regressed across runs, and the JSON report against a golden file |
+| Proof rendering | `verify/verify_test.go` | How many seeds a proof needs, and the text and Markdown proof blocks against golden files |
+
+`scripts/regress.sh` then runs every example against its expected pass or fail result, replays saved fault schedules, and checks that replays are identical.
+
+## Running them
+
+```sh
+go test ./...                 # everything, including the wasip1 guest build
+go test -short ./...          # skip the tests that build and run a wasip1 guest
+go test -race ./...           # what CI runs; needs cgo
+go test ./report ./verify -update   # rewrite golden files after an intended change, then review the diff
+go run honnef.co/go/tools/cmd/staticcheck@latest ./...
+go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+bash scripts/regress.sh       # every example; takes hours
+```
+
+govulncheck also reports standard library vulnerabilities, so run it with the latest Go patch release, as CI does with `go-version: stable`.
+
+## CI
+
+| Workflow | When | What |
+|---|---|---|
+| `ci.yml` | every push to `main` and every pull request | gofmt, `go vet`, staticcheck and govulncheck; `go test -race ./...` on Ubuntu, macOS and Windows; and two example sweeps through the GitHub Action with `-check` |
+| `regress.yml` | nightly, or by hand | `bash scripts/regress.sh` |
+| `codeql.yml` | every push to `main`, every pull request, weekly | CodeQL analysis of the Go code |
+
+Dependabot opens weekly updates for the root module and the GitHub Actions. The examples are left alone on purpose: each pins the library version its findings were made against.
 
 
 <!-- docs/verify.md -->

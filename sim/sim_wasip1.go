@@ -194,6 +194,8 @@ func hostHistoryCall(p unsafe.Pointer, n uint32) int32
 //go:wasmimport seedfall history_return
 func hostHistoryReturn(id int32, p unsafe.Pointer, n uint32, outcome int32)
 
+type Op struct{ id int32 }
+
 func call(client int, kind, key, value string) Op {
 	b, _ := json.Marshal(map[string]any{"client": client, "kind": kind, "key": key, "value": value})
 	return Op{id: hostHistoryCall(bytesPtr(b), uint32(len(b)))}
