@@ -2,6 +2,7 @@ package engine
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -31,8 +32,11 @@ type value struct {
 
 func decode(k kind, raw json.RawMessage) (value, error) {
 	var v value
-	if k == none || len(raw) == 0 {
+	if k == none {
 		return v, nil
+	}
+	if len(raw) == 0 {
+		return v, errMissingValue
 	}
 	targets := map[kind]any{text: &v.S, pair: &v.Pair, list: &v.L, set: &v.L, number: &v.N, flag: &v.B}
 	if err := json.Unmarshal(raw, targets[k]); err != nil {
@@ -63,6 +67,8 @@ func show(k kind, v value) string {
 	}
 	return "ok"
 }
+
+var errMissingValue = errors.New("value is missing or could not be encoded as JSON")
 
 type operation struct {
 	in, out kind

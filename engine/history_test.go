@@ -154,6 +154,13 @@ func TestHistoryRejectsMalformedCalls(t *testing.T) {
 	if err := q.complete(5, id, []byte(`["a"]`), outcomeOk); err == nil {
 		t.Fatal("a dequeue that returned a list was accepted")
 	}
+	id, _ = q.call(0, []byte(`{"f":"dequeue","key":"x"}`), "client#1")
+	if err := q.complete(5, id, nil, outcomeOk); err == nil {
+		t.Fatal("a dequeue whose output could not be encoded was accepted")
+	}
+	if _, err := q.call(0, []byte(`{"f":"enqueue","key":"x"}`), "client#1"); err == nil {
+		t.Fatal("an enqueue without a value was accepted")
+	}
 	id, _ = h.call(0, []byte(`{"client":1,"f":"put","key":"x","value":"1"}`), "client#1")
 	h.complete(5, id, nil, outcomeOk)
 	h.complete(9, id, nil, outcomeFailed)

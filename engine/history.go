@@ -136,18 +136,18 @@ func (c HistoryCheck) Visualize(w io.Writer) error {
 	return porcupine.Visualize(*c.timeline, c.info, w)
 }
 
-func (c HistoryCheck) transactional() bool { return c.timeline == nil }
+func (c HistoryCheck) HasTimeline() bool { return c.timeline != nil }
 
 func (c HistoryCheck) Summary() string {
 	verdict := map[bool]string{true: "ok", false: "VIOLATION"}[c.Ok]
-	if c.transactional() {
+	if !c.HasTimeline() {
 		return fmt.Sprintf("%d transactions for serializability (model %s): %s", c.Count, c.Model, verdict)
 	}
 	return fmt.Sprintf("%d operations for linearizability (model %s): %s", c.Count, c.Model, verdict)
 }
 
 func (c HistoryCheck) failure() (Failure, string) {
-	if c.transactional() {
+	if !c.HasTimeline() {
 		kinds := make([]string, len(c.Anomalies))
 		for i, a := range c.Anomalies {
 			kinds[i] = a.Kind

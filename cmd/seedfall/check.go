@@ -26,8 +26,10 @@ func saveHistory(res engine.Result) historyFiles {
 	if writeFile(base+".jsonl", func(w io.Writer) error { return engine.WriteHistory(w, res.History.Ops) }) == nil {
 		out.History = base + ".jsonl"
 	}
-	if res.History.Checked && !res.History.Ok && writeFile(base+".html", res.History.Visualize) == nil {
+	if res.History.Checked && !res.History.Ok && res.History.HasTimeline() && writeFile(base+".html", res.History.Visualize) == nil {
 		out.Timeline = base + ".html"
+	} else {
+		os.Remove(base + ".html")
 	}
 	return out
 }
@@ -85,7 +87,7 @@ func checkFile(path, model, timeline string) (checkView, error) {
 	if timeline == "" {
 		timeline = strings.TrimSuffix(path, filepath.Ext(path)) + ".html"
 	}
-	if !res.Ok && writeFile(timeline, res.Visualize) == nil {
+	if !res.Ok && res.HasTimeline() && writeFile(timeline, res.Visualize) == nil {
 		out.Timeline = timeline
 	}
 	return out, nil

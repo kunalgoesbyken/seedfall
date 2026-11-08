@@ -207,7 +207,7 @@ if err != nil {
 }
 ```
 
-`Ok` takes the same micro-ops back, with every read's `Value` set to the list it returned (a `[]string`). Appended values must be unique per key. seedfall takes each key's version order from its longest read, builds write-write, write-read and read-write edges between transactions, finds the strongly connected components with Tarjan's algorithm, and searches them for the shortest cycle of each kind:
+`Ok` takes the same micro-ops back, with every read's `Value` set to the list it returned (a `[]string`). Appended values must be unique per key. seedfall takes each key's version order from its longest read, builds write-write, write-read and read-write edges between transactions, finds the strongly connected components with Tarjan's algorithm, and searches them breadth-first for one short cycle of each kind:
 
 | Anomaly | Meaning |
 |---|---|
