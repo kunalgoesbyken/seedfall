@@ -1,0 +1,5 @@
+package common
+
+const MaxMapSize = 0x7FFFFFFF
+
+const MaxAllocSize = 0x7FFFFFFF

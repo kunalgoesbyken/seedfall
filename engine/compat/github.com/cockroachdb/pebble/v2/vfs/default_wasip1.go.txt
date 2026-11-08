@@ -1,0 +1,81 @@
+//go:build wasip1
+
+package vfs
+
+import (
+	"io"
+	"io/fs"
+	"os"
+	"sync"
+	"syscall"
+
+	"github.com/cockroachdb/errors"
+)
+
+type defFS = defaultFS
+
+var errNotEmpty = syscall.ENOTEMPTY
+
+var seedfallLocks sync.Map
+
+type seedfallLock struct {
+	name string
+	f    *os.File
+}
+
+func (l seedfallLock) Close() error {
+	seedfallLocks.Delete(l.name)
+	return l.f.Close()
+}
+
+func (defFS) Lock(name string) (io.Closer, error) {
+	f, err := os.Create(name)
+	if err != nil {
+		return nil, err
+	}
+	if _, held := seedfallLocks.LoadOrStore(name, true); held {
+		f.Close()
+		return nil, errors.New("lock held by current process")
+	}
+	return seedfallLock{name, f}, nil
+}
+
+func (defaultFS) GetDiskUsage(path string) (DiskUsage, error) {
+	return DiskUsage{}, ErrUnsupported
+}
+
+func wrapOSFileImpl(f *os.File) File {
+	return &wasipFile{f}
+}
+
+func (defaultFS) OpenDir(name string) (File, error) {
+	f, err := os.Open(name)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return &wasipFile{f}, nil
+}
+
+type wasipFile struct {
+	*os.File
+}
+
+func (f *wasipFile) Stat() (FileInfo, error)                 { return maybeWrapFileInfo(f.File.Stat()) }
+func (*wasipFile) Prefetch(offset int64, length int64) error { return nil }
+func (*wasipFile) Preallocate(offset, length int64) error    { return nil }
+func (f *wasipFile) SyncData() error                         { return f.Sync() }
+
+func (f *wasipFile) SyncTo(int64) (fullSync bool, err error) {
+	if err = f.Sync(); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func deviceIDFromFileInfo(finfo fs.FileInfo) DeviceID {
+	st, ok := finfo.Sys().(*syscall.Stat_t)
+	if !ok {
+		return DeviceID{}
+	}
+	return DeviceID{major: uint32(st.Dev >> 32), minor: uint32(st.Dev)}
+}

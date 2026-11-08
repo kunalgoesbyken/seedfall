@@ -1,0 +1,16 @@
+{
+  "nodes": [
+    { "name": "server", "pkg": "./server", "args": ["-sync-dir=false"] }
+  ],
+  "workload": { "name": "client", "pkg": "./client", "args": ["-writes", "300"] },
+  "duration": "60s",
+  "latency": ["1ms", "5ms"],
+  "compat_overlay": true,
+  "faults": {
+    "crash_per_sec": 0.5,
+    "restart_after": ["10ms", "500ms"],
+    "partition_per_sec": 0.2,
+    "partition_for": ["50ms", "1s"],
+    "strict_dirs": true
+  }
+}

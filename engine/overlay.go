@@ -88,12 +88,22 @@ func writeFile(path, content string) (string, error) {
 }
 
 func buildFlags(cfg *Config) ([]string, error) {
-	if !cfg.NetOverlay {
-		return nil, nil
+	var flags []string
+	if cfg.CompatOverlay {
+		modfile, err := writeCompatModule(cfg)
+		if err != nil {
+			return nil, err
+		}
+		if modfile != "" {
+			flags = append(flags, "-modfile", modfile)
+		}
 	}
-	overlay, err := writeNetOverlay(cfg.Dir)
-	if err != nil {
-		return nil, err
+	if cfg.NetOverlay {
+		overlay, err := writeNetOverlay(cfg.Dir)
+		if err != nil {
+			return nil, err
+		}
+		flags = append(flags, "-overlay", overlay)
 	}
-	return []string{"-overlay", overlay}, nil
+	return flags, nil
 }

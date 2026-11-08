@@ -1,0 +1,88 @@
+//go:build wasip1
+
+package bbolt
+
+import (
+	"io"
+	"sync"
+	"time"
+	"unsafe"
+
+	"go.etcd.io/bbolt/errors"
+	"go.etcd.io/bbolt/internal/common"
+)
+
+var (
+	seedfallLocksMu sync.Mutex
+	seedfallLocks   = map[string]int{}
+)
+
+func seedfallTryLock(path string, exclusive bool) bool {
+	seedfallLocksMu.Lock()
+	defer seedfallLocksMu.Unlock()
+	held := seedfallLocks[path]
+	if held < 0 || (exclusive && held > 0) {
+		return false
+	}
+	if exclusive {
+		seedfallLocks[path] = -1
+	} else {
+		seedfallLocks[path] = held + 1
+	}
+	return true
+}
+
+func flock(db *DB, exclusive bool, timeout time.Duration) error {
+	start := time.Now()
+	for !seedfallTryLock(db.path, exclusive) {
+		if timeout != 0 && time.Since(start) > timeout-flockRetryTimeout {
+			return errors.ErrTimeout
+		}
+		time.Sleep(flockRetryTimeout)
+	}
+	return nil
+}
+
+func funlock(db *DB) error {
+	seedfallLocksMu.Lock()
+	defer seedfallLocksMu.Unlock()
+	if seedfallLocks[db.path] > 1 {
+		seedfallLocks[db.path]--
+	} else {
+		delete(seedfallLocks, db.path)
+	}
+	return nil
+}
+
+func mmap(db *DB, sz int) error {
+	b := make([]byte, sz)
+	if _, err := db.file.ReadAt(b, 0); err != nil && err != io.EOF {
+		return err
+	}
+	db.ops.writeAt = func(p []byte, off int64) (int, error) {
+		n, err := db.file.WriteAt(p, off)
+		if off < int64(len(db.dataref)) {
+			copy(db.dataref[off:], p[:n])
+		}
+		return n, err
+	}
+	db.dataref = b
+	db.data = (*[common.MaxMapSize]byte)(unsafe.Pointer(&b[0]))
+	db.datasz = sz
+	return nil
+}
+
+func munmap(db *DB) error {
+	db.dataref = nil
+	db.data = nil
+	db.datasz = 0
+	return nil
+}
+
+func mlock(db *DB, fileSize int) error {
+	return nil
+}
+
+func munlock(db *DB, fileSize int) error {
+	return nil
+}
