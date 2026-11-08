@@ -1,0 +1,19 @@
+{
+  "nodes": [{ "name": "server", "pkg": "./server", "args": ["-api", "net"] }],
+  "workload": { "name": "client", "pkg": "./client", "args": ["-api", "net"] },
+  "duration": "30s",
+  "net_overlay": true,
+  "faults": {
+    "udp_loss": 0.1,
+    "udp_dup": 0.1,
+    "partition_per_sec": 0.3,
+    "partition_for": ["50ms", "500ms"]
+  },
+  "profiles": {
+    "sim": {
+      "net_overlay": false,
+      "nodes": [{ "name": "server", "args": ["-api", "sim"] }],
+      "workload": { "args": ["-api", "sim"] }
+    }
+  }
+}

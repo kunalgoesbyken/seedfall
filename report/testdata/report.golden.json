@@ -62,6 +62,8 @@
     "misdirected_write": 0,
     "corrupt_on_crash": false,
     "bitrot_per_sec": 0,
+    "udp_loss": 0,
+    "udp_dup": 0,
     "disk_latency": [
       "0s",
       "0s"

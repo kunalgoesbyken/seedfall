@@ -25,6 +25,18 @@ func hostDial(addr unsafe.Pointer, n uint32) int32
 //go:wasmimport seedfall net_bind
 func hostBind(fd, id int32)
 
+//go:wasmimport seedfall net_addr
+func hostAddr(fd, peer int32, p unsafe.Pointer, n uint32) int32
+
+//go:wasmimport seedfall net_udp
+func hostUDP(addr unsafe.Pointer, n uint32) int32
+
+//go:wasmimport seedfall net_sendto
+func hostSendTo(fd int32, ap unsafe.Pointer, an uint32, dp unsafe.Pointer, dn uint32) int32
+
+//go:wasmimport seedfall net_recvfrom
+func hostRecvFrom(fd int32, dp unsafe.Pointer, dn uint32, ap unsafe.Pointer, acap uint32, alen unsafe.Pointer) int32
+
 //go:wasmimport seedfall fail
 func hostFail(p unsafe.Pointer, n uint32)
 
@@ -32,6 +44,7 @@ const (
 	codeAgain   = -1
 	codeRefused = -4
 	codeInUse   = -5
+	addrMax     = 256
 )
 
 func bytesPtr(b []byte) unsafe.Pointer {
@@ -133,6 +146,20 @@ type addr string
 func (a addr) Network() string { return "sim" }
 func (a addr) String() string  { return string(a) }
 
+func endpointAddr(f *os.File, peer int32) addr {
+	raw, err := f.SyscallConn()
+	if err != nil {
+		return ""
+	}
+	var buf [addrMax]byte
+	var n int32
+	raw.Control(func(fd uintptr) { n = hostAddr(int32(fd), peer, unsafe.Pointer(&buf[0]), addrMax) })
+	if n <= 0 {
+		return ""
+	}
+	return addr(buf[:n])
+}
+
 func Listen(network, address string) (net.Listener, error) {
 	id := hostString(hostListen, address)
 	if id < 0 {
@@ -142,8 +169,19 @@ func Listen(network, address string) (net.Listener, error) {
 	if err != nil {
 		return nil, err
 	}
-	_, port, _ := net.SplitHostPort(address)
-	return &listener{f: f, id: id, addr: addr(net.JoinHostPort(Node(), port))}, nil
+	return &listener{f: f, id: id, addr: endpointAddr(f, 0)}, nil
+}
+
+func ListenPacket(network, address string) (net.PacketConn, error) {
+	id := hostString(hostUDP, address)
+	if id < 0 {
+		return nil, &net.OpError{Op: "listen", Net: network, Err: codeErr(id)}
+	}
+	f, err := open(id)
+	if err != nil {
+		return nil, err
+	}
+	return &packetConn{f: f, local: endpointAddr(f, 0)}, nil
 }
 
 func Dial(network, address string) (net.Conn, error) {
@@ -155,7 +193,7 @@ func Dial(network, address string) (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &conn{f: f, local: addr(Node()), remote: addr(address)}, nil
+	return &conn{f: f, local: endpointAddr(f, 0), remote: endpointAddr(f, 1)}, nil
 }
 
 type listener struct {
@@ -181,7 +219,7 @@ func (l *listener) Accept() (net.Conn, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &conn{f: f, local: l.addr, remote: addr("peer")}, nil
+		return &conn{f: f, local: l.addr, remote: endpointAddr(f, 1)}, nil
 	}
 }
 
@@ -213,12 +251,78 @@ func (c *conn) Write(p []byte) (int, error) {
 	return n, closedErr(err)
 }
 
+func (c *conn) shutdown(how int) error {
+	raw, err := c.f.SyscallConn()
+	if err != nil {
+		return err
+	}
+	var failed error
+	if err := raw.Control(func(fd uintptr) { failed = syscall.Shutdown(int(fd), how) }); err != nil {
+		return closedErr(err)
+	}
+	return failed
+}
+
+func (c *conn) CloseRead() error                   { return c.shutdown(syscall.SHUT_RD) }
+func (c *conn) CloseWrite() error                  { return c.shutdown(syscall.SHUT_WR) }
 func (c *conn) Close() error                       { return c.f.Close() }
 func (c *conn) LocalAddr() net.Addr                { return c.local }
 func (c *conn) RemoteAddr() net.Addr               { return c.remote }
 func (c *conn) SetDeadline(t time.Time) error      { return c.f.SetDeadline(t) }
 func (c *conn) SetReadDeadline(t time.Time) error  { return c.f.SetReadDeadline(t) }
 func (c *conn) SetWriteDeadline(t time.Time) error { return c.f.SetWriteDeadline(t) }
+
+type packetConn struct {
+	f     *os.File
+	local addr
+}
+
+func (c *packetConn) ReadFrom(p []byte) (int, net.Addr, error) {
+	raw, err := c.f.SyscallConn()
+	if err != nil {
+		return 0, nil, err
+	}
+	var from [addrMax]byte
+	var n int32
+	var alen uint32
+	err = raw.Read(func(fd uintptr) bool {
+		n = hostRecvFrom(int32(fd), bytesPtr(p), uint32(len(p)), unsafe.Pointer(&from[0]), addrMax, unsafe.Pointer(&alen))
+		return n != codeAgain
+	})
+	if err != nil {
+		return 0, nil, closedErr(err)
+	}
+	if n < 0 {
+		return 0, nil, codeErr(n)
+	}
+	return int(n), addr(from[:alen]), nil
+}
+
+func (c *packetConn) WriteTo(p []byte, to net.Addr) (int, error) {
+	raw, err := c.f.SyscallConn()
+	if err != nil {
+		return 0, err
+	}
+	dest := []byte(to.String())
+	var n int32
+	err = raw.Write(func(fd uintptr) bool {
+		n = hostSendTo(int32(fd), bytesPtr(dest), uint32(len(dest)), bytesPtr(p), uint32(len(p)))
+		return true
+	})
+	if err != nil {
+		return 0, closedErr(err)
+	}
+	if n < 0 {
+		return 0, codeErr(n)
+	}
+	return int(n), nil
+}
+
+func (c *packetConn) Close() error                       { return c.f.Close() }
+func (c *packetConn) LocalAddr() net.Addr                { return c.local }
+func (c *packetConn) SetDeadline(t time.Time) error      { return c.f.SetDeadline(t) }
+func (c *packetConn) SetReadDeadline(t time.Time) error  { return c.f.SetReadDeadline(t) }
+func (c *packetConn) SetWriteDeadline(t time.Time) error { return c.f.SetWriteDeadline(t) }
 
 //go:wasmimport seedfall history_call
 func hostHistoryCall(p unsafe.Pointer, n uint32) int32

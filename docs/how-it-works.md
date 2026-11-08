@@ -80,7 +80,7 @@ See [faults.md](faults.md) for every fault type.
 
 ## Network
 
-Connections are ordered byte streams with seeded per-chunk latency. Partitions and `stop` or `jam` clogs hold traffic until they heal, `slow` clogs and slow nodes add latency, and a crashed node's connections are reset, as are a live node's when a `net_reset` fault fires. Every fault is a rule on one direction of a link, so one-way partitions fall out of the same code. Every connection is a virtual file registered with Go's own network poller, so blocking reads, deadlines and `Accept` behave exactly like `net`, and nothing polls. See [networking.md](networking.md).
+UDP sockets are queues of datagrams with their own seeded latency, sorted by arrival, so they reorder; a held link drops them rather than holding them, and `udp_loss` and `udp_dup` choices are recorded per sender datagram so they replay and shrink like the disk faults. Connections are ordered byte streams with seeded per-chunk latency. Partitions and `stop` or `jam` clogs hold traffic until they heal, `slow` clogs and slow nodes add latency, and a crashed node's connections are reset, as are a live node's when a `net_reset` fault fires. Every fault is a rule on one direction of a link, so one-way partitions fall out of the same code. Every connection is a virtual file registered with Go's own network poller, so blocking reads, deadlines and `Accept` behave exactly like `net`, and nothing polls. See [networking.md](networking.md).
 
 ## Crashes and restarts
 

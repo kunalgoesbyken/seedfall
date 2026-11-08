@@ -8,10 +8,11 @@ import (
 )
 
 const (
-	MessageConnect = "connect"
-	MessageData    = "data"
-	MessageEOF     = "eof"
-	MessageReset   = "reset"
+	MessageConnect  = "connect"
+	MessageData     = "data"
+	MessageEOF      = "eof"
+	MessageReset    = "reset"
+	MessageDatagram = "datagram"
 
 	MarkEvent    = "event"
 	MarkProperty = "property"
@@ -35,6 +36,7 @@ type Message struct {
 	Read         time.Duration `json:"read"`
 	Held         bool          `json:"held,omitempty"`
 	Duplicate    bool          `json:"duplicate,omitempty"`
+	Lost         string        `json:"lost,omitempty"`
 }
 
 func (m Message) Delivered() bool { return m.Read >= 0 }

@@ -271,3 +271,13 @@ func TestDebugNetListsDataSentBeforeAccept(t *testing.T) {
 	}
 	t.Fatal("no data sent before its connection was accepted was listed in flight")
 }
+
+func TestDatagramLabels(t *testing.T) {
+	m := Message{Conn: 7, Kind: MessageDatagram, Bytes: 12, Sent: time.Millisecond, Read: unread, Lost: lostFault}
+	if got := m.label(); !strings.Contains(got, "udp 7 datagram 12 bytes") || !strings.Contains(got, "lost, "+lostFault) {
+		t.Fatalf("label %q", got)
+	}
+	if m.arrow() != "-x" {
+		t.Fatalf("arrow %q, want -x for a lost datagram", m.arrow())
+	}
+}

@@ -63,6 +63,11 @@ func (c *Config) validateNetwork(names map[string]bool) error {
 			return fmt.Errorf("config: partition topology %q needs at least %d nodes that take faults, workload included", t, minNodes[t])
 		}
 	}
+	for _, r := range []ratedFault{{"udp_loss", f.UDPLoss}, {"udp_dup", f.UDPDup}} {
+		if r.rate < 0 || r.rate > 1 {
+			return fmt.Errorf("config: faults.%s must be between 0 and 1, got %g", r.kind, r.rate)
+		}
+	}
 	if f.ClogPerSec > 0 && len(f.ClogModes) == 0 {
 		return errors.New("config: faults.clog_modes is empty")
 	}

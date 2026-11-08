@@ -80,6 +80,8 @@ type FaultSpec struct {
 	MisdirectedWrite    float64  `json:"misdirected_write"`
 	CorruptOnCrash      bool     `json:"corrupt_on_crash"`
 	BitrotPerSec        float64  `json:"bitrot_per_sec"`
+	UDPLoss             float64  `json:"udp_loss"`
+	UDPDup              float64  `json:"udp_dup"`
 	DiskLatency         Range    `json:"disk_latency"`
 	IncludeWorkload     bool     `json:"include_workload"`
 }

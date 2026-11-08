@@ -17,12 +17,19 @@ type patch struct {
 	file, anchor, replacement string
 }
 
-const acceptAnchor = "func (fd *netFD) accept() (netfd *netFD, err error) {\n"
+const (
+	acceptAnchor      = "func (fd *netFD) accept() (netfd *netFD, err error) {\n"
+	readBufferAnchor  = "func setReadBuffer(fd *netFD, bytes int) error {\n"
+	writeBufferAnchor = "func setWriteBuffer(fd *netFD, bytes int) error {\n"
+	ignoreBufferSize  = "\tif fd.fakeNetFD == nil {\n\t\treturn nil\n\t}\n"
+)
 
 var netPatches = []patch{
 	{file: "net_fake.go", anchor: "\nfunc socket(", replacement: "\nfunc fakeSocket("},
 	{file: "fd_fake.go", anchor: acceptAnchor, replacement: acceptAnchor +
 		"\tif lid, ok := seedfallListeners.Load(fd); ok {\n\t\treturn seedfallAccept(fd, lid.(int32))\n\t}\n"},
+	{file: "sockopt_fake.go", anchor: readBufferAnchor, replacement: readBufferAnchor + ignoreBufferSize},
+	{file: "sockopt_fake.go", anchor: writeBufferAnchor, replacement: writeBufferAnchor + ignoreBufferSize},
 }
 
 func applyPatch(src string, p patch) (string, error) {
@@ -57,18 +64,23 @@ func writeNetOverlay(dir string) (string, error) {
 	if err := os.MkdirAll(out, 0o755); err != nil {
 		return "", err
 	}
-	replace := map[string]string{}
+	patched := map[string]string{}
 	for _, p := range netPatches {
-		src := filepath.Join(netDir, p.file)
-		b, err := os.ReadFile(src)
-		if err != nil {
-			return "", fmt.Errorf("net overlay: %w", err)
+		text, ok := patched[p.file]
+		if !ok {
+			b, err := os.ReadFile(filepath.Join(netDir, p.file))
+			if err != nil {
+				return "", fmt.Errorf("net overlay: %w", err)
+			}
+			text = string(b)
 		}
-		patched, err := applyPatch(string(b), p)
-		if err != nil {
+		if patched[p.file], err = applyPatch(text, p); err != nil {
 			return "", err
 		}
-		if replace[src], err = writeFile(filepath.Join(out, p.file), patched); err != nil {
+	}
+	replace := map[string]string{}
+	for _, file := range sortedKeys(patched) {
+		if replace[filepath.Join(netDir, file)], err = writeFile(filepath.Join(out, file), patched[file]); err != nil {
 			return "", err
 		}
 	}

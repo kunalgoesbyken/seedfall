@@ -47,6 +47,7 @@ type node struct {
 	slowFactor float64
 	monoShift  int64
 	calls      int64
+	datagrams  int64
 	changes    []int64
 	fired      int
 }
@@ -103,6 +104,7 @@ type world struct {
 	steps       int
 	explicit    bool
 	ioRand      *rand.Rand
+	udpRand     *rand.Rand
 	ioFaults    []Fault
 	scheduled   map[string]bool
 	spec        FaultSpec
@@ -176,6 +178,53 @@ func hostModule(ctx context.Context, rt wazero.Runtime) error {
 	})
 	export("net_bind", func(ctx context.Context, fd, id int32) {
 		worldOf(ctx).instance(ctx).fds[fd] = id
+	})
+	export("net_addr", func(ctx context.Context, m api.Module, fd, peer int32, p, limit uint32) int32 {
+		w := worldOf(ctx)
+		inst := w.instance(ctx)
+		addr, ok := w.net.addr(inst, inst.fds[fd], peer != 0)
+		w.hostCall(inst, "net_addr", addr, int64(len(addr)))
+		if !ok || int(limit) < len(addr) || !m.Memory().WriteString(p, addr) {
+			return codeBadFD
+		}
+		return int32(len(addr))
+	})
+	export("net_udp", func(ctx context.Context, m api.Module, p, n uint32) int32 {
+		w := worldOf(ctx)
+		addr := string(readBytes(m, p, n))
+		id := w.net.bindUDP(w.instance(ctx), addr)
+		w.hostCall(w.instance(ctx), "net_udp", addr, int64(id))
+		return id
+	})
+	export("net_connect", func(ctx context.Context, m api.Module, fd int32, p, n uint32) int32 {
+		w := worldOf(ctx)
+		inst := w.instance(ctx)
+		addr := string(readBytes(m, p, n))
+		code := w.net.connectUDP(inst, inst.fds[fd], addr)
+		w.hostCall(inst, "net_connect", addr, int64(code))
+		return code
+	})
+	export("net_sendto", func(ctx context.Context, m api.Module, fd int32, ap, an, dp, dn uint32) int32 {
+		w := worldOf(ctx)
+		inst := w.instance(ctx)
+		addr := string(readBytes(m, ap, an))
+		sent := w.net.sendto(inst, inst.fds[fd], addr, readBytes(m, dp, dn))
+		w.hostCall(inst, "net_sendto", addr, int64(sent))
+		return sent
+	})
+	export("net_recvfrom", func(ctx context.Context, m api.Module, fd int32, dp, dn, ap, acap, alen uint32) int32 {
+		w := worldOf(ctx)
+		inst := w.instance(ctx)
+		buf, ok := m.Memory().Read(dp, dn)
+		if !ok {
+			return codeBadFD
+		}
+		got, from := w.net.recvfrom(inst, inst.fds[fd], buf)
+		w.hostCall(inst, "net_recvfrom", from, int64(got))
+		if got >= 0 && (int(acap) < len(from) || !m.Memory().WriteString(ap, from) || !m.Memory().WriteUint32Le(alen, uint32(len(from)))) {
+			return codeBadFD
+		}
+		return got
 	})
 	export("history_call", func(ctx context.Context, m api.Module, p, n uint32) int32 {
 		w := worldOf(ctx)

@@ -66,14 +66,16 @@ All faults come from the seed. Faults that depend on what the program does, such
 | `crash_per_sec` | `0` | Rate of crashes per node, at random points in time |
 | `restart_after` | `["10ms", "1s"]` | Downtime after a crash, and the delay before a supervised restart |
 | `partition_per_sec` | `0` | Rate of network partitions. A partition splits all nodes, workload included, into groups that cannot reach each other. A new partition replaces the previous one |
-| `partition_for` | `["50ms", "2s"]` | Partition duration. Traffic across the cut is held and delivered after the heal |
+| `partition_for` | `["50ms", "2s"]` | Partition duration. TCP traffic across the cut is held and delivered after the heal; UDP datagrams are dropped |
 | `partition_topologies` | `["half"]` | Shapes a partition can take; each partition picks one at random. `half` (two random sides), `one` (isolate one node), `majority` (a random majority against the rest), `majorities_ring` (every node sees a majority, and no two nodes see the same one) and `random_groups` (two or more random groups). See [Network faults](#network-faults) |
 | `clog_per_sec` | `0` | Rate of clogs. A clog hits one direction of one link, or everything a node sends, receives, or both, and lasts `clog_for` |
 | `clog_for` | `["100ms", "2s"]` | Clog duration, also the length of a swizzle |
-| `clog_modes` | `["stop", "slow", "jam"]` | Modes a clog can take; each clog picks one at random. `stop` refuses new connections and holds traffic, `jam` holds connections and traffic without any error, `slow` adds `clog_delay` to every message |
+| `clog_modes` | `["stop", "slow", "jam"]` | Modes a clog can take; each clog picks one at random. `stop` refuses new connections and holds traffic, `jam` holds connections and traffic without any error, `slow` adds `clog_delay` to every message. `stop` and `jam` drop UDP datagrams instead of holding them |
 | `clog_delay` | `["10ms", "200ms"]` | Extra latency per message of a `slow` clog, drawn once per clog |
 | `swizzle_per_sec` | `0` | Rate of swizzles (FoundationDB's swizzle-clogging): a random subset of nodes is clogged one node at a time, then unclogged in a different random order |
 | `reset_per_sec` | `0` | Rate of connection resets per node. Every open connection of the node is reset at once, as if a middlebox dropped them; the process keeps running and both ends see `ECONNRESET` |
+| `udp_loss` | `0` | Probability that a UDP datagram is dropped. Each loss is recorded as a `udp_drop` fault with the sender and its datagram number. See [UDP datagrams](#udp-datagrams) |
+| `udp_dup` | `0` | Probability that a UDP datagram is delivered twice, the copies with independent latencies. Each one is recorded as a `udp_dup` fault |
 | `slow_per_sec` | `0` | Rate of slowdowns per node: a gray failure where the node stays up but everything it does takes longer |
 | `slow_for` | `["500ms", "5s"]` | Slowdown duration |
 | `slow_factor` | `10` | Largest slowdown. Each slowdown picks a factor between 1 and this value |
@@ -156,7 +158,22 @@ In a fault schedule, the new kinds look like this:
 
 `dir` is `in`, `out` or `both`. A swizzle shows up as a run of `both` clogs in `stop` mode. Like every other planned fault, each one replays and shrinks on its own, appears in the trace, `seedfall cause` and the report, and joins swarm testing.
 
-Not modelled: dropped or duplicated packets. The simulated network carries TCP byte streams, where the kernel retransmits and deduplicates, so a program never sees either. UDP is not simulated (see [networking.md](networking.md)).
+### UDP datagrams
+
+TCP traffic is a byte stream, where the kernel retransmits and deduplicates, so a program never sees a packet dropped or repeated on a connection. A UDP program does. `udp_loss` and `udp_dup` are probabilities per datagram, drawn from their own stream of the seed, so they take no draws from any other fault:
+
+```json
+{ "faults": { "udp_loss": 0.05, "udp_dup": 0.02 } }
+```
+
+A partition or a clog that stops or jams a link also drops a datagram sent across it, rather than holding it for the heal, and a `slow` clog delays it. Datagrams that a link or a missing socket drops are consequences of the rest of the schedule, so they are not faults of their own: only `udp_loss` and `udp_dup` choices are recorded. They count per sender node, from 1, across restarts:
+
+```json
+{ "at": "2.1s", "kind": "udp_drop", "node": "n1", "to": "n2", "op": 17, "until": "0s" }
+{ "at": "2.2s", "kind": "udp_dup", "node": "n2", "to": "n3", "op": 9, "until": "0s" }
+```
+
+`op` is the number of the datagram the sender sent, and the fault fires on that datagram whatever its destination; `to` is a record of where it went. Both replay exactly, shrink like any fault recorded at runtime, can be edited with `seedfall faults`, and join swarm testing. They do not apply when `faults` is off for either end of the datagram, or during a quiet period or the recovery phase. Semantics of sockets and addresses are in [networking.md](networking.md#udp).
 
 ## Disk faults
 

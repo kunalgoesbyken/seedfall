@@ -28,11 +28,16 @@ func reportNoSpace(ctx context.Context, rt wazero.Runtime, b wazero.HostModuleBu
 			return fmt.Errorf("wasi %s is not a Go module function", name)
 		}
 		b.NewFunctionBuilder().WithGoModuleFunction(api.GoModuleFunc(func(ctx context.Context, m api.Module, stack []uint64) {
-			fs := worldOf(ctx).instance(ctx).node.fs
-			fs.noSpace = false
+			w := worldOf(ctx)
+			fs := w.instance(ctx).node.fs
+			fs.noSpace, w.net.brokenPipe = false, false
 			write.Call(ctx, m, stack)
-			if fs.noSpace && stack[0] == errnoIO {
+			switch {
+			case stack[0] != errnoIO:
+			case fs.noSpace:
 				stack[0] = errnoNoSpace
+			case w.net.brokenPipe:
+				stack[0] = errnoPipe
 			}
 		}), def.ParamTypes(), def.ResultTypes()).Export(name)
 	}
@@ -54,6 +59,10 @@ func (w *world) wireDisk(n *node) {
 }
 
 func (w *world) ioFault(n *node, kind string, rate float64, op int64) bool {
+	return w.rated(n, kind, rate, op, w.ioRand)
+}
+
+func (w *world) rated(n *node, kind string, rate float64, op int64, r *rand.Rand) bool {
 	if w.explicit {
 		if w.scheduled == nil {
 			w.scheduled = map[string]bool{}
@@ -67,7 +76,7 @@ func (w *world) ioFault(n *node, kind string, rate float64, op int64) bool {
 		_, ok := w.planned(kind, n.name(), "", op)
 		return ok
 	}
-	return w.draw(rate)
+	return w.drawFrom(r, rate)
 }
 
 func (w *world) detail(kind string, n *node, op int64) *rand.Rand {

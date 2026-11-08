@@ -179,6 +179,10 @@ expect_mutant ledger seedfall.json 1-20 net_dup_chunk killed
 expect_mutant ledger seedfall.json 1-20 truncate_not_durable SURVIVED
 expect httpkv seedfall.json          1-40   pass
 expect httpkv "seedfall.json -profile nofsync"  1-20   fail
+expect netcompat seedfall.json                  1-20   pass
+expect netcompat "seedfall.json -profile sim"   1-20   pass
+expect memberlist seedfall.json                 1-20   pass
+expect memberlist "seedfall.json -profile strict" 1-5  fail
 expect wals   tidwall.json           1-50   fail
 expect wals   tidwall.strict.json    1-50   fail
 expect wals   rosedb.json            1-50   fail

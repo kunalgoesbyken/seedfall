@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -14,6 +15,14 @@ const (
 	codeRefused = -4
 	codeInUse   = -5
 	codeBadFD   = -6
+	codeNoDest  = -7
+	codePipe    = -8
+
+	shutRead  = 1
+	shutWrite = 2
+
+	ephemeralFirst = 49152
+	ephemeralLast  = 65535
 )
 
 type chunkKind int
@@ -39,10 +48,14 @@ type endpoint struct {
 	connMsg  int
 	owner    *instance
 	peer     *endpoint
+	local    string
+	remote   string
 	inbox    []chunk
 	lastSent int64
 	acceptAt int64
 	gone     bool
+	rdShut   bool
+	wrShut   bool
 }
 
 type listener struct {
@@ -53,16 +66,19 @@ type listener struct {
 }
 
 type network struct {
-	w         *world
-	nextID    int32
-	listeners map[string]*listener
-	handles   map[int32]any
-	names     map[string]string
-	hosts     []byte
+	w          *world
+	nextID     int32
+	listeners  map[string]*listener
+	udp        map[string]*udpSocket
+	handles    map[int32]any
+	names      map[string]string
+	ports      map[string]int
+	hosts      []byte
+	brokenPipe bool
 }
 
 func newNetwork(w *world) *network {
-	n := &network{w: w, listeners: map[string]*listener{}, handles: map[int32]any{}, names: map[string]string{}}
+	n := &network{w: w, listeners: map[string]*listener{}, udp: map[string]*udpSocket{}, handles: map[int32]any{}, names: map[string]string{}, ports: map[string]int{}}
 	n.hosts = []byte("127.0.0.1 localhost\n")
 	for i, s := range w.cfg.all() {
 		ip := fmt.Sprintf("10.77.%d.%d", (i+1)/256, (i+1)%256)
@@ -97,14 +113,43 @@ func splitHostPort(addr string) (string, string) {
 	return addr[:i], addr[i+1:]
 }
 
-func (n *network) listen(inst *instance, addr string) int32 {
+func (n *network) tcpTaken(key string) bool {
+	_, taken := n.listeners[key]
+	return taken
+}
+
+func (n *network) bind(inst *instance, addr string, taken func(string) bool) (string, int32) {
 	host, port := splitHostPort(addr)
-	if n.resolve(inst, host) != inst.node.name() {
-		return codeRefused
+	self := inst.node.name()
+	if n.resolve(inst, host) != self {
+		return "", codeRefused
 	}
-	key := inst.node.name() + ":" + port
-	if _, taken := n.listeners[key]; taken {
-		return codeInUse
+	if port == "" || port == "0" {
+		return n.ephemeral(self, taken)
+	}
+	key := self + ":" + port
+	if taken(key) {
+		return "", codeInUse
+	}
+	return key, 0
+}
+
+func (n *network) ephemeral(node string, taken func(string) bool) (string, int32) {
+	span := ephemeralLast - ephemeralFirst + 1
+	for range span {
+		port := ephemeralFirst + n.ports[node]
+		n.ports[node] = (n.ports[node] + 1) % span
+		if key := node + ":" + strconv.Itoa(port); !taken(key) {
+			return key, 0
+		}
+	}
+	return "", codeInUse
+}
+
+func (n *network) listen(inst *instance, addr string) int32 {
+	key, code := n.bind(inst, addr, n.tcpTaken)
+	if code < 0 {
+		return code
 	}
 	l := &listener{id: n.alloc(), owner: inst, key: key}
 	n.listeners[key] = l
@@ -113,13 +158,17 @@ func (n *network) listen(inst *instance, addr string) int32 {
 }
 
 func (n *network) dial(inst *instance, addr string) int32 {
-	host, port := splitHostPort(addr)
-	host = n.resolve(inst, host)
-	l, ok := n.listeners[host+":"+port]
+	target := n.target(inst, addr)
+	host, _ := splitHostPort(target)
+	l, ok := n.listeners[target]
 	from := inst.node.name()
 	if !ok || n.w.cut(from, host) {
 		n.w.netLine(inst, "net %s dials %s, refused", inst.label, addr)
 		return codeRefused
+	}
+	local, code := n.ephemeral(from, n.tcpTaken)
+	if code < 0 {
+		return code
 	}
 	there := n.w.link(from, host)
 	acceptAt := n.w.now + n.w.latency(from, host)
@@ -127,9 +176,9 @@ func (n *network) dial(inst *instance, addr string) int32 {
 		acceptAt = max(acceptAt, held+n.w.latency(from, host))
 	}
 	acceptAt += there.delay
-	client := &endpoint{id: n.alloc(), owner: inst}
+	client := &endpoint{id: n.alloc(), owner: inst, local: local, remote: target}
 	client.conn = client.id
-	server := &endpoint{conn: client.id, owner: l.owner, peer: client, acceptAt: acceptAt}
+	server := &endpoint{conn: client.id, owner: l.owner, peer: client, acceptAt: acceptAt, local: target, remote: local}
 	client.peer = server
 	server.connMsg = n.w.rec.message(Message{Conn: client.id, Kind: MessageConnect, From: from, To: host, FromInstance: inst.label, ToInstance: l.owner.label, Sent: time.Duration(n.w.now), Arrives: time.Duration(acceptAt), Read: unread, Held: there.held > 0})
 	n.w.netLine(inst, "net %s dials %s conn %d, arrives %s", inst.label, addr, client.id, fmtTime(acceptAt))
@@ -155,6 +204,32 @@ func (n *network) accept(inst *instance, id int32) int32 {
 	n.w.rec.read(ep.connMsg, n.w.now)
 	n.w.netLine(inst, "net %s accepts conn %d from %s", inst.label, ep.conn, ep.peer.owner.label)
 	return ep.id
+}
+
+func (n *network) target(inst *instance, addr string) string {
+	host, port := splitHostPort(addr)
+	return n.resolve(inst, host) + ":" + port
+}
+
+func (n *network) addr(inst *instance, id int32, peer bool) (string, bool) {
+	if owner(n.handles[id]) != inst {
+		return "", false
+	}
+	switch h := n.handles[id].(type) {
+	case *listener:
+		return h.key, !peer
+	case *endpoint:
+		if peer {
+			return h.remote, true
+		}
+		return h.local, true
+	case *udpSocket:
+		if peer {
+			return h.remote, true
+		}
+		return h.key, true
+	}
+	return "", false
 }
 
 func (n *network) endpoint(inst *instance, id int32) *endpoint {
@@ -226,6 +301,10 @@ func (n *network) write(inst *instance, id int32, data []byte) int32 {
 	if ep == nil {
 		return codeBadFD
 	}
+	if ep.wrShut {
+		n.brokenPipe = true
+		return codePipe
+	}
 	if ep.peer.gone {
 		return codeReset
 	}
@@ -237,6 +316,9 @@ func (n *network) read(inst *instance, id int32, buf []byte) int32 {
 	ep := n.endpoint(inst, id)
 	if ep == nil {
 		return codeBadFD
+	}
+	if ep.rdShut {
+		return codeEOF
 	}
 	if len(ep.inbox) == 0 || ep.inbox[0].at > n.w.now {
 		return codeAgain
@@ -257,6 +339,26 @@ func (n *network) read(inst *instance, id int32, buf []byte) int32 {
 	return int32(c)
 }
 
+func (n *network) shutdown(inst *instance, id int32, how int32) int32 {
+	ep := n.endpoint(inst, id)
+	if ep == nil {
+		return codeBadFD
+	}
+	if how&shutRead != 0 && !ep.rdShut {
+		ep.rdShut = true
+		inst.wakeAt = min(inst.wakeAt, n.w.now)
+		n.w.netLine(inst, "net %s closes conn %d for reading", inst.label, ep.conn)
+	}
+	if how&shutWrite != 0 && !ep.wrShut {
+		if !ep.gone && !ep.peer.gone {
+			n.send(ep, chunkEOF, nil)
+		}
+		ep.wrShut = true
+		n.w.netLine(inst, "net %s closes conn %d for writing", inst.label, ep.conn)
+	}
+	return 0
+}
+
 func (n *network) close(inst *instance, id int32) {
 	switch h := n.handles[id].(type) {
 	case *listener:
@@ -266,6 +368,10 @@ func (n *network) close(inst *instance, id int32) {
 	case *endpoint:
 		if h.owner == inst {
 			n.closeEndpoint(h, chunkEOF)
+		}
+	case *udpSocket:
+		if h.owner == inst {
+			n.closeUDP(h)
 		}
 	}
 }
@@ -279,7 +385,7 @@ func (n *network) closeListener(l *listener) {
 }
 
 func (n *network) closeEndpoint(ep *endpoint, kind chunkKind) {
-	if !ep.gone && !ep.peer.gone {
+	if !ep.gone && !ep.peer.gone && (kind != chunkEOF || !ep.wrShut) {
 		if kind == chunkEOF {
 			n.dropLastChunk(ep)
 		}
@@ -338,6 +444,10 @@ func (n *network) drop(inst *instance) {
 		case *endpoint:
 			if h.owner == inst {
 				n.closeEndpoint(h, chunkReset)
+			}
+		case *udpSocket:
+			if h.owner == inst {
+				n.closeUDP(h)
 			}
 		}
 	}

@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	FaultKinds  = []string{FaultCrash, FaultCrashIO, FaultPartition, FaultPause, FaultClockJump, FaultClog, FaultReset, FaultSlow, FaultBitrot, FaultFsyncEIO, FaultWriteEIO, FaultENOSPC, FaultReadEIO, FaultReadCorrupt, FaultLostWrite, FaultMisdirected, FaultBuggify, FaultPreempt}
+	FaultKinds  = []string{FaultCrash, FaultCrashIO, FaultPartition, FaultPause, FaultClockJump, FaultClog, FaultReset, FaultSlow, FaultBitrot, FaultFsyncEIO, FaultWriteEIO, FaultENOSPC, FaultReadEIO, FaultReadCorrupt, FaultLostWrite, FaultMisdirected, FaultBuggify, FaultPreempt, FaultUDPDrop, FaultUDPDup}
 	windowKinds = []string{FaultCrash, FaultCrashIO, FaultPartition, FaultPause, FaultClog, FaultSlow}
 )
 
@@ -124,7 +124,7 @@ func (f Fault) problems(names []string, horizon time.Duration) []string {
 		add(f.Node == "", "node is required")
 	}
 	add(f.Kind == FaultSlow && f.Factor < 1, "factor %g is below 1", f.Factor)
-	add(f.FiresAtOp() && f.Op < 1, "op %d is below 1: disk operations, reads, buggify hits and counted calls count from 1", f.Op)
+	add(f.FiresAtOp() && f.Op < 1, "op %d is below 1: disk operations, reads, buggify hits, counted calls and udp datagrams count from 1", f.Op)
 	add(f.Kind == FaultBuggify && f.Site == "", "a buggify fault needs site")
 	return out
 }

@@ -48,6 +48,7 @@ tr.fail td { color: var(--bad); }
   <span><i style="background:var(--net)"></i>message, read</span>
   <span><i style="background:repeating-linear-gradient(90deg,var(--net) 0 3px,transparent 3px 6px)"></i>message never read</span>
   <span><i style="background:#c792ea"></i>connect</span>
+  <span><i style="background:#7fd1b9"></i>UDP datagram</span>
   <span><i style="background:var(--warn)"></i>EOF</span>
   <span><i style="background:var(--bad)"></i>reset · failed op · failure</span>
   <span><i style="background:var(--ok);opacity:.6"></i>op ok</span>
@@ -66,7 +67,7 @@ const kindNames = ["lives", "messages", "ops", "faults", "marks"];
 const engineLane = "engine";
 const state = { nodes: new Set([...T.nodes, engineLane]), kinds: new Set(kindNames), from: 0, to: Infinity, grep: null };
 const faultColors = { crash: "#ff7b6b", crash_io: "#ff7b6b", pause: "#f2d39b", partition: "#ff9a5a", clog: "#ff9a5a", slow: "#c792ea", clock_jump: "#8fb8ff" };
-const msgColors = { data: "var(--net)", connect: "#c792ea", eof: "var(--warn)", reset: "var(--bad)" };
+const msgColors = { data: "var(--net)", connect: "#c792ea", eof: "var(--warn)", reset: "var(--bad)", datagram: "#7fd1b9" };
 const opColors = { ok: "var(--ok)", fail: "var(--bad)", info: "var(--warn)" };
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const secs = ns => (ns / 1e9).toFixed(6).replace(/0{1,3}$/, "") + "s";
@@ -151,9 +152,10 @@ function opText(o) {
 }
 
 function msgText(m) {
-  const what = m.kind === "data" ? m.bytes + " bytes" : m.kind;
-  const fate = m.read < 0 ? "never read" : "read at " + secs(m.read);
-  return `${m.from_instance} -> ${m.to_instance} conn ${m.conn}: ${what}, sent ${secs(m.sent)}, arrives ${secs(m.arrives)}, ${fate}${m.held ? ", held by a partition or clog" : ""}${m.duplicate ? ", duplicate" : ""}`;
+  const udp = m.kind === "datagram";
+  const what = m.kind === "data" ? m.bytes + " bytes" : udp ? "datagram, " + m.bytes + " bytes" : m.kind;
+  const fate = m.lost ? "lost, " + m.lost : m.read < 0 ? "never read" : "read at " + secs(m.read);
+  return `${m.from_instance} -> ${m.to_instance || m.to} ${udp ? "udp" : "conn"} ${m.conn}: ${what}, sent ${secs(m.sent)}, arrives ${secs(m.arrives)}, ${fate}${m.held ? ", held by a partition or clog" : ""}${m.duplicate ? ", duplicate" : ""}`;
 }
 
 function render() {

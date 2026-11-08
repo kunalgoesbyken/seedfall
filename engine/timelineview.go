@@ -102,15 +102,21 @@ func (m Message) arrow() string {
 }
 
 func (m Message) label() string {
-	what := m.Kind
-	if m.Kind == MessageData {
+	what, via := m.Kind, "conn"
+	switch m.Kind {
+	case MessageData:
 		what = fmt.Sprintf("%d bytes", m.Bytes)
+	case MessageDatagram:
+		what, via = fmt.Sprintf("datagram %d bytes", m.Bytes), "udp"
 	}
 	fate := "never read"
-	if m.Delivered() {
+	switch {
+	case m.Lost != "":
+		fate = "lost, " + m.Lost
+	case m.Delivered():
 		fate = "read " + fmtTime(int64(m.Read))
 	}
-	text := fmt.Sprintf("%s conn %d %s, %s", fmtTime(int64(m.Sent)), m.Conn, what, fate)
+	text := fmt.Sprintf("%s %s %d %s, %s", fmtTime(int64(m.Sent)), via, m.Conn, what, fate)
 	if m.Held {
 		text += ", held"
 	}

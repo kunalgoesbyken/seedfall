@@ -499,6 +499,7 @@ Some storage libraries don't build or run for `GOOS=wasip1` because they call `m
 | `go.etcd.io/bbolt` v1.5 | doesn't build: no `MaxMapSize` for `GOARCH=wasm`, then `bolt_unix.go` needs `syscall.Flock` and `unix.Mmap` | runs; 300 seeds pass, `NoSync` is caught, and it found a [missing directory fsync](findings/bbolt-create-dir-fsync.md) | [`examples/bboltkv`](../examples/bboltkv) |
 | `github.com/cockroachdb/pebble/v2` v2.1 | doesn't build: `vfs` has no `wasip1` file system (its generic lock file refers to an undefined `defFS`), `rawalloc` has no `maxArrayLen` for `wasm`, and prometheus/procfs v0.10 calls `syscall.Statfs` | runs; needs `strict_dirs` (see below) | [`examples/pebblekv`](../examples/pebblekv) |
 | `github.com/dgraph-io/badger/v4` v4.9 | builds, but `Open` fails: ristretto's `mmap` returns `ENOSYS` on `wasip1` | runs, with small memtable and value log sizes | [`examples/badgerkv`](../examples/badgerkv) |
+| `github.com/hashicorp/memberlist` v0.7 | doesn't build: `go-sockaddr` has no route lookup for `wasip1` | runs, with `net_overlay`; the shim answers as `go-sockaddr` does on other platforms without a route table, and a node binds and advertises its own IP | [`examples/memberlist`](../examples/memberlist) |
 
 ## What the shims do, and why crash results stay real
 
@@ -508,6 +509,7 @@ A shim only replaces calls that WASI can't make. Every write still goes to a fil
 - **Writable `mmap`** (badger, through ristretto's `z` package) becomes a heap copy plus a clean copy. `msync` writes back the pages that differ and then fsyncs the file. `munmap` writes them back without an fsync, like dirty pages left in the page cache. Changes made through the mapping and never `msync`ed are lost on a crash. Real kernels may also write some of those pages back early; that outcome isn't generated.
 - **`flock` and file locks** become an in-process lock table. Each node is one process, and a crash starts a fresh process, so this matches what the lock guarantees.
 - **`madvise`, `mlock` and disk-usage queries** are no-ops or report "unsupported". They are hints that don't change what is on disk.
+- **Route lookups** (`go-sockaddr`) report that no route is known, as the library does on `js` and `plan9`. Only the automatic choice of a private IP depends on them.
 
 ## How it works
 
@@ -620,7 +622,7 @@ A preset fills in a documented fault level. Fields set next to it override it, a
 | `none` | no faults |
 | `durability` | `crash_per_sec` 0.5, `crash_on_io` 0.002, `torn_writes`, `reorder_writes`, `strict_dirs` |
 | `resilient` | `pause_per_sec` 0.1, `slow_per_sec` 0.1, `reset_per_sec` 0.1, `clock_jump_per_sec` 0.05 |
-| `high_availability` | `partition_per_sec` 0.2, `clog_per_sec` 0.2, `swizzle_per_sec` 0.05 |
+| `high_availability` | `partition_per_sec` 0.2, `clog_per_sec` 0.2, `swizzle_per_sec` 0.05, `udp_loss` 0.01, `udp_dup` 0.01 |
 | `everything` | `fsync_eio` 0.01, `write_eio`, `write_enospc`, `read_eio`, `read_corrupt`, `lost_write` and `misdirected_write` 0.005 each, `corrupt_on_crash`, `bitrot_per_sec` 0.05, `buggify` |
 
 Durations, topologies and clog modes keep their defaults, and every rate is per node per second, or per disk operation for the I/O faults, as in [faults](faults.md). The levels are seedfall's own, named after the fault tolerance levels Antithesis offers, not a copy of them. `high_availability` and `everything` include partitions, clogs and swizzles, which need at least two nodes that take faults, workload included. `everything` includes faults such as corrupted reads that only a system with checksums can survive.
@@ -741,6 +743,8 @@ All faults come from the seed. Faults that depend on what the program does, such
 | `clog_delay` | `["10ms", "200ms"]` | Extra latency per message of a `slow` clog, drawn once per clog |
 | `swizzle_per_sec` | `0` | Rate of swizzles (FoundationDB's swizzle-clogging): a random subset of nodes is clogged one node at a time, then unclogged in a different random order |
 | `reset_per_sec` | `0` | Rate of connection resets per node. Every open connection of the node is reset at once, as if a middlebox dropped them; the process keeps running and both ends see `ECONNRESET` |
+| `udp_loss` | `0` | Probability that a UDP datagram is dropped. Each loss is recorded as a `udp_drop` fault with the sender and its datagram number. See [UDP datagrams](#udp-datagrams) |
+| `udp_dup` | `0` | Probability that a UDP datagram is delivered twice, the copies with independent latencies. Each one is recorded as a `udp_dup` fault |
 | `slow_per_sec` | `0` | Rate of slowdowns per node: a gray failure where the node stays up but everything it does takes longer |
 | `slow_for` | `["500ms", "5s"]` | Slowdown duration |
 | `slow_factor` | `10` | Largest slowdown. Each slowdown picks a factor between 1 and this value |
@@ -823,7 +827,22 @@ In a fault schedule, the new kinds look like this:
 
 `dir` is `in`, `out` or `both`. A swizzle shows up as a run of `both` clogs in `stop` mode. Like every other planned fault, each one replays and shrinks on its own, appears in the trace, `seedfall cause` and the report, and joins swarm testing.
 
-Not modelled: dropped or duplicated packets. The simulated network carries TCP byte streams, where the kernel retransmits and deduplicates, so a program never sees either. UDP is not simulated (see [networking.md](networking.md)).
+### UDP datagrams
+
+TCP traffic is a byte stream, where the kernel retransmits and deduplicates, so a program never sees a packet dropped or repeated on a connection. A UDP program does. `udp_loss` and `udp_dup` are probabilities per datagram, drawn from their own stream of the seed, so turning them on does not move any other fault:
+
+```json
+{ "faults": { "udp_loss": 0.05, "udp_dup": 0.02 } }
+```
+
+A partition or a clog that stops or jams a link also drops a datagram sent across it, rather than holding it for the heal, and a `slow` clog delays it. Datagrams that a link or a missing socket drops are consequences of the rest of the schedule, so they are not faults of their own: only `udp_loss` and `udp_dup` choices are recorded. They count per sender node, from 1, across restarts:
+
+```json
+{ "at": "2.1s", "kind": "udp_drop", "node": "n1", "to": "n2", "op": 17, "until": "0s" }
+{ "at": "2.2s", "kind": "udp_dup", "node": "n2", "to": "n3", "op": 9, "until": "0s" }
+```
+
+`op` is the number of the datagram the sender sent, and the fault fires on that datagram whatever its destination; `to` is a record of where it went. Both replay exactly, shrink like any fault recorded at runtime, can be edited with `seedfall faults`, and join swarm testing. They do not apply when `faults` is off for either end of the datagram, or during a quiet period or the recovery phase. Semantics of sockets and addresses are in [networking.md](networking.md#udp).
 
 ## Disk faults
 
@@ -1178,7 +1197,7 @@ See [faults.md](faults.md) for every fault type.
 
 ## Network
 
-Connections are ordered byte streams with seeded per-chunk latency. Partitions and `stop` or `jam` clogs hold traffic until they heal, `slow` clogs and slow nodes add latency, and a crashed node's connections are reset, as are a live node's when a `net_reset` fault fires. Every fault is a rule on one direction of a link, so one-way partitions fall out of the same code. Every connection is a virtual file registered with Go's own network poller, so blocking reads, deadlines and `Accept` behave exactly like `net`, and nothing polls. See [networking.md](networking.md).
+UDP sockets are queues of datagrams with their own seeded latency, sorted by arrival, so they reorder; a held link drops them rather than holding them, and `udp_loss` and `udp_dup` choices are recorded per sender datagram so they replay and shrink like the disk faults. Connections are ordered byte streams with seeded per-chunk latency. Partitions and `stop` or `jam` clogs hold traffic until they heal, `slow` clogs and slow nodes add latency, and a crashed node's connections are reset, as are a live node's when a `net_reset` fault fires. Every fault is a rule on one direction of a link, so one-way partitions fall out of the same code. Every connection is a virtual file registered with Go's own network poller, so blocking reads, deadlines and `Accept` behave exactly like `net`, and nothing polls. See [networking.md](networking.md).
 
 ## Crashes and restarts
 
@@ -1489,7 +1508,7 @@ The baseline must pass first; otherwise mutants would be killed by the existing 
 
 # Networking
 
-seedfall gives every node a simulated network: ordered byte streams with seeded latency, per-link latency overrides, partitions that hold traffic until they heal, one-way clogs that stop, jam or slow a link, slow nodes, and connection resets when a peer crashes or a reset fault fires. Node names are host names, so a node named `server` is reachable at `server:7000`.
+seedfall gives every node a simulated network: ordered TCP byte streams and unordered UDP datagrams with seeded latency, per-link latency overrides, partitions that hold TCP traffic until they heal and drop UDP datagrams, one-way clogs that stop, jam or slow a link, slow nodes, and connection resets when a peer crashes or a reset fault fires. Node names are host names, so a node named `server` is reachable at `server:7000`.
 
 How each network fault behaves and how to configure it is in [faults.md](faults.md#network-faults).
 
@@ -1502,9 +1521,10 @@ import "github.com/kunalgoesbyken/seedfall/sim"
 
 ln, err := sim.Listen("tcp", ":7000")
 conn, err := sim.Dial("tcp", "server:7000")
+pc, err := sim.ListenPacket("udp", ":7100")
 ```
 
-They return a standard `net.Listener` and `net.Conn`. Outside the simulator they call `net.Listen` and `net.Dial`, so production builds are unaffected. This works on every Go version seedfall supports, and it is how most of the examples are written.
+They return a standard `net.Listener`, `net.Conn` and `net.PacketConn`. Outside the simulator they call `net.Listen`, `net.Dial` and `net.ListenPacket`, so production builds are unaffected. This works on every Go version seedfall supports, and it is how most of the examples are written. A connection also has `CloseRead` and `CloseWrite`, reached with a type assertion to an interface that declares them.
 
 If a library takes a custom dialer or listener, pass these in. hashicorp/raft's `NewNetworkTransport` accepts a `StreamLayer` built on them, and NATS clients accept `nats.SetCustomDialer`.
 
@@ -1514,21 +1534,38 @@ If a library takes a custom dialer or listener, pass these in. hashicorp/raft's 
 { "net_overlay": true }
 ```
 
-With `net_overlay`, unmodified programs that call `net.Listen` and `net.Dial` use the simulated network, and so do `net/http` servers and clients, and libraries such as hashicorp/raft's stock `NewTCPTransport`. `examples/httpkv` is a plain `net/http` server and client with no seedfall imports in the server.
+With `net_overlay`, unmodified programs that call `net.Listen`, `net.Dial`, `net.ListenPacket`, `net.ListenUDP` and `net.DialUDP` use the simulated network, and so do `net/http` servers and clients, and libraries such as hashicorp/raft's stock `NewTCPTransport` and hashicorp/memberlist. `examples/httpkv` is a plain `net/http` server and client with no seedfall imports in the server, and `examples/memberlist` is an unmodified memberlist cluster gossiping over simulated UDP.
 
-How it works: on `wasip1`, Go's `net` package uses an in-process fake network. At build time, seedfall reads that package from your own `GOROOT` and builds an overlay with `go build -overlay`. It makes two exact-text patches: `socket()` is renamed so a seedfall version can wrap it, and `accept()` gets a hook for seedfall listeners. Then it adds one file to package `net` that sends TCP sockets to the simulator. Node names resolve through a simulated `/etc/hosts`, and `localhost` means the node itself.
+How it works: on `wasip1`, Go's `net` package uses an in-process fake network. At build time, seedfall reads that package from your own `GOROOT` and builds an overlay with `go build -overlay`. It makes four exact-text patches: `socket()` is renamed so a seedfall version can wrap it, `accept()` gets a hook for seedfall listeners, and `setReadBuffer` and `setWriteBuffer` accept any size for simulated sockets, because the simulated queues have no size. Then it adds one file to package `net` that sends TCP and UDP sockets to the simulator. Node names resolve through a simulated `/etc/hosts`, and `localhost` means the node itself.
 
 If a future Go release changes those internals, the build fails with a clear "this Go version is not supported yet" error instead of misbehaving. Verified on Go 1.27.
 
-Current limits:
-- TCP only. UDP keeps using Go's in-process fake network, so gossip protocols (memberlist, serf) are not simulated.
-- Listening on port 0 is not supported.
-- `CloseRead` and `CloseWrite` are not supported.
-- The remote address of an accepted connection is a placeholder.
+## Addresses, port 0 and half-close
+
+Both options behave the same way:
+
+- Listening or binding on port 0 picks a free port from `49152`..`65535`, in a sequence kept per node, and `Addr()` or `LocalAddr()` returns the real port.
+- Every dial takes its own port from the same range, so an accepted connection's `RemoteAddr()` is the dialer's real address and matches the dialer's `LocalAddr()`. Under `net_overlay` an address is the node's IP from the simulated `/etc/hosts`, such as `10.77.0.2:49152`. Through `sim` it is the node name, such as `client:49152`.
+- `CloseWrite` sends EOF to the peer after the data already written, and the other direction keeps working. Writing after `CloseWrite` fails with `EPIPE`. `CloseRead` makes every later read return EOF.
+
+## UDP
+
+A UDP socket on one node talks to any other through the same link table as TCP, and every datagram draws its own latency, so datagrams overtake each other whenever the latency range allows it.
+
+| Condition | What happens to a datagram |
+|---|---|
+| Partition, or clog `stop` or `jam`, in the sending direction | Dropped. Nothing holds it for the heal |
+| Clog `slow` | Arrives `clog_delay` later |
+| Slow node | Latency is stretched, as for TCP |
+| No socket bound to the address, or a connected socket that is not listening to this sender | Dropped silently. No ICMP port unreachable is simulated, so a connected socket never sees `ECONNREFUSED` |
+| `udp_loss` | Dropped, recorded as a `udp_drop` fault |
+| `udp_dup` | Delivered twice with independent latencies, recorded as a `udp_dup` fault |
+
+Datagram boundaries are kept: a read returns one datagram and discards whatever does not fit in the buffer. A socket's queue has no limit, so `SetReadBuffer` and `SetWriteBuffer` succeed and change nothing, and a sender is never blocked. A crash closes the node's sockets and drops what was queued for them, and `net_reset` faults do not touch UDP, because a datagram socket has no connection to reset. Multicast is not simulated, and `ReadMsgUDP` and `WriteMsgUDP` with out-of-band data return `ENOTSUP`.
 
 ## Seeing the traffic
 
-`-net-trace` on `run`, `replay`, `logs` or `debug` adds every dial, accept, message sent and message read to the trace, with its connection, size, send and arrival time, and whether a partition or clog held it. Every failure's `timeline.html` draws the same messages as arrows between nodes. See [timelines and logs](timeline.md).
+`-net-trace` on `run`, `replay`, `logs` or `debug` adds every dial, accept, message sent and message read to the trace, with its connection, size, send and arrival time, and whether a partition or clog held it. UDP sockets show up as `binds udp`, each datagram as `udp <socket>` lines, and a lost one says why. Every failure's `timeline.html` draws the same messages as arrows between nodes. See [timelines and logs](timeline.md).
 
 ## Without either
 
@@ -2107,7 +2144,7 @@ Every run already traces node starts, crashes, faults and checks, plus every lin
     1.132s  net server#2 -> client#1 conn 57: 3 bytes, arrives 1.137s
 ```
 
-A message sent while a partition or a clog holds the link says `held by a partition or clog`, and a duplicate from the `net_dup_chunk` mutant says `a duplicate`. `-net-trace` adds lines to the trace only: it does not change the schedule, the determinism hash or the result, so a seed fails the same way with and without it. A failure replayed with `-net-trace` writes those lines into its artifact `trace.txt` as well.
+A message sent while a partition or a clog holds the link says `held by a partition or clog`, and a duplicate from the `net_dup_chunk` mutant says `a duplicate`. UDP datagrams appear as `udp <socket>` lines, and one that never arrived says `lost` and why: a partition or clog, no socket bound to the address, or a `udp_drop` fault. `-net-trace` adds lines to the trace only: it does not change the schedule, the determinism hash or the result, so a seed fails the same way with and without it. A failure replayed with `-net-trace` writes those lines into its artifact `trace.txt` as well.
 
 ## Timeline
 
@@ -2151,7 +2188,7 @@ sequenceDiagram
   p1-->>p0: 0.007s conn 2 eof, read 0.009s
 ```
 
-It has the node lives, messages (`->>` read, `-->>` an EOF or reset, `-x` never read), faults, events, properties and the failure, in time order. Recorded operations are only in the HTML timeline. GitHub renders a ` ```mermaid ` block in issues and pull requests; a run with thousands of messages makes a diagram too tall to read there, so cut it to the moments around the failure first.
+It has the node lives, messages (`->>` read, `-->>` an EOF or reset, `-x` never read or a lost datagram), faults, events, properties and the failure, in time order. Recorded operations are only in the HTML timeline. GitHub renders a ` ```mermaid ` block in issues and pull requests; a run with thousands of messages makes a diagram too tall to read there, so cut it to the moments around the failure first.
 
 ## Logs
 
@@ -2609,7 +2646,7 @@ If the module does not require seedfall yet, run `go get github.com/kunalgoesbyk
 Open `seedfall/workload/main.go` and implement `put` and `get` against the service's real API:
 
 - **Address.** A node is reachable by its name from `seedfall.json`. Set the workload's `-addr` argument in `seedfall.json` to `<node>:<port the service listens on>`. Init guesses port 8080.
-- **Network.** If the nodes import `github.com/kunalgoesbyken/seedfall/sim`, dial with `sim.Dial`. Otherwise init turned on `net_overlay`, and plain `net.Dial` and `net/http` reach the simulated nodes.
+- **Network.** If the nodes import `github.com/kunalgoesbyken/seedfall/sim`, dial with `sim.Dial`. Otherwise init turned on `net_overlay`, and plain `net.Dial` and `net/http` reach the simulated nodes. UDP works the same way, through `sim.ListenPacket` or plain `net.ListenUDP` under `net_overlay`; add `udp_loss` and `udp_dup` to the faults for a program that uses it.
 - **Acknowledgement.** `put` returns nil only when the service acknowledged the write. Return an error for everything else. Writes whose outcome is unknown are simply not tracked.
 - **Timeouts.** Set a deadline on every request (`conn.SetDeadline`, or `http.Client{Timeout: ...}`), so a crash or partition does not block the workload forever.
 

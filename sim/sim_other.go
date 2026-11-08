@@ -9,6 +9,10 @@ import (
 
 func Listen(network, address string) (net.Listener, error) { return net.Listen(network, address) }
 
+func ListenPacket(network, address string) (net.PacketConn, error) {
+	return net.ListenPacket(network, address)
+}
+
 func Dial(network, address string) (net.Conn, error) { return net.Dial(network, address) }
 
 func Fail(msg string) { panic("seedfall: " + msg) }

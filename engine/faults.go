@@ -28,6 +28,8 @@ const (
 	FaultMisdirected = "misdirected_write"
 	FaultBitrot      = "bitrot"
 	FaultPreempt     = "preempt"
+	FaultUDPDrop     = "udp_drop"
+	FaultUDPDup      = "udp_dup"
 	DamageCrash      = "corrupt_on_crash"
 )
 
@@ -45,8 +47,8 @@ var FaultPresets = []FaultPreset{
 	{"resilient", "process pauses, slow nodes, connection resets and wall clock jumps", func(s *FaultSpec) {
 		s.PausePerSec, s.SlowPerSec, s.ResetPerSec, s.ClockJumpPerSec = 0.1, 0.1, 0.1, 0.05
 	}},
-	{"high_availability", "partitions, clogged links and swizzles", func(s *FaultSpec) {
-		s.PartitionPerSec, s.ClogPerSec, s.SwizzlePerSec = 0.2, 0.2, 0.05
+	{"high_availability", "partitions, clogged links, swizzles and lost or duplicated UDP datagrams", func(s *FaultSpec) {
+		s.PartitionPerSec, s.ClogPerSec, s.SwizzlePerSec, s.UDPLoss, s.UDPDup = 0.2, 0.2, 0.05, 0.01, 0.01
 	}},
 	{"everything", "fsync, write and read errors, full disks, corrupted, lost and misdirected writes, crash corruption, bit rot and buggify", func(s *FaultSpec) {
 		s.FsyncEIO, s.WriteEIO, s.WriteENOSPC, s.ReadEIO = 0.01, 0.005, 0.005, 0.005
@@ -74,7 +76,7 @@ func PresetNames() []string {
 	return names
 }
 
-var runtimeKinds = []string{FaultCrashIO, FaultFsyncEIO, FaultBuggify, FaultWriteEIO, FaultENOSPC, FaultReadEIO, FaultReadCorrupt, FaultLostWrite, FaultMisdirected, FaultPreempt}
+var runtimeKinds = []string{FaultCrashIO, FaultFsyncEIO, FaultBuggify, FaultWriteEIO, FaultENOSPC, FaultReadEIO, FaultReadCorrupt, FaultLostWrite, FaultMisdirected, FaultPreempt, FaultUDPDrop, FaultUDPDup}
 
 func observedAtRuntime(kind string) bool {
 	return slices.Contains(runtimeKinds, kind)
@@ -139,6 +141,8 @@ func (s FaultSpec) forSeed(seed uint64) FaultSpec {
 	s.MisdirectedWrite = swarmRate(r, s.MisdirectedWrite)
 	s.CorruptOnCrash = s.CorruptOnCrash && r.IntN(2) == 0
 	s.BitrotPerSec = swarmRate(r, s.BitrotPerSec)
+	s.UDPLoss = swarmRate(r, s.UDPLoss)
+	s.UDPDup = swarmRate(r, s.UDPDup)
 	return s
 }
 
@@ -289,6 +293,8 @@ func (f Fault) Describe() string {
 		return fmt.Sprintf("%8s  slow %s down %.1fx until %s", at(f.At), f.Node, f.Factor, at(f.Until))
 	case FaultPreempt:
 		return fmt.Sprintf("%8s  preempt %s's running goroutine at counted call #%d", at(f.At), f.Node, f.Op)
+	case FaultUDPDrop, FaultUDPDup:
+		return fmt.Sprintf("%8s  %s", at(f.At), f.udpText())
 	}
 	return fmt.Sprintf("%8s  %s until %s", at(f.At), f.partitionText(), at(f.Until))
 }

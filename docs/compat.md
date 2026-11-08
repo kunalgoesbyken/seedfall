@@ -11,6 +11,7 @@ Some storage libraries don't build or run for `GOOS=wasip1` because they call `m
 | `go.etcd.io/bbolt` v1.5 | doesn't build: no `MaxMapSize` for `GOARCH=wasm`, then `bolt_unix.go` needs `syscall.Flock` and `unix.Mmap` | runs; 300 seeds pass, `NoSync` is caught, and it found a [missing directory fsync](findings/bbolt-create-dir-fsync.md) | [`examples/bboltkv`](../examples/bboltkv) |
 | `github.com/cockroachdb/pebble/v2` v2.1 | doesn't build: `vfs` has no `wasip1` file system (its generic lock file refers to an undefined `defFS`), `rawalloc` has no `maxArrayLen` for `wasm`, and prometheus/procfs v0.10 calls `syscall.Statfs` | runs; needs `strict_dirs` (see below) | [`examples/pebblekv`](../examples/pebblekv) |
 | `github.com/dgraph-io/badger/v4` v4.9 | builds, but `Open` fails: ristretto's `mmap` returns `ENOSYS` on `wasip1` | runs, with small memtable and value log sizes | [`examples/badgerkv`](../examples/badgerkv) |
+| `github.com/hashicorp/memberlist` v0.7 | doesn't build: `go-sockaddr` has no route lookup for `wasip1` | runs, with `net_overlay`; the shim answers as `go-sockaddr` does on other platforms without a route table, and a node binds and advertises its own IP | [`examples/memberlist`](../examples/memberlist) |
 
 ## What the shims do, and why crash results stay real
 
@@ -20,6 +21,7 @@ A shim only replaces calls that WASI can't make. Every write still goes to a fil
 - **Writable `mmap`** (badger, through ristretto's `z` package) becomes a heap copy plus a clean copy. `msync` writes back the pages that differ and then fsyncs the file. `munmap` writes them back without an fsync, like dirty pages left in the page cache. Changes made through the mapping and never `msync`ed are lost on a crash. Real kernels may also write some of those pages back early; that outcome isn't generated.
 - **`flock` and file locks** become an in-process lock table. Each node is one process, and a crash starts a fresh process, so this matches what the lock guarantees.
 - **`madvise`, `mlock` and disk-usage queries** are no-ops or report "unsupported". They are hints that don't change what is on disk.
+- **Route lookups** (`go-sockaddr`) report that no route is known, as the library does on `js` and `plan9`. Only the automatic choice of a private IP depends on them.
 
 ## How it works
 

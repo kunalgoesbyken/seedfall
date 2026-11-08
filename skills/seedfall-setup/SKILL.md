@@ -43,7 +43,7 @@ If the module does not require seedfall yet, run `go get github.com/kunalgoesbyk
 Open `seedfall/workload/main.go` and implement `put` and `get` against the service's real API:
 
 - **Address.** A node is reachable by its name from `seedfall.json`. Set the workload's `-addr` argument in `seedfall.json` to `<node>:<port the service listens on>`. Init guesses port 8080.
-- **Network.** If the nodes import `github.com/kunalgoesbyken/seedfall/sim`, dial with `sim.Dial`. Otherwise init turned on `net_overlay`, and plain `net.Dial` and `net/http` reach the simulated nodes.
+- **Network.** If the nodes import `github.com/kunalgoesbyken/seedfall/sim`, dial with `sim.Dial`. Otherwise init turned on `net_overlay`, and plain `net.Dial` and `net/http` reach the simulated nodes. UDP works the same way, through `sim.ListenPacket` or plain `net.ListenUDP` under `net_overlay`; add `udp_loss` and `udp_dup` to the faults for a program that uses it.
 - **Acknowledgement.** `put` returns nil only when the service acknowledged the write. Return an error for everything else. Writes whose outcome is unknown are simply not tracked.
 - **Timeouts.** Set a deadline on every request (`conn.SetDeadline`, or `http.Client{Timeout: ...}`), so a crash or partition does not block the workload forever.
 

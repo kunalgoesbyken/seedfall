@@ -35,7 +35,7 @@ Every run already traces node starts, crashes, faults and checks, plus every lin
     1.132s  net server#2 -> client#1 conn 57: 3 bytes, arrives 1.137s
 ```
 
-A message sent while a partition or a clog holds the link says `held by a partition or clog`, and a duplicate from the `net_dup_chunk` mutant says `a duplicate`. `-net-trace` adds lines to the trace only: it does not change the schedule, the determinism hash or the result, so a seed fails the same way with and without it. A failure replayed with `-net-trace` writes those lines into its artifact `trace.txt` as well.
+A message sent while a partition or a clog holds the link says `held by a partition or clog`, and a duplicate from the `net_dup_chunk` mutant says `a duplicate`. UDP datagrams appear as `udp <socket>` lines, and one that never arrived says `lost` and why: a partition or clog, no socket bound to the address, or a `udp_drop` fault. `-net-trace` adds lines to the trace only: it does not change the schedule, the determinism hash or the result, so a seed fails the same way with and without it. A failure replayed with `-net-trace` writes those lines into its artifact `trace.txt` as well.
 
 ## Timeline
 
@@ -79,7 +79,7 @@ sequenceDiagram
   p1-->>p0: 0.007s conn 2 eof, read 0.009s
 ```
 
-It has the node lives, messages (`->>` read, `-->>` an EOF or reset, `-x` never read), faults, events, properties and the failure, in time order. Recorded operations are only in the HTML timeline. GitHub renders a ` ```mermaid ` block in issues and pull requests; a run with thousands of messages makes a diagram too tall to read there, so cut it to the moments around the failure first.
+It has the node lives, messages (`->>` read, `-->>` an EOF or reset, `-x` never read or a lost datagram), faults, events, properties and the failure, in time order. Recorded operations are only in the HTML timeline. GitHub renders a ` ```mermaid ` block in issues and pull requests; a run with thousands of messages makes a diagram too tall to read there, so cut it to the moments around the failure first.
 
 ## Logs
 

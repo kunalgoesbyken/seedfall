@@ -1,5 +1,7 @@
 package engine
 
+import "math/rand/v2"
+
 func (w *world) onDiskOp(n *node) {
 	inst := n.live
 	n.ops++
@@ -46,8 +48,10 @@ func (w *world) fsyncFails(n *node) bool {
 	return true
 }
 
-func (w *world) draw(rate float64) bool {
-	return !w.explicit && rate > 0 && !w.faultsSuppressed() && w.ioRand.Float64() < rate
+func (w *world) draw(rate float64) bool { return w.drawFrom(w.ioRand, rate) }
+
+func (w *world) drawFrom(r *rand.Rand, rate float64) bool {
+	return !w.explicit && rate > 0 && !w.faultsSuppressed() && r.Float64() < rate
 }
 
 func (w *world) plannedIOFault(n *node, kind string) (Fault, bool) {

@@ -29,6 +29,9 @@ const (
 	errnoFault       = 21
 	errnoIO          = 29
 	errnoNoSpace     = 51
+	errnoNotConn     = 53
+	errnoNotSock     = 57
+	errnoPipe        = 64
 	clockAbstime     = 1
 )
 
@@ -52,6 +55,9 @@ func wasiModule(ctx context.Context, rt wazero.Runtime) error {
 	b.NewFunctionBuilder().
 		WithGoModuleFunction(api.GoModuleFunc(func(ctx context.Context, m api.Module, stack []uint64) { worldOf(ctx).schedYield(ctx, m, stack) }), nil, []api.ValueType{i32}).
 		Export("sched_yield")
+	b.NewFunctionBuilder().
+		WithGoModuleFunction(api.GoModuleFunc(func(ctx context.Context, m api.Module, stack []uint64) { worldOf(ctx).sockShutdown(ctx, stack) }), []api.ValueType{i32, i32}, []api.ValueType{i32}).
+		Export("sock_shutdown")
 	_, err := b.Instantiate(ctx)
 	return err
 }
@@ -73,6 +79,22 @@ func (w *world) pollOneoff(ctx context.Context, m api.Module, stack []uint64) {
 		}
 		w.park(inst, w.wakeTime(inst, subs))
 	}
+}
+
+func (w *world) sockShutdown(ctx context.Context, stack []uint64) {
+	inst := w.instance(ctx)
+	id, ok := inst.fds[int32(stack[0])]
+	if !ok {
+		stack[0] = errnoNotSock
+		return
+	}
+	code := w.net.shutdown(inst, id, int32(stack[1]))
+	w.hostCall(inst, "sock_shutdown", strconv.Itoa(int(id)), int64(code))
+	if code < 0 {
+		stack[0] = errnoNotConn
+		return
+	}
+	stack[0] = errnoSuccess
 }
 
 func (w *world) readSubscriptions(m api.Module, in, count uint32, n *node) ([]subscription, bool) {
@@ -149,6 +171,8 @@ func writeEvents(m api.Module, out, resultPtr uint32, ready []subscription) uint
 func (n *network) readable(id int32) bool {
 	switch h := n.handles[id].(type) {
 	case *endpoint:
+		return h.rdShut || (len(h.inbox) > 0 && h.inbox[0].at <= n.w.now)
+	case *udpSocket:
 		return len(h.inbox) > 0 && h.inbox[0].at <= n.w.now
 	case *listener:
 		for _, ep := range h.backlog {
@@ -164,6 +188,10 @@ func (n *network) readable(id int32) bool {
 func (n *network) nextArrival(id int32) int64 {
 	switch h := n.handles[id].(type) {
 	case *endpoint:
+		if len(h.inbox) > 0 {
+			return h.inbox[0].at
+		}
+	case *udpSocket:
 		if len(h.inbox) > 0 {
 			return h.inbox[0].at
 		}
@@ -200,6 +228,8 @@ func owner(h any) *instance {
 	case *endpoint:
 		return h.owner
 	case *listener:
+		return h.owner
+	case *udpSocket:
 		return h.owner
 	}
 	return nil
@@ -242,7 +272,15 @@ func (f *netFile) Read(buf []byte) (int, fsapi.Errno) {
 		}
 		return min(len(buf), 1), 0
 	}
-	switch n := f.call("net_read", f.w.net.read(f.inst, f.id, buf)); n {
+	if _, ok := f.w.net.handles[f.id].(*udpSocket); ok {
+		n, _ := f.w.net.recvfrom(f.inst, f.id, buf)
+		return f.readResult(f.call("net_recv", n))
+	}
+	return f.readResult(f.call("net_read", f.w.net.read(f.inst, f.id, buf)))
+}
+
+func (f *netFile) readResult(n int32) (int, fsapi.Errno) {
+	switch n {
 	case codeAgain:
 		return 0, fsapi.EAGAIN
 	case codeEOF:
@@ -257,8 +295,15 @@ func (f *netFile) Read(buf []byte) (int, fsapi.Errno) {
 }
 
 func (f *netFile) Write(buf []byte) (int, fsapi.Errno) {
-	switch n := f.call("net_write", f.w.net.write(f.inst, f.id, append([]byte(nil), buf...))); n {
-	case codeReset:
+	data := append([]byte(nil), buf...)
+	var code int32
+	if _, ok := f.w.net.handles[f.id].(*udpSocket); ok {
+		code = f.call("net_send", f.w.net.sendto(f.inst, f.id, "", data))
+	} else {
+		code = f.call("net_write", f.w.net.write(f.inst, f.id, data))
+	}
+	switch n := code; n {
+	case codeReset, codePipe, codeNoDest:
 		return 0, fsapi.EIO
 	case codeBadFD:
 		return 0, fsapi.EBADF

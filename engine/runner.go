@@ -233,7 +233,7 @@ func (r *Runner) run(seed uint64, s Schedule, o runOptions) Result {
 		cfg: r.cfg, seed: seed, ctx: ctx, cancel: cancel, rt: r.rt,
 		sched: streams(seed, "sched"), netRand: streams(seed, "net"), diskRand: streams(seed, "disk"), latRand: streams(seed, "disklatency"), mutantRand: streams(seed, "mutant"),
 		events: make(chan event), faults: slices.Clone(s.Faults), horizon: int64(cmp.Or(s.Duration, r.cfg.Duration)), opsLimit: s.Ops, trace: &tracer{detail: o.record || o.debug != nil}, compiled: r.compiled,
-		upgrades: r.upgrades, explicit: o.explicit, ioRand: streams(seed, "io"), props: properties{}, spec: r.cfg.Faults.forSeed(seed), branch: o.branch, probe: o.probe,
+		upgrades: r.upgrades, explicit: o.explicit, ioRand: streams(seed, "io"), udpRand: streams(seed, "udp"), props: properties{}, spec: r.cfg.Faults.forSeed(seed), branch: o.branch, probe: o.probe,
 		mutation: r.Mutation, weakened: func() { r.weakened.Add(1) }, shielded: map[string]bool{}, deadline: never,
 		history: history{model: r.cfg.Checker.Model}, calls: newHostCalls(o.capture), netTrace: r.NetTrace, debug: o.debug,
 	}

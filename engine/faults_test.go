@@ -219,3 +219,39 @@ func TestCheckScheduleAcceptsGeneratedFaultsAndNamesEveryProblem(t *testing.T) {
 		t.Errorf("a fault at the end of the run or a disk-op fault recorded after it was rejected: %v", err)
 	}
 }
+
+func TestSwarmScalesUDPRates(t *testing.T) {
+	spec := FaultSpec{Swarm: true, UDPLoss: 0.2, UDPDup: 0.2}
+	off, on := false, false
+	for seed := range uint64(64) {
+		got := spec.forSeed(seed)
+		off = off || got.UDPLoss == 0
+		on = on || (got.UDPLoss > 0 && got.UDPLoss != spec.UDPLoss)
+		if got.UDPLoss > 2*spec.UDPLoss || got.UDPDup > 2*spec.UDPDup {
+			t.Fatalf("seed %d rescaled past twice the rate: %+v", seed, got)
+		}
+	}
+	if !off || !on {
+		t.Fatalf("swarm off=%v rescaled=%v over 64 seeds, want both", off, on)
+	}
+}
+
+func TestUDPFaultsPassScheduleChecksAndRatesAreBounded(t *testing.T) {
+	cfg := defaultConfig()
+	cfg.Nodes = []NodeSpec{{Name: "n1", Wasm: "x"}}
+	cfg.Workload = NodeSpec{Name: "client", Wasm: "x"}
+	good := Fault{At: Duration(time.Second), Kind: FaultUDPDrop, Node: "n1", To: "client", Op: 3}
+	if err := cfg.CheckSchedule(Schedule{Faults: []Fault{good, {At: Duration(time.Second), Kind: FaultUDPDup, Node: "n1", To: "client", Op: 4}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.CheckSchedule(Schedule{Faults: []Fault{{Kind: FaultUDPDrop, Node: "n1"}}}); err == nil {
+		t.Fatal("a udp_drop with op 0 passed the schedule check")
+	}
+	if !good.FiresAtOp() || !strings.Contains(good.Describe(), "drop n1's udp datagram #3 to client") {
+		t.Fatalf("describe %q fires at op %v", good.Describe(), good.FiresAtOp())
+	}
+	cfg.Faults.UDPLoss = 1.5
+	if err := cfg.validate(); err == nil {
+		t.Fatal("udp_loss above 1 passed validation")
+	}
+}

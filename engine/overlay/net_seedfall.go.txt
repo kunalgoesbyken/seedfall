@@ -4,6 +4,7 @@ package net
 
 import (
 	"context"
+	"internal/poll"
 	"os"
 	"strconv"
 	"sync"
@@ -23,16 +24,33 @@ func seedfallAcceptID(lid int32) int32
 //go:wasmimport seedfall net_bind
 func seedfallBind(fd, id int32)
 
+//go:wasmimport seedfall net_addr
+func seedfallAddr(fd, peer int32, p unsafe.Pointer, n uint32) int32
+
+//go:wasmimport seedfall net_udp
+func seedfallUDP(p unsafe.Pointer, n uint32) int32
+
+//go:wasmimport seedfall net_connect
+func seedfallConnect(fd int32, p unsafe.Pointer, n uint32) int32
+
+//go:wasmimport seedfall net_sendto
+func seedfallSendTo(fd int32, ap unsafe.Pointer, an uint32, dp unsafe.Pointer, dn uint32) int32
+
+//go:wasmimport seedfall net_recvfrom
+func seedfallRecvFrom(fd int32, dp unsafe.Pointer, dn uint32, ap unsafe.Pointer, acap uint32, alen unsafe.Pointer) int32
+
 const (
 	seedfallAgain     = -1
 	seedfallRefused   = -4
 	seedfallInUse     = -5
-	seedfallPortBase  = 40000
+	seedfallNoDest    = -7
+	seedfallAddrMax   = 256
 	seedfallConnFiles = "/.seedfall/conn/"
 )
 
 var (
 	seedfallListeners sync.Map
+	seedfallIPs       sync.Map
 	seedfallSelfOnce  sync.Once
 	seedfallSelfIP    IP
 )
@@ -43,6 +61,9 @@ func seedfallSelf() IP {
 }
 
 func socket(ctx context.Context, net string, family, sotype, proto int, ipv6only bool, laddr, raddr sockaddr, ctrlCtxFn func(context.Context, string, string, syscall.RawConn) error) (*netFD, error) {
+	if sotype == syscall.SOCK_DGRAM && (family == syscall.AF_INET || family == syscall.AF_INET6) {
+		return seedfallUDPFD(net, family, laddr, raddr)
+	}
 	if sotype != syscall.SOCK_STREAM {
 		return fakeSocket(ctx, net, family, sotype, proto, ipv6only, laddr, raddr, ctrlCtxFn)
 	}
@@ -54,11 +75,37 @@ func socket(ctx context.Context, net string, family, sotype, proto int, ipv6only
 
 func seedfallLookupSelf() IP {
 	name, _ := syscall.Getenv("SEEDFALL_NODE")
-	addrs, err := LookupHost(name)
-	if err != nil || len(addrs) == 0 {
-		return IPv4(127, 0, 0, 1)
+	return seedfallIP(name)
+}
+
+func seedfallIP(name string) IP {
+	if ip, ok := seedfallIPs.Load(name); ok {
+		return ip.(IP)
 	}
-	return ParseIP(addrs[0])
+	ip := IPv4(127, 0, 0, 1)
+	if addrs, err := LookupHost(name); err == nil && len(addrs) > 0 {
+		ip = ParseIP(addrs[0])
+	}
+	seedfallIPs.Store(name, ip)
+	return ip
+}
+
+func seedfallSplit(addr string) (IP, int) {
+	host, port, err := SplitHostPort(addr)
+	if err != nil {
+		return nil, 0
+	}
+	n, _ := strconv.Atoi(port)
+	return seedfallIP(host), n
+}
+
+func seedfallEndpoint(fd *netFD, peer int32) (IP, int) {
+	var buf [seedfallAddrMax]byte
+	n := seedfallAddr(int32(fd.pfd.Sysfd), peer, unsafe.Pointer(&buf[0]), seedfallAddrMax)
+	if n <= 0 {
+		return nil, 0
+	}
+	return seedfallSplit(string(buf[:n]))
 }
 
 func seedfallCall(fn func(unsafe.Pointer, uint32) int32, s string) int32 {
@@ -75,6 +122,8 @@ func seedfallErr(op string, code int32) error {
 		return os.NewSyscallError(op, syscall.ECONNREFUSED)
 	case seedfallInUse:
 		return os.NewSyscallError(op, syscall.EADDRINUSE)
+	case seedfallNoDest:
+		return os.NewSyscallError(op, syscall.EDESTADDRREQ)
 	}
 	return os.NewSyscallError(op, syscall.EIO)
 }
@@ -86,15 +135,15 @@ func seedfallTCPAddr(a sockaddr) *TCPAddr {
 	return &TCPAddr{}
 }
 
-func seedfallHostPort(t *TCPAddr) string {
+func seedfallHostPort(ip IP, port int) string {
 	host := ""
-	if len(t.IP) > 0 && !t.IP.IsUnspecified() {
-		host = t.IP.String()
+	if len(ip) > 0 && !ip.IsUnspecified() {
+		host = ip.String()
 	}
-	return JoinHostPort(host, strconv.Itoa(t.Port))
+	return JoinHostPort(host, strconv.Itoa(port))
 }
 
-func seedfallOpen(net string, family int, id int32) (*netFD, error) {
+func seedfallOpen(net string, family, sotype int, id int32) (*netFD, error) {
 	sysfd, err := syscall.Open(seedfallConnFiles+strconv.Itoa(int(id)), syscall.O_RDWR, 0)
 	if err != nil {
 		return nil, os.NewSyscallError("open", err)
@@ -104,8 +153,9 @@ func seedfallOpen(net string, family int, id int32) (*netFD, error) {
 		return nil, os.NewSyscallError("setnonblock", err)
 	}
 	seedfallBind(int32(sysfd), id)
-	fd := newFD(net, sysfd)
-	fd.family, fd.sotype = family, syscall.SOCK_STREAM
+	stream := sotype == syscall.SOCK_STREAM
+	fd := newPollFD(net, poll.FD{Sysfd: sysfd, IsStream: stream, ZeroReadIsEOF: stream})
+	fd.family, fd.sotype = family, sotype
 	if err := fd.init(); err != nil {
 		fd.Close()
 		return nil, err
@@ -115,31 +165,33 @@ func seedfallOpen(net string, family int, id int32) (*netFD, error) {
 
 func seedfallListenFD(net string, family int, laddr sockaddr) (*netFD, error) {
 	local := seedfallTCPAddr(laddr)
-	id := seedfallCall(seedfallListen, seedfallHostPort(local))
+	id := seedfallCall(seedfallListen, seedfallHostPort(local.IP, local.Port))
 	if id < 0 {
 		return nil, seedfallErr("listen", id)
 	}
-	fd, err := seedfallOpen(net, family, id)
+	fd, err := seedfallOpen(net, family, syscall.SOCK_STREAM, id)
 	if err != nil {
 		return nil, err
 	}
-	fd.setAddr(&TCPAddr{IP: seedfallSelf(), Port: local.Port}, nil)
+	_, port := seedfallEndpoint(fd, 0)
+	fd.setAddr(&TCPAddr{IP: seedfallSelf(), Port: port}, nil)
 	seedfallListeners.Store(fd, id)
 	return fd, nil
 }
 
 func seedfallDialFD(net string, family int, raddr sockaddr) (*netFD, error) {
 	remote := seedfallTCPAddr(raddr)
-	id := seedfallCall(seedfallDial, seedfallHostPort(remote))
+	id := seedfallCall(seedfallDial, seedfallHostPort(remote.IP, remote.Port))
 	if id < 0 {
 		return nil, seedfallErr("connect", id)
 	}
-	fd, err := seedfallOpen(net, family, id)
+	fd, err := seedfallOpen(net, family, syscall.SOCK_STREAM, id)
 	if err != nil {
 		return nil, err
 	}
 	fd.isConnected = true
-	fd.setAddr(&TCPAddr{IP: seedfallSelf(), Port: seedfallPortBase + int(id)}, remote)
+	_, port := seedfallEndpoint(fd, 0)
+	fd.setAddr(&TCPAddr{IP: seedfallSelf(), Port: port}, remote)
 	return fd, nil
 }
 
@@ -156,12 +208,207 @@ func seedfallAccept(ln *netFD, lid int32) (*netFD, error) {
 		if id < 0 {
 			return nil, seedfallErr("accept", id)
 		}
-		fd, err := seedfallOpen(ln.net, ln.family, id)
+		fd, err := seedfallOpen(ln.net, ln.family, syscall.SOCK_STREAM, id)
 		if err != nil {
 			return nil, err
 		}
 		fd.isConnected = true
-		fd.setAddr(ln.laddr, &TCPAddr{IP: IPv4zero, Port: seedfallPortBase + int(id)})
+		ip, port := seedfallEndpoint(fd, 1)
+		fd.setAddr(ln.laddr, &TCPAddr{IP: ip, Port: port})
 		return fd, nil
 	}
+}
+
+func seedfallUDPAddr(a sockaddr) *UDPAddr {
+	if u, ok := a.(*UDPAddr); ok && u != nil {
+		return u
+	}
+	return &UDPAddr{}
+}
+
+func seedfallUDPFD(net string, family int, laddr, raddr sockaddr) (*netFD, error) {
+	local := seedfallUDPAddr(laddr)
+	id := seedfallCall(seedfallUDP, seedfallHostPort(local.IP, local.Port))
+	if id < 0 {
+		return nil, seedfallErr("bind", id)
+	}
+	fd, err := seedfallOpen(net, family, syscall.SOCK_DGRAM, id)
+	if err != nil {
+		return nil, err
+	}
+	_, port := seedfallEndpoint(fd, 0)
+	self := &UDPAddr{IP: seedfallSelf(), Port: port}
+	if raddr == nil {
+		fd.setAddr(self, nil)
+		return fd, nil
+	}
+	remote := seedfallUDPAddr(raddr)
+	b := []byte(seedfallHostPort(remote.IP, remote.Port))
+	if code := seedfallConnect(int32(fd.pfd.Sysfd), unsafe.Pointer(&b[0]), uint32(len(b))); code < 0 {
+		fd.Close()
+		return nil, seedfallErr("connect", code)
+	}
+	fd.isConnected = true
+	fd.setAddr(self, remote)
+	return fd, nil
+}
+
+func seedfallRecv(fd *netFD, p []byte) (int, *UDPAddr, error) {
+	var from [seedfallAddrMax]byte
+	var n int32
+	var alen uint32
+	err := fd.pfd.RawRead(func(s uintptr) bool {
+		n = seedfallRecvFrom(int32(s), unsafe.Pointer(unsafe.SliceData(p)), uint32(len(p)), unsafe.Pointer(&from[0]), seedfallAddrMax, unsafe.Pointer(&alen))
+		return n != seedfallAgain
+	})
+	if err != nil {
+		return 0, nil, err
+	}
+	if n < 0 {
+		return 0, nil, seedfallErr("recvfrom", n)
+	}
+	ip, port := seedfallSplit(string(from[:alen]))
+	return int(n), &UDPAddr{IP: ip, Port: port}, nil
+}
+
+func seedfallSend(fd *netFD, sa syscall.Sockaddr, p []byte) (int, error) {
+	addr := ""
+	if sa != nil {
+		if fd.isConnected {
+			return 0, os.NewSyscallError("sendto", syscall.EISCONN)
+		}
+		to, _ := sockaddrToUDP(sa).(*UDPAddr)
+		if to == nil {
+			return 0, os.NewSyscallError("sendto", syscall.EAFNOSUPPORT)
+		}
+		addr = seedfallHostPort(to.IP, to.Port)
+	}
+	b := []byte(addr)
+	var n int32
+	err := fd.pfd.RawWrite(func(s uintptr) bool {
+		n = seedfallSendTo(int32(s), unsafe.Pointer(unsafe.SliceData(b)), uint32(len(b)), unsafe.Pointer(unsafe.SliceData(p)), uint32(len(p)))
+		return true
+	})
+	if err != nil {
+		return 0, err
+	}
+	if n < 0 {
+		return 0, seedfallErr("sendto", n)
+	}
+	return int(n), nil
+}
+
+func (fd *netFD) readFrom(p []byte) (int, syscall.Sockaddr, error) {
+	if fd.fakeNetFD != nil {
+		return fd.fakeNetFD.readFrom(p)
+	}
+	n, from, err := seedfallRecv(fd, p)
+	if err != nil {
+		return 0, nil, err
+	}
+	sa, err := from.sockaddr(fd.family)
+	return n, sa, err
+}
+
+func (fd *netFD) readFromInet4(p []byte, sa *syscall.SockaddrInet4) (int, error) {
+	if fd.fakeNetFD != nil {
+		return fd.fakeNetFD.readFromInet4(p, sa)
+	}
+	n, from, err := seedfallRecv(fd, p)
+	if err != nil {
+		return 0, err
+	}
+	*sa, err = ipToSockaddrInet4(from.IP, from.Port)
+	return n, err
+}
+
+func (fd *netFD) readFromInet6(p []byte, sa *syscall.SockaddrInet6) (int, error) {
+	if fd.fakeNetFD != nil {
+		return fd.fakeNetFD.readFromInet6(p, sa)
+	}
+	n, from, err := seedfallRecv(fd, p)
+	if err != nil {
+		return 0, err
+	}
+	*sa, err = ipToSockaddrInet6(from.IP, from.Port, "")
+	return n, err
+}
+
+func (fd *netFD) readMsg(p, oob []byte, flags int) (int, int, int, syscall.Sockaddr, error) {
+	if fd.fakeNetFD != nil {
+		return fd.fakeNetFD.readMsg(p, oob, flags)
+	}
+	if flags != 0 {
+		return 0, 0, 0, nil, os.NewSyscallError("readMsg", syscall.ENOTSUP)
+	}
+	n, sa, err := fd.readFrom(p)
+	return n, 0, 0, sa, err
+}
+
+func (fd *netFD) readMsgInet4(p, oob []byte, flags int, sa *syscall.SockaddrInet4) (int, int, int, error) {
+	if fd.fakeNetFD != nil {
+		return fd.fakeNetFD.readMsgInet4(p, oob, flags, sa)
+	}
+	if flags != 0 {
+		return 0, 0, 0, os.NewSyscallError("readMsgInet4", syscall.ENOTSUP)
+	}
+	n, err := fd.readFromInet4(p, sa)
+	return n, 0, 0, err
+}
+
+func (fd *netFD) readMsgInet6(p, oob []byte, flags int, sa *syscall.SockaddrInet6) (int, int, int, error) {
+	if fd.fakeNetFD != nil {
+		return fd.fakeNetFD.readMsgInet6(p, oob, flags, sa)
+	}
+	if flags != 0 {
+		return 0, 0, 0, os.NewSyscallError("readMsgInet6", syscall.ENOTSUP)
+	}
+	n, err := fd.readFromInet6(p, sa)
+	return n, 0, 0, err
+}
+
+func (fd *netFD) writeTo(p []byte, sa syscall.Sockaddr) (int, error) {
+	if fd.fakeNetFD != nil {
+		return fd.fakeNetFD.writeTo(p, sa)
+	}
+	return seedfallSend(fd, sa, p)
+}
+
+func (fd *netFD) writeToInet4(p []byte, sa *syscall.SockaddrInet4) (int, error) {
+	if fd.fakeNetFD != nil {
+		return fd.fakeNetFD.writeToInet4(p, sa)
+	}
+	return seedfallSend(fd, sa, p)
+}
+
+func (fd *netFD) writeToInet6(p []byte, sa *syscall.SockaddrInet6) (int, error) {
+	if fd.fakeNetFD != nil {
+		return fd.fakeNetFD.writeToInet6(p, sa)
+	}
+	return seedfallSend(fd, sa, p)
+}
+
+func (fd *netFD) writeMsg(p, oob []byte, sa syscall.Sockaddr) (int, int, error) {
+	if fd.fakeNetFD != nil {
+		return fd.fakeNetFD.writeMsg(p, oob, sa)
+	}
+	if len(oob) > 0 {
+		return 0, 0, os.NewSyscallError("writeMsg", syscall.ENOTSUP)
+	}
+	n, err := seedfallSend(fd, sa, p)
+	return n, 0, err
+}
+
+func (fd *netFD) writeMsgInet4(p, oob []byte, sa *syscall.SockaddrInet4) (int, int, error) {
+	if fd.fakeNetFD != nil {
+		return fd.fakeNetFD.writeMsgInet4(p, oob, sa)
+	}
+	return fd.writeMsg(p, oob, sa)
+}
+
+func (fd *netFD) writeMsgInet6(p, oob []byte, sa *syscall.SockaddrInet6) (int, int, error) {
+	if fd.fakeNetFD != nil {
+		return fd.fakeNetFD.writeMsgInet6(p, oob, sa)
+	}
+	return fd.writeMsg(p, oob, sa)
 }

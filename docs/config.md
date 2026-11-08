@@ -85,7 +85,7 @@ A preset fills in a documented fault level. Fields set next to it override it, a
 | `none` | no faults |
 | `durability` | `crash_per_sec` 0.5, `crash_on_io` 0.002, `torn_writes`, `reorder_writes`, `strict_dirs` |
 | `resilient` | `pause_per_sec` 0.1, `slow_per_sec` 0.1, `reset_per_sec` 0.1, `clock_jump_per_sec` 0.05 |
-| `high_availability` | `partition_per_sec` 0.2, `clog_per_sec` 0.2, `swizzle_per_sec` 0.05 |
+| `high_availability` | `partition_per_sec` 0.2, `clog_per_sec` 0.2, `swizzle_per_sec` 0.05, `udp_loss` 0.01, `udp_dup` 0.01 |
 | `everything` | `fsync_eio` 0.01, `write_eio`, `write_enospc`, `read_eio`, `read_corrupt`, `lost_write` and `misdirected_write` 0.005 each, `corrupt_on_crash`, `bitrot_per_sec` 0.05, `buggify` |
 
 Durations, topologies and clog modes keep their defaults, and every rate is per node per second, or per disk operation for the I/O faults, as in [faults](faults.md). The levels are seedfall's own, named after the fault tolerance levels Antithesis offers, not a copy of them. `high_availability` and `everything` include partitions, clogs and swizzles, which need at least two nodes that take faults, workload included. `everything` includes faults such as corrupted reads that only a system with checksums can survive.

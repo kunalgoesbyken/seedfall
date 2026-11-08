@@ -1,0 +1,22 @@
+{
+  "nodes": [
+    { "name": "n1", "pkg": "./node", "args": ["-name", "n1"] },
+    { "name": "n2", "pkg": "./node", "args": ["-name", "n2", "-join", "n1:7946"] },
+    { "name": "n3", "pkg": "./node", "args": ["-name", "n3", "-join", "n1:7946"] }
+  ],
+  "workload": { "name": "client", "pkg": "./client", "faults": false },
+  "duration": "100s",
+  "net_overlay": true,
+  "compat_overlay": true,
+  "faults_after_setup": true,
+  "watchdog": "180s",
+  "faults": {
+    "udp_loss": 0.05,
+    "udp_dup": 0.05,
+    "partition_per_sec": 0.2,
+    "partition_for": ["1s", "4s"]
+  },
+  "profiles": {
+    "strict": { "workload": { "args": ["-strict"] } }
+  }
+}
