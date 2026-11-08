@@ -186,3 +186,35 @@ func TestGuestShrinkKeepsTheFailureAndIsMinimal(t *testing.T) {
 		}
 	}
 }
+
+func TestGuestBuggifyFiringsReplayExactly(t *testing.T) {
+	r := guestRunner(t, true)
+	r.cfg.Faults.Buggify = true
+	fired := 0
+	for seed := range uint64(8) {
+		a := r.Run(seed, nil)
+		if a.Failed {
+			t.Fatalf("seed %d: the fsync store failed: %s", seed, a.Reason)
+		}
+		var firings []Fault
+		for _, f := range a.Faults {
+			if f.Kind == FaultBuggify {
+				firings = append(firings, f)
+			}
+		}
+		fired += len(firings)
+		if s := a.Buggify["store drops the reply"]; len(firings) > 0 && (s == nil || !s.Enabled || s.Fired != len(firings)) {
+			t.Fatalf("seed %d: %d firings recorded but site is %+v", seed, len(firings), s)
+		}
+		replay := r.Run(seed, a.Faults)
+		if diff, diverged := divergence(a.Trace, replay.Trace); diverged {
+			t.Fatalf("seed %d: replaying the recorded schedule diverges at %s", seed, diff)
+		}
+		if len(firings) > 0 && slices.ContainsFunc(r.Run(seed, []Fault{}).Faults, func(f Fault) bool { return f.Kind == FaultBuggify }) {
+			t.Fatalf("seed %d: an empty schedule still fired a buggify site", seed)
+		}
+	}
+	if fired == 0 {
+		t.Fatal("no buggify site fired in 8 seeds")
+	}
+}

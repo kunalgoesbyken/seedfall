@@ -51,8 +51,12 @@ func (w *world) draw(rate float64) bool {
 }
 
 func (w *world) plannedIOFault(n *node, kind string) (Fault, bool) {
+	return w.planned(kind, n.name(), "", n.ops)
+}
+
+func (w *world) planned(kind, node, site string, op int64) (Fault, bool) {
 	for _, f := range w.faults {
-		if f.Kind == kind && f.Node == n.name() && f.Op == n.ops {
+		if f.Kind == kind && f.Node == node && f.Site == site && f.Op == op {
 			return f, true
 		}
 	}

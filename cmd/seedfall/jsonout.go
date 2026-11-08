@@ -26,6 +26,7 @@ type summaryLine struct {
 	Unfinished int            `json:"unfinished"`
 	Unmet      int            `json:"unmet_properties"`
 	Properties []propertyView `json:"properties"`
+	Buggify    []buggifyView  `json:"buggify_sites,omitempty"`
 }
 
 func runJSON(r *engine.Runner, lo, hi uint64, jobs int) error {
@@ -53,7 +54,7 @@ func seedJSON(res engine.Result) seedLine {
 
 func printSummaryJSON(enc *json.Encoder, sum engine.Summary) error {
 	unmet := len(sum.Coverage.Unmet())
-	line := summaryLine{Type: "summary", Passed: sum.Passed, Failed: len(sum.Failures), Unfinished: sum.Unfinished, Unmet: unmet, Properties: properties(sum.Coverage)}
+	line := summaryLine{Type: "summary", Passed: sum.Passed, Failed: len(sum.Failures), Unfinished: sum.Unfinished, Unmet: unmet, Properties: properties(sum.Coverage), Buggify: buggifySites(sum.Buggify)}
 	if err := enc.Encode(line); err != nil {
 		return err
 	}

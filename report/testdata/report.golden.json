@@ -31,7 +31,8 @@
       "0s"
     ],
     "clock_jump_per_sec": 0,
-    "clock_jump_max": "0s"
+    "clock_jump_max": "0s",
+    "buggify": false
   },
   "findings": [
     {

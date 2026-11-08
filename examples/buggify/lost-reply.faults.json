@@ -1,0 +1,10 @@
+[
+  {
+    "at": "465.631252ms",
+    "kind": "buggify",
+    "node": "counter",
+    "site": "reply lost after apply",
+    "until": "0s",
+    "op": 35
+  }
+]

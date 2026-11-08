@@ -28,6 +28,7 @@ func (w *world) takeBranch(nextStep int64) bool {
 	b.taken = true
 	seed := w.streamSeed()
 	w.sched, w.netRand, w.diskRand, w.ioRand = streams(seed, "sched"), streams(seed, "net"), streams(seed, "disk"), streams(seed, "io")
+	clear(w.bugs.fire)
 	future := slices.DeleteFunc(generateFaults(w.cfg, w.spec, streams(seed, "faults")), func(f Fault) bool { return int64(f.At) < b.at })
 	w.faults = append(slices.Clip(w.faults[:w.nextFault]), future...)
 	w.trace.add(w.now, "branch %d taken at %s: the future is re-randomized", b.key, fmtTime(b.at))

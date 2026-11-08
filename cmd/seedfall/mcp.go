@@ -52,11 +52,22 @@ type propertyView struct {
 	SeedsTrue    int    `json:"seeds_true"`
 }
 
+type buggifyView struct {
+	Site         string `json:"site"`
+	Location     string `json:"location,omitempty"`
+	Problem      string `json:"problem,omitempty"`
+	SeedsReached int    `json:"seeds_reached"`
+	SeedsEnabled int    `json:"seeds_enabled"`
+	SeedsFired   int    `json:"seeds_fired"`
+	Fired        int    `json:"fired"`
+}
+
 type runView struct {
 	Passed     int            `json:"seeds_passed"`
 	Unfinished int            `json:"seeds_hit_horizon"`
 	Failure    *failureView   `json:"failure,omitempty"`
 	Properties []propertyView `json:"properties"`
+	Buggify    []buggifyView  `json:"buggify_sites,omitempty"`
 	Elapsed    string         `json:"elapsed"`
 }
 
@@ -139,7 +150,7 @@ func newMCPServer() (*mcp.Server, error) {
 	}, toolInit)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "seedfall_run",
-		Description: "Sweep a seed range under simulated crashes, torn writes, fsync errors and partitions. Returns the lowest failing seed with its fault schedule and trace tail, plus property coverage.",
+		Description: "Sweep a seed range under simulated crashes, torn writes, fsync errors and partitions. Returns the lowest failing seed with its fault schedule and trace tail, plus property coverage and, with faults.buggify on, how often each sim.Buggify site was reached, enabled and fired.",
 	}, toolRun)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "seedfall_replay",
@@ -179,7 +190,7 @@ func toolRun(_ context.Context, _ *mcp.CallToolRequest, a runArgs) (*mcp.CallToo
 	r.Doublecheck = a.Check
 	started := time.Now()
 	sum := engine.Sweep(r, lo, hi, engine.SweepOptions{Jobs: runtime.NumCPU()})
-	out := runView{Passed: sum.Passed, Unfinished: sum.Unfinished, Properties: properties(sum.Coverage), Elapsed: time.Since(started).Round(time.Millisecond).String()}
+	out := runView{Passed: sum.Passed, Unfinished: sum.Unfinished, Properties: properties(sum.Coverage), Buggify: buggifySites(sum.Buggify), Elapsed: time.Since(started).Round(time.Millisecond).String()}
 	if sum.First != nil {
 		out.Failure = viewFailure(a.Config, *sum.First)
 		class := r.Classify(*sum.First, nil)
@@ -326,6 +337,15 @@ func viewFailure(config string, res engine.Result) *failureView {
 		Faults: described, Trace: tail(res.Trace, mcpTraceTail),
 		Replay: fmt.Sprintf("seedfall replay -c %s -seed %d", config, res.Seed),
 	}
+}
+
+func buggifySites(c engine.BuggifySites) []buggifyView {
+	var out []buggifyView
+	for _, name := range c.Names() {
+		s := c[name]
+		out = append(out, buggifyView{Site: name, Location: s.Location, Problem: s.Problem(), SeedsReached: s.SeedsReached, SeedsEnabled: s.SeedsEnabled, SeedsFired: s.SeedsFired, Fired: s.Fired})
+	}
+	return out
 }
 
 func properties(c engine.Coverage) []propertyView {

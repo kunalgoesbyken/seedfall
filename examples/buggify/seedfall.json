@@ -1,0 +1,6 @@
+{
+  "nodes": [{ "name": "counter", "pkg": "./counter" }],
+  "workload": { "name": "client", "pkg": "./client" },
+  "duration": "20s",
+  "faults": { "buggify": true }
+}

@@ -141,6 +141,7 @@ The [getting started guide](docs/getting-started.md) walks through finding, shri
 - **Real processes.** Every node is its own wasm instance. A crash kills the process; a restart boots fresh over the surviving disk. `supervise` restarts nodes that exit, like systemd.
 - **Goroutine interleavings.** Spinning goroutines are preempted after a counted number of function calls, and `"preempt": {"interleave": true}` preempts at seeded points, so a check-then-act race inside one process fails on a seed and replays exactly. [How it works](docs/how-it-works.md#preemption)
 - **Pauses, clock skew and clock jumps.** Freeze a node like a long GC pause, offset or jump its wall clock. These catch stale reads and lease bugs: a raft store that reads without `VerifyLeader` fails on seed 35.
+- **BUGGIFY.** Mark sites in your own code with `sim.Buggify("reply lost after apply")` and turn on `buggify`: each seed enables some sites and fires them at seeded points, every firing is a fault that replays and shrinks, and the sweep reports which sites were reached, enabled and fired. `sim.Random` and `sim.RandomChoice` give replayable choices. [Buggify](docs/buggify.md)
 - **Swarm testing.** Per-seed random fault mixes in the style of TigerBeetle's VOPR.
 - **Properties with coverage.** `Always`, `Sometimes`, `Reachable` and `Unreachable`, cataloged from your source and aggregated across the sweep, so a property that never ran fails the build instead of passing silently. [Properties](docs/properties.md)
 - **Liveness checks.** `sim.QuietFor` stops the faults and heals partitions so you can assert the system recovers; `sim.SetupComplete` holds faults until bootstrap is done.
@@ -180,6 +181,7 @@ The [getting started guide](docs/getting-started.md) walks through finding, shri
 | [`examples/pebblekv`](examples/pebblekv) | Unmodified pebble v2 through `compat_overlay`, with `Sync` and `NoSync` writes |
 | [`examples/badgerkv`](examples/badgerkv) | Unmodified badger v4 through `compat_overlay`, its writable `mmap` emulated |
 | [`examples/interleave`](examples/interleave) | A check-then-act race between goroutines in one process, found only with seeded preemption (`preempt.interleave`) |
+| [`examples/buggify`](examples/buggify) | A counter whose client retries a lost reply: passes without faults, and a `sim.Buggify` site that drops the reply after applying finds the double increment |
 | [`examples/aikv`](examples/aikv) | Nine key-value stores written by Claude from one prompt, each under five fault profiles and two durability mutants |
 | [`examples/gostman`](examples/gostman) | A [Gostman](https://github.com/kunalgoesbyken/gostman) collection as the workload: its checks must pass after every fault window |
 

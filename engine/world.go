@@ -101,6 +101,7 @@ type world struct {
 	weakened    func()
 	setupDone   bool
 	quietUntil  int64
+	bugs        buggifyState
 }
 
 func streams(seed uint64, name string) *rand.Rand {
@@ -172,6 +173,13 @@ func hostModule(ctx context.Context, rt wazero.Runtime) error {
 	export("property", func(ctx context.Context, m api.Module, kind, cond int32, p, n, dp, dn uint32) {
 		w := worldOf(ctx)
 		w.observeProperty(w.instance(ctx), PropertyKind(kind), cond != 0, string(readBytes(m, p, n)), string(readBytes(m, dp, dn)))
+	})
+	export("buggify", func(ctx context.Context, m api.Module, p, n uint32, prob float64) int32 {
+		w := worldOf(ctx)
+		if w.buggify(w.instance(ctx), string(readBytes(m, p, n)), prob) {
+			return 1
+		}
+		return 0
 	})
 	export("setup_complete", func(ctx context.Context) {
 		w := worldOf(ctx)

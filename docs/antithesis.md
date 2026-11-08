@@ -42,6 +42,8 @@ The SDK's details map appears as JSON in the failure message. seedfall's source 
 
 The SDK's numeric and grouped variants (`AlwaysGreaterThan`, `SometimesAll` and similar) are evaluated by the SDK and reported with their result, so they work at run time, but they are not cataloged in advance. `lifecycle.SendEvent` output is ignored.
 
+`random.GetRandom` and `random.RandomChoice` read `crypto/rand`, which seedfall feeds from the seed, so they replay exactly and draw from the same source as `sim.Random` and `sim.RandomChoice`. Antithesis custom faults are commands its platform runs from outside your program and have no SDK call to map; mark the same spots with `sim.Buggify` instead ([buggify.md](buggify.md)).
+
 ## What you get compared with Antithesis
 
 The same assertions and the same setup signal, run locally or in CI for free, with seed replay, shrinking, causality analysis and triage reports. What you don't get: Antithesis runs arbitrary containers in a deterministic hypervisor, while seedfall runs Go programs that build for `wasip1`.

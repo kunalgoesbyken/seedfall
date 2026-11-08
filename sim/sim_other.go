@@ -21,6 +21,8 @@ func property(k kind, cond bool, msg string, details []any) {
 
 func setupComplete() {}
 
+func buggify(string, float64) bool { return false }
+
 func quietFor(time.Duration) {}
 
 type Op struct{}

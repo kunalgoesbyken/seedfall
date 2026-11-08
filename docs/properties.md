@@ -67,6 +67,10 @@ sim.Always(time.Since(started) < 10*time.Second, "cluster serves reads again wit
 
 `sim.QuietFor(d)` suppresses every fault for `d` of virtual time and heals any active partition. Nodes that are already down still restart on schedule. The trace records each suppressed fault. `examples/raftkv/client` uses this to check that the cluster recovers after the workload.
 
+## Faults at your own code sites
+
+`sim.Buggify("site")` returns true at seeded points when `faults.buggify` is on, so the simulator can force a retry, an error return or a delay inside your code. A quiet period stops sites from firing too. See [buggify.md](buggify.md).
+
 ## Waiting for setup
 
 With `"faults_after_setup": true`, no faults fire until some node calls `sim.SetupComplete()`. Use it when bootstrapping, such as electing the first leader or creating a stream, is not what you want to test.

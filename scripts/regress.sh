@@ -132,6 +132,12 @@ expect interleave seedfall.json         1-50  pass
 expect interleave interleave.json       1-5   fail
 expect interleave interleave.lock.json  1-50  pass
 deterministic interleave interleave.json 1
+expect buggify seedfall.json         1-20  fail
+expect buggify seedfall.fixed.json   1-20  pass
+expect buggify seedfall.off.json     1-20  fail
+expect_replay buggify seedfall.json 2 lost-reply.faults.json fail
+expect_replay buggify seedfall.fixed.json 2 lost-reply.faults.json pass
+deterministic buggify seedfall.json 2
 expect aikv configs/haiku-1.reorder.json 1     fail
 expect aikv configs/opus-2.harsh.json    99    fail
 expect aikv configs/sonnet-3.reorder.json 1-10 pass

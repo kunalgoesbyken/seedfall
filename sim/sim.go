@@ -1,7 +1,10 @@
 package sim
 
 import (
+	"crypto/rand"
+	"encoding/binary"
 	"fmt"
+	"math"
 	"os"
 	"time"
 )
@@ -41,6 +44,32 @@ func Unreachable(msg string, details ...any) { property(unreachable, false, msg,
 func SetupComplete() { setupComplete() }
 
 func QuietFor(d time.Duration) { quietFor(d) }
+
+const BuggifyProb = 0.25
+
+func Buggify(site string) bool { return buggify(site, BuggifyProb) }
+
+func BuggifyWithProb(site string, p float64) bool { return buggify(site, p) }
+
+func Random() uint64 {
+	var b [8]byte
+	rand.Read(b[:])
+	return binary.LittleEndian.Uint64(b[:])
+}
+
+func RandomChoice[T any](items []T) T {
+	var zero T
+	if len(items) == 0 {
+		return zero
+	}
+	n := uint64(len(items))
+	ceiling := math.MaxUint64 / n * n
+	v := Random()
+	for v >= ceiling {
+		v = Random()
+	}
+	return items[v%n]
+}
 
 func Assert(cond bool, msg string) {
 	if !cond {

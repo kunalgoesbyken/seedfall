@@ -28,6 +28,7 @@ type Result struct {
 	History    Linearizability
 	Properties map[string]*Property
 	Failure    Failure
+	Buggify    map[string]*BuggifySite
 }
 
 type Runner struct {
@@ -168,6 +169,7 @@ func (r *Runner) run(seed uint64, faults []Fault, explicit bool, b *branch, p *p
 	w.checkLinearizable()
 	res.History = w.lin
 	res.Properties = w.props
+	res.Buggify = w.bugs.sites
 	res.Failed = w.failure != ""
 	res.Reason = w.failure
 	res.Failure = w.failureKind

@@ -47,6 +47,7 @@ seedfall run -c seedfall.json -seeds 1-100
 Over MCP: `seedfall_run`, which returns `properties` with `seeds_reached`, `seeds_true` and a `problem` for each one.
 
 - A `Sometimes` that is never true means the faults never reached that path. Raise `crash_on_io` (around 0.005 to 0.02), set `torn_writes`, lengthen `duration`, or make the workload write more.
+- If no outside fault can reach a path (a lost reply after a successful apply, an error return, a minimal quorum), mark it in the service with `if sim.Buggify("site") { ... }` and set `"buggify": true` in `faults`. The sweep then lists each site as reached, enabled and fired; see the MCP resource `seedfall://docs/buggify` (docs/buggify.md).
 - A failure here may be a real bug. Switch to the `seedfall-triage` skill.
 
 ## 4. Grade the checks with mutants

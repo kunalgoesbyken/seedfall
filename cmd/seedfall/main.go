@@ -100,6 +100,7 @@ func cmdRun(args []string) error {
 		os.Exit(1)
 	}
 	printCoverage(sum.Coverage)
+	printBuggify(sum.Buggify)
 	if unmet := sum.Coverage.Unmet(); len(unmet) > 0 {
 		fmt.Printf("FAIL %d properties were never reached or never true in %d seeds\n", len(unmet), sum.Passed)
 		os.Exit(1)
@@ -125,6 +126,26 @@ func printCoverage(c engine.Coverage) {
 	fmt.Println()
 }
 
+func printBuggify(c engine.BuggifySites) {
+	names := c.Names()
+	if len(names) == 0 {
+		return
+	}
+	fmt.Println("buggify  seeds reached  seeds enabled  seeds fired  fired")
+	for _, name := range names {
+		s := c[name]
+		mark := ""
+		if problem := s.Problem(); problem != "" {
+			mark = fmt.Sprintf("  <- %s", problem)
+			if s.Location != "" {
+				mark += fmt.Sprintf(" (%s)", s.Location)
+			}
+		}
+		fmt.Printf("  %20d %14d %12d %6d  %s%s\n", s.SeedsReached, s.SeedsEnabled, s.SeedsFired, s.Fired, name, mark)
+	}
+	fmt.Println()
+}
+
 func writeReport(r *engine.Runner, cfg *engine.Config, conf, seeds, path string, sum engine.Summary, took time.Duration) error {
 	in := report.Input{Config: conf, Seeds: seeds, Faults: cfg.Faults, Summary: sum, Elapsed: took, Replay: func(seed uint64) engine.Result { return r.Run(seed, nil) }}
 	in.Classify = func(res engine.Result) engine.Classification { return r.Classify(res, nil) }
@@ -133,6 +154,7 @@ func writeReport(r *engine.Runner, cfg *engine.Config, conf, seeds, path string,
 		return err
 	}
 	printCoverage(sum.Coverage)
+	printBuggify(sum.Buggify)
 	fmt.Printf("%d of %d seeds failed, %d findings, in %s\n", rep.Failed, rep.Total, len(rep.Findings), took)
 	for _, f := range rep.Findings {
 		fmt.Printf("  %-9s %-40s %5d seeds  e.g. seed %d  %s\n", f.Status, f.Key, f.Count, f.Seeds[0], f.Classification)

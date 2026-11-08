@@ -24,6 +24,7 @@ A world is described in a JSON file, `seedfall.json` by default. Paths inside it
     "clock_skew": "200ms",
     "pause_per_sec": 0.2,
     "clock_jump_per_sec": 0.05,
+    "buggify": true,
     "swarm": true
   }
 }
@@ -66,11 +67,12 @@ All faults come from the seed. Faults that depend on what the program does, such
 | `pause_for` | `["100ms", "3s"]` | Pause duration |
 | `clock_jump_per_sec` | `0` | Rate of wall-clock jumps per node. Each jump moves the node's wall clock forward or back by up to `clock_jump_max`; the monotonic clock is untouched |
 | `clock_jump_max` | `10s` | Largest clock jump in either direction |
+| `buggify` | `false` | Let `sim.Buggify` and `sim.BuggifyWithProb` sites in your code fire. Each site is enabled in a quarter of runs and then fires at its own rate; every firing is recorded as a `buggify` fault with its node, site and hit number. See [buggify.md](buggify.md) |
 | `swarm` | `false` | Swarm testing. Each seed turns every fault type on or off and rescales its rate between 0 and 2× the configured value, so faults that hide each other get explored separately |
 
 ## Choosing rates
 
-Start with crashes and torn writes, then add `crash_on_io` around `0.005`, so a few hundred disk operations per run produce one or two mid-operation crashes. Add `fsync_eio`, `strict_dirs` and `reorder_writes` once the basic durability path passes. Turn on `swarm` for long CI sweeps. Use property coverage ([properties.md](properties.md)) to confirm the faults are actually reaching the code you care about.
+Start with crashes and torn writes, then add `crash_on_io` around `0.005`, so a few hundred disk operations per run produce one or two mid-operation crashes. Add `fsync_eio`, `strict_dirs` and `reorder_writes` once the basic durability path passes. Turn on `buggify` once you have marked sites in your code that should sometimes take the rare path. Turn on `swarm` for long CI sweeps. Use property coverage ([properties.md](properties.md)) to confirm the faults are actually reaching the code you care about.
 
 ## Durations
 

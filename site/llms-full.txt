@@ -58,7 +58,7 @@ Config paths in tool calls are resolved against the server's working directory, 
 | Tool | Arguments | Returns |
 |---|---|---|
 | `seedfall_init` | optional `dir`, `config`, `nodes`, `workload`, `dry_run` | The module's `main` packages and which become nodes, the packages that block a `GOOS=wasip1` build (compile errors and cgo, each with its import chain), the starter config, the files written, and the next steps. See [onboarding](#onboarding-a-new-module) |
-| `seedfall_run` | `config`, `seeds` (for example `1-200`), optional `check` | Seeds passed, the lowest failing seed with its reason, [classification](reports.md#classification), the faults before the failure, the trace tail and a replay command, plus property coverage |
+| `seedfall_run` | `config`, `seeds` (for example `1-200`), optional `check` | Seeds passed, the lowest failing seed with its reason, [classification](reports.md#classification), the faults before the failure, the trace tail and a replay command, plus property coverage and, with `faults.buggify` on, `buggify_sites` ([buggify](buggify.md#coverage)) |
 | `seedfall_replay` | `config`, `seed`, optional `faults` file | The same failure view for one seed, or the trace tail if it passes |
 | `seedfall_shrink` | `config`, `seed` | The original and minimal fault counts, the path of the saved minimal schedule, and the failure view under that schedule |
 | `seedfall_inspect` | `config`, `seed`, optional `faults`, `at`, `node`, `path` | Every node's disk at the failure or at virtual time `at`: per file the live and durable sizes, the byte ranges a crash would lose, whether its directory entry is durable, the last torn write, and removed entries a crash would bring back. With `path`, one file's durable content as text or a hex dump ([inspect.md](inspect.md)) |
@@ -177,9 +177,97 @@ The SDK's details map appears as JSON in the failure message. seedfall's source 
 
 The SDK's numeric and grouped variants (`AlwaysGreaterThan`, `SometimesAll` and similar) are evaluated by the SDK and reported with their result, so they work at run time, but they are not cataloged in advance. `lifecycle.SendEvent` output is ignored.
 
+`random.GetRandom` and `random.RandomChoice` read `crypto/rand`, which seedfall feeds from the seed, so they replay exactly and draw from the same source as `sim.Random` and `sim.RandomChoice`. Antithesis custom faults are commands its platform runs from outside your program and have no SDK call to map; mark the same spots with `sim.Buggify` instead ([buggify.md](buggify.md)).
+
 ## What you get compared with Antithesis
 
 The same assertions and the same setup signal, run locally or in CI for free, with seed replay, shrinking, causality analysis and triage reports. What you don't get: Antithesis runs arbitrary containers in a deterministic hypervisor, while seedfall runs Go programs that build for `wasip1`.
+
+
+<!-- docs/buggify.md -->
+
+# BUGGIFY: faults inside your code
+
+Every other seedfall fault comes from outside the process: crashes, torn writes, partitions. `sim.Buggify` lets you mark places in your own code where the simulator may force the rare path, such as a dropped reply, a retry, an error return, a minimal quorum or an extra delay. The idea comes from FoundationDB's `BUGGIFY`, which FoundationDB credits for many of its deepest bugs.
+
+```go
+v := c.apply(req)
+if sim.Buggify("reply lost after apply") {
+	return
+}
+reply(conn, v)
+```
+
+Outside the simulator `Buggify` always returns false, so the site costs one function call in production.
+
+## Turning it on
+
+Sites never fire unless the config asks for it:
+
+```json
+{ "faults": { "buggify": true } }
+```
+
+With `swarm` as well, each seed turns buggify on or off along with the other fault types.
+
+## How a site decides
+
+| Step | Rule |
+|---|---|
+| Enable | The first time a site is reached in a run, it is enabled with probability 0.25 and stays enabled or disabled for the rest of that run |
+| Fire | Each time an enabled site is reached, it fires with probability 0.25 for `sim.Buggify(site)`, or `p` for `sim.BuggifyWithProb(site, p)` |
+| Quiet | A site never fires during `sim.QuietFor` or, with `faults_after_setup`, before `sim.SetupComplete` |
+
+A site is identified by its name, so keep names constant. Both decisions use random streams keyed by the seed and the site name (and, for firing, the node), so adding a site or reaching another site more often never changes when an existing site fires. Most seeds run with only some sites enabled, which explores combinations that firing every site everywhere would hide.
+
+## Replay and shrink
+
+Each firing is recorded as a fault with the node, the site and which hit it was, counted per node and site:
+
+```
+faults before the failure (1):
+  465.631ms  buggify "reply lost after apply" fires on counter at hit #35
+```
+
+```json
+{ "at": "465.631252ms", "kind": "buggify", "node": "counter", "site": "reply lost after apply", "until": "0s", "op": 35 }
+```
+
+When a schedule is replayed with `-faults`, a site fires exactly at the hits the schedule lists and nowhere else, so `seedfall shrink` removes firings one at a time like any other fault, and you can hand-edit a schedule to add or drop one. Replaying a schedule needs `"buggify": true` in the config: with it off, every site returns false. The trace shows when each site is first reached and whether it is enabled for the run, and every firing.
+
+## Coverage
+
+seedfall catalogs `sim.Buggify` and `sim.BuggifyWithProb` calls whose site is a string literal, and after a sweep with `buggify` on it prints how often each site was reached, enabled and fired:
+
+```
+buggify  seeds reached  seeds enabled  seeds fired  fired
+                    20              6            6     88  reply lost after apply
+                    20              5            5    110  slow apply
+```
+
+A site marked `never reached` (with its location) is code no seed ran; `never fired` means it ran but no seed enabled it, so sweep more seeds. Neither fails the sweep: pair a site with a `sim.Sometimes` on the path it opens when you want that path to be required. The same counts are in `buggify_sites` in `run -json` and in the MCP `seedfall_run` result.
+
+## Structured randomness
+
+`sim.Random()` returns a random `uint64` and `sim.RandomChoice(items)` returns one element of a slice (the zero value for an empty slice). Inside the simulator both read `crypto/rand`, which seedfall feeds from a stream keyed by the seed, the node and its restart count, so a choice replays with the seed. `RandomChoice` rejects out-of-range draws, so every element is equally likely. Outside the simulator they use `crypto/rand`.
+
+```go
+if sim.BuggifyWithProb("slow apply", 0.5) {
+	time.Sleep(sim.RandomChoice([]time.Duration{time.Millisecond, 5 * time.Millisecond, 50 * time.Millisecond}))
+}
+```
+
+The Antithesis SDK's `random.GetRandom` and `random.RandomChoice` read the same source, so Antithesis-instrumented code gets the same replayable choices with no changes. See [antithesis.md](antithesis.md).
+
+## Example
+
+[`examples/buggify`](../examples/buggify) is a counter service whose client retries an increment when the reply does not arrive. Without buggify nothing ever drops a reply and every seed passes; with it, `reply lost after apply` makes the retry apply twice and the sweep fails, and the fixed server, which remembers applied request ids, passes.
+
+## Limits
+
+- A site's name is its identity: two call sites with the same name share one enable decision and one hit count per node.
+- Sites named by a non-literal string still fire and are recorded, but cannot be cataloged in advance.
+- `seedfall cause` re-randomizes when sites fire after each branch point, not which sites are enabled, so a seed's enabled set is fixed for that seed.
 
 
 <!-- docs/cause.md -->
@@ -280,7 +368,7 @@ seedfall run -c seedfall.always.json -seeds 1-100 -json | jq -c 'select(.type ==
 | `virtual_seconds` | Simulated time the run covered |
 | `faults` | Faults that happened during the run |
 
-The summary has `passed`, `failed`, `unfinished`, `unmet_properties` and `properties`, the same coverage table `seedfall_run` returns over MCP, with a `problem` on each property that was never reached or never true. The exit code is 1 if any seed failed or any property is unmet. `-json` cannot be combined with `-report`.
+The summary has `passed`, `failed`, `unfinished`, `unmet_properties` and `properties`, the same coverage table `seedfall_run` returns over MCP, with a `problem` on each property that was never reached or never true. With `faults.buggify` on it also has `buggify_sites`: each `sim.Buggify` site with `seeds_reached`, `seeds_enabled`, `seeds_fired`, `fired` and a `problem` of `never reached` or `never fired`, which does not change the exit code. The exit code is 1 if any seed failed or any property is unmet. `-json` cannot be combined with `-report`.
 
 ## `go test`
 
@@ -374,6 +462,7 @@ A world is described in a JSON file, `seedfall.json` by default. Paths inside it
     "clock_skew": "200ms",
     "pause_per_sec": 0.2,
     "clock_jump_per_sec": 0.05,
+    "buggify": true,
     "swarm": true
   }
 }
@@ -416,11 +505,12 @@ All faults come from the seed. Faults that depend on what the program does, such
 | `pause_for` | `["100ms", "3s"]` | Pause duration |
 | `clock_jump_per_sec` | `0` | Rate of wall-clock jumps per node. Each jump moves the node's wall clock forward or back by up to `clock_jump_max`; the monotonic clock is untouched |
 | `clock_jump_max` | `10s` | Largest clock jump in either direction |
+| `buggify` | `false` | Let `sim.Buggify` and `sim.BuggifyWithProb` sites in your code fire. Each site is enabled in a quarter of runs and then fires at its own rate; every firing is recorded as a `buggify` fault with its node, site and hit number. See [buggify.md](buggify.md) |
 | `swarm` | `false` | Swarm testing. Each seed turns every fault type on or off and rescales its rate between 0 and 2× the configured value, so faults that hide each other get explored separately |
 
 ## Choosing rates
 
-Start with crashes and torn writes, then add `crash_on_io` around `0.005`, so a few hundred disk operations per run produce one or two mid-operation crashes. Add `fsync_eio`, `strict_dirs` and `reorder_writes` once the basic durability path passes. Turn on `swarm` for long CI sweeps. Use property coverage ([properties.md](properties.md)) to confirm the faults are actually reaching the code you care about.
+Start with crashes and torn writes, then add `crash_on_io` around `0.005`, so a few hundred disk operations per run produce one or two mid-operation crashes. Add `fsync_eio`, `strict_dirs` and `reorder_writes` once the basic durability path passes. Turn on `buggify` once you have marked sites in your code that should sometimes take the rare path. Turn on `swarm` for long CI sweeps. Use property coverage ([properties.md](properties.md)) to confirm the faults are actually reaching the code you care about.
 
 ## Durations
 
@@ -933,6 +1023,10 @@ sim.Always(time.Since(started) < 10*time.Second, "cluster serves reads again wit
 
 `sim.QuietFor(d)` suppresses every fault for `d` of virtual time and heals any active partition. Nodes that are already down still restart on schedule. The trace records each suppressed fault. `examples/raftkv/client` uses this to check that the cluster recovers after the workload.
 
+## Faults at your own code sites
+
+`sim.Buggify("site")` returns true at seeded points when `faults.buggify` is on, so the simulator can force a retry, an error return or a delay inside your code. A quiet period stops sites from firing too. See [buggify.md](buggify.md).
+
 ## Waiting for setup
 
 With `"faults_after_setup": true`, no faults fire until some node calls `sim.SetupComplete()`. Use it when bootstrapping, such as electing the first leader or creating a stream, is not what you want to test.
@@ -1301,6 +1395,7 @@ seedfall run -c seedfall.json -seeds 1-100
 Over MCP: `seedfall_run`, which returns `properties` with `seeds_reached`, `seeds_true` and a `problem` for each one.
 
 - A `Sometimes` that is never true means the faults never reached that path. Raise `crash_on_io` (around 0.005 to 0.02), set `torn_writes`, lengthen `duration`, or make the workload write more.
+- If no outside fault can reach a path (a lost reply after a successful apply, an error return, a minimal quorum), mark it in the service with `if sim.Buggify("site") { ... }` and set `"buggify": true` in `faults`. The sweep then lists each site as reached, enabled and fired; see the MCP resource `seedfall://docs/buggify` (docs/buggify.md).
 - A failure here may be a real bug. Switch to the `seedfall-triage` skill.
 
 ## 4. Grade the checks with mutants

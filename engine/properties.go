@@ -80,7 +80,7 @@ type Coverage map[string]*PropertyCoverage
 func newCoverage(entries []CatalogEntry) Coverage {
 	c := Coverage{}
 	for _, e := range entries {
-		if _, ok := c[e.Message]; !ok {
+		if _, ok := c[e.Message]; !ok && !e.Buggify {
 			c[e.Message] = &PropertyCoverage{Kind: e.Kind, Location: e.Location}
 		}
 	}

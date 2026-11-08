@@ -17,10 +17,12 @@ type Summary struct {
 	Passed     int
 	Unfinished int
 	Coverage   Coverage
+	Buggify    BuggifySites
 }
 
 func (s *Summary) record(res Result) {
 	s.Coverage.add(res.Properties)
+	s.Buggify.add(res.Buggify)
 	if !res.Failed {
 		s.Passed++
 		if !res.Finished {
@@ -32,7 +34,7 @@ func (s *Summary) record(res Result) {
 		s.First = &res
 	}
 	brief := res
-	brief.Trace, brief.Properties = nil, nil
+	brief.Trace, brief.Properties, brief.Buggify = nil, nil, nil
 	s.Failures = append(s.Failures, brief)
 }
 
@@ -40,7 +42,7 @@ func Sweep(r *Runner, lo, hi uint64, opts SweepOptions) Summary {
 	var (
 		next atomic.Uint64
 		mu   sync.Mutex
-		sum  = Summary{Coverage: newCoverage(r.catalog)}
+		sum  = Summary{Coverage: newCoverage(r.catalog), Buggify: newBuggifySites(r.cfg, r.catalog)}
 		wg   sync.WaitGroup
 	)
 	next.Store(lo)

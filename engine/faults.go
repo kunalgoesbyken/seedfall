@@ -15,14 +15,18 @@ const (
 	FaultFsyncEIO  = "fsync_eio"
 	FaultPause     = "pause"
 	FaultClockJump = "clock_jump"
+	FaultBuggify   = "buggify"
 )
 
-func observedAtRuntime(kind string) bool { return kind == FaultCrashIO || kind == FaultFsyncEIO }
+func observedAtRuntime(kind string) bool {
+	return kind == FaultCrashIO || kind == FaultFsyncEIO || kind == FaultBuggify
+}
 
 type Fault struct {
 	At    Duration `json:"at"`
 	Kind  string   `json:"kind"`
 	Node  string   `json:"node,omitempty"`
+	Site  string   `json:"site,omitempty"`
 	Side  []string `json:"side,omitempty"`
 	Until Duration `json:"until"`
 	Op    int64    `json:"op,omitempty"`
@@ -54,6 +58,7 @@ func (s FaultSpec) forSeed(seed uint64) FaultSpec {
 	s.ClockJumpPerSec = swarmRate(r, s.ClockJumpPerSec)
 	s.TornWrites = s.TornWrites && r.IntN(2) == 0
 	s.ReorderWrites = s.ReorderWrites && r.IntN(2) == 0
+	s.Buggify = s.Buggify && r.IntN(2) == 0
 	return s
 }
 
@@ -148,6 +153,8 @@ func (f Fault) Describe() string {
 		return fmt.Sprintf("%8s  pause %s until %s", at(f.At), f.Node, at(f.Until))
 	case FaultClockJump:
 		return fmt.Sprintf("%8s  %s's wall clock jumps %s", at(f.At), f.Node, fmtSigned(int64(f.Shift)))
+	case FaultBuggify:
+		return fmt.Sprintf("%8s  buggify %q fires on %s at hit #%d", at(f.At), f.Site, f.Node, f.Op)
 	}
 	return fmt.Sprintf("%8s  partition %v from the rest until %s", at(f.At), f.Side, at(f.Until))
 }

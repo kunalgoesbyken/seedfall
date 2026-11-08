@@ -66,6 +66,9 @@ func store(durable bool) {
 				}
 				count++
 			}
+			if sim.Buggify("store drops the reply") {
+				return
+			}
 			fmt.Fprintf(conn, "%d\n", count)
 		}()
 	}

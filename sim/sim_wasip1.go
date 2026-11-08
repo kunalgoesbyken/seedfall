@@ -54,6 +54,14 @@ func hostQuiet(ns int64)
 
 func quietFor(d time.Duration) { hostQuiet(int64(d)) }
 
+//go:wasmimport seedfall buggify
+func hostBuggify(site unsafe.Pointer, n uint32, p float64) int32
+
+func buggify(site string, p float64) bool {
+	b := []byte(site)
+	return hostBuggify(bytesPtr(b), uint32(len(b)), p) != 0
+}
+
 //go:wasmimport seedfall property
 func hostProperty(k, cond int32, msg unsafe.Pointer, msgLen uint32, detail unsafe.Pointer, detailLen uint32)
 

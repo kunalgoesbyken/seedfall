@@ -22,15 +22,20 @@ var propertyFuncs = map[string]PropertyKind{
 	"Unreachable":         Unreachable,
 }
 
+const simPackage = "github.com/kunalgoesbyken/seedfall/sim"
+
 var propertyPackages = []string{
-	"github.com/kunalgoesbyken/seedfall/sim",
+	simPackage,
 	"github.com/antithesishq/antithesis-sdk-go/assert",
 }
+
+var buggifyFuncs = map[string]bool{"Buggify": true, "BuggifyWithProb": true}
 
 type CatalogEntry struct {
 	Kind     PropertyKind
 	Message  string
 	Location string
+	Buggify  bool
 }
 
 type goPackage struct {
@@ -111,8 +116,8 @@ func fileProperties(fset *token.FileSet, root string, file *ast.File) []CatalogE
 	return out
 }
 
-func propertyAliases(file *ast.File) map[string]bool {
-	aliases := map[string]bool{}
+func propertyAliases(file *ast.File) map[string]string {
+	aliases := map[string]string{}
 	for _, imp := range file.Imports {
 		path, err := strconv.Unquote(imp.Path.Value)
 		if err != nil || !slices.Contains(propertyPackages, path) {
@@ -122,19 +127,23 @@ func propertyAliases(file *ast.File) map[string]bool {
 		if imp.Name != nil {
 			name = imp.Name.Name
 		}
-		aliases[name] = true
+		aliases[name] = path
 	}
 	return aliases
 }
 
-func propertyCall(call *ast.CallExpr, aliases map[string]bool) (CatalogEntry, bool) {
+func propertyCall(call *ast.CallExpr, aliases map[string]string) (CatalogEntry, bool) {
 	sel, ok := call.Fun.(*ast.SelectorExpr)
 	if !ok {
 		return CatalogEntry{}, false
 	}
 	pkg, ok := sel.X.(*ast.Ident)
-	if !ok || !aliases[pkg.Name] {
+	if !ok || aliases[pkg.Name] == "" {
 		return CatalogEntry{}, false
+	}
+	if aliases[pkg.Name] == simPackage && buggifyFuncs[sel.Sel.Name] {
+		site, ok := literalArg(call, 0)
+		return CatalogEntry{Message: site, Buggify: true}, ok
 	}
 	kind, ok := propertyFuncs[sel.Sel.Name]
 	if !ok {

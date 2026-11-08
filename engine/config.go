@@ -53,6 +53,7 @@ type FaultSpec struct {
 	PauseFor        Range    `json:"pause_for"`
 	ClockJumpPerSec float64  `json:"clock_jump_per_sec"`
 	ClockJumpMax    Duration `json:"clock_jump_max"`
+	Buggify         bool     `json:"buggify"`
 }
 
 type PreemptSpec struct {
