@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 )
 
 const (
@@ -27,10 +28,15 @@ type chunk struct {
 	at   int64
 	kind chunkKind
 	data []byte
+	sent int64
+	msg  int
+	seen bool
 }
 
 type endpoint struct {
 	id       int32
+	conn     int32
+	connMsg  int
 	owner    *instance
 	peer     *endpoint
 	inbox    []chunk
@@ -112,6 +118,7 @@ func (n *network) dial(inst *instance, addr string) int32 {
 	l, ok := n.listeners[host+":"+port]
 	from := inst.node.name()
 	if !ok || n.w.cut(from, host) {
+		n.w.netLine(inst, "net %s dials %s, refused", inst.label, addr)
 		return codeRefused
 	}
 	there := n.w.link(from, host)
@@ -121,8 +128,11 @@ func (n *network) dial(inst *instance, addr string) int32 {
 	}
 	acceptAt += there.delay
 	client := &endpoint{id: n.alloc(), owner: inst}
-	server := &endpoint{owner: l.owner, peer: client, acceptAt: acceptAt}
+	client.conn = client.id
+	server := &endpoint{conn: client.id, owner: l.owner, peer: client, acceptAt: acceptAt}
 	client.peer = server
+	server.connMsg = n.w.rec.message(Message{Conn: client.id, Kind: MessageConnect, From: from, To: host, FromInstance: inst.label, ToInstance: l.owner.label, Sent: time.Duration(n.w.now), Arrives: time.Duration(acceptAt), Read: unread, Held: there.held > 0})
+	n.w.netLine(inst, "net %s dials %s conn %d, arrives %s", inst.label, addr, client.id, fmtTime(acceptAt))
 	l.backlog = append(l.backlog, server)
 	l.owner.wakeAt = min(l.owner.wakeAt, server.acceptAt)
 	n.handles[client.id] = client
@@ -142,6 +152,8 @@ func (n *network) accept(inst *instance, id int32) int32 {
 	l.backlog = slices.Delete(l.backlog, i, i+1)
 	ep.id = n.alloc()
 	n.handles[ep.id] = ep
+	n.w.rec.read(ep.connMsg, n.w.now)
+	n.w.netLine(inst, "net %s accepts conn %d from %s", inst.label, ep.conn, ep.peer.owner.label)
 	return ep.id
 }
 
@@ -164,11 +176,49 @@ func (n *network) send(from *endpoint, kind chunkKind, data []byte) {
 	at += link.delay
 	at = max(at, from.lastSent)
 	from.lastSent = at
-	to.inbox = append(to.inbox, chunk{at: at, kind: kind, data: data})
+	m := Message{Conn: from.conn, Kind: chunkNames[kind], From: src, To: dst, FromInstance: from.owner.label, ToInstance: to.owner.label, Bytes: len(data), Sent: time.Duration(n.w.now), Arrives: time.Duration(at), Read: unread, Held: link.held > 0}
+	n.deliver(to, chunk{at: at, kind: kind, data: data, sent: n.w.now}, m)
 	if n.w.duplicates(to.owner.node, kind) {
-		to.inbox = append(to.inbox, chunk{at: at, kind: kind, data: data})
+		m.Duplicate = true
+		n.deliver(to, chunk{at: at, kind: kind, data: data, sent: n.w.now}, m)
 	}
 	to.owner.wakeAt = min(to.owner.wakeAt, at)
+}
+
+func (n *network) deliver(to *endpoint, c chunk, m Message) {
+	c.msg = n.w.rec.message(m)
+	to.inbox = append(to.inbox, c)
+	if n.w.netTrace {
+		n.w.netLine(to.peer.owner, "net %s -> %s conn %d: %s, arrives %s%s", m.FromInstance, m.ToInstance, m.Conn, chunkText(c), fmtTime(c.at), deliveryNote(m))
+	}
+}
+
+func chunkText(c chunk) string {
+	if c.kind == chunkData {
+		return fmt.Sprintf("%d bytes", len(c.data))
+	}
+	return chunkNames[c.kind]
+}
+
+func deliveryNote(m Message) string {
+	switch {
+	case m.Duplicate:
+		return ", a duplicate"
+	case m.Held:
+		return ", held by a partition or clog"
+	}
+	return ""
+}
+
+func (n *network) seen(ep *endpoint, c *chunk) {
+	if c.seen {
+		return
+	}
+	c.seen = true
+	n.w.rec.read(c.msg, n.w.now)
+	if n.w.netTrace {
+		n.w.netLine(ep.owner, "net %s <- %s conn %d: %s sent at %s", ep.owner.label, ep.peer.owner.label, ep.conn, chunkText(*c), fmtTime(c.sent))
+	}
 }
 
 func (n *network) write(inst *instance, id int32, data []byte) int32 {
@@ -192,6 +242,7 @@ func (n *network) read(inst *instance, id int32, buf []byte) int32 {
 		return codeAgain
 	}
 	head := &ep.inbox[0]
+	n.seen(ep, head)
 	switch head.kind {
 	case chunkEOF:
 		return codeEOF
@@ -289,6 +340,12 @@ func (n *network) drop(inst *instance) {
 				n.closeEndpoint(h, chunkReset)
 			}
 		}
+	}
+}
+
+func (w *world) netLine(inst *instance, format string, args ...any) {
+	if w.netTrace {
+		w.trace.about(w.now, instLine(inst), format, args...)
 	}
 }
 

@@ -15,7 +15,10 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-const mcpTraceTail = 60
+const (
+	mcpTraceTail    = 60
+	defaultLogLimit = 200
+)
 
 const mcpInstructions = "seedfall runs Go services as wasip1 guests under simulated crashes, torn writes, fsync errors, disk corruption, full disks, partitions, clogs and slow nodes, with exact replay from a seed. In a module without a seedfall.json, call seedfall_init first. Read seedfall://docs/properties before writing checks and seedfall://schema/config before editing seedfall.json. The prompts seedfall-setup, seedfall-properties, seedfall-triage and seedfall-fix-and-prove walk through each stage."
 
@@ -134,6 +137,43 @@ type inspectArgs struct {
 	Path   string `json:"path,omitempty" jsonschema:"also return the durable content of this file, as text or a hex dump"`
 }
 
+type logsArgs struct {
+	seedArgs
+	Node     string `json:"node,omitempty" jsonschema:"only lines of these nodes, comma separated: their output, starts, crashes and faults"`
+	Grep     string `json:"grep,omitempty" jsonschema:"only lines matching this regular expression"`
+	From     string `json:"from,omitempty" jsonschema:"only lines at or after this virtual time, for example 1.5s"`
+	To       string `json:"to,omitempty" jsonschema:"only lines at or before this virtual time"`
+	NetTrace bool   `json:"net_trace,omitempty" jsonschema:"also trace every connection, message sent and message read"`
+	Limit    int    `json:"limit,omitempty" jsonschema:"most lines to return, the first ones that match, default 200"`
+}
+
+type logsView struct {
+	Seed    uint64    `json:"seed"`
+	Passed  bool      `json:"passed"`
+	Reason  string    `json:"reason,omitempty"`
+	Total   int       `json:"trace_lines"`
+	Matched int       `json:"matched"`
+	Lines   []logView `json:"lines"`
+}
+
+type debugArgs struct {
+	seedArgs
+	At       string   `json:"at,omitempty" jsonschema:"virtual time to stop at, for example 1.5s: the session opens before the first step after it; default 0"`
+	Commands []string `json:"commands,omitempty" jsonschema:"debugger commands to run in order, for example [\"net\", \"ls server\", \"until fault crash\", \"cat server data/kv.log\"]; help lists them; default where"`
+	NetTrace bool     `json:"net_trace,omitempty" jsonschema:"also trace every connection, message sent and message read"`
+}
+
+type debugOutput struct {
+	Command string `json:"command"`
+	Output  string `json:"output"`
+}
+
+type debugView struct {
+	Seed    uint64            `json:"seed"`
+	Outputs []debugOutput     `json:"outputs"`
+	State   engine.DebugState `json:"state"`
+}
+
 type fileView struct {
 	Path        string `json:"path"`
 	DurableSize int64  `json:"durable_size"`
@@ -177,6 +217,14 @@ func newMCPServer() (*mcp.Server, error) {
 		Name:        "seedfall_replay",
 		Description: "Replay one seed exactly, optionally with a fault schedule file, and return its trace.",
 	}, toolReplay)
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "seedfall_logs",
+		Description: "Replay one seed and return its trace lines filtered by node, regular expression and virtual time window: guest stdout and stderr with virtual timestamps, starts, crashes, faults and, with net_trace, every connection, message sent and message read. A guest line that is a JSON object, such as slog's JSON handler output, comes back parsed in fields.",
+	}, toolLogs)
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "seedfall_debug",
+		Description: "Time-travel debugger: replay one seed, stop before the first step after a virtual time, and run debugger commands there: where (node states), log, grep, ls, stat and cat on a node's live disk, net (in-flight messages), faults (active and next), step, until <regex>, to <time> and branch (re-randomize the future, as seedfall_cause does). Returns each command's output and the final state.",
+	}, toolDebug)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "seedfall_shrink",
 		Description: "Minimize a failing seed while it keeps failing the same way: remove faults by delta debugging, then shorten crash downtimes, partitions, pauses, clogs and slowdowns, shrink clock jumps, narrow partition sides, move faults earlier, trim the run duration and, for workloads sized with sim.Budget, the operation count. Saves the schedule for replay and returns the sizes before and after, the runs used and whether the optional budget ran out.",
@@ -277,6 +325,62 @@ func toolReplay(_ context.Context, _ *mcp.CallToolRequest, a seedArgs) (*mcp.Cal
 	}
 	out.Trace = tail(res.Trace, mcpTraceTail)
 	out.Note = cutShort(res, cfg)
+	return nil, out, nil
+}
+
+func toolLogs(_ context.Context, _ *mcp.CallToolRequest, a logsArgs) (*mcp.CallToolResult, logsView, error) {
+	filter, err := newLogFilter(a.Node, a.Grep, a.From, a.To)
+	if err != nil {
+		return nil, logsView{}, err
+	}
+	res, _, err := recordedRun(&a.configArgs, a.Seed, a.Faults, a.NetTrace)
+	if err != nil {
+		return nil, logsView{}, err
+	}
+	if unknown := filter.unknownNodes(res.Timeline.Nodes); unknown != "" {
+		return nil, logsView{}, fmt.Errorf("unknown node %q", unknown)
+	}
+	lines := filter.apply(res.Timeline.Logs)
+	out := logsView{Seed: a.Seed, Passed: !res.Failed, Reason: res.Reason, Total: len(res.Timeline.Logs), Matched: len(lines), Lines: []logView{}}
+	for _, l := range lines[:min(len(lines), cmp.Or(a.Limit, defaultLogLimit))] {
+		out.Lines = append(out.Lines, viewLog(l))
+	}
+	return nil, out, nil
+}
+
+func toolDebug(_ context.Context, _ *mcp.CallToolRequest, a debugArgs) (*mcp.CallToolResult, debugView, error) {
+	at, err := parseAt(a.At)
+	if err != nil {
+		return nil, debugView{}, err
+	}
+	r, _, err := load(a.ref())
+	if err != nil {
+		return nil, debugView{}, err
+	}
+	sched, err := readSchedule(a.Faults)
+	if err != nil {
+		return nil, debugView{}, err
+	}
+	r.NetTrace = a.NetTrace
+	s, err := r.Debug(a.Seed, sched, at)
+	if err != nil {
+		return nil, debugView{}, err
+	}
+	defer s.Close()
+	d := newDebugREPL(s)
+	out := debugView{Seed: a.Seed}
+	commands := a.Commands
+	if len(commands) == 0 {
+		commands = []string{"where"}
+	}
+	for _, c := range commands {
+		var b strings.Builder
+		if d.exec(c, &b) {
+			break
+		}
+		out.Outputs = append(out.Outputs, debugOutput{Command: c, Output: b.String()})
+	}
+	out.State = s.State()
 	return nil, out, nil
 }
 

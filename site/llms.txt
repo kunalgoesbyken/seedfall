@@ -23,6 +23,7 @@ Install with `go install github.com/kunalgoesbyken/seedfall/cmd/seedfall@latest`
 - [Properties, linearizability and determinism](https://raw.githubusercontent.com/kunalgoesbyken/seedfall/main/docs/properties.md)
 - [Triage reports](https://raw.githubusercontent.com/kunalgoesbyken/seedfall/main/docs/reports.md)
 - [Testing seedfall itself](https://raw.githubusercontent.com/kunalgoesbyken/seedfall/main/docs/testing.md): seedfall is only useful if its own model of crashes, faults and replay is right, so that model has its own tests. This page lists what they check and how to run them.
+- [Timelines, logs and time-travel debugging](https://raw.githubusercontent.com/kunalgoesbyken/seedfall/main/docs/timeline.md): A failing seed replays exactly, so you can look at it as many times and in as many ways as you like. seedfall gives you four views of one run:
 - [Proving a fix with `seedfall verify`](https://raw.githubusercontent.com/kunalgoesbyken/seedfall/main/docs/verify.md): `seedfall verify` is the definition of done for a change that fixes a seedfall failure, whether a person or an AI agent wrote it. It answers one question with evidence: is the failure gone, and how sure are we?
 
 ## Agent skills

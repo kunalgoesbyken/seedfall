@@ -18,6 +18,8 @@ const (
 	ArtifactFaults   = "faults.json"
 	ArtifactHistory  = "history.jsonl"
 	ArtifactTimeline = "linearizability.html"
+	ArtifactRun      = "timeline.html"
+	ArtifactMermaid  = "timeline.mmd"
 	ArtifactDisks    = "disk"
 )
 
@@ -60,7 +62,7 @@ func ArtifactDir(cfg *Config, seed uint64, label string) string {
 }
 
 func (r *Runner) SaveArtifacts(seed uint64, s Schedule, opts ArtifactOptions) (Artifact, Result, error) {
-	in, err := r.Inspect(seed, s, InspectOptions{})
+	in, err := r.Inspect(seed, s, InspectOptions{Timeline: true})
 	if err != nil {
 		return Artifact{}, Result{}, err
 	}
@@ -81,14 +83,14 @@ func (r *Runner) SaveArtifacts(seed uint64, s Schedule, opts ArtifactOptions) (A
 	if err := os.MkdirAll(a.Dir, 0o755); err != nil {
 		return a, res, err
 	}
-	return a, res, a.write(res, s, in.Disks)
+	return a, res, a.write(res, in.Result.Timeline, s, in.Disks, fmt.Sprintf("%s seed %d", r.cfg.Stem(), seed))
 }
 
 func replayCommand(config string, seed uint64, dir string) string {
 	return fmt.Sprintf("seedfall replay -c %s -seed %d -faults %s", config, seed, filepath.ToSlash(filepath.Join(dir, ArtifactFaults)))
 }
 
-func (a *Artifact) write(res Result, s Schedule, disks []Disk) error {
+func (a *Artifact) write(res Result, tl *Timeline, s Schedule, disks []Disk, title string) error {
 	writers := []struct {
 		name  string
 		write func(io.Writer) error
@@ -98,6 +100,8 @@ func (a *Artifact) write(res Result, s Schedule, disks []Disk) error {
 		{ArtifactFaults, func(w io.Writer) error { return encodeJSON(w, ScheduleFile{Seed: a.Seed, Schedule: res.Schedule(s)}) }, true},
 		{ArtifactHistory, func(w io.Writer) error { return WriteHistory(w, res.History.Ops) }, len(res.History.Ops) > 0},
 		{ArtifactTimeline, res.History.Visualize, res.History.Checked && !res.History.Ok && res.History.HasTimeline()},
+		{ArtifactRun, func(w io.Writer) error { return tl.WriteHTML(w, title) }, tl != nil},
+		{ArtifactMermaid, func(w io.Writer) error { return tl.WriteMermaid(w) }, tl != nil},
 	}
 	for _, f := range writers {
 		if !f.keep {

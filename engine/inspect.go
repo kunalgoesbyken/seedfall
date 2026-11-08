@@ -89,8 +89,9 @@ func (d Disk) AfterCrash() ([]DirState, []FileState) {
 }
 
 type InspectOptions struct {
-	At   time.Duration
-	Node string
+	At       time.Duration
+	Node     string
+	Timeline bool
 }
 
 type Inspection struct {
@@ -119,7 +120,7 @@ func (r *Runner) Inspect(seed uint64, s Schedule, opts InspectOptions) (Inspecti
 		p.at = never
 	}
 	s, explicit := r.schedule(seed, s)
-	res := r.run(seed, s, explicit, nil, p, 0)
+	res := r.run(seed, s, runOptions{explicit: explicit, probe: p, record: opts.Timeline})
 	return Inspection{Result: res, At: time.Duration(p.when), Disks: p.disks}, nil
 }
 

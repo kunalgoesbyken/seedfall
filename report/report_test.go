@@ -159,3 +159,39 @@ func TestFindingStatusAcrossRuns(t *testing.T) {
 		}
 	}
 }
+
+func TestReportEmbedsTheArtifactTimeline(t *testing.T) {
+	dir := t.TempDir()
+	artifacts := filepath.Join(dir, ".seedfall", "failures", "seedfall-seed-3")
+	if err := os.MkdirAll(artifacts, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(artifacts, engine.ArtifactRun), []byte("<!doctype html>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	in := input("1-10", 8, failing(3), failing(4))
+	in.Replay = func(seed uint64) Replayed {
+		return Replayed{Result: failing(seed), Artifacts: filepath.ToSlash(filepath.Join(dir, ".seedfall", "failures", fmt.Sprintf("seedfall-seed-%d", seed)))}
+	}
+	path := filepath.Join(dir, "out", "report.html")
+	r, err := Generate(in, path, filepath.Join(dir, "history.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := r.Findings[0].Example.Timeline; got != "../.seedfall/failures/seedfall-seed-3/timeline.html" {
+		t.Fatalf("timeline link %q", got)
+	}
+	page, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(page, []byte(`<iframe class="timeline" src="../.seedfall/failures/seedfall-seed-3/timeline.html"`)) {
+		t.Fatal("the report does not embed the timeline")
+	}
+	in.Replay = func(seed uint64) Replayed {
+		return Replayed{Result: failing(seed), Artifacts: filepath.ToSlash(filepath.Join(dir, "nowhere"))}
+	}
+	if r, _ := Generate(in, path, filepath.Join(dir, "history.jsonl")); r.Findings[0].Example.Timeline != "" {
+		t.Fatal("a missing timeline was linked")
+	}
+}

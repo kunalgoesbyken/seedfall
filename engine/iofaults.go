@@ -7,7 +7,7 @@ func (w *world) onDiskOp(n *node) {
 	if !crash {
 		return
 	}
-	w.trace.add(w.now, "fault crash %s during disk op %d, restart at %s", inst.label, n.ops, fmtTime(until))
+	w.trace.about(w.now, instLine(inst), "fault crash %s during disk op %d, restart at %s", inst.label, n.ops, fmtTime(until))
 	inst.killed, inst.crashUntil = true, until
 	panic(errKilled)
 }
@@ -42,7 +42,7 @@ func (w *world) fsyncFails(n *node) bool {
 		return false
 	}
 	w.ioFaults = append(w.ioFaults, Fault{At: Duration(w.now), Kind: FaultFsyncEIO, Node: n.name(), Op: n.ops})
-	w.trace.add(w.now, "fault fsync EIO on %s at disk op %d, unsynced writes dropped", n.live.label, n.ops)
+	w.trace.about(w.now, instLine(n.live), "fault fsync EIO on %s at disk op %d, unsynced writes dropped", n.live.label, n.ops)
 	return true
 }
 
@@ -69,7 +69,7 @@ func (w *world) clockSkew(n *node) int64 {
 		return 0
 	}
 	skew := streams(w.seed, "clock/"+n.name()).Int64N(2*limit+1) - limit
-	w.trace.add(0, "clock %s runs %s off true time", n.name(), fmtSigned(skew))
+	w.trace.about(0, nodeLine(n.name()), "clock %s runs %s off true time", n.name(), fmtSigned(skew))
 	return skew
 }
 

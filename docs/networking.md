@@ -37,6 +37,10 @@ Current limits:
 - `CloseRead` and `CloseWrite` are not supported.
 - The remote address of an accepted connection is a placeholder.
 
+## Seeing the traffic
+
+`-net-trace` on `run`, `replay`, `logs` or `debug` adds every dial, accept, message sent and message read to the trace, with its connection, size, send and arrival time, and whether a partition or clog held it. Every failure's `timeline.html` draws the same messages as arrows between nodes. See [timelines and logs](timeline.md).
+
 ## Without either
 
 Go's unmodified `net` package on `wasip1` is an in-process fake. A `net.Listen` succeeds but can never be reached from another node. If nodes cannot reach each other, enable `net_overlay` or switch to `sim`.

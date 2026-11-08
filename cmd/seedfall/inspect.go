@@ -5,6 +5,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
+	"os"
 	"path"
 	"path/filepath"
 	"sort"
@@ -67,7 +69,7 @@ func printInspection(in engine.Inspection, at time.Duration) {
 	fmt.Printf("disk state at t=%s, %s\n", in.At, snapshotMoment(res, at))
 	for _, d := range in.Disks {
 		fmt.Println()
-		printDisk(d)
+		printDisk(os.Stdout, d)
 	}
 }
 
@@ -83,7 +85,7 @@ func snapshotMoment(res engine.Result, at time.Duration) string {
 	return "the end of the run"
 }
 
-func printDisk(d engine.Disk) {
+func printDisk(w io.Writer, d engine.Disk) {
 	mode := "directory entries are durable once made"
 	if d.Strict {
 		mode = "strict_dirs: directory entries are durable only after their parent directory is fsynced"
@@ -94,23 +96,23 @@ func printDisk(d engine.Disk) {
 	if d.Reorder {
 		mode += "; reorder_writes: a crash keeps any subset of dirty pages, in order within each page"
 	}
-	fmt.Printf("node %s (%s)\n", d.Node, mode)
+	fmt.Fprintf(w, "node %s (%s)\n", d.Node, mode)
 	if len(d.Dirs)+len(d.Files)+len(d.Ghosts) == 0 {
-		fmt.Println("  empty disk")
+		fmt.Fprintln(w, "  empty disk")
 		return
 	}
-	fmt.Printf("  %-*s %10s %10s  %s\n", pathWidth-2, "path", "size", "durable", "state")
-	newDiskTree(d).print(".", 1)
+	fmt.Fprintf(w, "  %-*s %10s %10s  %s\n", pathWidth-2, "path", "size", "durable", "state")
+	newDiskTree(d).print(w, ".", 1)
 	if len(d.Ghosts) > 0 {
-		fmt.Println("  removed or renamed away, but a crash brings them back (parent directory not fsynced):")
+		fmt.Fprintln(w, "  removed or renamed away, but a crash brings them back (parent directory not fsynced):")
 		for _, f := range d.Ghosts {
-			fmt.Printf("    %-*s %10s %10d\n", pathWidth-4, f.Path, "-", f.DurableSize)
+			fmt.Fprintf(w, "    %-*s %10s %10d\n", pathWidth-4, f.Path, "-", f.DurableSize)
 		}
 	}
-	printTotals(d)
+	printTotals(w, d)
 }
 
-func printTotals(d engine.Disk) {
+func printTotals(w io.Writer, d engine.Disk) {
 	var durable, pending int64
 	lost := 0
 	for _, f := range d.Files {
@@ -126,9 +128,9 @@ func printTotals(d engine.Disk) {
 			lost++
 		}
 	}
-	fmt.Printf("  %d dirs, %d files: %d bytes durable, %d bytes pending, %d entries lost on crash, %d removed entries that come back\n", len(d.Dirs), len(d.Files), durable, pending, lost, len(d.Ghosts))
+	fmt.Fprintf(w, "  %d dirs, %d files: %d bytes durable, %d bytes pending, %d entries lost on crash, %d removed entries that come back\n", len(d.Dirs), len(d.Files), durable, pending, lost, len(d.Ghosts))
 	if d.Bytes > 0 {
-		fmt.Printf("  disk_bytes: %d of %d bytes used\n", d.Used, d.Bytes)
+		fmt.Fprintf(w, "  disk_bytes: %d of %d bytes used\n", d.Used, d.Bytes)
 	}
 }
 
@@ -155,36 +157,36 @@ func newDiskTree(d engine.Disk) diskTree {
 	return t
 }
 
-func (t diskTree) print(dir string, depth int) {
+func (t diskTree) print(w io.Writer, dir string, depth int) {
 	indent := strings.Repeat("  ", depth)
 	for _, p := range t.children[dir] {
 		if s, ok := t.dirs[p]; ok {
-			fmt.Printf("%s%-*s %10s %10s  %s\n", indent, pathWidth-len(indent), path.Base(p)+"/", "-", "-", t.dirNote(s))
-			t.print(p, depth+1)
+			fmt.Fprintf(w, "%s%-*s %10s %10s  %s\n", indent, pathWidth-len(indent), path.Base(p)+"/", "-", "-", t.dirNote(s))
+			t.print(w, p, depth+1)
 			continue
 		}
 		f := t.files[p]
-		fmt.Printf("%s%-*s %10d %10d  %s\n", indent, pathWidth-len(indent), path.Base(p), f.Size, f.DurableSize, t.fileNote(f))
+		fmt.Fprintf(w, "%s%-*s %10d %10d  %s\n", indent, pathWidth-len(indent), path.Base(p), f.Size, f.DurableSize, t.fileNote(f))
 		if f.Tear != nil {
-			fmt.Printf("%s  ^ torn by the crash at t=%s: kept %d of a %d-byte write at offset %d\n", indent, time.Duration(f.Tear.At), f.Tear.Kept, f.Tear.Size, f.Tear.Offset)
+			fmt.Fprintf(w, "%s  ^ torn by the crash at t=%s: kept %d of a %d-byte write at offset %d\n", indent, time.Duration(f.Tear.At), f.Tear.Kept, f.Tear.Size, f.Tear.Offset)
 		}
 		if f.Writeback != nil {
-			printWriteback(indent, *f.Writeback)
+			printWriteback(w, indent, *f.Writeback)
 		}
-		printDamage(indent, f.Damage)
+		printDamage(w, indent, f.Damage)
 	}
 }
 
-func printDamage(indent string, damage []engine.Damage) {
+func printDamage(w io.Writer, indent string, damage []engine.Damage) {
 	if len(damage) == 0 {
 		return
 	}
-	fmt.Printf("%s  ^ corrupted ranges:\n", indent)
+	fmt.Fprintf(w, "%s  ^ corrupted ranges:\n", indent)
 	if extra := len(damage) - shownWrites; extra > 0 {
-		fmt.Printf("%s    %d earlier ones not shown\n", indent, extra)
+		fmt.Fprintf(w, "%s    %d earlier ones not shown\n", indent, extra)
 	}
 	for _, d := range damage[max(len(damage)-shownWrites, 0):] {
-		fmt.Printf("%s    t=%s %s\n", indent, time.Duration(d.At), damageText(d))
+		fmt.Fprintf(w, "%s    t=%s %s\n", indent, time.Duration(d.At), damageText(d))
 	}
 }
 
@@ -205,19 +207,19 @@ func damageText(d engine.Damage) string {
 	return d.Kind + " " + at
 }
 
-func printWriteback(indent string, wb engine.Writeback) {
+func printWriteback(w io.Writer, indent string, wb engine.Writeback) {
 	survived := 0
-	for _, w := range wb.Writes {
-		if w.Survived {
+	for _, wr := range wb.Writes {
+		if wr.Survived {
 			survived++
 		}
 	}
-	fmt.Printf("%s  ^ the crash at t=%s wrote back pages out of order: %d of %d pending writes reached the disk\n", indent, time.Duration(wb.At), survived, len(wb.Writes))
-	for i, w := range wb.Writes[:min(len(wb.Writes), shownWrites)] {
-		fmt.Printf("%s    #%d %s\n", indent, i+1, writeFate(w))
+	fmt.Fprintf(w, "%s  ^ the crash at t=%s wrote back pages out of order: %d of %d pending writes reached the disk\n", indent, time.Duration(wb.At), survived, len(wb.Writes))
+	for i, wr := range wb.Writes[:min(len(wb.Writes), shownWrites)] {
+		fmt.Fprintf(w, "%s    #%d %s\n", indent, i+1, writeFate(wr))
 	}
 	if extra := len(wb.Writes) - shownWrites; extra > 0 {
-		fmt.Printf("%s    and %d more\n", indent, extra)
+		fmt.Fprintf(w, "%s    and %d more\n", indent, extra)
 	}
 }
 

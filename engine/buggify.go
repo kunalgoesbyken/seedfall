@@ -31,7 +31,7 @@ func (w *world) buggify(inst *instance, site string, p float64) bool {
 	if !ok {
 		s = &BuggifySite{Enabled: streams(w.seed, "buggify-enable/"+site).Float64() < buggifyEnableRate}
 		w.bugs.sites[site] = s
-		w.trace.add(w.now, "%s: buggify site %q reached, %s for this run", inst.label, site, map[bool]string{true: "enabled", false: "disabled"}[s.Enabled])
+		w.trace.about(w.now, instLine(inst), "%s: buggify site %q reached, %s for this run", inst.label, site, map[bool]string{true: "enabled", false: "disabled"}[s.Enabled])
 	}
 	n := inst.node.name()
 	key := n + "/" + site
@@ -43,7 +43,7 @@ func (w *world) buggify(inst *instance, site string, p float64) bool {
 	}
 	s.Fired++
 	w.ioFaults = append(w.ioFaults, Fault{At: Duration(w.now), Kind: FaultBuggify, Node: n, Site: site, Op: op})
-	w.trace.add(w.now, "fault buggify %q fires in %s at hit %d", site, inst.label, op)
+	w.trace.about(w.now, instLine(inst), "fault buggify %q fires in %s at hit %d", site, inst.label, op)
 	return true
 }
 

@@ -77,7 +77,7 @@ func (w *world) detail(kind string, n *node, op int64) *rand.Rand {
 func (w *world) recordDisk(f Fault) {
 	f.At = Duration(w.now)
 	w.ioFaults = append(w.ioFaults, f)
-	w.trace.add(w.now, "fault %s", f.diskText())
+	w.trace.about(w.now, nodeLine(f.Node), "fault %s", f.diskText())
 }
 
 func (w *world) writeFails(n *node, p string) fsapi.Errno {
@@ -137,7 +137,7 @@ func (w *world) syncWait(n *node) {
 }
 
 func (w *world) diskFull(n *node, p string, kept, size int) {
-	w.trace.add(w.now, "disk full on %s: %d of a %d-byte write to %s fit, the rest fails with ENOSPC (%d of %d bytes used)", n.live.label, kept, size, p, n.fs.used(), n.fs.capacity)
+	w.trace.about(w.now, instLine(n.live), "disk full on %s: %d of a %d-byte write to %s fit, the rest fails with ENOSPC (%d of %d bytes used)", n.live.label, kept, size, p, n.fs.used(), n.fs.capacity)
 }
 
 func (w *world) rot(f *Fault) {
@@ -147,16 +147,16 @@ func (w *world) rot(f *Fault) {
 	}
 	p, d, ok := n.fs.rot(streams(w.streamSeed(), fmt.Sprintf("%s/%s/%d", FaultBitrot, f.Node, f.At)))
 	if !ok {
-		w.trace.add(w.now, "fault bit rot on %s: nothing durable to corrupt", f.Node)
+		w.trace.about(w.now, nodeLine(f.Node), "fault bit rot on %s: nothing durable to corrupt", f.Node)
 		return
 	}
 	f.Path, f.Offset = p, d.Offset
-	w.trace.add(w.now, "fault %s", f.diskText())
+	w.trace.about(w.now, nodeLine(f.Node), "fault %s", f.diskText())
 }
 
 func (w *world) traceDamage(n *node, damaged []fileDamage) {
 	for _, d := range damaged {
-		w.trace.add(w.now, "crash corrupted the half-written byte at offset %d of %s on %s", d.Offset, d.path, n.name())
+		w.trace.about(w.now, nodeLine(n.name()), "crash corrupted the half-written byte at offset %d of %s on %s", d.Offset, d.path, n.name())
 	}
 }
 

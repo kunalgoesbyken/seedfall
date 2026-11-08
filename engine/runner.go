@@ -34,6 +34,7 @@ type Result struct {
 	Failure    Failure
 	Buggify    map[string]*BuggifySite
 	HostCalls  int64
+	Timeline   *Timeline
 
 	hostHash    uint64
 	checkpoints []uint64
@@ -42,6 +43,7 @@ type Result struct {
 
 type Runner struct {
 	Doublecheck bool
+	NetTrace    bool
 	Mutation    Mutation
 	weakened    atomic.Int64
 	catalog     []CatalogEntry
@@ -172,14 +174,30 @@ func (r *Runner) divergence(seed uint64, s Schedule, a, b Result) (string, bool)
 }
 
 func (r *Runner) once(seed uint64, s Schedule, capture int64) Result {
-	s, explicit := r.schedule(seed, s)
+	return r.timed(seed, s, runOptions{capture: capture})
+}
+
+func (r *Runner) Record(seed uint64, s Schedule) Result {
+	return r.timed(seed, s, runOptions{record: true})
+}
+
+func (r *Runner) timed(seed uint64, s Schedule, o runOptions) Result {
+	s, o.explicit = r.schedule(seed, s)
 	started := time.Now()
-	res := r.run(seed, s, explicit, nil, nil, capture)
+	res := r.run(seed, s, o)
 	res.Elapsed = time.Since(started)
 	return res
 }
 
 func divergence(a, b []string) (string, bool) {
+	line, diverged := FirstDivergence(a, b)
+	if !diverged {
+		return "", false
+	}
+	return fmt.Sprintf("trace line %d: %q vs %q", line+1, LineAt(a, line), LineAt(b, line)), true
+}
+
+func FirstDivergence(a, b []string) (int, bool) {
 	line := min(len(a), len(b))
 	for i := range line {
 		if a[i] != b[i] {
@@ -187,34 +205,44 @@ func divergence(a, b []string) (string, bool) {
 			break
 		}
 	}
-	if line == len(a) && line == len(b) {
-		return "", false
-	}
-	return fmt.Sprintf("trace line %d: %q vs %q", line+1, lineAt(a, line), lineAt(b, line)), true
+	return line, line != len(a) || line != len(b)
 }
 
-func lineAt(lines []string, i int) string {
+func LineAt(lines []string, i int) string {
 	if i < len(lines) {
 		return lines[i]
 	}
 	return "<end of trace>"
 }
 
-func (r *Runner) run(seed uint64, s Schedule, explicit bool, b *branch, p *probe, capture int64) Result {
+type runOptions struct {
+	explicit bool
+	branch   *branch
+	probe    *probe
+	capture  int64
+	record   bool
+	debug    *debugger
+}
+
+func (r *Runner) run(seed uint64, s Schedule, o runOptions) Result {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	w := &world{
 		cfg: r.cfg, seed: seed, ctx: ctx, cancel: cancel, rt: r.rt,
 		sched: streams(seed, "sched"), netRand: streams(seed, "net"), diskRand: streams(seed, "disk"), latRand: streams(seed, "disklatency"), mutantRand: streams(seed, "mutant"),
-		events: make(chan event), faults: slices.Clone(s.Faults), horizon: int64(cmp.Or(s.Duration, r.cfg.Duration)), opsLimit: s.Ops, trace: &tracer{}, compiled: r.compiled,
-		upgrades: r.upgrades, explicit: explicit, ioRand: streams(seed, "io"), props: properties{}, spec: r.cfg.Faults.forSeed(seed), branch: b, probe: p,
+		events: make(chan event), faults: slices.Clone(s.Faults), horizon: int64(cmp.Or(s.Duration, r.cfg.Duration)), opsLimit: s.Ops, trace: &tracer{detail: o.record || o.debug != nil}, compiled: r.compiled,
+		upgrades: r.upgrades, explicit: o.explicit, ioRand: streams(seed, "io"), props: properties{}, spec: r.cfg.Faults.forSeed(seed), branch: o.branch, probe: o.probe,
 		mutation: r.Mutation, weakened: func() { r.weakened.Add(1) }, shielded: map[string]bool{}, deadline: never,
-		history: history{model: r.cfg.Checker.Model}, calls: newHostCalls(capture),
+		history: history{model: r.cfg.Checker.Model}, calls: newHostCalls(o.capture), netTrace: r.NetTrace, debug: o.debug,
+	}
+	if o.record {
+		w.rec = &recorder{}
 	}
 	w.net = newNetwork(w)
 	res := Result{Seed: seed, Faults: s.Faults, Horizon: time.Duration(w.horizon)}
 	w.setup()
 	w.loop()
+	w.debugEnd()
 	w.capture()
 	w.shutdown()
 	w.checkHistory()
@@ -233,6 +261,9 @@ func (r *Runner) run(seed uint64, s Schedule, explicit bool, b *branch, p *probe
 	res.Ops = w.opsWanted
 	res.Trace = w.trace.lines
 	res.Faults = mergeFaults(w.faults, w.ioFaults)
+	if w.rec != nil {
+		res.Timeline = w.timeline(res)
+	}
 	return res
 }
 
@@ -268,12 +299,37 @@ func (w *world) setup() {
 	}
 }
 
+type TraceLine struct {
+	At       time.Duration `json:"at"`
+	Node     string        `json:"node,omitempty"`
+	Instance string        `json:"instance,omitempty"`
+	Output   string        `json:"output,omitempty"`
+	Text     string        `json:"text"`
+}
+
 type tracer struct {
-	lines []string
+	lines   []string
+	entries []TraceLine
+	detail  bool
 }
 
 func (t *tracer) add(at int64, format string, args ...any) {
-	t.lines = append(t.lines, fmt.Sprintf("%10s  %s", fmtTime(at), strings.TrimSpace(fmt.Sprintf(format, args...))))
+	t.about(at, TraceLine{}, format, args...)
+}
+
+func (t *tracer) about(at int64, who TraceLine, format string, args ...any) {
+	text := fmt.Sprintf("%10s  %s", fmtTime(at), strings.TrimSpace(fmt.Sprintf(format, args...)))
+	t.lines = append(t.lines, text)
+	if t.detail {
+		who.At, who.Text = time.Duration(at), text
+		t.entries = append(t.entries, who)
+	}
+}
+
+func nodeLine(name string) TraceLine { return TraceLine{Node: name} }
+
+func instLine(inst *instance) TraceLine {
+	return TraceLine{Node: inst.node.name(), Instance: inst.label}
 }
 
 func mergeFaults(planned, observed []Fault) []Fault {

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -116,6 +117,9 @@ type world struct {
 	setupDone   bool
 	quietUntil  int64
 	bugs        buggifyState
+	netTrace    bool
+	rec         *recorder
+	debug       *debugger
 }
 
 func streams(seed uint64, name string) *rand.Rand {
@@ -237,14 +241,18 @@ func hostModule(ctx context.Context, rt wazero.Runtime) error {
 func (w *world) fail(kind Failure, reason string) {
 	if w.failure == "" {
 		w.failure, w.failAt, w.failureKind = reason, w.now, kind
-		w.trace.add(w.now, "FAIL  %s", reason)
+		w.trace.about(w.now, nodeLine(kind.Node), "FAIL  %s", reason)
 		w.capture()
 	}
 }
 
 func (w *world) moduleConfig(inst *instance) wazero.ModuleConfig {
 	n := inst.node
-	out := &lineWriter{emit: func(line string) { w.trace.add(w.now, "%-8s| %s", inst.label, line) }}
+	out := &lineWriter{emit: func(line string) {
+		who := instLine(inst)
+		who.Output = line
+		w.trace.about(w.now, who, "%-8s| %s", inst.label, line)
+	}}
 	cfg := wazero.NewModuleConfig().
 		WithName("").
 		WithArgs(append([]string{n.name()}, n.spec.Args...)...).
@@ -312,11 +320,12 @@ func (w *world) start(n *node) {
 		}
 		w.events <- event{inst: inst, exit: true, err: err}
 	}()
+	w.rec.started(inst, w.now)
 	if n.upgrade != nil && n.starts == 2 {
-		w.trace.add(w.now, "start %s, upgraded to %s", inst.label, n.spec.UpgradeTo)
+		w.trace.about(w.now, instLine(inst), "start %s, upgraded to %s", inst.label, n.spec.UpgradeTo)
 		return
 	}
-	w.trace.add(w.now, "start %s", inst.label)
+	w.trace.about(w.now, instLine(inst), "start %s", inst.label)
 }
 
 const goPanicExitCode = 2
@@ -349,6 +358,7 @@ func (w *world) handle(ev event) {
 		n.live = nil
 	}
 	w.net.drop(ev.inst)
+	w.rec.ended(ev.inst, w.now, ev.err)
 	switch {
 	case w.failure != "":
 	case ev.inst.killed:
@@ -356,7 +366,7 @@ func (w *world) handle(ev event) {
 			w.crashDisk(n, ev.inst.crashUntil, fmt.Sprintf("op/%d", n.ops))
 		}
 		if open := w.history.open(ev.inst.label); open > 0 {
-			w.trace.add(w.now, "%s died with %d operations in flight, their outcome is unknown", ev.inst.label, open)
+			w.trace.about(w.now, instLine(ev.inst), "%s died with %d operations in flight, their outcome is unknown", ev.inst.label, open)
 		}
 	case w.ctx.Err() != nil:
 		w.fail(Failure{Class: FailWatchdog, Node: n.name()}, fmt.Sprintf("watchdog: %s ran for more than %s of real time without yielding (livelock or busy loop)", ev.inst.label, time.Duration(w.cfg.Watchdog)))
@@ -365,10 +375,10 @@ func (w *world) handle(ev event) {
 		w.workloadDone(ev.inst)
 	case n == w.finally && exitedCleanly(ev.err):
 		w.finished = true
-		w.trace.add(w.now, "finally check %s passed", ev.inst.label)
+		w.trace.about(w.now, instLine(ev.inst), "finally check %s passed", ev.inst.label)
 	case w.supervised(n, ev.err):
 		n.restartAt = w.now + int64(uniform(w.sched, w.spec.RestartAfter))
-		w.trace.add(w.now, "%s exited (%v), supervisor restarts it at %s", ev.inst.label, ev.err, fmtTime(n.restartAt))
+		w.trace.about(w.now, instLine(ev.inst), "%s exited (%v), supervisor restarts it at %s", ev.inst.label, ev.err, fmtTime(n.restartAt))
 	case exitedCleanly(ev.err):
 		w.fail(Failure{Class: FailExit, Node: n.name()}, fmt.Sprintf("%s exited", ev.inst.label))
 	default:
@@ -384,7 +394,7 @@ func (w *world) kill(inst *instance) {
 
 func (w *world) applyFault(f *Fault) {
 	if w.faultsSuppressed() {
-		w.trace.add(w.now, "fault %s suppressed by %s", f.Kind, w.quietReason())
+		w.trace.about(w.now, nodeLine(f.Node), "fault %s suppressed by %s", f.Kind, w.quietReason())
 		return
 	}
 	switch f.Kind {
@@ -393,7 +403,7 @@ func (w *world) applyFault(f *Fault) {
 		if n == nil || n.live == nil || !n.crashable {
 			return
 		}
-		w.trace.add(w.now, "fault crash %s, restart at %s", n.live.label, fmtTime(int64(f.Until)))
+		w.trace.about(w.now, instLine(n.live), "fault crash %s, restart at %s", n.live.label, fmtTime(int64(f.Until)))
 		w.kill(n.live)
 		w.crashDisk(n, int64(f.Until), fmt.Sprintf("at/%d", f.At))
 	case FaultPause:
@@ -402,7 +412,7 @@ func (w *world) applyFault(f *Fault) {
 			return
 		}
 		n.pausedTo = int64(f.Until)
-		w.trace.add(w.now, "fault pause %s until %s", n.live.label, fmtTime(n.pausedTo))
+		w.trace.about(w.now, instLine(n.live), "fault pause %s until %s", n.live.label, fmtTime(n.pausedTo))
 	case FaultClockJump:
 		n := w.nodeByName(f.Node)
 		if n == nil {
@@ -412,7 +422,7 @@ func (w *world) applyFault(f *Fault) {
 		if w.weakenedTo(MonotonicJump) {
 			n.monoShift += int64(f.Shift)
 		}
-		w.trace.add(w.now, "fault %s's wall clock jumps %s", f.Node, fmtSigned(int64(f.Shift)))
+		w.trace.about(w.now, nodeLine(f.Node), "fault %s's wall clock jumps %s", f.Node, fmtSigned(int64(f.Shift)))
 	case FaultPartition:
 		w.applyNetFault(*f)
 		if len(f.Groups) > 0 {
@@ -422,20 +432,20 @@ func (w *world) applyFault(f *Fault) {
 		w.trace.add(w.now, "fault partition %v | rest, heals at %s", f.Side, fmtTime(int64(f.Until)))
 	case FaultClog:
 		w.applyNetFault(*f)
-		w.trace.add(w.now, "fault clog %s, lifts at %s", f.clogTarget(), fmtTime(int64(f.Until)))
+		w.trace.about(w.now, nodeLine(cmp.Or(f.Node, f.From)), "fault clog %s, lifts at %s", f.clogTarget(), fmtTime(int64(f.Until)))
 	case FaultReset:
 		n := w.nodeByName(f.Node)
 		if n == nil || n.live == nil {
 			return
 		}
-		w.trace.add(w.now, "fault reset %d connections of %s", w.net.reset(n.live), n.live.label)
+		w.trace.about(w.now, instLine(n.live), "fault reset %d connections of %s", w.net.reset(n.live), n.live.label)
 	case FaultSlow:
 		n := w.nodeByName(f.Node)
 		if n == nil {
 			return
 		}
 		n.slowUntil, n.slowFactor = int64(f.Until), f.Factor
-		w.trace.add(w.now, "fault slow %s down %.1fx until %s", f.Node, f.Factor, fmtTime(n.slowUntil))
+		w.trace.about(w.now, nodeLine(f.Node), "fault slow %s down %.1fx until %s", f.Node, f.Factor, fmtTime(n.slowUntil))
 	case FaultBitrot:
 		w.rot(f)
 	}
@@ -543,6 +553,9 @@ func (w *world) loop() {
 			return
 		}
 		w.captureBefore(candidates[0].at)
+		if w.debugPoint(candidates[0].at) {
+			return
+		}
 		if w.takeBranch(candidates[0].at) {
 			continue
 		}

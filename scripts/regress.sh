@@ -69,6 +69,35 @@ expect_pinned() {
   printf '%s  %-8s %-24s pinned regression: want %s, got %s\n' "$verdict" "$dir" "$config" "$want" "$got"
 }
 
+expect_timeline() {
+  local dir="$1" config="$2" seed="$3" want="$4"
+  local page="$root/.regress-timeline.html" got
+  (cd "$root/examples/$dir" && "$bin" replay -c $config -seed "$seed" -html "$page" >/dev/null 2>&1)
+  got="$(grep -o '"to_instance"' "$page" 2>/dev/null | wc -l | tr -d ' ')"
+  rm -f "$page"
+  local verdict="PASS"
+  [ "$got" != "$want" ] && verdict="FAIL" && failures=$((failures + 1))
+  printf '%s  %-8s %-24s timeline of seed %s: want %s messages, got %s\n' "$verdict" "$dir" "$config" "$seed" "$want" "$got"
+}
+
+expect_logs() {
+  local dir="$1" config="$2" seed="$3" filter="$4" want="$5"
+  local got
+  got="$(cd "$root/examples/$dir" && "$bin" logs -c $config -seed "$seed" $filter 2>&1 >/dev/null | awk '{print $1}')"
+  local verdict="PASS"
+  [ "$got" != "$want" ] && verdict="FAIL" && failures=$((failures + 1))
+  printf '%s  %-8s %-24s logs of seed %s %s: want %s lines, got %s\n' "$verdict" "$dir" "$config" "$seed" "$filter" "$want" "$got"
+}
+
+expect_debug() {
+  local dir="$1" config="$2" seed="$3" at="$4" command="$5" want="$6"
+  local got
+  got="$(cd "$root/examples/$dir" && printf '%s\nquit\n' "$command" | "$bin" debug -c $config -seed "$seed" -at "$at" 2>&1 | sed -n -E 's/.*paused at t=([^ ]+).*/\1/p' | tail -n 1)"
+  local verdict="PASS"
+  [ "$got" != "$want" ] && verdict="FAIL" && failures=$((failures + 1))
+  printf '%s  %-8s %-24s debug seed %s from %s, %s: want %s, got %s\n' "$verdict" "$dir" "$config" "$seed" "$at" "$command" "$want" "$got"
+}
+
 deterministic() {
   local dir="$1" config="$2" seed="$3"
   local a b
@@ -102,6 +131,11 @@ expect_replay kvlog seedfall.always.json      1 torntail.faults.json fail
 expect_replay kvlog seedfall.always.json      1 .seedfall/failures/seedfall.always-seed-1/faults.json fail
 expect_pinned kvlog seedfall.fixed.json pass
 expect_shrink kvlog seedfall.always.json      1 "2 faults, 991ms, 63 workload ops"
+expect_timeline kvlog seedfall.always.json    1 538
+expect_logs kvlog seedfall.always.json 1 "-node server" 8
+expect_logs kvlog seedfall.always.json 1 "-net-trace -grep refused|reset" 92
+expect_debug kvlog seedfall.always.json 1 1s "until fault crash" 1.705199634s
+deterministic kvlog "seedfall.always.json -net-trace" 1
 expect raftkv seedfall.json          1-40   pass
 expect raftkv seedfall.nofsync.json  1-120  fail
 expect raftkv seedfall.lin.json      1-30   pass
@@ -114,6 +148,8 @@ expect raftkv tcp.nofsync.lin.json   1-150  fail
 expect raftkv netfaults.json         1-20   pass
 expect raftkv netfaults.localreads.lin.json 20 fail
 expect_replay raftkv netfaults.localreads.lin.json 20 slowleader.faults.json fail
+expect_timeline raftkv netfaults.localreads.lin.json 20 563
+expect_logs raftkv netfaults.localreads.lin.json 20 "-net-trace -grep refused" 233
 expect ledger seedfall.json          1-60   pass
 expect ledger "seedfall.json -profile nofsync"  1-20   fail
 expect_mutant ledger seedfall.json 1-20 net_dup_chunk killed

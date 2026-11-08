@@ -111,6 +111,6 @@ The MCP server exposes the same snapshot as `seedfall_inspect`, with the per-fil
 
 ## Limitations
 
-- The snapshot covers the simulated disk only, not process memory or in-flight network messages.
+- The snapshot covers the simulated disk only, not process memory or in-flight network messages. `seedfall debug -at` stops the run at the same moment and also shows the messages in flight, the active faults and each node's live file content ([timeline.md](timeline.md#debugger)).
 - The last tear is recorded per file. A later write over the same range does not clear it.
 - `-cat` prints the whole file. Pipe it through `tail` for large files.

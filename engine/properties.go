@@ -170,6 +170,7 @@ func (w *world) observeNumeric(inst *instance, kind PropertyKind, cond bool, mar
 func (w *world) observeProperty(inst *instance, kind PropertyKind, cond bool, msg, detail string) {
 	w.knownKind(inst, kind)
 	w.props.observe(kind, cond, msg)
+	w.rec.property(inst, w.now, kind, cond, msg, w.props[msg])
 	if kind.violatedBy(cond) {
 		w.fail(Failure{Class: kind.failureClass(), Node: inst.node.name(), Property: msg}, strings.TrimSuffix(fmt.Sprintf("%s: %s: %s", inst.label, msg, detail), ": "))
 		panic(errFailed)
@@ -185,5 +186,6 @@ type Event struct {
 
 func (w *world) event(inst *instance, name, details string) {
 	w.sent = append(w.sent, Event{At: time.Duration(w.now), Instance: inst.label, Name: name, Details: details})
-	w.trace.add(w.now, "event %s from %s: %s", name, inst.label, details)
+	w.trace.about(w.now, instLine(inst), "event %s from %s: %s", name, inst.label, details)
+	w.rec.mark(inst, w.now, MarkEvent, name+": "+details)
 }

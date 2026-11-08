@@ -19,7 +19,7 @@ The output ends with `class:`.
 - `nondeterministic`: something leaks host nondeterminism, such as real time, unseeded randomness or map iteration feeding I/O. The first diverging trace line is shown; `seedfall run -seeds N -check` goes further and names the first host call that differs (a clock read, a `random_get`, a file or network call) with its node and virtual time. Fix the leak first: it is a harness problem, not the bug.
 - `timeout`: the real-time watchdog fired. A busy loop that never yields, or a host that is too slow. Rerun on an idle machine, or raise `watchdog`, before treating it as a bug.
 
-The line after it, `artifacts: .seedfall/failures/<config>-seed-N`, is a folder with the full trace, a replayable `faults.json`, the operation history and each node's disk image at the failure. Read `trace.txt` there instead of rerunning for it, and attach the folder if you file an issue.
+The line after it, `artifacts: .seedfall/failures/<config>-seed-N`, is a folder with the full trace, a replayable `faults.json`, the operation history, each node's disk image at the failure, and `timeline.html` and `timeline.mmd`, a space-time diagram of every node, message and fault. Read `trace.txt` there instead of rerunning for it, and attach the folder if you file an issue.
 
 Many failing seeds? `seedfall run -c C -seeds 1-500 -report .seedfall/report.html` groups them into findings, each with an example seed. Triage one example seed per finding. Over MCP, `seedfall_findings` reads that report back (findings, their status across runs, unmet properties) without running anything.
 
@@ -51,6 +51,8 @@ seedfall cause -c C -seed N
 
 seedfall replays the run up to many moments, re-randomizes everything after each one, and prints the probability of failing from that moment on. The fault just before the jump to near 100% is the cause; faults after it are just how the damage gets observed. Raise `-points` and `-branches` for a finer curve.
 
+Read what each node did around that moment with `seedfall logs -c C -seed N -node server -from 400ms -to 500ms` (add `-net-trace` for every message sent and read, `-grep` for a pattern, `-json` for slog fields). To stop the run there and look around, `seedfall debug -c C -seed N -at 427ms` opens a prompt: `where`, `net` (messages in flight), `faults`, `ls`, `cat` and `stat` on a node's live disk, `step`, `until <regex>` and `branch`. Over MCP these are `seedfall_logs` and `seedfall_debug` with a `commands` list.
+
 ## 4. Look at the disk
 
 ```sh
@@ -72,6 +74,8 @@ Write the explanation down as one sentence, for example "the crash in op #56 lea
 - **Change the world.** In a copy of `C`, turn off `torn_writes`, or turn `strict_dirs` on or off, and replay the same seed. If the failure needs torn writes, the bug is in recovery parsing. If it needs `strict_dirs`, a directory fsync is missing.
 
 `replay` exits 1 and prints the trace when the seed fails, and ends with `seed N: ok, ... steps` when it passes. Over MCP, use `seedfall_replay` with `faults`, `seedfall_shrink`, `seedfall_cause` and `seedfall_inspect`, which take the same arguments as JSON.
+
+`seedfall trace diff .seedfall/failures/<config>-seed-N hypothesis-trace.txt` shows the first line where two traces part, for a replay saved with `seedfall logs ... > hypothesis-trace.txt`.
 
 Then confirm the explanation in the source: find the code that issued the disk operation named in the trace, and the code that read it back on restart.
 

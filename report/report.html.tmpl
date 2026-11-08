@@ -33,6 +33,8 @@ td.num { font-family: ui-monospace, monospace; white-space: nowrap; }
 .empty { color: var(--ok); padding: 18px 0; border-top: 1px solid var(--line); }
 button.copy { margin-top: 12px; font: 13px ui-monospace, monospace; color: var(--text); background: transparent; border: 1px solid var(--line); border-radius: 4px; padding: 4px 10px; cursor: pointer; }
 button.copy:hover { border-color: var(--ember); }
+iframe.timeline { width: 100%; height: 80vh; margin-top: 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--ink); }
+a { color: var(--ember); }
 textarea.issue { width: 100%; height: 220px; margin-top: 8px; background: #0d0805; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 12px; font: 12.5px/1.6 ui-monospace, monospace; }
 </style>
 </head>
@@ -79,6 +81,7 @@ textarea.issue { width: 100%; height: 220px; margin-top: 8px; background: #0d080
     <details><summary>trace of seed {{.Seed}}, failing at t={{.At}}</summary><pre>{{range .Trace}}{{.}}
 {{end}}</pre></details>
     {{with .Artifacts}}<p class="dim mono" style="margin-top:10px">artifacts: {{.}}</p>{{end}}
+    {{with .Timeline}}<details><summary>timeline of seed {{$f.Example.Seed}}: nodes, messages, faults, operations and the trace explorer · <a href="{{.}}">open on its own</a></summary><iframe class="timeline" src="{{.}}" loading="lazy" title="timeline of seed {{$f.Example.Seed}}"></iframe></details>{{end}}
     {{end}}
     <button class="copy" type="button">Copy issue markdown</button>
     <details><summary>issue markdown</summary><textarea class="issue" readonly>{{$.IssueMarkdown $f}}</textarea></details>

@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>seedfall timeline · {{.Title}}</title>
+<style>
+:root { --ink: #140c08; --panel: #1d130d; --line: rgba(253,248,241,.12); --text: #fdf8f1; --dim: #b9a99b; --ember: #ff9a5a; --bad: #ff7b6b; --ok: #9fd99a; --warn: #f2d39b; --net: #8fb8ff; }
+* { box-sizing: border-box; margin: 0; }
+body { background: var(--ink); color: var(--text); font: 14px/1.5 system-ui, sans-serif; padding: 24px; }
+h1 { font: 300 28px/1.2 Georgia, serif; }
+.dim { color: var(--dim); }
+.mono, code, input { font-family: ui-monospace, "IBM Plex Mono", monospace; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; margin: 16px 0; padding: 12px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.controls label { white-space: nowrap; color: var(--dim); }
+.controls input[type=text] { background: #0d0805; color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; }
+#grep { width: 280px; }
+.window input { width: 90px; }
+.error { color: var(--bad); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--dim); margin-bottom: 12px; }
+.legend i { display: inline-block; width: 14px; height: 10px; margin-right: 5px; vertical-align: middle; border-radius: 2px; }
+.panes { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; }
+.pane { border: 1px solid var(--line); border-radius: 6px; background: #0d0805; height: 78vh; overflow: auto; }
+svg text { fill: var(--dim); font: 11px ui-monospace, monospace; }
+svg .head { fill: var(--text); font-size: 12px; }
+table { width: 100%; border-collapse: collapse; font: 12px/1.45 ui-monospace, monospace; }
+td { padding: 2px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+td.t { color: var(--dim); white-space: nowrap; }
+td.n { color: var(--ember); white-space: nowrap; }
+tr { cursor: pointer; }
+tr:hover td { background: var(--panel); }
+tr.fail td { color: var(--bad); }
+@media (max-width: 900px) { .panes { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<h1>{{.Title}}</h1>
+<p class="dim mono" id="summary"></p>
+<div class="controls">
+  <span id="nodes"></span>
+  <span id="kinds"></span>
+  <span class="window"><label>from <input type="text" id="from" placeholder="0s"></label> <label>to <input type="text" id="to" placeholder="end"></label></span>
+  <label>grep <input type="text" id="grep" placeholder="regular expression over trace lines"></label>
+  <span id="error" class="error"></span>
+</div>
+<div class="legend">
+  <span><i style="background:var(--ok)"></i>node alive</span>
+  <span><i style="background:var(--net)"></i>message, read</span>
+  <span><i style="background:repeating-linear-gradient(90deg,var(--net) 0 3px,transparent 3px 6px)"></i>message never read</span>
+  <span><i style="background:#c792ea"></i>connect</span>
+  <span><i style="background:var(--warn)"></i>EOF</span>
+  <span><i style="background:var(--bad)"></i>reset · failed op · failure</span>
+  <span><i style="background:var(--ok);opacity:.6"></i>op ok</span>
+  <span><i style="background:var(--warn);opacity:.6"></i>op unknown</span>
+  <span><i style="background:var(--ember);opacity:.25"></i>fault interval</span>
+  <span><i style="background:var(--ember);border-radius:50%"></i>event or property</span>
+</div>
+<div class="panes">
+  <div class="pane" id="diagram"></div>
+  <div class="pane"><table id="logs"></table></div>
+</div>
+<script>
+const T = {{.Data}};
+const laneW = 170, rowH = 18, left = 96, top = 40, opW = 5;
+const kindNames = ["lives", "messages", "ops", "faults", "marks"];
+const engineLane = "engine";
+const state = { nodes: new Set([...T.nodes, engineLane]), kinds: new Set(kindNames), from: 0, to: Infinity, grep: null };
+const faultColors = { crash: "#ff7b6b", crash_io: "#ff7b6b", pause: "#f2d39b", partition: "#ff9a5a", clog: "#ff9a5a", slow: "#c792ea", clock_jump: "#8fb8ff" };
+const msgColors = { data: "var(--net)", connect: "#c792ea", eof: "var(--warn)", reset: "var(--bad)" };
+const opColors = { ok: "var(--ok)", fail: "var(--bad)", info: "var(--warn)" };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const secs = ns => (ns / 1e9).toFixed(6).replace(/0{1,3}$/, "") + "s";
+const units = { ns: 1, us: 1e3, "µs": 1e3, ms: 1e6, s: 1e9, m: 6e10, h: 3.6e12 };
+
+function parseDuration(text, fallback) {
+  const s = text.trim();
+  if (!s) return fallback;
+  let total = 0, rest = s;
+  const part = /^(\d+(?:\.\d+)?)(ns|us|µs|ms|s|m|h)/;
+  while (rest) {
+    const m = rest.match(part);
+    if (!m) throw new Error("not a duration: " + s);
+    total += parseFloat(m[1]) * units[m[2]];
+    rest = rest.slice(m[0].length);
+  }
+  return total;
+}
+
+function toggles(id, names, set) {
+  const box = document.getElementById(id);
+  box.innerHTML = names.map(n => `<label><input type="checkbox" checked data-name="${esc(n)}"> ${esc(n)}</label>`).join(" ");
+  box.addEventListener("change", e => {
+    const name = e.target.dataset.name;
+    e.target.checked ? set.add(name) : set.delete(name);
+    render();
+  });
+}
+
+const inWindow = t => t >= state.from && t <= state.to;
+const overlaps = (a, b) => b >= state.from && a <= state.to;
+const endOf = t => (t < 0 ? T.end : t);
+
+function visible() {
+  const on = n => state.nodes.has(n);
+  const k = name => state.kinds.has(name);
+  return {
+    lives: k("lives") ? T.lives.filter(l => on(l.node) && overlaps(l.start, endOf(l.end))) : [],
+    messages: k("messages") ? T.messages.filter(m => on(m.from) && on(m.to) && overlaps(m.sent, endOf(m.read < 0 ? m.arrives : m.read))) : [],
+    ops: k("ops") ? T.ops.filter(o => on(o.node) && overlaps(o.start, endOf(o.end))) : [],
+    faults: k("faults") ? T.faults.filter(f => (!f.nodes || f.nodes.some(on)) && overlaps(f.start, f.end)) : [],
+    marks: T.marks.filter(m => (m.kind === "failure" || k("marks")) && (!m.node || on(m.node)) && inWindow(m.at)),
+  };
+}
+
+function rows(v) {
+  const times = new Set();
+  const add = t => times.add(Math.min(Math.max(t, state.from), Math.min(state.to, T.end)));
+  v.lives.forEach(l => { add(l.start); add(endOf(l.end)); });
+  v.messages.forEach(m => { add(m.sent); add(m.read < 0 ? m.arrives : m.read); });
+  v.ops.forEach(o => { add(o.start); add(endOf(o.end)); });
+  v.faults.forEach(f => { add(f.start); add(f.end); });
+  v.marks.forEach(m => add(m.at));
+  return [...times].sort((a, b) => a - b);
+}
+
+function yOf(times) {
+  return t => {
+    let lo = 0, hi = times.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      times[mid] < t ? (lo = mid + 1) : (hi = mid);
+    }
+    return top + lo * rowH;
+  };
+}
+
+function tracks(ops) {
+  const free = {};
+  return ops.map(o => {
+    const lanes = free[o.node] || (free[o.node] = []);
+    let i = lanes.findIndex(end => end <= o.start);
+    if (i < 0) i = lanes.length;
+    lanes[i] = endOf(o.end) + 1;
+    return i;
+  });
+}
+
+function opText(o) {
+  const out = o.output ? " -> " + JSON.stringify(o.output) : "";
+  return `${o.instance} ${o.f}${o.key ? " " + o.key : ""}${o.value ? " " + JSON.stringify(o.value) : ""}${out} ${o.status || "info"} ${secs(o.start)}..${o.end < 0 ? "never returned" : secs(o.end)}`;
+}
+
+function msgText(m) {
+  const what = m.kind === "data" ? m.bytes + " bytes" : m.kind;
+  const fate = m.read < 0 ? "never read" : "read at " + secs(m.read);
+  return `${m.from_instance} -> ${m.to_instance} conn ${m.conn}: ${what}, sent ${secs(m.sent)}, arrives ${secs(m.arrives)}, ${fate}${m.held ? ", held by a partition or clog" : ""}${m.duplicate ? ", duplicate" : ""}`;
+}
+
+function render() {
+  const nodes = T.nodes.filter(n => state.nodes.has(n));
+  const lane = Object.fromEntries(nodes.map((n, i) => [n, left + i * laneW + laneW / 2]));
+  const v = visible();
+  const times = rows(v);
+  const y = yOf(times);
+  const height = top + Math.max(times.length, 1) * rowH + rowH;
+  const width = left + nodes.length * laneW;
+  const out = [`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><defs>`];
+  for (const [kind, color] of Object.entries(msgColors)) {
+    out.push(`<marker id="arrow-${kind}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" style="fill:${color}"/></marker>`);
+  }
+  out.push("</defs>");
+  times.forEach((t, i) => out.push(`<text x="8" y="${top + i * rowH + 4}">${secs(t)}</text>`));
+  for (const f of v.faults) {
+    const hit = f.nodes ? f.nodes.filter(n => n in lane) : nodes;
+    if (!hit.length) continue;
+    const xs = hit.map(n => lane[n]);
+    const x0 = Math.min(...xs) - laneW / 2 + 4, x1 = Math.max(...xs) + laneW / 2 - 4;
+    const y0 = y(Math.max(f.start, state.from)), y1 = Math.max(y(Math.min(f.end, state.to)), y0 + 4);
+    out.push(`<rect x="${x0}" y="${y0}" width="${x1 - x0}" height="${y1 - y0}" rx="3" style="fill:${faultColors[f.kind] || "#ff9a5a"};opacity:.16"><title>${esc(secs(f.start) + " " + f.text)}</title></rect>`);
+  }
+  nodes.forEach(n => {
+    out.push(`<text class="head" x="${lane[n]}" y="18" text-anchor="middle">${esc(n)}</text>`);
+    out.push(`<line x1="${lane[n]}" y1="${top - 8}" x2="${lane[n]}" y2="${height}" style="stroke:var(--line);stroke-dasharray:2 4"/>`);
+  });
+  for (const l of v.lives) {
+    const y0 = y(Math.max(l.start, state.from)), y1 = y(Math.min(endOf(l.end), state.to));
+    out.push(`<line x1="${lane[l.node]}" y1="${y0}" x2="${lane[l.node]}" y2="${Math.max(y1, y0 + 2)}" style="stroke:var(--ok);stroke-width:3"><title>${esc(`${l.instance} ${secs(l.start)}..${l.end < 0 ? "end" : secs(l.end) + " " + l.ended}`)}</title></line>`);
+    out.push(`<text x="${lane[l.node] - 6}" y="${y0 + 4}" text-anchor="end">${esc(l.instance)}</text>`);
+  }
+  const track = tracks(v.ops);
+  v.ops.forEach((o, i) => {
+    const x = lane[o.node] + 6 + track[i] * (opW + 2);
+    const y0 = y(Math.max(o.start, state.from)), y1 = Math.max(y(Math.min(endOf(o.end), state.to)), y0 + 3);
+    out.push(`<rect x="${x}" y="${y0}" width="${opW}" height="${y1 - y0}" style="fill:${opColors[o.status] || opColors.info};opacity:.75"><title>${esc(opText(o))}</title></rect>`);
+  });
+  for (const m of v.messages) {
+    const end = m.read < 0 ? m.arrives : m.read;
+    const x0 = lane[m.from], x1 = lane[m.to], y0 = y(Math.max(m.sent, state.from)), y1 = y(Math.min(end, state.to));
+    const dash = m.read < 0 ? "stroke-dasharray:5 4;" : "";
+    out.push(`<line x1="${x0}" y1="${y0}" x2="${x1 === x0 ? x0 + 30 : x1}" y2="${y1}" marker-end="url(#arrow-${m.kind})" style="stroke:${msgColors[m.kind]};stroke-width:1.3;${dash}opacity:.85"><title>${esc(msgText(m))}</title></line>`);
+  }
+  for (const m of v.marks) {
+    const yy = y(m.at);
+    if (m.kind === "failure") {
+      out.push(`<line x1="${left - 8}" y1="${yy}" x2="${width}" y2="${yy}" style="stroke:var(--bad);stroke-width:1.5"/><text x="${left}" y="${yy - 4}" style="fill:var(--bad)">${esc("FAIL " + m.text)}</text>`);
+      continue;
+    }
+    const x = m.node in lane ? lane[m.node] : left;
+    out.push(`<circle cx="${x}" cy="${yy}" r="4.5" style="fill:var(--ember)"><title>${esc(secs(m.at) + " " + (m.instance || "") + " " + m.text)}</title></circle>`);
+  }
+  out.push(`<line id="guide" x1="0" x2="${width}" y1="-10" y2="-10" style="stroke:var(--text);stroke-width:1;opacity:.6"/></svg>`);
+  const diagram = document.getElementById("diagram");
+  diagram.innerHTML = out.join("");
+  diagram.locate = y;
+  renderLogs();
+}
+
+function renderLogs() {
+  const lines = T.logs.filter(l => state.nodes.has(l.node || engineLane) && inWindow(l.at) && (!state.grep || state.grep.test(l.text)));
+  document.getElementById("summary").textContent = `seed ${T.seed} · ${T.nodes.length} nodes · ${secs(T.end)} virtual · ${T.messages.length} messages · ${T.ops.length} operations · ${T.faults.length} faults · showing ${lines.length} of ${T.logs.length} trace lines`;
+  document.getElementById("logs").innerHTML = lines.map(l => `<tr data-at="${l.at}"${/  FAIL  /.test(l.text) ? ' class="fail"' : ""}><td class="t">${esc(secs(l.at))}</td><td class="n">${esc(l.instance || l.node || "")}</td><td>${esc(l.text.replace(/^\s*\S+\s+/, ""))}</td></tr>`).join("");
+}
+
+document.getElementById("logs").addEventListener("click", e => {
+  const row = e.target.closest("tr");
+  if (!row) return;
+  const diagram = document.getElementById("diagram");
+  const yy = diagram.locate(Number(row.dataset.at));
+  const guide = document.getElementById("guide");
+  guide.setAttribute("y1", yy);
+  guide.setAttribute("y2", yy);
+  diagram.scrollTop = Math.max(0, yy - diagram.clientHeight / 2);
+});
+
+function readFilters() {
+  const error = document.getElementById("error");
+  try {
+    state.from = parseDuration(document.getElementById("from").value, 0);
+    state.to = parseDuration(document.getElementById("to").value, Infinity);
+    const g = document.getElementById("grep").value;
+    state.grep = g ? new RegExp(g) : null;
+    error.textContent = "";
+  } catch (err) {
+    error.textContent = err.message;
+    return;
+  }
+  render();
+}
+
+for (const id of ["from", "to", "grep"]) document.getElementById(id).addEventListener("input", readFilters);
+toggles("nodes", [...T.nodes, engineLane], state.nodes);
+toggles("kinds", kindNames, state.kinds);
+render();
+</script>
+</body>
+</html>

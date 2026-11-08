@@ -20,7 +20,8 @@ For each finding the report shows:
 - how many seeds failed and the rate, with findings under 1% marked rare;
 - up to ten example seeds;
 - ready-to-run `replay` and `shrink` commands;
-- the faults before the failure and the trace of the lowest failing seed. seedfall re-runs that seed to get them, which works because replays are exact.
+- the faults before the failure and the trace of the lowest failing seed. seedfall re-runs that seed to get them, which works because replays are exact;
+- that seed's [timeline](timeline.md), embedded from its artifact folder, with a link to open it on its own.
 
 ## Classification
 
@@ -78,8 +79,12 @@ Every failure seedfall reports gets a folder you can attach to an issue or uploa
   faults.json            the run's fault schedule, replayable with seedfall replay -faults
   history.jsonl          the recorded operations, when the workload records any
   linearizability.html   the timeline, on a linearizability violation
+  timeline.html          a space-time diagram of nodes, messages, faults and operations with a trace explorer
+  timeline.mmd           the same run as a Mermaid sequence diagram
   disk/<node>/           each node's durable disk image at the failure, as inspect -out exports it
 ```
+
+`timeline.html` and `timeline.mmd` are described in [timelines and logs](timeline.md). The HTML triage report embeds each finding's `timeline.html` under the finding, linked relative to the report, so keep the report and `.seedfall/failures/` together when you move or upload them.
 
 seedfall writes it by replaying the failing seed once more and capturing the disks at the failure, so it costs one run per reported failure, not one per seed. `seedfall run` writes it for the failure it stops at, `run -report` for the example seed of each finding (the report links it), `replay` for a failing replay, `shrink` for the minimal schedule, and a failing [pinned regression](verify.md#pinned-regressions) for itself. The folder is named after the config and the seed, `<config>-seed-N`, so two configs in one directory keep separate folders. `<config>` is the file name without `.json`, then `.<profile>` for a profile and `.set-<hash>` for `-set` overrides, a short hash of the overrides in order, as in `seedfall.fixed.set-1a2b3c4d-seed-2`. A run from the seed alone goes to `<config>-seed-N`; a replay from a schedule file to `<config>-seed-N-schedule`, a shrunk schedule to `<config>-seed-N-shrunk` and a pinned one to `<config>-seed-N-pinned`, so they do not overwrite each other. A new failure of the same seed replaces the folder. `run -json` writes artifacts only for failing regressions, not for every failing seed.
 

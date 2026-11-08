@@ -37,6 +37,7 @@ type Example struct {
 	Replay    string   `json:"replay"`
 	Shrink    string   `json:"shrink"`
 	Artifacts string   `json:"artifacts,omitempty"`
+	Timeline  string   `json:"timeline,omitempty"`
 }
 
 type Finding struct {

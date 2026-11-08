@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/kunalgoesbyken/seedfall/engine"
 )
 
 //go:embed report.html.tmpl
@@ -24,6 +26,7 @@ func Generate(in Input, htmlPath, historyPath string) (Report, error) {
 	}
 	r := Build(in, knownFindings(entries))
 	r.History = filepath.ToSlash(historyPath)
+	r.linkTimelines(filepath.Dir(htmlPath))
 	if err := writeHTML(r, htmlPath); err != nil {
 		return r, err
 	}
@@ -31,6 +34,33 @@ func Generate(in Input, htmlPath, historyPath string) (Report, error) {
 		return r, err
 	}
 	return r, appendLine(historyPath, r.entry())
+}
+
+func (r *Report) linkTimelines(dir string) {
+	for _, f := range r.Findings {
+		if f.Example == nil || f.Example.Artifacts == "" {
+			continue
+		}
+		page := filepath.Join(filepath.FromSlash(f.Example.Artifacts), engine.ArtifactRun)
+		if _, err := os.Stat(page); err != nil {
+			continue
+		}
+		if rel, err := relativePath(dir, page); err == nil {
+			f.Example.Timeline = filepath.ToSlash(rel)
+		}
+	}
+}
+
+func relativePath(dir, target string) (string, error) {
+	from, err := filepath.Abs(dir)
+	if err != nil {
+		return "", err
+	}
+	to, err := filepath.Abs(target)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Rel(from, to)
 }
 
 func jsonPath(reportPath string) string {

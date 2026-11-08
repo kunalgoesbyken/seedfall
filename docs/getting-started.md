@@ -82,6 +82,7 @@ The property table shows that the recovery path really ran: hundreds of seeds pr
 
 - `seedfall.fsyncgate.json` adds `fsync_eio`, and the "fixed" server fails again: a failed fsync leaves a hole in the durable log. `seedfall.rewind.json` adds the fix.
 - `seedfall.strict.json` adds strict POSIX directory durability.
+- Open `.seedfall/failures/seedfall.always-seed-1/timeline.html` from the failing sweep for a diagram of every crash, partition and message, or step through the run with `seedfall debug -c seedfall.always.json -seed 1 -at 1.7s` ([timeline.md](timeline.md)).
 - Each of these files is a few lines that extend `seedfall.json`. In your own project you can keep such variants as profiles in one file and run them with `-profile`, or try a fault preset with `-set faults=resilient` ([config.md](config.md)).
 
 ## Your own project

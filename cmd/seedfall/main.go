@@ -17,8 +17,11 @@ const usage = `seedfall: deterministic simulation testing for Go
 
 usage:
   seedfall init   [-dir .] [-c seedfall.json] [-node ./cmd/server]... [-workload seedfall/workload] [-n] [-json]
-  seedfall run    [-c seedfall.json] [-seeds 1-1000] [-j N] [-v] [-check] [-report report.html | -json] [-pinned=false] [-seeds-file file]
-  seedfall replay [-c seedfall.json] -seed N [-faults file.json]
+  seedfall run    [-c seedfall.json] [-seeds 1-1000] [-j N] [-v] [-check] [-net-trace] [-report report.html | -json] [-pinned=false] [-seeds-file file]
+  seedfall replay [-c seedfall.json] -seed N [-faults file.json] [-net-trace] [-html timeline.html | -html timeline.mmd]
+  seedfall logs   [-c seedfall.json] -seed N [-faults file.json] [-node a,b] [-grep re] [-from 1s] [-to 2s] [-json] [-net-trace]
+  seedfall debug  [-c seedfall.json] -seed N [-faults file.json] [-at DURATION] [-net-trace]
+  seedfall trace diff <trace.txt or artifacts dir> <trace.txt or artifacts dir> [-context 3]
   seedfall shrink [-c seedfall.json] -seed N [-j N] [-budget 500 | -budget 10m]
   seedfall cause  [-c seedfall.json] -seed N [-points 16] [-branches 20]
   seedfall inspect [-c seedfall.json] -seed N [-faults file.json] [-at DURATION] [-node name] [-cat path | -out dir]
@@ -28,7 +31,7 @@ usage:
   seedfall report notify [-report .seedfall/report.html] [-webhook URL] [-link URL] [-dry-run]
   seedfall report issue  -repo owner/name [-report .seedfall/report.html] [-dry-run]
   seedfall verify [-c seedfall.json] [-seed N [-faults file.json]] [-report report.html] [-seeds range] [-check 10] [-mutate] [-app-mutants N] [-md proof.md]
-  seedfall mcp    serve init, run, replay, shrink, cause, inspect, check, mutate, pin, findings and verify to AI coding agents over MCP (stdio)
+  seedfall mcp    serve init, run, replay, logs, debug, shrink, cause, inspect, check, mutate, pin, findings and verify to AI coding agents over MCP (stdio)
   seedfall hook   Claude Code Stop hook: sweep $SEEDFALL_HOOK_SEEDS (unset: do nothing) and block the stop on a failure
 
 every command that takes -c also takes -profile name, to merge a profile from the config's profiles over it,
@@ -40,7 +43,7 @@ func main() {
 		fmt.Print(usage)
 		os.Exit(2)
 	}
-	commands := map[string]func([]string) error{"run": cmdRun, "replay": cmdReplay, "shrink": cmdShrink, "cause": cmdCause, "inspect": cmdInspect, "mutate": cmdMutate, "verify": cmdVerify, "check": cmdCheck, "mcp": cmdMCP, "init": cmdInit, "hook": cmdHook, "pin": cmdPin, "report": cmdReportFindings}
+	commands := map[string]func([]string) error{"run": cmdRun, "replay": cmdReplay, "shrink": cmdShrink, "cause": cmdCause, "inspect": cmdInspect, "mutate": cmdMutate, "verify": cmdVerify, "check": cmdCheck, "mcp": cmdMCP, "init": cmdInit, "hook": cmdHook, "pin": cmdPin, "report": cmdReportFindings, "logs": cmdLogs, "trace": cmdTrace, "debug": cmdDebug}
 	cmd, ok := commands[os.Args[1]]
 	if !ok {
 		fmt.Print(usage)
@@ -73,6 +76,7 @@ func cmdRun(args []string) error {
 	check := fs.Bool("check", false, "run every seed twice and fail at the first host call or trace line that differs")
 	reportPath := fs.String("report", "", "sweep every seed and write an HTML triage report (plus .json) to this path")
 	jsonOut := fs.Bool("json", false, "sweep every seed and print one JSON object per finished seed, then a summary object")
+	netTrace := fs.Bool("net-trace", false, "also trace every connection, message sent and message read")
 	pinned := fs.Bool("pinned", true, "replay the schedules pinned in "+engine.RegressionsDir+"/ before the sweep")
 	seedsFile := fs.String("seeds-file", "", "file of known-bad seeds, one or more per line with # comments, replayed before the sweep")
 	fs.Parse(args)
@@ -88,7 +92,7 @@ func cmdRun(args []string) error {
 	if err != nil {
 		return err
 	}
-	r.Doublecheck = *check
+	r.Doublecheck, r.NetTrace = *check, *netTrace
 	started := time.Now()
 	regs, err := replayRegressions(r, cfg, *pinned, *seedsFile, *jobs)
 	if err != nil {
@@ -246,6 +250,8 @@ func cmdReplay(args []string) error {
 	ca := configFlags(fs)
 	seed := seedFlag(fs)
 	faultsFile := fs.String("faults", "", "fault schedule from seedfall shrink")
+	htmlOut := fs.String("html", "", "write the run's timeline to this file: an HTML space-time diagram with a log explorer, or a Mermaid sequence diagram for a .mmd path")
+	netTrace := fs.Bool("net-trace", false, "also trace every connection, message sent and message read")
 	fs.Parse(args)
 	conf := ca.ref().String()
 	r, cfg, err := load(ca.ref())
@@ -256,7 +262,14 @@ func cmdReplay(args []string) error {
 	if err != nil {
 		return err
 	}
-	res := r.Replay(*seed, sched)
+	r.NetTrace = *netTrace
+	res := replayOrRecord(r, *seed, sched, *htmlOut != "")
+	if *htmlOut != "" {
+		if err := writeTimeline(*htmlOut, res, timelineTitle(cfg, *seed)); err != nil {
+			return err
+		}
+		fmt.Printf("timeline: %s\n", *htmlOut)
+	}
 	if !res.Failed {
 		for _, l := range res.Trace {
 			fmt.Println(l)
@@ -279,6 +292,13 @@ func cmdReplay(args []string) error {
 	printArtifacts(a, err)
 	os.Exit(1)
 	return nil
+}
+
+func replayOrRecord(r *engine.Runner, seed uint64, s engine.Schedule, record bool) engine.Result {
+	if record {
+		return r.Record(seed, s)
+	}
+	return r.Replay(seed, s)
 }
 
 func printArtifacts(a engine.Artifact, err error) {
