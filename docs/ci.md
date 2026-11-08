@@ -63,4 +63,4 @@ A failure reports the seed, the reason, the trace tail and the replay command. A
 
 ## Speed
 
-Runs are independent, so a sweep scales with cores: `seedfall run -j N` defaults to every CPU. Light servers take tens of milliseconds per seed; a 3-node hashicorp/raft cluster takes a few seconds. Compiled modules are cached in `.seedfall/cache`, so add that directory to your CI cache to skip compilation.
+Runs are independent, so a sweep scales with cores: `seedfall run -j N` defaults to every CPU. Light servers take tens of milliseconds per seed; a 3-node hashicorp/raft cluster takes a few seconds. Each guest is compiled once per process and every seed reuses the compiled module, so per-seed cost is booting the nodes and running them. Compiled modules are also cached in `.seedfall/cache`, so add that directory to your CI cache to skip compilation; the first build of a large guest such as nats-server takes about a minute.

@@ -158,7 +158,7 @@ The [getting started guide](docs/getting-started.md) walks through finding, shri
 - There is no asynchronous preemption, so a goroutine that spins without making a syscall starves the others in its node. gRPC's transparent retry does this after a peer crashes, which shows up as a false watchdog livelock; [`examples/jmsraft`](examples/jmsraft) uses a plain TCP transport for this reason.
 - The guest's wall clock does not advance while it runs between scheduling points, so two `time.Now()` calls in a row can return the same value. Code that names files by timestamp can collide in a way it would not on real hardware.
 - Reordering of writes within the pending set is not modeled. A torn crash keeps an in-order prefix.
-- Heavy guests run at roughly real-time speed; sweeps get their speed from running seeds in parallel.
+- Real time is spent on guest CPU and node boots, never on idle virtual time. A busy 3-node NATS JetStream cluster under faults simulates about 2.5-3x faster than real time and a mostly idle JetStream node about 7x, but short seeds of large guests are dominated by booting each node (0.1-0.3s per start for nats-server). Sweeps add one core per seed. See [how it works](docs/how-it-works.md#speed).
 
 ## License
 

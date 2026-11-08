@@ -56,3 +56,13 @@ See [properties.md](properties.md).
 ## Shrinking
 
 `seedfall shrink` removes faults one at a time for as long as the run still fails the same way (same class, node, property and message, ignoring numbers), so it never trades the bug for a different one. It then writes the minimal schedule to `.seedfall/seed-N.faults.json`. Faults that happen at run time, such as a crash during the N-th disk operation or an fsync EIO, are recorded with their operation index so the schedule replays exactly.
+
+## Speed
+
+Virtual time never waits on the wall clock. When every node is blocked, the scheduler jumps straight to the next timer, message or fault; the only real-time limit is the `watchdog`. Real time therefore goes to three things:
+
+- **Guest CPU.** Nodes run as wasm compiled to native code by wazero, with a check on every loop iteration so the watchdog can stop a busy loop. That check costs about a third of guest CPU and is what makes livelocks reportable instead of hanging the run. Host calls (clock, `poll_oneoff`, files, network) are a few percent.
+- **Booting nodes.** Every start and restart is a fresh module instance: wazero sets up memory and data segments, then the Go runtime and your `main` run. For nats-server this is 0.1-0.3s per start, so short seeds with many crashes are dominated by boots.
+- **Compiling, once.** Each guest is compiled once per process and shared by every seed and every node that runs the same binary. Compiled code is cached in `.seedfall/cache`, so later processes only load it.
+
+A busy 3-node NATS JetStream cluster under crashes and partitions simulates about 2.5-3x faster than real time; a JetStream node that mostly waits on its client about 7x. Seeds are independent, so `seedfall run -j N` runs N at once.
