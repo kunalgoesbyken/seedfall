@@ -42,6 +42,8 @@ func TestNextStepsBreaksTiesByTimeThenKind(t *testing.T) {
 		{"every resume due at the same time is a candidate", nil, []*node{live("a", 10, 0), live("b", 20, 0), live("c", 10, 0)}, 10, stepResume, []string{"a", "c"}},
 		{"a paused node waits for the pause to end", nil, []*node{live("a", 5, 40), live("b", 30, 0)}, 30, stepResume, []string{"b"}},
 		{"a node that exited is never scheduled", nil, []*node{{spec: NodeSpec{Name: "a"}, restartAt: -1}, live("b", 50, 0)}, 50, stepResume, []string{"b"}},
+		{"a fault recorded at run time is not a step", []Fault{{At: 10, Kind: FaultCrashIO}, {At: 20, Kind: FaultBuggify}}, []*node{live("a", 30, 0)}, 30, stepResume, []string{"a"}},
+		{"a planned fault after a recorded one is still a step", []Fault{{At: 5, Kind: FaultFsyncEIO}, {At: 10}}, []*node{live("a", 30, 0)}, 10, stepFault, []string{"fault"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

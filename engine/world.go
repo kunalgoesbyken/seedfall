@@ -410,6 +410,9 @@ const (
 
 func (w *world) nextSteps() []step {
 	var steps []step
+	for w.nextFault < len(w.faults) && observedAtRuntime(w.faults[w.nextFault].Kind) {
+		w.nextFault++
+	}
 	if w.nextFault < len(w.faults) {
 		steps = append(steps, step{at: int64(w.faults[w.nextFault].At), kind: stepFault})
 	}

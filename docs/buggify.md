@@ -45,7 +45,7 @@ faults before the failure (1):
 { "at": "465.631252ms", "kind": "buggify", "node": "counter", "site": "reply lost after apply", "until": "0s", "op": 35 }
 ```
 
-When a schedule is replayed with `-faults`, a site fires exactly at the hits the schedule lists and nowhere else, so `seedfall shrink` removes firings one at a time like any other fault, and you can hand-edit a schedule to add or drop one. Replaying a schedule needs `"buggify": true` in the config: with it off, every site returns false. The trace shows when each site is first reached and whether it is enabled for the run, and every firing.
+When a schedule is replayed with `-faults`, a site fires exactly at the hits the schedule lists and nowhere else, so `seedfall shrink` removes firings one at a time like any other fault, and you can hand-edit a schedule to add or drop one. Replaying a schedule needs `"buggify": true` in the config, and with `swarm` it must be on for that seed: otherwise every site returns false. The trace shows when each site is first reached and whether it is enabled for the run, and every firing.
 
 ## Coverage
 
@@ -57,7 +57,7 @@ buggify  seeds reached  seeds enabled  seeds fired  fired
                     20              5            5    110  slow apply
 ```
 
-A site marked `never reached` (with its location) is code no seed ran; `never fired` means it ran but no seed enabled it, so sweep more seeds. Neither fails the sweep: pair a site with a `sim.Sometimes` on the path it opens when you want that path to be required. The same counts are in `buggify_sites` in `run -json` and in the MCP `seedfall_run` result.
+A site marked `never reached` (with its location) is code no seed ran; `never fired` means it ran but never fired: no seed enabled it, or its rate was too low for the hits it got, so sweep more seeds or raise its probability. Neither fails the sweep: pair a site with a `sim.Sometimes` on the path it opens when you want that path to be required. The same counts are in `buggify_sites` in `run -json` and in the MCP `seedfall_run` result.
 
 ## Structured randomness
 

@@ -207,3 +207,39 @@ func f(name string) {
 		t.Fatal("a cataloged site is not reported as never reached, or leaked into property coverage")
 	}
 }
+
+func TestBuggifyBranchRerandomizesFiringsButNotEnables(t *testing.T) {
+	site := enabledSite(t, 13)
+	base, inst := buggifyWorld(13)
+	want := hits(base, inst, site, 0.5, 64)
+	branched, inst := buggifyWorld(13)
+	branched.branch = &branch{key: 1, taken: true}
+	got := hits(branched, inst, site, 0.5, 64)
+	if !branched.bugs.sites[site].Enabled {
+		t.Fatal("taking a branch changed which sites are enabled")
+	}
+	if reflect.DeepEqual(got, want) {
+		t.Fatal("taking a branch did not re-randomize when the site fires")
+	}
+}
+
+func TestBuggifySitesAggregatePerSeed(t *testing.T) {
+	cfg := defaultConfig()
+	cfg.Faults.Buggify = true
+	c := newBuggifySites(&cfg, []CatalogEntry{{Message: "cataloged", Location: "a.go:1", Buggify: true}, {Message: "a property"}})
+	c.add(map[string]*BuggifySite{"cataloged": {Enabled: true, Hits: 5, Fired: 2}, "runtime": {Hits: 3}})
+	c.add(map[string]*BuggifySite{"cataloged": {Hits: 4}})
+	want := BuggifySites{
+		"cataloged": {Location: "a.go:1", SeedsReached: 2, SeedsEnabled: 1, SeedsFired: 1, Fired: 2},
+		"runtime":   {SeedsReached: 1},
+	}
+	if !reflect.DeepEqual(c, want) {
+		t.Fatalf("aggregated %+v, want %+v", c, want)
+	}
+	if c["cataloged"].Problem() != "" || c["runtime"].Problem() != "never fired" {
+		t.Fatalf("problems %q and %q", c["cataloged"].Problem(), c["runtime"].Problem())
+	}
+	if newBuggifySites(&Config{}, nil) != nil {
+		t.Fatal("buggify off still collects site coverage")
+	}
+}
