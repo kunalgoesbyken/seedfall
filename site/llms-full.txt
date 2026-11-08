@@ -903,13 +903,14 @@ On kvlog's `seedfall.always.json`, seed 1 fails with `torntail.faults.json`, sti
 | `-add JSON` | Add a fault in the format shown in this page, for example `{"at":"1s","kind":"pause","node":"server","until":"1.5s"}`. Repeatable |
 | `-out` | Write the result here. Without it, the schedule is written back to the file it came from |
 
-Positions in `-remove` and `-shift` always refer to the schedule as it was before the edit. The result is sorted by `at` and checked against the config before anything is written:
+Positions in `-remove` and `-shift` always refer to the schedule as it was before the edit. An edited schedule drops the `shrunk_from` and `shrink_runs` that `shrink` recorded, since it is no longer what shrink found. The result is sorted by `at` and checked against the config before anything is written:
 
 | Check | Applies to |
 |---|---|
 | `kind` is a fault kind seedfall knows | every fault |
 | `node`, `from`, `to`, `side` and `groups` name nodes of the config | every fault |
-| `at` is not negative and is before the end of the run: the schedule's `duration`, else the config's | every fault |
+| `at` is not negative | every fault |
+| `at` is not after the end of the run: the schedule's `duration`, else the config's | every fault except those that fire at a disk operation, read or buggify hit, whose `at` only records when it happened |
 | `until` is not before `at` | `crash`, `crash_io`, `partition`, `pause`, `clog`, `slow` |
 | `side` or `groups`, not both | `partition` |
 | `mode` is `stop`, `slow` or `jam`; `dir` is `in`, `out` or `both` with a `node`, or empty with two different nodes in `from` and `to` | `clog` |
@@ -2674,7 +2675,7 @@ A `linearizability` or `isolation` failure is about the recorded history, not th
 Write the explanation down as one sentence, for example "the crash in op #56 leaves a torn record, and recovery appends after it instead of truncating". Then test it by changing one thing and replaying.
 
 - **Drop a fault.** `seedfall faults -c C -seed N -remove 2 -out hypothesis.json` copies `.seedfall/seed-N.faults.json` without its second fault (`seedfall faults -c C -seed N` alone lists the faults with their positions). Then run `seedfall replay -c C -seed N -faults hypothesis.json`. If it now passes, that fault is necessary. If it still fails, compare the failure message with the original: a different message means you uncovered a second bug, so note it and triage it separately.
-- **Move a fault.** `-shift 1=-1` moves a `crash_io` entry one disk operation earlier, and `-shift 2=+20ms` moves a `crash` 20ms later, to put the crash just before or after the suspect operation; then replay again. On a `buggify` entry, the count is which hit of that site on that node fires. `-add '{"at":"1s","kind":"pause","node":"server","until":"1.5s"}'` adds a fault. Every edit is checked against the config (known nodes, `until` after `at`, inside the run) before it is written, and the schedule format is in `seedfall://docs/faults` under "Editing a schedule".
+- **Move a fault.** `-shift 1=-1` moves a `crash_io` entry one disk operation earlier, and `-shift 2=+20ms` moves a `crash` 20ms later, to put the crash just before or after the suspect operation; then replay again. On a `buggify` entry, the count is which hit of that site on that node fires. `-add '{"at":"1s","kind":"pause","node":"server","until":"1.5s"}'` adds a fault. Every edit is checked against the config (known nodes, `until` not before `at`, a timed fault inside the run) before it is written, and the schedule format is in `seedfall://docs/faults` under "Editing a schedule".
 - **Change the world.** In a copy of `C`, turn off `torn_writes`, or turn `strict_dirs` on or off, and replay the same seed. If the failure needs torn writes, the bug is in recovery parsing. If it needs `strict_dirs`, a directory fsync is missing.
 
 `replay` exits 1 and prints the trace when the seed fails, and ends with `seed N: ok, ... steps` when it passes. Over MCP, use `seedfall_faults_edit` (with `out`), then `seedfall_replay` with `faults`, and `seedfall_shrink`, `seedfall_cause` and `seedfall_inspect`, which take the same arguments as JSON.

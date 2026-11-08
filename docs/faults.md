@@ -236,13 +236,14 @@ On kvlog's `seedfall.always.json`, seed 1 fails with `torntail.faults.json`, sti
 | `-add JSON` | Add a fault in the format shown in this page, for example `{"at":"1s","kind":"pause","node":"server","until":"1.5s"}`. Repeatable |
 | `-out` | Write the result here. Without it, the schedule is written back to the file it came from |
 
-Positions in `-remove` and `-shift` always refer to the schedule as it was before the edit. The result is sorted by `at` and checked against the config before anything is written:
+Positions in `-remove` and `-shift` always refer to the schedule as it was before the edit. An edited schedule drops the `shrunk_from` and `shrink_runs` that `shrink` recorded, since it is no longer what shrink found. The result is sorted by `at` and checked against the config before anything is written:
 
 | Check | Applies to |
 |---|---|
 | `kind` is a fault kind seedfall knows | every fault |
 | `node`, `from`, `to`, `side` and `groups` name nodes of the config | every fault |
-| `at` is not negative and is before the end of the run: the schedule's `duration`, else the config's | every fault |
+| `at` is not negative | every fault |
+| `at` is not after the end of the run: the schedule's `duration`, else the config's | every fault except those that fire at a disk operation, read or buggify hit, whose `at` only records when it happened |
 | `until` is not before `at` | `crash`, `crash_io`, `partition`, `pause`, `clog`, `slow` |
 | `side` or `groups`, not both | `partition` |
 | `mode` is `stop`, `slow` or `jam`; `dir` is `in`, `out` or `both` with a `node`, or empty with two different nodes in `from` and `to` | `clog` |

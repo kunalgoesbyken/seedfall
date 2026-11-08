@@ -95,8 +95,7 @@ expect_grep() {
   got="$(cd "$root/examples/$dir" && "$bin" trace grep -c $config -seed "$seed" $search 2>&1 >/dev/null | awk '{print $1}')"
   local verdict="PASS"
   [ "$got" != "$want" ] && verdict="FAIL" && failures=$((failures + 1))
-  printf '%s  %-8s %-24s trace grep of seed %s %s: want %s matches, got %s
-' "$verdict" "$dir" "$config" "$seed" "$search" "$want" "$got"
+  printf '%s  %-8s %-24s trace grep of seed %s %s: want %s matches, got %s\n' "$verdict" "$dir" "$config" "$seed" "$search" "$want" "$got"
 }
 
 expect_edit() {
@@ -106,8 +105,7 @@ expect_edit() {
   rm -f "$edited"
   local verdict="PASS"
   [ "$got" != "$want" ] && verdict="FAIL" && failures=$((failures + 1))
-  printf '%s  %-8s %-24s replay seed %s with %s edited by %s: want %s, got %s
-' "$verdict" "$dir" "$config" "$seed" "$faults" "$edit" "$want" "$got"
+  printf '%s  %-8s %-24s replay seed %s with %s edited by %s: want %s, got %s\n' "$verdict" "$dir" "$config" "$seed" "$faults" "$edit" "$want" "$got"
 }
 
 expect_debug() {

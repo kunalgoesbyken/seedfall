@@ -103,7 +103,7 @@ func (f Fault) problems(names []string, horizon time.Duration) []string {
 		}
 	}
 	add(f.At < 0, "at is negative")
-	add(time.Duration(f.At) >= horizon, "at is not before the end of the run at %s, so it never fires", horizon)
+	add(!f.FiresAtOp() && time.Duration(f.At) > horizon, "at is after the end of the run at %s, so it never fires", horizon)
 	add(slices.Contains(windowKinds, f.Kind) && f.Until < f.At, "until %s is before at", time.Duration(f.Until))
 	for _, n := range append(append([]string{f.Node, f.From, f.To}, f.Side...), slices.Concat(f.Groups...)...) {
 		add(n != "" && !slices.Contains(names, n), "unknown node %q, want one of %v", n, names)

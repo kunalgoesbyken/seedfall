@@ -120,8 +120,12 @@ func editFaults(a faultsEditArgs) (faultsView, error) {
 	}
 	source := cmp.Or(a.Faults, schedulePath(a.Config, a.Seed))
 	generated := from != filepath.ToSlash(source)
+	edited := len(a.Remove)+len(a.Shift)+len(a.Add) > 0
 	if file.Faults, err = applyEdits(file.Faults, a); err != nil {
 		return faultsView{}, err
+	}
+	if edited {
+		file.ShrunkFrom, file.ShrinkRuns, file.BudgetExhausted = nil, 0, false
 	}
 	if err := cfg.CheckSchedule(file.Schedule); err != nil {
 		return faultsView{}, err
@@ -135,7 +139,7 @@ func editFaults(a faultsEditArgs) (faultsView, error) {
 	for i, f := range file.Faults {
 		out.Faults = append(out.Faults, faultEntry{N: i + 1, Text: f.Describe(), Fault: f})
 	}
-	if len(a.Remove)+len(a.Shift)+len(a.Add) == 0 && a.Out == "" && !generated {
+	if !edited && a.Out == "" && !generated {
 		return out, nil
 	}
 	out.Wrote = true

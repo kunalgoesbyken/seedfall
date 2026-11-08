@@ -211,4 +211,11 @@ func TestCheckScheduleAcceptsGeneratedFaultsAndNamesEveryProblem(t *testing.T) {
 	if err := cfg.CheckSchedule(Schedule{Faults: []Fault{late}, Duration: Duration(4 * time.Second)}); err == nil {
 		t.Error("a fault after a shrunk schedule's duration was accepted")
 	}
+	edge := []Fault{
+		{At: Duration(4 * time.Second), Kind: FaultReset, Node: "n1", Until: Duration(4 * time.Second)},
+		{At: Duration(6 * time.Second), Kind: FaultCrashIO, Node: "n1", Op: 9, Until: Duration(7 * time.Second)},
+	}
+	if err := cfg.CheckSchedule(Schedule{Faults: edge, Duration: Duration(4 * time.Second)}); err != nil {
+		t.Errorf("a fault at the end of the run or a disk-op fault recorded after it was rejected: %v", err)
+	}
 }

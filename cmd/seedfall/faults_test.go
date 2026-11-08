@@ -26,7 +26,7 @@ func editFixture(t *testing.T) (config, schedule string) {
 		{At: engine.Duration(2 * time.Second), Kind: engine.FaultPartition, Side: []string{"client"}, Until: engine.Duration(3 * time.Second)},
 		{At: engine.Duration(4 * time.Second), Kind: engine.FaultCrash, Node: "server", Until: engine.Duration(4500 * time.Millisecond)},
 	}
-	if err := engine.WriteScheduleFile(schedule, engine.ScheduleFile{Seed: 3, Schedule: engine.Schedule{Faults: faults}}); err != nil {
+	if err := engine.WriteScheduleFile(schedule, engine.ScheduleFile{Seed: 3, Schedule: engine.Schedule{Faults: faults}, ShrunkFrom: &engine.ScheduleSize{Faults: 9}, ShrinkRuns: 40}); err != nil {
 		t.Fatal(err)
 	}
 	return config, schedule
@@ -69,7 +69,7 @@ func TestMCPFaultsEditRemovesShiftsAndAdds(t *testing.T) {
 		t.Fatalf("edited faults %+v", v.Faults)
 	}
 	written, err := engine.ReadScheduleFile(out)
-	if err != nil || written.Seed != 3 || len(written.Faults) != 3 {
+	if err != nil || written.Seed != 3 || len(written.Faults) != 3 || written.ShrunkFrom != nil || written.ShrinkRuns != 0 {
 		t.Fatalf("written schedule %+v %v", written, err)
 	}
 	if !strings.Contains(v.Replay, "-seed 3 -faults "+filepath.ToSlash(out)) {
@@ -93,7 +93,7 @@ func TestMCPFaultsEditRejectsBadEditsAndWritesNothing(t *testing.T) {
 		args map[string]any
 	}{
 		{`unknown node "nobody"`, map[string]any{"add": []map[string]any{{"at": "1s", "kind": "crash", "node": "nobody", "until": "2s"}}}},
-		{"never fires", map[string]any{"shift": []map[string]any{{"fault": 3, "by": "+6s"}}}},
+		{"never fires", map[string]any{"shift": []map[string]any{{"fault": 3, "by": "+7s"}}}},
 		{"by a count", map[string]any{"shift": []map[string]any{{"fault": 1, "by": "10ms"}}}},
 		{"by a duration", map[string]any{"shift": []map[string]any{{"fault": 2, "by": "+3"}}}},
 		{"no fault 4", map[string]any{"remove": []int{4}}},
