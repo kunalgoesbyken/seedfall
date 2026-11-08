@@ -9,7 +9,7 @@ A failing seed replays exactly, so you can look at it as many times and in as ma
 | Logs | `seedfall logs -seed N -node server -grep re -from 1s -to 2s` | The trace filtered by node, pattern and virtual time, with app output interleaved with engine events and slog JSON parsed into fields |
 | Debugger | `seedfall debug -seed N -at 1.7s` | A prompt paused at a moment of the run: node states, the live disk, in-flight messages and active faults, then step, run until a pattern, or branch into a different future |
 
-`seedfall trace diff` compares two traces and shows where they first part ways. All of them are also MCP tools.
+`seedfall trace diff` compares two traces and shows where they first part ways. Logs and the debugger are also MCP tools, and the timeline is in every artifact folder the MCP tools name.
 
 ## The trace
 
@@ -165,9 +165,10 @@ The debugger stops between scheduler steps, not inside a node's code: it shows w
 seedfall trace diff .seedfall/failures/seedfall.always-seed-1 after-fix.txt
 ```
 
-Each side is a trace file (an artifact's `trace.txt`, or `seedfall logs` output saved to a file) or an artifact folder, which means its `trace.txt`. It prints the line where the traces first differ with the matching lines before it (`-context 3`), and exits 1, or says they are identical and exits 0:
+Each side is a trace file (an artifact's `trace.txt`, or `seedfall logs` output saved to a file) or an artifact folder, which means its `trace.txt`. It prints the line where the traces first differ with the matching lines before it (`-context 3`), and exits 1, or says they are identical and exits 0. `-context` goes before the two paths. Here `a.txt` is the trace of seed 1 and `b.txt` the trace of the same seed under its shrunk schedule, both saved with `seedfall logs`:
 
 ```
+$ seedfall trace diff a.txt b.txt
 the traces diverge at line 4 (a.txt has 12 lines, b.txt has 12)
 
       0.000s  start server#1

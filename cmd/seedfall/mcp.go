@@ -329,6 +329,9 @@ func toolReplay(_ context.Context, _ *mcp.CallToolRequest, a seedArgs) (*mcp.Cal
 }
 
 func toolLogs(_ context.Context, _ *mcp.CallToolRequest, a logsArgs) (*mcp.CallToolResult, logsView, error) {
+	if a.Limit < 0 {
+		return nil, logsView{}, fmt.Errorf("limit %d is negative", a.Limit)
+	}
 	filter, err := newLogFilter(a.Node, a.Grep, a.From, a.To)
 	if err != nil {
 		return nil, logsView{}, err

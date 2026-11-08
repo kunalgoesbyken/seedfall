@@ -229,10 +229,45 @@ func TestDebugCloseMidRunAndPastTheEnd(t *testing.T) {
 	if st := s.State(); !st.Over || st.At != full.Duration || st.Failed != full.Failed {
 		t.Fatalf("debug to the end: %+v, run ended at %s failed %v", st, full.Duration, full.Failed)
 	}
+	if _, next := s.Faults(); next != nil {
+		t.Fatalf("an ended run has a next fault %+v", next)
+	}
 	if got := s.Close(); !slices.Equal(got.Trace, full.Trace) {
 		t.Fatal("a debug session to the end differs from a run")
+	}
+	s, err = r.Debug(1, Schedule{}, 100*time.Millisecond)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.Step(3)
+	s.RunTo(time.Hour)
+	if got := s.Close(); !slices.Equal(got.Trace, full.Trace) || got.Hash() != full.Hash() {
+		t.Fatal("pausing and stepping changed the run")
 	}
 	if _, err := r.Debug(1, Schedule{}, -time.Second); err == nil {
 		t.Fatal("a negative time has no error")
 	}
+}
+
+func TestDebugNetListsDataSentBeforeAccept(t *testing.T) {
+	r := guestRunner(t, true)
+	s, err := r.Debug(3, Schedule{}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	for s.Step(1) {
+		pending := map[int32]bool{}
+		for _, m := range s.InFlight() {
+			if m.Kind == MessageConnect {
+				pending[m.Conn] = true
+			}
+		}
+		for _, m := range s.InFlight() {
+			if m.Kind != MessageConnect && pending[m.Conn] {
+				return
+			}
+		}
+	}
+	t.Fatal("no data sent before its connection was accepted was listed in flight")
 }

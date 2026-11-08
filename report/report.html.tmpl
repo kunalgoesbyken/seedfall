@@ -81,7 +81,7 @@ textarea.issue { width: 100%; height: 220px; margin-top: 8px; background: #0d080
     <details><summary>trace of seed {{.Seed}}, failing at t={{.At}}</summary><pre>{{range .Trace}}{{.}}
 {{end}}</pre></details>
     {{with .Artifacts}}<p class="dim mono" style="margin-top:10px">artifacts: {{.}}</p>{{end}}
-    {{with .Timeline}}<details><summary>timeline of seed {{$f.Example.Seed}}: nodes, messages, faults, operations and the trace explorer · <a href="{{.}}">open on its own</a></summary><iframe class="timeline" src="{{.}}" loading="lazy" title="timeline of seed {{$f.Example.Seed}}"></iframe></details>{{end}}
+    {{with .Timeline}}<details><summary>timeline of seed {{$f.Example.Seed}}: nodes, messages, faults, operations and the trace explorer Â· <a href="{{.}}">open on its own</a></summary><iframe class="timeline" src="{{.}}" loading="lazy" title="timeline of seed {{$f.Example.Seed}}"></iframe></details>{{end}}
     {{end}}
     <button class="copy" type="button">Copy issue markdown</button>
     <details><summary>issue markdown</summary><textarea class="issue" readonly>{{$.IssueMarkdown $f}}</textarea></details>

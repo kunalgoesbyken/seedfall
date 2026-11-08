@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -91,13 +92,20 @@ func TestMCPListsLogsAndDebugAndRejectsBadFilters(t *testing.T) {
 			t.Errorf("%s is not listed", name)
 		}
 	}
-	for name, args := range map[string]map[string]any{
-		"seedfall_logs":  {"config": "seedfall.json", "seed": 1, "grep": "(["},
-		"seedfall_debug": {"config": "seedfall.json", "seed": 1, "at": "soon"},
+	for _, c := range []struct {
+		name, want string
+		args       map[string]any
+	}{
+		{"seedfall_logs", "missing closing", map[string]any{"config": "seedfall.json", "seed": 1, "grep": "(["}},
+		{"seedfall_logs", "negative", map[string]any{"config": "seedfall.json", "seed": 1, "limit": -1}},
+		{"seedfall_debug", "invalid duration", map[string]any{"config": "seedfall.json", "seed": 1, "at": "soon"}},
 	} {
-		res, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: name, Arguments: args})
+		res, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: c.name, Arguments: c.args})
 		if err != nil || !res.IsError {
-			t.Fatalf("%s accepted %v: %v %v", name, args, err, res.Content)
+			t.Fatalf("%s accepted %v: %v %v", c.name, c.args, err, res.Content)
+		}
+		if text := res.Content[0].(*mcp.TextContent).Text; !strings.Contains(text, c.want) {
+			t.Fatalf("%s %v: %s, want %q", c.name, c.args, text, c.want)
 		}
 	}
 }

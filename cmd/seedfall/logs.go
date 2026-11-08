@@ -147,15 +147,17 @@ func timelineTitle(cfg *engine.Config, seed uint64) string {
 	return fmt.Sprintf("%s seed %d", cfg.Stem(), seed)
 }
 
+var errTraceUsage = errors.New("usage: seedfall trace diff [-context 3] <trace.txt or artifacts dir> <trace.txt or artifacts dir>")
+
 func cmdTrace(args []string) error {
 	if len(args) == 0 || args[0] != "diff" {
-		return errors.New("usage: seedfall trace diff <trace.txt or artifacts dir> <trace.txt or artifacts dir>")
+		return errTraceUsage
 	}
 	fs := flag.NewFlagSet("trace diff", flag.ExitOnError)
 	around := fs.Int("context", 3, "matching lines to show before the first difference")
 	fs.Parse(args[1:])
 	if fs.NArg() != 2 {
-		return errors.New("usage: seedfall trace diff <trace.txt or artifacts dir> <trace.txt or artifacts dir>")
+		return errTraceUsage
 	}
 	a, err := readTrace(fs.Arg(0))
 	if err != nil {

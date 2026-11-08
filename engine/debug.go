@@ -255,12 +255,18 @@ func (n *network) inflight() []InFlight {
 		case *listener:
 			for _, ep := range h.backlog {
 				out = append(out, InFlight{Conn: ep.conn, Kind: MessageConnect, From: ep.peer.owner.label, To: h.owner.label, Arrives: time.Duration(ep.acceptAt)})
+				out = ep.inflight(out)
 			}
 		case *endpoint:
-			for _, c := range h.inbox {
-				out = append(out, InFlight{Conn: h.conn, Kind: chunkNames[c.kind], From: h.peer.owner.label, To: h.owner.label, Bytes: len(c.data), Sent: time.Duration(c.sent), Arrives: time.Duration(c.at)})
-			}
+			out = h.inflight(out)
 		}
+	}
+	return out
+}
+
+func (ep *endpoint) inflight(out []InFlight) []InFlight {
+	for _, c := range ep.inbox {
+		out = append(out, InFlight{Conn: ep.conn, Kind: chunkNames[c.kind], From: ep.peer.owner.label, To: ep.owner.label, Bytes: len(c.data), Sent: time.Duration(c.sent), Arrives: time.Duration(c.at)})
 	}
 	return out
 }
@@ -271,6 +277,9 @@ func (s *Session) Faults() (active []Fault, next *Fault) {
 			if int64(f.At) <= w.now && int64(f.Until) > w.now {
 				active = append(active, f)
 			}
+		}
+		if s.d.over {
+			return
 		}
 		for _, f := range w.faults[w.nextFault:] {
 			if !observedAtRuntime(f.Kind) {

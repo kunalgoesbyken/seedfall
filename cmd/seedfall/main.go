@@ -21,7 +21,7 @@ usage:
   seedfall replay [-c seedfall.json] -seed N [-faults file.json] [-net-trace] [-html timeline.html | -html timeline.mmd]
   seedfall logs   [-c seedfall.json] -seed N [-faults file.json] [-node a,b] [-grep re] [-from 1s] [-to 2s] [-json] [-net-trace]
   seedfall debug  [-c seedfall.json] -seed N [-faults file.json] [-at DURATION] [-net-trace]
-  seedfall trace diff <trace.txt or artifacts dir> <trace.txt or artifacts dir> [-context 3]
+  seedfall trace diff [-context 3] <trace.txt or artifacts dir> <trace.txt or artifacts dir>
   seedfall shrink [-c seedfall.json] -seed N [-j N] [-budget 500 | -budget 10m]
   seedfall cause  [-c seedfall.json] -seed N [-points 16] [-branches 20]
   seedfall inspect [-c seedfall.json] -seed N [-faults file.json] [-at DURATION] [-node name] [-cat path | -out dir]
