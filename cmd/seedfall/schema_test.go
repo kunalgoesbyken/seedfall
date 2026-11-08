@@ -20,15 +20,18 @@ func TestSchemaDescribesEveryCommandAndTool(t *testing.T) {
 		}
 	}
 	for command, want := range map[string][]string{
-		"seedfall run":        {"c", "seeds", "report", "json", "timeout"},
-		"seedfall doctor":     {"json"},
-		"seedfall version":    {"json"},
-		"seedfall faults":     {"c", "seed", "faults", "remove", "shift", "add", "out"},
-		"seedfall trace grep": {"c", "seed", "e", "context", "node", "from", "to", "limit", "json"},
-		"seedfall findings":   {"report", "history", "status", "json"},
-		"seedfall pin":        {"c", "seed", "faults"},
-		"seedfall explore":    {"c", "seeds", "rounds", "batch", "until-novelty", "budget", "explore-seed", "keep-going", "corpus", "report", "json", "cpuprofile"},
-		"seedfall shrink":     {"c", "seed", "faults"},
+		"seedfall run":            {"c", "seeds", "report", "json", "timeout", "rotate"},
+		"seedfall doctor":         {"json"},
+		"seedfall version":        {"json"},
+		"seedfall faults":         {"c", "seed", "faults", "remove", "shift", "add", "out"},
+		"seedfall trace grep":     {"c", "seed", "e", "context", "node", "from", "to", "limit", "json"},
+		"seedfall findings":       {"report", "history", "status", "json"},
+		"seedfall pin":            {"c", "seed", "faults"},
+		"seedfall explore":        {"c", "seeds", "rounds", "batch", "until-novelty", "budget", "explore-seed", "keep-going", "corpus", "report", "json", "cpuprofile"},
+		"seedfall shrink":         {"c", "seed", "faults"},
+		"seedfall mutate":         {"c", "seeds", "only", "app", "md"},
+		"seedfall report github":  {"report", "output"},
+		"seedfall report comment": {"report", "body", "repo", "pr", "marker", "link", "dry-run"},
 	} {
 		for _, name := range want {
 			if !slices.Contains(flags[command], name) {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,7 +17,11 @@ import (
 	"github.com/kunalgoesbyken/seedfall/report"
 )
 
-const fakeGHEnv = "SEEDFALL_FAKE_GH"
+const (
+	fakeGHEnv        = "SEEDFALL_FAKE_GH"
+	fakeGHCommentEnv = "SEEDFALL_FAKE_GH_COMMENT"
+	fakeCommentID    = 77
+)
 
 func TestMain(m *testing.M) {
 	if log := os.Getenv(fakeGHEnv); log != "" {
@@ -38,6 +43,19 @@ func fakeGH(log string, args []string) int {
 		defer f.Close()
 		fmt.Fprintf(f, "%s\n%s\n=====\n", strings.Join(args, " "), body)
 		fmt.Println("https://github.com/o/r/issues/2")
+	case "api --paginate":
+		if body := os.Getenv(fakeGHCommentEnv); body != "" {
+			line, _ := json.Marshal(map[string]any{"id": fakeCommentID, "body": body})
+			fmt.Println(string(line))
+		}
+	case "api --method":
+		body, _ := io.ReadAll(os.Stdin)
+		f, err := os.OpenFile(log, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+		if err != nil {
+			return 1
+		}
+		defer f.Close()
+		fmt.Fprintf(f, "%s\n%s\n=====\n", strings.Join(args, " "), body)
 	default:
 		return 1
 	}

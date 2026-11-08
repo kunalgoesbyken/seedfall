@@ -4,6 +4,9 @@ branding:
   icon: bar-chart-2
   color: orange
 inputs:
+  command:
+    description: What to run, one of run, verify or mutate; pass verify's target with args, for example -seed 1 or -report path
+    default: run
   config:
     description: Path to seedfall.json
     default: seedfall.json
@@ -11,65 +14,107 @@ inputs:
     description: Profile from the config's profiles to merge over it
     default: ""
   seeds:
-    description: Seed or inclusive seed range
-    default: 1-200
-  check:
-    description: Run every seed twice and fail at the first host call or trace line that differs
+    description: Seed or inclusive seed range; empty uses the command's default (run 1-200, mutate 1-100, verify enough for 95% confidence)
+    default: ""
+  rotate-seeds:
+    description: Move seeds forward by its own width per workflow run number, so each run explores new seeds; run only
     default: "false"
+  check:
+    description: Run every seed twice and fail at the first host call or trace line that differs; run only
+    default: "false"
+  args:
+    description: Extra space-separated flags for the command, for example -timeout 10m or -only fsync_noop
+    default: ""
+  version:
+    description: seedfall release to download on Linux or macOS, or latest; empty uses the release matching the action ref, or builds from source if there is none
+    default: ""
   go-version:
-    description: Go version used to build the nodes and seedfall
+    description: Go version used to build the nodes, and seedfall when it is built from source
     default: stable
   report:
-    description: Sweep every seed and upload an HTML triage report as an artifact
+    description: Sweep every seed and upload an HTML triage report as an artifact; run only
     default: "true"
   artifact-name:
-    description: Name of the uploaded report artifact; must be unique per workflow run
+    description: Name of the uploaded artifact, also used to keep the cache and pull request comment of each job apart; must be unique per workflow run
     default: seedfall-report
+  cache:
+    description: Keep .seedfall/history.jsonl and .seedfall/cache between runs so findings are tracked as new, ongoing, resolved or regressed
+    default: "true"
+  comment:
+    description: Post or update one pull request comment with the outcome; needs the pull-requests write permission
+    default: "false"
   webhook:
     description: Slack or Discord incoming webhook URL, best passed from a secret; posts the report's new and regressed findings
     default: ""
   file-issues:
     description: File a GitHub issue for each finding in the report that has no open issue yet; needs report and the issues write permission
     default: "false"
+outputs:
+  status:
+    description: passed, failed, or error when seedfall could not finish
+    value: ${{ steps.run.outputs.status }}
+  failing-seed:
+    description: Seed of the most urgent failure in the report, empty if none; run with report only
+    value: ${{ steps.run.outputs.failing-seed }}
+  findings:
+    description: Number of findings in the report; run with report only
+    value: ${{ steps.run.outputs.findings }}
+  report-path:
+    description: Path on the runner of the HTML report, or of the verify or mutate Markdown
+    value: ${{ steps.run.outputs.report-path }}
 runs:
   using: composite
   steps:
     - uses: actions/setup-go@v5
       with:
         go-version: ${{ inputs.go-version }}
-    - name: Build seedfall
+    - name: Install seedfall
       shell: bash
-      working-directory: ${{ github.action_path }}
-      run: go build -o "$RUNNER_TEMP/seedfall" ./cmd/seedfall
-    - name: Sweep seeds
+      env:
+        VERSION: ${{ inputs.version }}
+      run: bash "$GITHUB_ACTION_PATH/scripts/action-install.sh"
+    - name: Locate the history
+      id: state
       shell: bash
       env:
         CONFIG: ${{ inputs.config }}
+      run: |
+        echo "dir=$(dirname "$CONFIG")/.seedfall" >> "$GITHUB_OUTPUT"
+        echo "config=$(git hash-object "$CONFIG" 2>/dev/null || echo missing)" >> "$GITHUB_OUTPUT"
+    - name: Restore the history
+      if: inputs.cache == 'true'
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          ${{ steps.state.outputs.dir }}/history.jsonl
+          ${{ steps.state.outputs.dir }}/cache
+        key: seedfall-${{ runner.os }}-${{ steps.state.outputs.config }}-${{ inputs.artifact-name }}-${{ github.head_ref || github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}
+        restore-keys: |
+          seedfall-${{ runner.os }}-${{ steps.state.outputs.config }}-${{ inputs.artifact-name }}-${{ github.head_ref || github.ref_name }}-
+          seedfall-${{ runner.os }}-${{ steps.state.outputs.config }}-${{ inputs.artifact-name }}-
+    - name: Run seedfall
+      id: run
+      shell: bash
+      env:
+        COMMAND: ${{ inputs.command }}
+        CONFIG: ${{ inputs.config }}
         PROFILE: ${{ inputs.profile }}
         SEEDS: ${{ inputs.seeds }}
+        ROTATE: ${{ inputs.rotate-seeds }}
         CHECK: ${{ inputs.check }}
+        EXTRA_ARGS: ${{ inputs.args }}
         REPORT: ${{ inputs.report }}
-      run: |
-        set -o pipefail
-        args=(run -c "$CONFIG" -profile "$PROFILE" -seeds "$SEEDS" -check="$CHECK")
-        [ "$REPORT" = "true" ] && args+=(-report "$RUNNER_TEMP/seedfall-report/report.html")
-        "$RUNNER_TEMP/seedfall" "${args[@]}" | tee "$RUNNER_TEMP/seedfall.txt"
-    - name: Summarize
-      if: always()
-      shell: bash
-      run: |
-        [ -f "$RUNNER_TEMP/seedfall.txt" ] || exit 0
-        { echo '### seedfall'; echo '```'; tail -n 60 "$RUNNER_TEMP/seedfall.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+        COMMENT: ${{ inputs.comment }}
+      run: bash "$GITHUB_ACTION_PATH/scripts/action-run.sh"
     - name: Collect failure artifacts
       if: always()
       shell: bash
       env:
-        CONFIG: ${{ inputs.config }}
+        STATE: ${{ steps.state.outputs.dir }}
       run: |
-        failures="$(dirname "$CONFIG")/.seedfall/failures"
-        [ -d "$failures" ] || exit 0
+        [ -d "$STATE/failures" ] || exit 0
         mkdir -p "$RUNNER_TEMP/seedfall-report"
-        cp -R "$failures" "$RUNNER_TEMP/seedfall-report/"
+        cp -R "$STATE/failures" "$RUNNER_TEMP/seedfall-report/"
     - name: Notify
       if: always() && inputs.report == 'true' && inputs.webhook != ''
       shell: bash
@@ -88,6 +133,29 @@ runs:
       run: |
         [ -f "$RUNNER_TEMP/seedfall-report/report.json" ] || exit 0
         "$RUNNER_TEMP/seedfall" report issue -report "$RUNNER_TEMP/seedfall-report/report.html" -repo "$REPO"
+    - name: Comment on the pull request
+      if: always() && inputs.comment == 'true' && github.event.pull_request.number != '' && steps.run.outputs.status != ''
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REPO: ${{ github.repository }}
+        PR: ${{ github.event.pull_request.number }}
+        MARKER: ${{ inputs.artifact-name }}
+        BODY: ${{ steps.run.outputs.body }}
+        LINK: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      run: |
+        source=(-report "$RUNNER_TEMP/seedfall-report/report.html")
+        [ -z "$BODY" ] || source=(-body "$BODY")
+        "$RUNNER_TEMP/seedfall" report comment "${source[@]}" -repo "$REPO" -pr "$PR" -marker "$MARKER" -link "$LINK" \
+          || echo "::warning title=seedfall::could not post the pull request comment; the job needs the pull-requests write permission, which pull requests from forks do not get"
+    - name: Save the history
+      if: always() && inputs.cache == 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ${{ steps.state.outputs.dir }}/history.jsonl
+          ${{ steps.state.outputs.dir }}/cache
+        key: seedfall-${{ runner.os }}-${{ steps.state.outputs.config }}-${{ inputs.artifact-name }}-${{ github.head_ref || github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}
     - name: Upload triage report
       if: always()
       uses: actions/upload-artifact@v4

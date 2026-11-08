@@ -35,6 +35,24 @@ expect_command() {
   fi
 }
 
+expect_action() {
+  local name="$1" want="$2"
+  shift 2
+  local tmp got
+  tmp="$(mktemp -d)"
+  cp "$bin" "$tmp/seedfall"
+  (cd "$root" && env RUNNER_TEMP="$tmp" GITHUB_OUTPUT="$tmp/output" GITHUB_STEP_SUMMARY="$tmp/summary" GITHUB_RUN_NUMBER=4 \
+    COMMAND=run PROFILE= SEEDS= ROTATE=false CHECK=false REPORT=true COMMENT=false EXTRA_ARGS= "$@" bash scripts/action-run.sh >/dev/null 2>&1)
+  got="$(sed -n 's/^status=//p' "$tmp/output")"
+  if [ "$got" = "$want" ]; then
+    printf 'PASS  action %-16s want=%s\n' "$name" "$want"
+  else
+    printf 'FAIL  action %-16s want=%s got=%s\n' "$name" "$want" "$got"
+    failures=$((failures + 1))
+  fi
+  rm -rf "$tmp"
+}
+
 expect_replay() {
   local dir="$1" config="$2" seed="$3" faults="$4" want="$5"
   local got="pass"
@@ -336,6 +354,13 @@ deterministic raftkv seedfall.lin.json    3
 deterministic raftkv netfaults.json       3
 deterministic wals   rosedb.json             1
 expect kvlog "seedfall.fixed.json -timeout 1h" 1-20 pass
+expect kvlog "seedfall.fixed.json -rotate 4" 1-10 pass
+expect_action run-clean  passed CONFIG=examples/kvlog/seedfall.fixed.json SEEDS=1-10 ROTATE=true CHECK=true
+expect_action run-finding failed CONFIG=examples/kvlog/seedfall.always.json SEEDS=1-10
+expect_action verify     passed COMMAND=verify CONFIG=examples/kvlog/seedfall.fixed.json SEEDS=2-6 "EXTRA_ARGS=-seed 1 -check 2"
+expect_action mutate     passed COMMAND=mutate CONFIG=examples/kvlog/seedfall.fixed.json SEEDS=1-5 "EXTRA_ARGS=-only fsync_noop"
+expect_action no-config  error  CONFIG=examples/kvlog/missing.json SEEDS=1
+expect_action bad-input  error  COMMAND=verify ROTATE=true CONFIG=examples/kvlog/seedfall.fixed.json
 expect_command version --version
 expect_command help help run
 expect_command doctor doctor

@@ -6,63 +6,167 @@
 jobs:
   simulate:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
-      - uses: kunalgoesbyken/seedfall@v0.2.0
+      - uses: kunalgoesbyken/seedfall@main
+        id: seedfall
         with:
           config: seedfall.json
           seeds: 1-500
           check: "true"
+          comment: "true"
 ```
+
+The inputs below other than `config`, `profile`, `seeds`, `check`, `go-version`, `report` and `artifact-name` are newer than v0.2.0, hence `@main` until the next release.
+
+### Inputs
 
 | Input | Default | Meaning |
 |---|---|---|
+| `command` | `run` | `run`, `verify` or `mutate` ([below](#verify-and-mutate)) |
 | `config` | `seedfall.json` | Path to the world description |
 | `profile` | | Profile from the config's `profiles` to merge over it ([config.md](config.md#profiles)) |
-| `seeds` | `1-200` | Seed or inclusive range |
-| `check` | `false` | Run every seed twice and fail at the first host call or trace line that differs |
-| `go-version` | `stable` | Go version for building seedfall and your nodes |
-| `report` | `true` | Sweep every seed and upload an HTML triage report |
-| `artifact-name` | `seedfall-report` | Name of the report artifact; make it unique per job in a matrix |
+| `seeds` | | Seed or inclusive range. Empty uses the command's own default: `run` sweeps `1-200`, `mutate` `1-100`, and `verify` as many fresh seeds as 95% confidence needs |
+| `rotate-seeds` | `false` | With `run`, move `seeds` forward by its own width for each workflow run ([below](#rotating-seeds)) |
+| `check` | `false` | With `run`, run every seed twice and fail at the first host call or trace line that differs |
+| `args` | | Extra flags for the command, separated by spaces, such as `-timeout 10m`, `-only fsync_noop` or `-seed 1`. Quoting is not interpreted |
+| `version` | | seedfall release to download, or `latest` ([below](#which-seedfall-runs)) |
+| `go-version` | `stable` | Go version for building your nodes, and seedfall when it is built from source |
+| `report` | `true` | With `run`, sweep every seed and upload an HTML triage report. `false` stops at the first failure |
+| `artifact-name` | `seedfall-report` | Name of the uploaded artifact, also used to keep each job's cache and pull request comment apart. Make it unique per job in a matrix |
+| `cache` | `true` | Keep the run history and compiled modules between runs ([below](#history-between-runs)) |
+| `comment` | `false` | Post or update one pull request comment with the outcome. Needs `pull-requests: write` |
 | `webhook` | | Slack or Discord incoming webhook URL, best from a secret. Posts the report's new and regressed findings with `seedfall report notify` |
 | `file-issues` | `false` | File a GitHub issue for each finding without an open one, with `seedfall report issue` |
 
-The job fails if any seed or [pinned regression](verify.md#pinned-regressions) fails. The output goes to the job summary, and the triage report (see [reports.md](reports.md)) is uploaded as an artifact, together with the [failure artifacts](reports.md#failure-artifacts) under `failures/`.
+An input that does not apply is an error rather than being ignored: `check` or `rotate-seeds` with `verify` or `mutate`, and `comment` with `report: "false"`.
 
-For alerts and issues on a nightly sweep, keep `.seedfall/history.jsonl` between runs so only new and regressed findings are sent, and grant the job permission to write issues:
+The job fails if any seed or [pinned regression](verify.md#pinned-regressions) fails. The triage report (see [reports.md](reports.md)) is uploaded as an artifact, together with the [failure artifacts](reports.md#failure-artifacts) under `failures/`.
+
+### Outputs
+
+| Output | Meaning |
+|---|---|
+| `status` | `passed`, `failed`, or `error` when seedfall could not finish, for example a config that does not build. With `report: "false"` a `run` that cannot start also reads `failed`, because nothing distinguishes the two |
+| `failing-seed` | With a `run` report, the seed to look at first: a pinned regression that fails again, else the first regressed, new, then ongoing finding. Empty on a clean run |
+| `findings` | With a `run` report, how many findings the report has |
+| `report-path` | The HTML report on the runner, or the Markdown from `verify` or `mutate`. Runner temp is cleared when the job ends |
 
 ```yaml
+      - if: failure() && steps.seedfall.outputs.status == 'failed'
+        run: echo "replay with seed ${{ steps.seedfall.outputs.failing-seed }}"
+```
+
+The outcome also appears in the job summary, and as error annotations on the run and the pull request's changed files. A finding from a property with a constant message is annotated at its source line, from the same catalog that reports properties that were never reached. Other failures, such as a crash or a `sim.Assert`, are annotated without a file. GitHub only shows a limited number of annotations per step, so failing regressions come first, then regressed, new and ongoing findings, then unmet properties.
+
+### Which seedfall runs
+
+With `version` empty, the action uses the release that matches the ref in `uses:`, so `@v1.2.3` downloads v1.2.3 for the runner's platform and checks it against the release's `checksums.txt`. A checksum mismatch fails the job. If the ref has no release, such as a branch, a commit or a release older than the automated pipeline like v0.2.0, seedfall is built from the action's source instead. Windows runners and `uses: ./` always build from source.
+
+Set `version: v1.2.3`, or `latest`, to run a specific release regardless of the ref. An explicit version never falls back: a missing release fails the job, and it needs a Linux or macOS runner and a released action. Go is set up either way, because seedfall compiles your nodes with it.
+
+### History between runs
+
+New, ongoing, resolved and regressed need the run history ([reports.md](reports.md#history-new-ongoing-resolved-regressed)), so with `cache` on the action restores and saves `.seedfall/history.jsonl` and `.seedfall/cache` next to the config, with `actions/cache`. It saves even when the sweep fails, since that is the run whose history matters most.
+
+The key is the config file's hash, the `artifact-name`, the branch and the run, and restoring falls back to the newest entry for that config and name from this branch, then from any branch the run can read, so a pull request starts from its base branch's history. Changing the config starts a new history. An `extends` parent is not part of the hash. Keep `artifact-name` unique per job, or jobs in a matrix overwrite each other's history.
+
+Set `cache: "false"` if you keep `.seedfall/history.jsonl` some other way, such as committing it.
+
+### Pull request comments
+
+`comment: "true"` posts one comment per job and edits it on later pushes, so a pull request does not collect one per run. It lists new, regressed and resolved findings, ongoing ones, failing pinned regressions and unmet properties, each failure with its replay command, and links the workflow run. With `verify` or `mutate` the comment is the same Markdown as the job summary. A clean run also updates it, so a stale failure does not linger.
+
+The job needs `pull-requests: write`. Pull requests from forks run with a read-only token, so the action logs a warning and the job's result is unaffected. `seedfall report comment` does the same from any CI, and `seedfall report github` writes the annotations and outputs ([reports.md](reports.md#github)).
+
+### Verify and mutate
+
+`command: verify` runs [`seedfall verify`](verify.md), and `args` names what to verify:
+
+```yaml
+      - uses: kunalgoesbyken/seedfall@main
+        with:
+          command: verify
+          config: seedfall.fixed.json
+          args: -seed 1 -faults testdata/torntail.faults.json -mutate
+          comment: "true"
+```
+
+`command: mutate` runs [`seedfall mutate`](mutate.md) and fails if a mutant survives:
+
+```yaml
+      - uses: kunalgoesbyken/seedfall@main
+        with:
+          command: mutate
+          seeds: 1-50
+          args: -only fsync_noop,net_dup_chunk
+```
+
+Both write Markdown to the job summary and the artifact (`proof.md`, `mutants.md`). `failing-seed` and `findings` stay empty, because neither command writes a triage report.
+
+### Rotating seeds
+
+`rotate-seeds: "true"` keeps exploring new schedules. Run number `n` sweeps the range `n - 1` widths after `seeds`: with `seeds: 1-200`, run 1 sweeps 1-200, run 2 201-400, and run 8 1401-1600. Re-running a job keeps its run number, so it sweeps the same seeds. Every failure names its seed, so it stays exactly reproducible, and [pinned regressions](verify.md#pinned-regressions) still replay on every run.
+
+Outside the action, `seedfall run -seeds 1-200 -rotate N` sweeps the Nth range after `-seeds`, and refuses a rotation past the largest seed.
+
+### Nightly sweep
+
+A template for a scheduled sweep, with alerts and issues for new and regressed findings:
+
+```yaml
+name: nightly-simulation
 on:
   schedule:
-    - cron: "0 3 * * *"
+    - cron: "17 3 * * *"
+  workflow_dispatch:
 jobs:
   simulate:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     permissions:
       contents: read
       issues: write
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/cache/restore@v4
-        with:
-          path: .seedfall/history.jsonl
-          key: seedfall-history-${{ github.run_id }}
-          restore-keys: seedfall-history-
       - uses: kunalgoesbyken/seedfall@main
         with:
-          seeds: ${{ github.run_number }}000-${{ github.run_number }}499
+          seeds: 1-500
+          rotate-seeds: "true"
+          args: -timeout 45m
           webhook: ${{ secrets.SEEDFALL_WEBHOOK }}
           file-issues: "true"
-      - uses: actions/cache/save@v4
-        if: always()
-        with:
-          path: .seedfall/history.jsonl
-          key: seedfall-history-${{ github.run_id }}
 ```
 
-`webhook` and `file-issues` are newer than v0.2.0, hence `@main` until the next release. The history is saved with `if: always()` because a sweep that finds something fails the job, and that is the run whose history matters most.
+The history is what limits alerts to new and regressed findings, so leave `cache` on. The message links the workflow run, and each issue names the seed, the replay command, the seedfall version and the commit ([notifications and issues](reports.md#notifications-and-issues)).
 
-The message links the workflow run, and each issue names the seed, the replay command, the seedfall version and the commit ([notifications and issues](reports.md#notifications-and-issues)). Rotate the seed range over time, for example with the run number, to keep exploring new schedules while each failure stays reproducible.
+### Several configs
+
+Run a matrix with a unique `artifact-name` per job:
+
+```yaml
+jobs:
+  simulate:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: storage, config: examples/ledger/seedfall.json, seeds: 1-60 }
+          - { name: upgrade, config: examples/upgrade/seedfall.json, seeds: 1-50 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: kunalgoesbyken/seedfall@main
+        with:
+          config: ${{ matrix.config }}
+          seeds: ${{ matrix.seeds }}
+          artifact-name: seedfall-${{ matrix.name }}
+```
+
+This repository's own [`ci.yml`](../.github/workflows/ci.yml) sweeps several examples this way, and runs `verify` and `mutate` too.
 
 ## Machine-readable output
 
@@ -99,6 +203,10 @@ seedfall run -seeds 1-1000000 -timeout 10m -report .seedfall/report.html
 ```
 
 Seeds already running finish, so the sweep can run slightly past the limit, and [pinned regressions](verify.md#pinned-regressions) always run and count toward it. The run prints `stopped: time limit reached after N of M seeds`, the same text is `stopped` in the JSON summary, report and `seedfall_run` result, and the exit code is decided as usual: 0 if every seed that ran passed and every property was met. A property that needs more seeds than fit fails as `never reached`, as it would with a shorter range, so give the sweep enough time, or [pin](verify.md#pinned-regressions) a seed that reaches the rare path. Each seed stays exactly replayable, but which seeds ran depends on the machine's speed, so compare runs by seed and not by count.
+
+## Rotating seeds outside GitHub
+
+`seedfall run -seeds 1-200 -rotate N` sweeps the Nth range of the same width after `-seeds`, so any CI system can pass its build number and explore new seeds on each run while every failure stays replayable by seed. `-rotate 0` is the plain range. The run prints `rotation N: seeds A-B`, and the report's `seeds` is the rotated range. MCP's `seedfall_run` takes the same value as `rotate`.
 
 ## `go test`
 

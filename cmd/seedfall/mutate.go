@@ -20,11 +20,12 @@ const (
 
 type mutateArgs struct {
 	configArgs
-	Seeds   string `json:"seeds,omitempty" jsonschema:"seed range each mutant is swept over, default 1-100"`
-	Only    string `json:"only,omitempty" jsonschema:"comma-separated mutants to run, default all"`
-	App     bool   `json:"app,omitempty" jsonschema:"mutate the node packages' source instead: flip comparisons, skip early returns on non-nil errors and skip Sync calls, one rebuild per mutant"`
-	Mutants int    `json:"mutants,omitempty" jsonschema:"with app, how many source mutants to pick from the seed, default 10"`
-	jobs    int
+	Seeds    string `json:"seeds,omitempty" jsonschema:"seed range each mutant is swept over, default 1-100"`
+	Only     string `json:"only,omitempty" jsonschema:"comma-separated mutants to run, default all"`
+	App      bool   `json:"app,omitempty" jsonschema:"mutate the node packages' source instead: flip comparisons, skip early returns on non-nil errors and skip Sync calls, one rebuild per mutant"`
+	Mutants  int    `json:"mutants,omitempty" jsonschema:"with app, how many source mutants to pick from the seed, default 10"`
+	Markdown string `json:"-"`
+	jobs     int
 }
 
 type mutantView struct {
@@ -53,12 +54,18 @@ func cmdMutate(args []string) error {
 	fs.StringVar(&a.Only, "only", "", "comma-separated mutants to run (default: all)")
 	fs.BoolVar(&a.App, "app", false, "mutate the node packages' source instead of the simulated disk, network and clock")
 	fs.IntVar(&a.Mutants, "mutants", defaultAppMutants, "with -app, how many source mutants to pick from the first seed")
+	fs.StringVar(&a.Markdown, "md", "", "write a Markdown table of the mutants to this file, for a pull request or job summary")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	out, err := runMutate(a)
 	if err != nil {
 		return err
+	}
+	if a.Markdown != "" {
+		if err := os.WriteFile(a.Markdown, []byte(out.markdown(a)), 0o644); err != nil {
+			return err
+		}
 	}
 	fmt.Printf("baseline: seeds %s pass\n\n", a.Seeds)
 	for _, m := range out.Mutants {
@@ -92,6 +99,19 @@ func verdict(m mutantView) string {
 		}
 	}
 	return fmt.Sprintf("SURVIVED   %d seeds passed although the operation was weakened %d times", m.SeedsPassed, m.Weakened)
+}
+
+func (v mutateView) markdown(a mutateArgs) string {
+	state := "PASS"
+	if v.Survived > 0 {
+		state = "FAIL"
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "### seedfall mutate: %s\n\nConfig `%s`, seeds `%s`, %d mutants survived\n\n| Mutant | Result |\n|---|---|\n", state, a.ref(), a.Seeds, v.Survived)
+	for _, m := range v.Mutants {
+		fmt.Fprintf(&b, "| %s | %s |\n", cmp.Or(m.Location, m.Mutant), strings.ReplaceAll(strings.Join(strings.Fields(verdict(m)), " "), "|", `\|`))
+	}
+	return b.String()
 }
 
 func runMutate(a mutateArgs) (mutateView, error) {

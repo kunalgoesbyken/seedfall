@@ -62,7 +62,7 @@ Every report appends a line to `.seedfall/history.jsonl`, keyed by config path. 
   regressed assert · client           6 seeds  e.g. seed 1
 ```
 
-Keep `.seedfall/history.jsonl` between CI runs (cache or commit it) to get this classification on every pull request.
+Keep `.seedfall/history.jsonl` between CI runs (cache or commit it) to get this classification on every pull request. The [GitHub Action](ci.md#history-between-runs) caches it for you.
 
 ## Reading findings back
 
@@ -145,3 +145,16 @@ seedfall report issue  -report .seedfall/report.html -repo owner/name
 `report issue` files one GitHub issue per finding with the [`gh` CLI](https://cli.github.com), titled `seedfall finding: <key>`, for example `seedfall finding: assert · client`. The body has the counts, status and class, the reason, the replay and shrink commands, the example seeds, the faults before the failure, the trace tail, the artifacts folder, and the seedfall version, commit and Go version. Before filing, it reads the titles of the repository's 1000 most recent open issues and skips a finding whose title is among them, so a finding has one open issue whether or not the history is saved, and gets a new one if it comes back after its issue was closed. `gh` needs to be logged in, or `GH_TOKEN` set, with permission to write issues. `-dry-run` prints each issue without calling `gh`.
 
 The HTML report has a **Copy issue markdown** button on every finding with the same body, and the text itself under it, for filing by hand in any tracker.
+
+## GitHub
+
+Two more commands read a report for GitHub, and the [GitHub Action](ci.md#github-actions) runs both:
+
+```sh
+seedfall report github  -report .seedfall/report.html
+seedfall report comment -report .seedfall/report.html -repo owner/name -pr 12 -marker storage -link "$RUN_URL"
+```
+
+`report github` prints one `::error` workflow command per problem, most urgent first: pinned regressions that fail again, regressed, new and ongoing findings, then properties that were never reached or never true. A finding from a [property](properties.md) with a constant message, and an unmet property, carry the `file` and `line` of the call, as a path relative to the working directory. Run it from the repository root. A location outside that directory, such as a dependency in the module cache, is left off. It then appends `failing-seed` and `findings` to `-output`, default `$GITHUB_OUTPUT`, or prints them when neither is set.
+
+`report comment` posts the report to a pull request as a [`gh`](https://cli.github.com) comment, or `-body file` posts a Markdown file instead, such as a `verify -md` proof. It lists new, regressed, resolved and ongoing findings with replay commands, failing pinned regressions and unmet properties, with the most urgent sections first. Each comment starts with a hidden marker from `-marker`, and a later call with the same marker edits that comment instead of adding one, so give each job in a matrix its own. Failure text sits inside code spans so it cannot mention anyone or inject Markdown, and a comment too long for GitHub is cut with a note. `-dry-run` prints the comment.

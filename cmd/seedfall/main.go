@@ -27,7 +27,7 @@ var commands []command
 func init() {
 	commands = []command{
 		{"init", "[-dir .] [-c seedfall.json] [-node ./cmd/server]... [-workload seedfall/workload] [-n] [-json]", cmdInit},
-		{"run", "[-c seedfall.json] [-seeds 1-1000] [-j N] [-v] [-check] [-net-trace] [-report report.html | -json] [-pinned=false] [-seeds-file file] [-until-novelty N [-batch 20]] [-timeout 10m] [-cpuprofile file]", cmdRun},
+		{"run", "[-c seedfall.json] [-seeds 1-1000] [-j N] [-v] [-check] [-net-trace] [-report report.html | -json] [-pinned=false] [-seeds-file file] [-rotate N] [-until-novelty N [-batch 20]] [-timeout 10m] [-cpuprofile file]", cmdRun},
 		{"explore", "[-c seedfall.json] [-seeds 1-32] [-rounds N] [-batch 16] [-until-novelty 8] [-budget 10m] [-explore-seed 1] [-keep-going] [-corpus dir] [-report report.html | -json] [-cpuprofile file]", cmdExplore},
 		{"replay", "[-c seedfall.json] -seed N [-faults file.json] [-net-trace] [-html timeline.html | -html timeline.mmd]", cmdReplay},
 		{"logs", "[-c seedfall.json] -seed N [-faults file.json] [-node a,b] [-grep re] [-from 1s] [-to 2s] [-json] [-net-trace]", cmdLogs},
@@ -38,12 +38,14 @@ func init() {
 		{"faults", "[-c seedfall.json] -seed N [-faults file.json] [-remove 2]... [-shift 1=-50ms]... [-add '{\"at\":\"1s\",...}']... [-out file.json]", cmdFaults},
 		{"cause", "[-c seedfall.json] -seed N [-points 16] [-branches 20]", cmdCause},
 		{"inspect", "[-c seedfall.json] -seed N [-faults file.json] [-at DURATION] [-node name] [-cat path | -out dir]", cmdInspect},
-		{"mutate", "[-c seedfall.json] [-seeds 1-100] [-only fsync_noop,net_dup_chunk,...] [-app [-mutants 10]]", cmdMutate},
+		{"mutate", "[-c seedfall.json] [-seeds 1-100] [-only fsync_noop,net_dup_chunk,...] [-app [-mutants 10]] [-md mutants.md]", cmdMutate},
 		{"check", "-history .seedfall/seed-N.history.jsonl [-model kv] [-timeline file.html]", cmdCheck},
 		{"pin", "[-c seedfall.json] -seed N [-faults file.json]", cmdPin},
 		{"findings", "[-report .seedfall/report.html] [-history file] [-status new,regressed] [-json]", cmdFindings},
 		{"report notify", "[-report .seedfall/report.html] [-webhook URL] [-link URL] [-dry-run]", cmdNotify},
 		{"report issue", "-repo owner/name [-report .seedfall/report.html] [-dry-run]", cmdIssue},
+		{"report github", "[-report .seedfall/report.html] [-output file]", cmdGitHub},
+		{"report comment", "-repo owner/name -pr N [-report .seedfall/report.html | -body file] [-marker name] [-link URL] [-dry-run]", cmdComment},
 		{"verify", "[-c seedfall.json] [-seed N [-faults file.json]] [-report report.html] [-seeds range] [-check 10] [-mutate] [-app-mutants N] [-md proof.md]", cmdVerify},
 		{"doctor", "[-json]", cmdDoctor},
 		{"version", "[-json]", cmdVersion},
@@ -128,6 +130,7 @@ func cmdRun(args []string) error {
 	netTrace := fs.Bool("net-trace", false, "also trace every connection, message sent and message read")
 	pinned := fs.Bool("pinned", true, "replay the schedules pinned in "+engine.RegressionsDir+"/ before the sweep")
 	seedsFile := fs.String("seeds-file", "", "file of known-bad seeds, one or more per line with # comments, replayed before the sweep")
+	rotate := fs.Uint64("rotate", 0, "sweep the Nth range of the same width after -seeds, so CI can pass its run number and keep exploring new seeds")
 	untilNovelty := fs.Int("until-novelty", 0, "stop once this many batches of seeds in a row add no new property outcome, fault shape, buggify firing or function; 0 sweeps the whole range")
 	batch := fs.Int("batch", defaultSweepBatch, "seeds per batch for -until-novelty")
 	timeout := fs.Duration("timeout", 0, "stop starting seeds after this wall-clock time, for example 10m; seeds in flight finish, and pinned regressions count toward it; 0 sweeps the whole range")
@@ -145,6 +148,15 @@ func cmdRun(args []string) error {
 	lo, hi, err := engine.ParseSeeds(*seeds)
 	if err != nil {
 		return err
+	}
+	if *rotate > 0 {
+		if lo, hi, err = engine.RotateSeeds(lo, hi, *rotate); err != nil {
+			return err
+		}
+		*seeds = fmt.Sprintf("%d-%d", lo, hi)
+		if !*jsonOut {
+			fmt.Printf("rotation %d: seeds %s\n", *rotate, *seeds)
+		}
 	}
 	r, cfg, err := loadWith(ca.ref(), *untilNovelty > 0)
 	if err != nil {

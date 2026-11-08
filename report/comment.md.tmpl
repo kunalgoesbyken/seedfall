@@ -1,0 +1,29 @@
+### seedfall: {{if .Passed}}PASS{{else}}FAIL{{end}}
+
+{{.Report.Failed}} of {{.Report.Total}} seeds failed, seeds {{code .Report.Seeds}} of {{code .Report.Config}}, seedfall {{code .Report.Version}}{{with .Report.Commit}}, commit {{code .}}{{end}}.{{with .Link}} [Workflow run]({{.}}), with the triage report as an artifact.{{end}}
+{{with .Regressions}}
+**Pinned regressions failing again**
+{{range .}}
+- seed {{.Seed}} from {{code .Source}}: {{code .Reason}}{{end}}
+{{end}}{{with .Regressed}}
+**Regressed**
+{{range .}}
+{{template "finding" .}}{{end}}
+{{end}}{{with .New}}
+**New**
+{{range .}}
+{{template "finding" .}}{{end}}
+{{end}}{{with .Resolved}}
+**Resolved**
+{{range .}}
+- {{code .Key}}: {{.Note}}{{end}}
+{{end}}{{with .Ongoing}}
+**Ongoing**
+{{range .}}
+{{template "finding" .}}{{end}}
+{{end}}{{with .Unmet}}
+**Properties never reached or never true**
+{{range .}}
+- {{.Kind}} {{code .Message}}{{with .Location}} at {{code .}}{{end}}: {{.Problem}}{{end}}
+{{end}}{{define "finding"}}- {{code .Key}}: {{.Count}} seeds ({{percent .Rate}}){{with .Classification}}, {{.Verdict}}{{end}}{{with .Example}}, e.g. seed {{.Seed}}: {{code .Reason}}
+  `{{.Replay}}`{{end}}{{end}}

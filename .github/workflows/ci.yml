@@ -20,6 +20,7 @@ jobs:
       - run: go run honnef.co/go/tools/cmd/staticcheck@latest ./...
       - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
       - run: sh -n scripts/install.sh && cmp scripts/install.sh site/install.sh
+      - run: bash -n scripts/action-install.sh && bash -n scripts/action-run.sh
       - uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
@@ -46,14 +47,36 @@ jobs:
           - config: examples/kvlog/seedfall.fixed.json
             seeds: 1-100
             name: kvlog-fixed
+            check: "true"
           - config: examples/kvlog/seedfall.rewind.json
             seeds: 1-100
             name: kvlog-rewind
+            check: "true"
+          - config: examples/ledger/seedfall.json
+            seeds: 1-60
+            name: ledger
+            check: "true"
+          - config: examples/upgrade/seedfall.json
+            seeds: 1-50
+            name: upgrade
+            check: "true"
+          - config: examples/kvlog/seedfall.fixed.json
+            seeds: 2-40
+            name: kvlog-verify
+            command: verify
+            args: -seed 1 -check 5
+          - config: examples/kvlog/seedfall.fixed.json
+            seeds: 1-20
+            name: kvlog-mutate
+            command: mutate
+            args: -only fsync_noop
     steps:
       - uses: actions/checkout@v4
       - uses: ./
         with:
           config: ${{ matrix.config }}
+          command: ${{ matrix.command || 'run' }}
           seeds: ${{ matrix.seeds }}
-          check: "true"
+          check: ${{ matrix.check || 'false' }}
+          args: ${{ matrix.args }}
           artifact-name: seedfall-report-${{ matrix.name }}

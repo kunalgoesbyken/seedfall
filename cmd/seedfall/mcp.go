@@ -26,6 +26,7 @@ type runArgs struct {
 	configArgs
 	Seeds        string `json:"seeds" jsonschema:"seed or inclusive range, for example 1-200"`
 	Check        bool   `json:"check,omitempty" jsonschema:"run every seed twice and fail at the first host call or trace line that differs"`
+	Rotate       uint64 `json:"rotate,omitempty" jsonschema:"sweep the Nth range of the same width after seeds, so repeated runs keep exploring new seeds"`
 	SkipPinned   bool   `json:"skip_pinned,omitempty" jsonschema:"do not replay the schedules pinned in seedfall-regressions/ before the sweep"`
 	UntilNovelty int    `json:"until_novelty,omitempty" jsonschema:"stop once this many batches of seeds in a row add no new property outcome, fault shape, buggify firing or function"`
 	Batch        int    `json:"batch,omitempty" jsonschema:"seeds per batch for until_novelty, default 20"`
@@ -308,6 +309,9 @@ func newMCPServer() (*mcp.Server, error) {
 func toolRun(_ context.Context, _ *mcp.CallToolRequest, a runArgs) (*mcp.CallToolResult, runView, error) {
 	lo, hi, err := engine.ParseSeeds(a.Seeds)
 	if err != nil {
+		return nil, runView{}, err
+	}
+	if lo, hi, err = engine.RotateSeeds(lo, hi, a.Rotate); err != nil {
 		return nil, runView{}, err
 	}
 	var timeout time.Duration

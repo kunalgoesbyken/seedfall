@@ -45,7 +45,7 @@ Run some of them with `-only`:
 seedfall mutate -c seedfall.json -seeds 1-20 -only net_dup_chunk,truncate_not_durable
 ```
 
-`-only` picks among these runtime mutants and cannot be combined with `-app`. Over MCP the tool is `seedfall_mutate`, with `config`, optional `seeds` (default `1-100`) and `only`. It returns each mutant's `outcome`, the `killed_by_seed` and `reason` when killed, the `seeds_passed` and how many times the operation was `weakened`.
+`-md mutants.md` also writes the result as a Markdown table, for a pull request or job summary; the [GitHub Action](ci.md#verify-and-mutate) uses it. `-only` picks among these runtime mutants and cannot be combined with `-app`. Over MCP the tool is `seedfall_mutate`, with `config`, optional `seeds` (default `1-100`) and `only`. It returns each mutant's `outcome`, the `killed_by_seed` and `reason` when killed, the `seeds_passed` and how many times the operation was `weakened`.
 
 ### The new mutants on `examples/ledger`
 

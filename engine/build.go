@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"math/bits"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -47,6 +48,15 @@ func Build(cfg *Config) error {
 		}
 	}
 	return nil
+}
+
+func RotateSeeds(lo, hi, rotation uint64) (uint64, uint64, error) {
+	high, shift := bits.Mul64(hi-lo+1, rotation)
+	last, carry := bits.Add64(hi, shift, 0)
+	if high != 0 || carry != 0 {
+		return 0, 0, fmt.Errorf("rotation %d moves seeds %d-%d past the largest seed", rotation, lo, hi)
+	}
+	return lo + shift, last, nil
 }
 
 func ParseSeeds(s string) (uint64, uint64, error) {
