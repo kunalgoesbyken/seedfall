@@ -119,6 +119,15 @@ func TestMCPListsInitPromptsAndResources(t *testing.T) {
 	if model := schema.Properties["checker"].Properties["model"]; string(model.Default) != `"kv"` || !slices.Equal(model.Enum, engine.Models()) {
 		t.Errorf("checker.model default %s enum %v", model.Default, model.Enum)
 	}
+	preempt := schema.Properties["preempt"].Properties
+	if strategy := preempt["strategy"]; string(strategy.Default) != `"none"` || !slices.Equal(strategy.Enum, engine.PreemptStrategies) {
+		t.Errorf("preempt.strategy default %s enum %v", strategy.Default, strategy.Enum)
+	}
+	for _, field := range []string{"depth", "steps", "calls", "loops"} {
+		if _, ok := preempt[field]; !ok {
+			t.Errorf("schema has no preempt.%s field", field)
+		}
+	}
 	if _, err := cs.ReadResource(ctx, &mcp.ReadResourceParams{URI: "seedfall://docs/properties"}); err != nil {
 		t.Error(err)
 	}

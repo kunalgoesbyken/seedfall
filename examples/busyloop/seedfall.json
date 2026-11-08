@@ -1,0 +1,12 @@
+{
+  "workload": { "name": "lease", "pkg": "./lease" },
+  "duration": "2s",
+  "liveness": { "within": "1s" },
+  "preempt": { "loops": true },
+  "profiles": {
+    "calls": { "preempt": { "loops": false } },
+    "recheck": { "workload": { "args": ["-recheck"] } },
+    "spin": { "workload": { "args": ["-spin"] }, "duration": "50ms", "liveness": { "within": "50ms" } },
+    "spin-calls": { "workload": { "args": ["-spin"] }, "preempt": { "loops": false }, "watchdog": "3s" }
+  }
+}

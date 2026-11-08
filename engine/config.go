@@ -91,7 +91,12 @@ type Link struct {
 }
 
 type PreemptSpec struct {
-	Interleave bool `json:"interleave"`
+	Interleave bool   `json:"interleave" jsonschema:"shorthand for strategy random"`
+	Strategy   string `json:"strategy" jsonschema:"how the running goroutine is preempted: none (only after a full time slice), random (after a seeded random count of up to 4096 calls), pct (at depth-1 seeded change points per node) or calls (every calls counted calls)"`
+	Depth      int    `json:"depth" jsonschema:"pct: the bug depth d, giving d-1 change points per node"`
+	Steps      int64  `json:"steps" jsonschema:"pct: counted calls per node that the change points are drawn over; the trace's pct line shows how many each node ran"`
+	Calls      int64  `json:"calls" jsonschema:"calls: counted calls between preemptions"`
+	Loops      bool   `json:"loops" jsonschema:"count loop iterations as well as function calls, so a loop without calls is preempted and uses virtual time"`
 }
 
 type CheckerSpec struct {
@@ -134,6 +139,7 @@ func defaultConfig() Config {
 		Latency:  Range{Duration(time.Millisecond), Duration(10 * time.Millisecond)},
 		Watchdog: Duration(30 * time.Second),
 		Checker:  CheckerSpec{Model: defaultModel},
+		Preempt:  PreemptSpec{Strategy: StrategyNone, Depth: 3, Steps: pctSteps, Calls: interleaveCalls},
 		Faults: FaultSpec{
 			RestartAfter:        Range{Duration(10 * time.Millisecond), Duration(time.Second)},
 			PartitionFor:        Range{Duration(50 * time.Millisecond), Duration(2 * time.Second)},
@@ -221,6 +227,9 @@ func (c *Config) validate() error {
 	}
 	if err := knownModel(c.Checker.Model); err != nil {
 		return fmt.Errorf("config: checker.model: %w", err)
+	}
+	if err := c.Preempt.normalize(); err != nil {
+		return fmt.Errorf("config: preempt: %w", err)
 	}
 	return c.validateNetwork(seen)
 }

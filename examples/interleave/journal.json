@@ -1,0 +1,10 @@
+{
+  "workload": { "name": "journal", "pkg": "./journal" },
+  "duration": "10s",
+  "preempt": { "strategy": "pct", "depth": 2, "steps": 300000 },
+  "profiles": {
+    "random": { "preempt": { "strategy": "random" } },
+    "none": { "preempt": { "strategy": "none" } },
+    "committed": { "workload": { "args": ["-committed"] } }
+  }
+}

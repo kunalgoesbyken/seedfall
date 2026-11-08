@@ -16,9 +16,40 @@ There is no `linkname`, no source rewriting and no forked runtime, so new Go rel
 
 ## Preemption
 
-Real Go preempts a goroutine that has run for 10ms. On `wasip1` nothing does, so a goroutine that spins without a syscall would starve every other goroutine in its node, and its node would never yield. seedfall loads each Go module with a call counter added to the start of every function. After 4,194,304 function calls without the node blocking, the counter calls back into the host, which triggers the Go runtime's own cooperative preemption path for the running goroutine (the same `stackguard0` request the runtime's `sysmon` makes on other platforms) and parks the node for 10ms of virtual time, so other nodes run too. The count is part of the execution, so preemption points are as deterministic as everything else. A loop that makes no function call at all is still not preempted.
+Real Go preempts a goroutine that has run for 10ms. On `wasip1` nothing does, so a goroutine that spins without a syscall would starve every other goroutine in its node, and its node would never yield. seedfall loads each Go module with a call counter added to the start of every function. After 4,194,304 counted calls without the node blocking, the counter calls back into the host, which triggers the Go runtime's own cooperative preemption path for the running goroutine (the same `stackguard0` request the runtime's `sysmon` makes on other platforms) and parks the node for 10ms of virtual time, so other nodes run too. The count is part of the execution, so preemption points are as deterministic as everything else. A burst shorter than that costs no virtual time.
 
-With `"preempt": {"interleave": true}`, the counter is also re-armed after a seeded random number of calls, up to 4,096, and every expiry preempts the running goroutine. Goroutines inside a node then interleave at seeded points, so a check-then-act race between goroutines shows up as an ordinary failing seed that replays exactly. See [`examples/interleave`](../examples/interleave).
+### Loops
+
+By default a loop that makes no function call is not counted, so it is never preempted: a call-free spin holds the whole simulation until the real-time `watchdog` stops it, and a long call-free computation takes no virtual time. With `"preempt": {"loops": true}` the counter also runs at the head of every wasm `loop`, which the Go compiler emits for Go loops, so loop iterations count like calls. A node that spins or computes for 4,194,304 counted calls and iterations is then parked for 10ms of virtual time like any other: other nodes keep running, timers and leases on other nodes expire, and a spin that never ends fails deterministically on `liveness` (or runs to the horizon) instead of on the host-dependent watchdog. [`examples/busyloop`](../examples/busyloop) shows both: a leader whose lease expires during a call-free checksum, which only fails with `loops`, and a spin-wait that fails as `liveness` with `loops` and as a real-time `timeout` without.
+
+Two limits. The Go runtime on `wasip1` can switch goroutines only at a function entry, so a goroutine in a call-free loop still keeps the other goroutines of its own node from running until it makes a call; `loops` parks the node, it cannot hand the CPU to a sibling goroutine. And the extra check on every iteration costs guest CPU, which is why it is off by default.
+
+### Strategies
+
+`preempt.strategy` decides when, inside a time slice, the running goroutine is preempted:
+
+| Strategy | Preempts the running goroutine | Randomness |
+|---|---|---|
+| `none` (default) | only at the end of a 4,194,304-call time slice | none |
+| `random` (`"interleave": true` is shorthand) | after a seeded random 1 to 4,096 counted calls, again and again | per instance, from the seed |
+| `pct` | at `depth` - 1 change points per node, drawn from the seed over the node's first `steps` counted calls | per node, from the seed, recorded as faults |
+| `calls` | every `calls` counted calls | none |
+
+`random` finds shallow races quickly: a check-then-act window that any preemption opens shows up within a few seeds ([`examples/interleave`](../examples/interleave), `interleave.json`). But it preempts every goroutine every few thousand calls, so no goroutine ever runs long without being interrupted. A bug that needs one goroutine to stop inside a window while another runs a long stretch to completion is almost never hit.
+
+`pct` is probabilistic concurrency testing (Burckhardt, Kothari, Musuvathi and Nagarakatte, ASPLOS 2010), as in shuttle's `check_pct`. A run is left alone except at `depth` - 1 seeded change points; at each one the running goroutine is preempted and goes to the back of the Go run queue, and whatever runs next keeps running until it blocks. For a priority scheduler with n threads and k steps, PCT finds any bug of depth d (one that needs d ordering constraints) with probability at least 1/(n·k^(d-1)) per run. In `examples/interleave`, a checkpointer that copies a journal up to its reserved length instead of its committed length fails on 20 of seeds 1-20 with `pct` at depth 2, on 2 of 20 with `random`, and on none with `none`, because the bug needs the checkpointer to format a long header without being interrupted (`journal.json`).
+
+Every change point that fires is recorded as a `preempt` fault with its node and counted call (`op`), and the trace says so:
+
+```
+    0.000s  preempt: pct, depth 2, change points per node: 1, drawn over the first 300000 counted function calls
+    0.000s  fault preempt journal#1's running goroutine at counted call 259662
+    0.000s  pct: journal ran 271681 counted calls, change points fired: 1
+```
+
+So replay is exact, `shrink` drops change points the failure does not need, and `seedfall faults` can move one (`-shift 1=-1000`) or remove it to test an explanation. A schedule's `preempt` faults replace the seed's own change points, and they fire only when the config's strategy is `pct`. The last trace line shows how many counted calls each node ran: set `steps` near that number, because change points drawn beyond it never fire.
+
+The bound is a guide for choosing `depth` and `steps`, not a guarantee seedfall gives. seedfall picks only the change points. It cannot see goroutines from the host, so it does not assign them priorities: which goroutine runs after a preemption is the Go scheduler's choice, under the seed's random source. Change points are drawn per node, k is counted in calls (and loop iterations with `loops`), and preemption takes effect at the goroutine's next function call. None of the strategies is a data race detector: they find races that change behaviour, not unsynchronized accesses that happen not to. Run your tests under `go test -race` as well.
 
 ## Determinism
 
@@ -57,7 +88,7 @@ A run fails when:
 - the workload or the `finally` check exits non-zero;
 - a node exits or panics, unless `supervise` restarts it (Go panics always fail);
 - every node is blocked with no timer or pending message (deadlock);
-- a node runs longer than `watchdog` of real time without yielding (livelock or busy loop);
+- a node runs longer than `watchdog` of real time without yielding (livelock or busy loop; with `preempt.loops`, a spinning node parks like any other and fails on `liveness` instead);
 - the recorded `sim.Put` / `sim.Get` / `sim.Invoke` history is not linearizable under the configured model, or the `sim.Txn` history has an isolation anomaly.
 
 A sweep also fails when a cataloged property is never reached, or a `Sometimes` is never true, in any seed.
@@ -111,7 +142,7 @@ The schedule is saved to `.seedfall/seed-N.faults.json`:
 
 Virtual time never waits on the wall clock. When every node is blocked, the scheduler jumps straight to the next timer, message or fault; the only real-time limit is the `watchdog`. Real time therefore goes to three things:
 
-- **Guest CPU.** Nodes run as wasm compiled to native code by wazero, with a check on every loop iteration so the watchdog can stop a busy loop. That check costs about a third of guest CPU and is what makes livelocks reportable instead of hanging the run. Host calls (clock, `poll_oneoff`, files, network) are a few percent.
+- **Guest CPU.** Nodes run as wasm compiled to native code by wazero, with a check on every loop iteration so the watchdog can stop a busy loop. That check costs about a third of guest CPU and is what makes livelocks reportable instead of hanging the run. `preempt.loops` adds seedfall's own counter to every loop head as well. Host calls (clock, `poll_oneoff`, files, network) are a few percent.
 - **Booting nodes.** Every start and restart is a fresh module instance: wazero sets up memory and data segments, then the Go runtime and your `main` run. For nats-server this is 0.1-0.3s per start, so short seeds with many crashes are dominated by boots.
 - **Compiling, once.** Each guest is compiled once per process and shared by every seed and every node that runs the same binary. Compiled code is cached in `.seedfall/cache`, so later processes only load it. The cache keeps the 8 most recently used sets of binaries and deletes older ones, so rebuilding a guest many times does not fill the disk.
 

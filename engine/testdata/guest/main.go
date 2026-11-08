@@ -27,8 +27,17 @@ func main() {
 	record := flag.Bool("history", false, "record every write in the linearizability history")
 	least := flag.Int("least", 0, "count the finally check waits for")
 	within := flag.Duration("within", time.Second, "how long the finally check waits")
+	iters := flag.Int("iters", 1<<22, "loop iterations the spin role runs without a function call")
 	flag.Parse()
 	switch *role {
+	case "race":
+		race(*writes)
+	case "spin":
+		h := uint64(0)
+		for i := range *iters {
+			h = h*31 + uint64(i)
+		}
+		fmt.Println(h)
 	case "client":
 		client(sim.Budget(*writes), *record, *forever)
 	case "finally":
@@ -137,4 +146,35 @@ func reply(conn net.Conn) (int, error) {
 		return 0, err
 	}
 	return strconv.Atoi(strings.TrimSpace(line))
+}
+
+func race(records int) {
+	var entries []string
+	kick := make(chan struct{}, 1)
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		defer close(kick)
+		for seq := range records {
+			slot := len(entries)
+			entries = append(entries, "")
+			entries[slot] = fmt.Sprintf("record %d %s", seq, strings.Repeat("x", seq))
+			select {
+			case kick <- struct{}{}:
+			default:
+			}
+		}
+	})
+	wg.Go(func() {
+		for range kick {
+			upTo := len(entries)
+			header := make([]string, 0, 256)
+			for f := range cap(header) {
+				header = append(header, strconv.Itoa(f))
+			}
+			for i, e := range entries[:upTo] {
+				sim.Assert(e != "", fmt.Sprintf("entry %d copied before it was written", i))
+			}
+		}
+	})
+	wg.Wait()
 }

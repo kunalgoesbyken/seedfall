@@ -259,6 +259,16 @@ expect interleave seedfall.json         1-50  pass
 expect interleave interleave.json       1-5   fail
 expect interleave interleave.lock.json  1-50  pass
 deterministic interleave interleave.json 1
+expect interleave journal.json                      1-5   fail
+expect interleave "journal.json -profile none"      1-20  pass
+expect interleave "journal.json -profile committed" 1-20  pass
+expect_shrink interleave journal.json 1 "1 faults, 1ms"
+deterministic interleave journal.json 1
+expect busyloop seedfall.json                    1-3   fail
+expect busyloop "seedfall.json -profile calls"   1-10  pass
+expect busyloop "seedfall.json -profile recheck" 1-10  pass
+expect busyloop "seedfall.json -profile spin"    1     fail
+deterministic busyloop "seedfall.json -profile spin" 1
 expect buggify seedfall.json         1-20  fail
 expect buggify "seedfall.json -profile fixed"   1-20  pass
 expect buggify "seedfall.json -profile off"     1-20  fail

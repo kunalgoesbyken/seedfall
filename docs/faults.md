@@ -46,8 +46,13 @@ A world is described in a JSON file, `seedfall.json` by default. Paths inside it
 | `supervise` | `false` | Restart a node that exits with an error, after `restart_after`. Go panics (exit code 2) still fail the run, and so does a workload that exits with an error, even under `include_workload` |
 | `net_overlay` | `false` | Route plain `net.Listen` / `net.Dial` through the simulated network. See [networking.md](networking.md) |
 | `compat_overlay` | `false` | Build dependencies that need `mmap` or `flock` (bbolt, pebble, badger) with `wasip1` shims. See [compat.md](compat.md) |
-| `watchdog` | `30s` | Real-time limit for one node to run without yielding. Catches busy loops and livelocks |
-| `preempt.interleave` | `false` | Preempt the running goroutine after a seeded random number of function calls, so goroutines inside a node interleave at seeded points. See [how-it-works.md](how-it-works.md#preemption) |
+| `watchdog` | `30s` | Real-time limit for one node to run without yielding. Catches busy loops and livelocks. With `preempt.loops`, a busy loop parks like any other node and a run that never finishes fails on `liveness` instead, which does not depend on the host |
+| `preempt.strategy` | `none` | When the running goroutine is preempted inside a node: `none` only at the end of a 4,194,304-call time slice, `random` after a seeded 1 to 4,096 counted calls, `pct` at `depth` - 1 seeded change points per node, each recorded as a `preempt` fault, `calls` every `preempt.calls` counted calls. See [how-it-works.md](how-it-works.md#strategies) |
+| `preempt.interleave` | `false` | Shorthand for `"strategy": "random"` |
+| `preempt.depth` | `3` | `pct`: the bug depth d to look for, giving d - 1 change points per node |
+| `preempt.steps` | `1048576` | `pct`: the change points are drawn over each node's first `steps` counted calls. The trace's last `pct:` line shows how many each node ran |
+| `preempt.calls` | `4096` | `calls`: counted calls between preemptions, at most 4,194,304 |
+| `preempt.loops` | `false` | Count loop iterations as well as function calls, so a loop without calls is preempted, uses virtual time and lets other nodes run. Costs guest CPU. See [how-it-works.md](how-it-works.md#loops) |
 
 Every node sees the environment variables `SEEDFALL=1` and `SEEDFALL_NODE=<name>`, so `sim.Enabled()` and `sim.Node()` work.
 
@@ -232,7 +237,7 @@ On kvlog's `seedfall.always.json`, seed 1 fails with `torntail.faults.json`, sti
 |---|---|
 | `-faults` | The schedule to start from. Without it, `.seedfall/seed-N.faults.json` next to the config, or, when that file does not exist, the faults seed N draws on its own, which takes one run |
 | `-remove N` | Remove the fault at position N, counting from 1 as listed. Repeatable |
-| `-shift N=AMOUNT` | Move fault N. A timed fault moves by a signed duration (`2=-50ms`), together with its `until`. A fault that fires at a disk operation, read or buggify hit (`crash_io`, `fsync_eio`, `write_eio`, `write_enospc`, `read_eio`, `read_corrupt`, `lost_write`, `misdirected_write`, `buggify`) moves by a signed count of those (`1=+2`), because its `at` only records when it happened. Repeatable |
+| `-shift N=AMOUNT` | Move fault N. A timed fault moves by a signed duration (`2=-50ms`), together with its `until`. A fault that fires at a disk operation, read, buggify hit or counted call (`crash_io`, `fsync_eio`, `write_eio`, `write_enospc`, `read_eio`, `read_corrupt`, `lost_write`, `misdirected_write`, `buggify`, `preempt`) moves by a signed count of those (`1=+2`), because its `at` only records when it happened. Repeatable |
 | `-add JSON` | Add a fault in the format shown in this page, for example `{"at":"1s","kind":"pause","node":"server","until":"1.5s"}`. Repeatable |
 | `-out` | Write the result here. Without it, the schedule is written back to the file it came from |
 
@@ -243,13 +248,13 @@ Positions in `-remove` and `-shift` always refer to the schedule as it was befor
 | `kind` is a fault kind seedfall knows | every fault |
 | `node`, `from`, `to`, `side` and `groups` name nodes of the config | every fault |
 | `at` is not negative | every fault |
-| `at` is not after the end of the run: the schedule's `duration`, else the config's | every fault except those that fire at a disk operation, read or buggify hit, whose `at` only records when it happened |
+| `at` is not after the end of the run: the schedule's `duration`, else the config's | every fault except those that fire at a disk operation, read, buggify hit or counted call, whose `at` only records when it happened |
 | `until` is not before `at` | `crash`, `crash_io`, `partition`, `pause`, `clog`, `slow` |
 | `side` or `groups`, not both | `partition` |
 | `mode` is `stop`, `slow` or `jam`; `dir` is `in`, `out` or `both` with a `node`, or empty with two different nodes in `from` and `to` | `clog` |
 | `node` is set | every kind except `partition` and `clog` |
 | `factor` is at least 1 | `slow` |
-| `op` is at least 1, and a `buggify` fault names its `site` | faults that fire at a disk operation, read or buggify hit |
+| `op` is at least 1, a `buggify` fault names its `site`, and a `preempt` fault needs `preempt.strategy` `pct` in the config | faults that fire at a disk operation, read, buggify hit or counted call |
 
 Without any edit, `seedfall faults` only lists and checks the schedule, and writes it only when it came from the seed's own faults, so that there is a file to edit. Over MCP, `seedfall_faults_edit` takes the same edits as JSON ([agents.md](agents.md#tools)).
 

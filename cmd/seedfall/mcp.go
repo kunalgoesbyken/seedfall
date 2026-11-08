@@ -250,7 +250,7 @@ func newMCPServer() (*mcp.Server, error) {
 	}, toolShrink)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:         "seedfall_faults_edit",
-		Description:  "Edit a seed's fault schedule to test a hypothesis: remove faults by position, shift a timed fault by a duration or a disk-op, read or buggify fault by a number of operations, and add faults in the faults JSON format. Starts from the given file, else .seedfall/seed-N.faults.json, else the seed's own faults. Checks every fault against the config (known kind and nodes, until not before at, a timed fault not after the end of the run, required fields per kind) and writes nothing if one is wrong. With no edits it lists and checks, and writes only out, or the seed's own faults to .seedfall/seed-N.faults.json so there is a file to edit. Returns the numbered schedule, the file written and the replay command.",
+		Description:  "Edit a seed's fault schedule to test a hypothesis: remove faults by position, shift a timed fault by a duration or a disk-op, read, buggify or preempt fault by a number of operations, and add faults in the faults JSON format. Starts from the given file, else .seedfall/seed-N.faults.json, else the seed's own faults. Checks every fault against the config (known kind and nodes, until not before at, a timed fault not after the end of the run, required fields per kind) and writes nothing if one is wrong. With no edits it lists and checks, and writes only out, or the seed's own faults to .seedfall/seed-N.faults.json so there is a file to edit. Returns the numbered schedule, the file written and the replay command.",
 		InputSchema:  editInput,
 		OutputSchema: editOutput,
 	}, toolFaultsEdit)

@@ -1,6 +1,12 @@
 package engine
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+	"errors"
+	"fmt"
+)
+
+var errTruncated = errors.New("truncated wasm code section")
 
 const (
 	callsExport = "seedfall.calls"
@@ -17,18 +23,41 @@ const (
 	kindFunc   = 0
 	kindGlobal = 3
 
-	opEnd       = 0x0b
-	opIf        = 0x04
-	opCall      = 0x10
-	opDrop      = 0x1a
-	opGlobalGet = 0x23
-	opGlobalSet = 0x24
-	opI32Const  = 0x41
-	opI32Eqz    = 0x45
-	opI32Sub    = 0x6b
-	typeI32     = 0x7f
-	blockEmpty  = 0x40
-	mutable     = 0x01
+	opBlock      = 0x02
+	opLoop       = 0x03
+	opIf         = 0x04
+	opElse       = 0x05
+	opEnd        = 0x0b
+	opBr         = 0x0c
+	opBrIf       = 0x0d
+	opBrTable    = 0x0e
+	opCall       = 0x10
+	opCallInd    = 0x11
+	opReturnCall = 0x12
+	opReturnInd  = 0x13
+	opDrop       = 0x1a
+	opSelectT    = 0x1c
+	opLocalGet   = 0x20
+	opTableSet   = 0x26
+	opLoad       = 0x28
+	opStore      = 0x3e
+	opMemorySize = 0x3f
+	opMemoryGrow = 0x40
+	opGlobalGet  = 0x23
+	opGlobalSet  = 0x24
+	opI32Const   = 0x41
+	opI64Const   = 0x42
+	opF32Const   = 0x43
+	opF64Const   = 0x44
+	opI32Eqz     = 0x45
+	opI32Sub     = 0x6b
+	opLastNum    = 0xc4
+	opRefNull    = 0xd0
+	opRefFunc    = 0xd2
+	opPrefixFC   = 0xfc
+	typeI32      = 0x7f
+	blockEmpty   = 0x40
+	mutable      = 0x01
 )
 
 type wasmSection struct {
@@ -68,6 +97,67 @@ func (r *wasmReader) byte() byte {
 		return 0
 	}
 	return b[0]
+}
+
+func (r *wasmReader) skip(n int) { r.bytes(uint64(n)) }
+
+func (r *wasmReader) leb() {
+	for b := byte(0x80); r.ok && b&0x80 != 0; {
+		b = r.byte()
+	}
+}
+
+func (r *wasmReader) instruction() (byte, error) {
+	op := r.byte()
+	switch {
+	case op == opBlock || op == opLoop || op == opIf:
+		r.leb()
+	case op == opBr || op == opBrIf || op == opCall || op == opReturnCall || op == opRefFunc || (op >= opLocalGet && op <= opTableSet):
+		r.uleb()
+	case op == opBrTable:
+		for range r.uleb() + 1 {
+			r.uleb()
+		}
+	case op == opCallInd || op == opReturnInd || (op >= opLoad && op <= opStore):
+		r.uleb()
+		r.uleb()
+	case op == opSelectT:
+		r.skip(int(r.uleb()))
+	case op == opMemorySize || op == opMemoryGrow || op == opRefNull:
+		r.skip(1)
+	case op == opI32Const || op == opI64Const:
+		r.leb()
+	case op == opF32Const:
+		r.skip(4)
+	case op == opF64Const:
+		r.skip(8)
+	case op == opPrefixFC:
+		return op, r.prefixed()
+	case op > opRefFunc || (op > opElse && op < opEnd) || (op > opReturnInd && op < opDrop) || (op > opSelectT && op < opLocalGet) || (op > opTableSet && op < opLoad) || (op > opLastNum && op < opRefNull):
+		return op, fmt.Errorf("unsupported wasm opcode 0x%02x", op)
+	}
+	return op, nil
+}
+
+func (r *wasmReader) prefixed() error {
+	switch sub := r.uleb(); {
+	case sub <= 7:
+	case sub == 8:
+		r.uleb()
+		r.skip(1)
+	case sub == 10:
+		r.skip(2)
+	case sub == 11:
+		r.skip(1)
+	case sub == 12 || sub == 14:
+		r.uleb()
+		r.uleb()
+	case sub <= 17:
+		r.uleb()
+	default:
+		return fmt.Errorf("unsupported wasm opcode 0xfc %d", sub)
+	}
+	return nil
 }
 
 func (r *wasmReader) name() string { return string(r.bytes(r.uleb())) }
@@ -147,47 +237,83 @@ func countdown(calls, yield uint64) []byte {
 	return append(binary.AppendUvarint(code, yield), opDrop, opEnd)
 }
 
-func prependToBodies(code, prologue []byte) ([]byte, bool) {
+func rewriteBodies(code []byte, rewrite func(locals, body []byte) ([]byte, error)) ([]byte, error) {
 	r := &wasmReader{b: code, ok: true}
 	count := r.uleb()
 	out := binary.AppendUvarint(nil, count)
-	for range count {
+	for i := range count {
 		fn := &wasmReader{b: r.bytes(r.uleb()), ok: r.ok}
 		for range fn.uleb() {
 			fn.uleb()
 			fn.byte()
 		}
 		locals := fn.b[:min(fn.pos, len(fn.b))]
-		body := append(append(append([]byte(nil), locals...), prologue...), fn.rest()...)
+		rest := fn.rest()
 		if !fn.ok {
-			return nil, false
+			return nil, errTruncated
+		}
+		body, err := rewrite(locals, rest)
+		if err != nil {
+			return nil, fmt.Errorf("function %d: %w", i, err)
 		}
 		out = append(binary.AppendUvarint(out, uint64(len(body))), body...)
 	}
-	return out, r.ok && r.pos == len(code)
+	if !r.ok || r.pos != len(code) {
+		return nil, errTruncated
+	}
+	return out, nil
 }
 
-func instrument(wasm []byte) []byte {
+func countLoops(out, body, countdown []byte) ([]byte, error) {
+	r := &wasmReader{b: body, ok: true}
+	for r.ok && r.pos < len(body) {
+		start := r.pos
+		op, err := r.instruction()
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, body[start:r.pos]...)
+		if op == opLoop {
+			out = append(out, countdown...)
+		}
+	}
+	if !r.ok {
+		return nil, errTruncated
+	}
+	return out, nil
+}
+
+func instrument(wasm []byte, loops bool) ([]byte, error) {
 	secs, ok := readSections(wasm)
 	imports, globals, exports, code := section(secs, secImport), section(secs, secGlobal), section(secs, secExport), section(secs, secCode)
 	if !ok || !builtByGo(secs) || imports == nil || globals == nil || exports == nil || code == nil {
-		return wasm
+		return wasm, nil
 	}
 	yield, ok := importedFunc(imports.body, "wasi_snapshot_preview1", "sched_yield")
 	if !ok {
-		return wasm
+		return wasm, nil
 	}
 	globalBody, calls, ok := appendEntries(globals.body, []byte{typeI32, mutable, opI32Const, 0, opEnd})
 	if !ok {
-		return wasm
+		return wasm, nil
 	}
 	exportBody, _, ok := appendEntries(exports.body, exportEntry(callsExport, kindGlobal, calls), exportEntry(gExport, kindGlobal, goGlobalG))
 	if !ok {
-		return wasm
+		return wasm, nil
 	}
-	codeBody, ok := prependToBodies(code.body, countdown(calls, yield))
-	if !ok {
-		return wasm
+	tick := countdown(calls, yield)
+	codeBody, err := rewriteBodies(code.body, func(locals, body []byte) ([]byte, error) {
+		out := append(append([]byte(nil), locals...), tick...)
+		if !loops {
+			return append(out, body...), nil
+		}
+		return countLoops(out, body, tick)
+	})
+	switch {
+	case err != nil && loops:
+		return nil, fmt.Errorf("preempt.loops: %w", err)
+	case err != nil:
+		return wasm, nil
 	}
 	globals.body, exports.body, code.body = globalBody, exportBody, codeBody
 	out := append([]byte(nil), wasm[:8]...)
@@ -195,5 +321,5 @@ func instrument(wasm []byte) []byte {
 		out = binary.AppendUvarint(append(out, s.id), uint64(len(s.body)))
 		out = append(out, s.body...)
 	}
-	return out
+	return out, nil
 }

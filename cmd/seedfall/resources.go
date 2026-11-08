@@ -134,6 +134,9 @@ func configSchema() (string, error) {
 	for _, m := range engine.Models() {
 		s.Properties["checker"].Properties["model"].Enum = append(s.Properties["checker"].Properties["model"].Enum, m)
 	}
+	for _, name := range engine.PreemptStrategies {
+		s.Properties["preempt"].Properties["strategy"].Enum = append(s.Properties["preempt"].Properties["strategy"].Enum, name)
+	}
 	faults := s.Properties["faults"]
 	for _, name := range engine.PresetNames() {
 		faults.Properties["preset"].Enum = append(faults.Properties["preset"].Enum, name)

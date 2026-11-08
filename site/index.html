@@ -159,7 +159,7 @@ property       seeds reached  seeds true
       <div>
         <p class="kicker">Goroutines</p>
         <h4>Seeded preemption</h4>
-        <p>A goroutine that spins is preempted after a counted number of function calls, and <code>"preempt": {"interleave": true}</code> preempts at seeded points, so a check-then-act race inside one process fails on a seed and replays exactly.</p>
+        <p>A goroutine that spins is preempted after a counted number of function calls. <code>"strategy": "random"</code> preempts at seeded points, <code>"strategy": "pct"</code> runs probabilistic concurrency testing with change points that replay and shrink, and <code>"loops": true</code> preempts call-free loops too, so a race inside one process fails on a seed and replays exactly.</p>
       </div>
       <div>
         <p class="kicker">Dependencies</p>

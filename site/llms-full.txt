@@ -64,7 +64,7 @@ Config paths in tool calls are resolved against the server's working directory, 
 | `seedfall_trace_search` | `config`, `seed`, `pattern`, optional `faults`, `context` (default 3), `node`, `from`, `to`, `net_trace`, `limit` | Each line that matches the regular expression (on the given nodes, inside the virtual time window) with `context` trace lines of every node before and after it, as windows of numbered lines with their virtual time, node and instance, overlapping windows merged, plus how many lines matched ([timeline.md](timeline.md#searching-the-trace)) |
 | `seedfall_debug` | `config`, `seed`, optional `faults`, `at`, `net_trace`, `commands` | Replays to `at`, runs each debugger command (`where`, `net`, `faults`, `ls`, `stat`, `cat`, `step`, `until <regex>`, `to <time>`, `branch`, `log`, `grep`) and returns each output and the final state of every node ([timeline.md](timeline.md#debugger)) |
 | `seedfall_shrink` | `config`, `seed`, optional `budget` (runs such as `300`, or time such as `10m`) | The original and minimal sizes (faults, duration and, with [`sim.Budget`](properties.md#workload-size), workload operations), the runs used, whether the budget ran out, the path of the saved schedule, and the failure view under that schedule with its replay command ([shrinking](how-it-works.md#shrinking)) |
-| `seedfall_faults_edit` | `config`, `seed`, optional `faults`, `remove`, `shift`, `add`, `out` | Edits a fault schedule to test a hypothesis: `remove` takes positions counting from 1, `shift` takes `{"fault": 2, "by": "-50ms"}` (a count such as `"+2"` for a fault that fires at a disk operation, read or buggify hit), `add` takes faults in the [schedule format](faults.md#editing-a-schedule). Starts from `faults`, else `.seedfall/seed-N.faults.json`, else the seed's own faults, checks every fault against the config and writes nothing if one is wrong. Returns the numbered schedule, the file written (`out`, or the file it came from) and the replay command |
+| `seedfall_faults_edit` | `config`, `seed`, optional `faults`, `remove`, `shift`, `add`, `out` | Edits a fault schedule to test a hypothesis: `remove` takes positions counting from 1, `shift` takes `{"fault": 2, "by": "-50ms"}` (a count such as `"+2"` for a fault that fires at a disk operation, read, buggify hit or counted call), `add` takes faults in the [schedule format](faults.md#editing-a-schedule). Starts from `faults`, else `.seedfall/seed-N.faults.json`, else the seed's own faults, checks every fault against the config and writes nothing if one is wrong. Returns the numbered schedule, the file written (`out`, or the file it came from) and the replay command |
 | `seedfall_inspect` | `config`, `seed`, optional `faults`, `at`, `node`, `path` | Every node's disk at the failure or at virtual time `at`: per file the live and durable sizes, the byte ranges a crash would lose, whether its directory entry is durable, the last torn write, and removed entries a crash would bring back. With `path`, one file's durable content as text or a hex dump ([inspect.md](inspect.md)) |
 | `seedfall_check` | `history`, optional `model` | Re-checks a recorded history file against a model: the verdict, each anomaly with its cycle, and on a linearizability violation the HTML timeline file ([properties.md](properties.md#history-files)) |
 | `seedfall_verify` | `config`, `seed` and optional `faults`, and/or `report`; optional `seeds`, `check_seeds`, `mutate`, `app_mutants` | Whether the fix holds: each replayed schedule, the fresh sweep with its confidence, the determinism check and the mutants, plus a Markdown proof block for the PR ([verify.md](verify.md)) |
@@ -713,8 +713,13 @@ A world is described in a JSON file, `seedfall.json` by default. Paths inside it
 | `supervise` | `false` | Restart a node that exits with an error, after `restart_after`. Go panics (exit code 2) still fail the run, and so does a workload that exits with an error, even under `include_workload` |
 | `net_overlay` | `false` | Route plain `net.Listen` / `net.Dial` through the simulated network. See [networking.md](networking.md) |
 | `compat_overlay` | `false` | Build dependencies that need `mmap` or `flock` (bbolt, pebble, badger) with `wasip1` shims. See [compat.md](compat.md) |
-| `watchdog` | `30s` | Real-time limit for one node to run without yielding. Catches busy loops and livelocks |
-| `preempt.interleave` | `false` | Preempt the running goroutine after a seeded random number of function calls, so goroutines inside a node interleave at seeded points. See [how-it-works.md](how-it-works.md#preemption) |
+| `watchdog` | `30s` | Real-time limit for one node to run without yielding. Catches busy loops and livelocks. With `preempt.loops`, a busy loop parks like any other node and a run that never finishes fails on `liveness` instead, which does not depend on the host |
+| `preempt.strategy` | `none` | When the running goroutine is preempted inside a node: `none` only at the end of a 4,194,304-call time slice, `random` after a seeded 1 to 4,096 counted calls, `pct` at `depth` - 1 seeded change points per node, each recorded as a `preempt` fault, `calls` every `preempt.calls` counted calls. See [how-it-works.md](how-it-works.md#strategies) |
+| `preempt.interleave` | `false` | Shorthand for `"strategy": "random"` |
+| `preempt.depth` | `3` | `pct`: the bug depth d to look for, giving d - 1 change points per node |
+| `preempt.steps` | `1048576` | `pct`: the change points are drawn over each node's first `steps` counted calls. The trace's last `pct:` line shows how many each node ran |
+| `preempt.calls` | `4096` | `calls`: counted calls between preemptions, at most 4,194,304 |
+| `preempt.loops` | `false` | Count loop iterations as well as function calls, so a loop without calls is preempted, uses virtual time and lets other nodes run. Costs guest CPU. See [how-it-works.md](how-it-works.md#loops) |
 
 Every node sees the environment variables `SEEDFALL=1` and `SEEDFALL_NODE=<name>`, so `sim.Enabled()` and `sim.Node()` work.
 
@@ -899,7 +904,7 @@ On kvlog's `seedfall.always.json`, seed 1 fails with `torntail.faults.json`, sti
 |---|---|
 | `-faults` | The schedule to start from. Without it, `.seedfall/seed-N.faults.json` next to the config, or, when that file does not exist, the faults seed N draws on its own, which takes one run |
 | `-remove N` | Remove the fault at position N, counting from 1 as listed. Repeatable |
-| `-shift N=AMOUNT` | Move fault N. A timed fault moves by a signed duration (`2=-50ms`), together with its `until`. A fault that fires at a disk operation, read or buggify hit (`crash_io`, `fsync_eio`, `write_eio`, `write_enospc`, `read_eio`, `read_corrupt`, `lost_write`, `misdirected_write`, `buggify`) moves by a signed count of those (`1=+2`), because its `at` only records when it happened. Repeatable |
+| `-shift N=AMOUNT` | Move fault N. A timed fault moves by a signed duration (`2=-50ms`), together with its `until`. A fault that fires at a disk operation, read, buggify hit or counted call (`crash_io`, `fsync_eio`, `write_eio`, `write_enospc`, `read_eio`, `read_corrupt`, `lost_write`, `misdirected_write`, `buggify`, `preempt`) moves by a signed count of those (`1=+2`), because its `at` only records when it happened. Repeatable |
 | `-add JSON` | Add a fault in the format shown in this page, for example `{"at":"1s","kind":"pause","node":"server","until":"1.5s"}`. Repeatable |
 | `-out` | Write the result here. Without it, the schedule is written back to the file it came from |
 
@@ -910,13 +915,13 @@ Positions in `-remove` and `-shift` always refer to the schedule as it was befor
 | `kind` is a fault kind seedfall knows | every fault |
 | `node`, `from`, `to`, `side` and `groups` name nodes of the config | every fault |
 | `at` is not negative | every fault |
-| `at` is not after the end of the run: the schedule's `duration`, else the config's | every fault except those that fire at a disk operation, read or buggify hit, whose `at` only records when it happened |
+| `at` is not after the end of the run: the schedule's `duration`, else the config's | every fault except those that fire at a disk operation, read, buggify hit or counted call, whose `at` only records when it happened |
 | `until` is not before `at` | `crash`, `crash_io`, `partition`, `pause`, `clog`, `slow` |
 | `side` or `groups`, not both | `partition` |
 | `mode` is `stop`, `slow` or `jam`; `dir` is `in`, `out` or `both` with a `node`, or empty with two different nodes in `from` and `to` | `clog` |
 | `node` is set | every kind except `partition` and `clog` |
 | `factor` is at least 1 | `slow` |
-| `op` is at least 1, and a `buggify` fault names its `site` | faults that fire at a disk operation, read or buggify hit |
+| `op` is at least 1, a `buggify` fault names its `site`, and a `preempt` fault needs `preempt.strategy` `pct` in the config | faults that fire at a disk operation, read, buggify hit or counted call |
 
 Without any edit, `seedfall faults` only lists and checks the schedule, and writes it only when it came from the seed's own faults, so that there is a file to edit. Over MCP, `seedfall_faults_edit` takes the same edits as JSON ([agents.md](agents.md#tools)).
 
@@ -1109,9 +1114,40 @@ There is no `linkname`, no source rewriting and no forked runtime, so new Go rel
 
 ## Preemption
 
-Real Go preempts a goroutine that has run for 10ms. On `wasip1` nothing does, so a goroutine that spins without a syscall would starve every other goroutine in its node, and its node would never yield. seedfall loads each Go module with a call counter added to the start of every function. After 4,194,304 function calls without the node blocking, the counter calls back into the host, which triggers the Go runtime's own cooperative preemption path for the running goroutine (the same `stackguard0` request the runtime's `sysmon` makes on other platforms) and parks the node for 10ms of virtual time, so other nodes run too. The count is part of the execution, so preemption points are as deterministic as everything else. A loop that makes no function call at all is still not preempted.
+Real Go preempts a goroutine that has run for 10ms. On `wasip1` nothing does, so a goroutine that spins without a syscall would starve every other goroutine in its node, and its node would never yield. seedfall loads each Go module with a call counter added to the start of every function. After 4,194,304 counted calls without the node blocking, the counter calls back into the host, which triggers the Go runtime's own cooperative preemption path for the running goroutine (the same `stackguard0` request the runtime's `sysmon` makes on other platforms) and parks the node for 10ms of virtual time, so other nodes run too. The count is part of the execution, so preemption points are as deterministic as everything else. A burst shorter than that costs no virtual time.
 
-With `"preempt": {"interleave": true}`, the counter is also re-armed after a seeded random number of calls, up to 4,096, and every expiry preempts the running goroutine. Goroutines inside a node then interleave at seeded points, so a check-then-act race between goroutines shows up as an ordinary failing seed that replays exactly. See [`examples/interleave`](../examples/interleave).
+### Loops
+
+By default a loop that makes no function call is not counted, so it is never preempted: a call-free spin holds the whole simulation until the real-time `watchdog` stops it, and a long call-free computation takes no virtual time. With `"preempt": {"loops": true}` the counter also runs at the head of every wasm `loop`, which the Go compiler emits for Go loops, so loop iterations count like calls. A node that spins or computes for 4,194,304 counted calls and iterations is then parked for 10ms of virtual time like any other: other nodes keep running, timers and leases on other nodes expire, and a spin that never ends fails deterministically on `liveness` (or runs to the horizon) instead of on the host-dependent watchdog. [`examples/busyloop`](../examples/busyloop) shows both: a leader whose lease expires during a call-free checksum, which only fails with `loops`, and a spin-wait that fails as `liveness` with `loops` and as a real-time `timeout` without.
+
+Two limits. The Go runtime on `wasip1` can switch goroutines only at a function entry, so a goroutine in a call-free loop still keeps the other goroutines of its own node from running until it makes a call; `loops` parks the node, it cannot hand the CPU to a sibling goroutine. And the extra check on every iteration costs guest CPU, which is why it is off by default.
+
+### Strategies
+
+`preempt.strategy` decides when, inside a time slice, the running goroutine is preempted:
+
+| Strategy | Preempts the running goroutine | Randomness |
+|---|---|---|
+| `none` (default) | only at the end of a 4,194,304-call time slice | none |
+| `random` (`"interleave": true` is shorthand) | after a seeded random 1 to 4,096 counted calls, again and again | per instance, from the seed |
+| `pct` | at `depth` - 1 change points per node, drawn from the seed over the node's first `steps` counted calls | per node, from the seed, recorded as faults |
+| `calls` | every `calls` counted calls | none |
+
+`random` finds shallow races quickly: a check-then-act window that any preemption opens shows up within a few seeds ([`examples/interleave`](../examples/interleave), `interleave.json`). But it preempts every goroutine every few thousand calls, so no goroutine ever runs long without being interrupted. A bug that needs one goroutine to stop inside a window while another runs a long stretch to completion is almost never hit.
+
+`pct` is probabilistic concurrency testing (Burckhardt, Kothari, Musuvathi and Nagarakatte, ASPLOS 2010), as in shuttle's `check_pct`. A run is left alone except at `depth` - 1 seeded change points; at each one the running goroutine is preempted and goes to the back of the Go run queue, and whatever runs next keeps running until it blocks. For a priority scheduler with n threads and k steps, PCT finds any bug of depth d (one that needs d ordering constraints) with probability at least 1/(n·k^(d-1)) per run. In `examples/interleave`, a checkpointer that copies a journal up to its reserved length instead of its committed length fails on 20 of seeds 1-20 with `pct` at depth 2, on 2 of 20 with `random`, and on none with `none`, because the bug needs the checkpointer to format a long header without being interrupted (`journal.json`).
+
+Every change point that fires is recorded as a `preempt` fault with its node and counted call (`op`), and the trace says so:
+
+```
+    0.000s  preempt: pct, depth 2, change points per node: 1, drawn over the first 300000 counted function calls
+    0.000s  fault preempt journal#1's running goroutine at counted call 259662
+    0.000s  pct: journal ran 271681 counted calls, change points fired: 1
+```
+
+So replay is exact, `shrink` drops change points the failure does not need, and `seedfall faults` can move one (`-shift 1=-1000`) or remove it to test an explanation. A schedule's `preempt` faults replace the seed's own change points, and they fire only when the config's strategy is `pct`. The last trace line shows how many counted calls each node ran: set `steps` near that number, because change points drawn beyond it never fire.
+
+The bound is a guide for choosing `depth` and `steps`, not a guarantee seedfall gives. seedfall picks only the change points. It cannot see goroutines from the host, so it does not assign them priorities: which goroutine runs after a preemption is the Go scheduler's choice, under the seed's random source. Change points are drawn per node, k is counted in calls (and loop iterations with `loops`), and preemption takes effect at the goroutine's next function call. None of the strategies is a data race detector: they find races that change behaviour, not unsynchronized accesses that happen not to. Run your tests under `go test -race` as well.
 
 ## Determinism
 
@@ -1150,7 +1186,7 @@ A run fails when:
 - the workload or the `finally` check exits non-zero;
 - a node exits or panics, unless `supervise` restarts it (Go panics always fail);
 - every node is blocked with no timer or pending message (deadlock);
-- a node runs longer than `watchdog` of real time without yielding (livelock or busy loop);
+- a node runs longer than `watchdog` of real time without yielding (livelock or busy loop; with `preempt.loops`, a spinning node parks like any other and fails on `liveness` instead);
 - the recorded `sim.Put` / `sim.Get` / `sim.Invoke` history is not linearizable under the configured model, or the `sim.Txn` history has an isolation anomaly.
 
 A sweep also fails when a cataloged property is never reached, or a `Sometimes` is never true, in any seed.
@@ -1204,7 +1240,7 @@ The schedule is saved to `.seedfall/seed-N.faults.json`:
 
 Virtual time never waits on the wall clock. When every node is blocked, the scheduler jumps straight to the next timer, message or fault; the only real-time limit is the `watchdog`. Real time therefore goes to three things:
 
-- **Guest CPU.** Nodes run as wasm compiled to native code by wazero, with a check on every loop iteration so the watchdog can stop a busy loop. That check costs about a third of guest CPU and is what makes livelocks reportable instead of hanging the run. Host calls (clock, `poll_oneoff`, files, network) are a few percent.
+- **Guest CPU.** Nodes run as wasm compiled to native code by wazero, with a check on every loop iteration so the watchdog can stop a busy loop. That check costs about a third of guest CPU and is what makes livelocks reportable instead of hanging the run. `preempt.loops` adds seedfall's own counter to every loop head as well. Host calls (clock, `poll_oneoff`, files, network) are a few percent.
 - **Booting nodes.** Every start and restart is a fresh module instance: wazero sets up memory and data segments, then the Go runtime and your `main` run. For nats-server this is 0.1-0.3s per start, so short seeds with many crashes are dominated by boots.
 - **Compiling, once.** Each guest is compiled once per process and shared by every seed and every node that runs the same binary. Compiled code is cached in `.seedfall/cache`, so later processes only load it. The cache keeps the 8 most recently used sets of binaries and deletes older ones, so rebuilding a guest many times does not fill the disk.
 
@@ -1866,7 +1902,7 @@ Every finding, and the failure `seedfall run` stops at, gets a class that says w
 |---|---|
 | `bug` | Replaying the seed fails again with the same trace. A real, reproducible failure of the system under test |
 | `nondeterministic` | The replay diverges from the original run: something in the harness or the system leaks host nondeterminism. The first diverging trace line is shown |
-| `timeout` | The real-time watchdog fired. This depends on host speed and load, not only on the seed |
+| `timeout` | The real-time watchdog fired. This depends on host speed and load, not only on the seed. With `preempt.loops` a busy loop fails on `liveness` instead |
 
 ```
 FAIL seed 1 at t=2.892s ...
@@ -1995,6 +2031,7 @@ seedfall is only useful if its own model of crashes, faults and replay is right,
 | Assertions and events | `engine/assertions_test.go`, `sim/sim_test.go` | The catalog finds numeric and grouped assertions with their message at the right argument; Antithesis guidance records keep the smallest margin for `always` and the largest for `sometimes`, and guidance without an assertion creates nothing; `lifecycle.SendEvent` becomes a trace event; margins aggregate across seeds; outside the simulator the numeric and grouped forms fail with JSON details and `sim.Event` does nothing |
 | Determinism hash | `engine/hostcalls_test.go` | The host-call hash is stable, checkpointed every 4,096 calls and sensitive to field boundaries, and a divergence report names the first differing call with the call before it, including a run that ends early |
 | Mutants | `engine/mutation_test.go` | `rename_not_atomic` loses both names in a crash before the next fsync in loose and strict mode, but not a rename to a new name or one a later fsync closed; `truncate_not_durable` brings back the old tail; `net_drop_after_close` drops only an unread last chunk; `net_dup_chunk` duplicates a seeded share of writes and replays them identically; network mutants skip nodes that take no faults; `monotonic_jump` moves the monotonic clock only when active; `-only` parses and rejects typos. `engine/appmutant_test.go`: source mutants find comparisons, early error returns and `Sync` calls and still parse, the selection is seeded and ordered, and a mutant's overlay merges with the `net_overlay` one |
+| Preemption | `engine/preempt_test.go` | Strategy validation; loop counting adds the countdown after every `loop` header while decoding LEB immediates, `br_table` and `0xfc` opcodes, and rejects unsupported opcodes; the loop-counted guest compiles; with `preempt.loops` a call-free loop of three time slices takes at least 30ms of virtual time and without it almost none; `pct` finds a goroutine race, records its change points as `preempt` faults that replay exactly, an empty schedule fires none, shrinking keeps one, and a `preempt` fault is rejected unless the strategy is `pct`; `calls` preempts deterministically |
 | Confidence math | `report/report_test.go` | `SeedsToConfirm` and the detectable failure rate against known values, findings moving through new, ongoing, not seen, resolved and regressed across runs, and the JSON report against a golden file |
 | Proof rendering | `verify/verify_test.go` | How many seeds a proof needs, and the text and Markdown proof blocks against golden files |
 
@@ -2490,6 +2527,7 @@ Over MCP: `seedfall_run`, which returns `properties` with `seeds_reached`, `seed
 
 - A `Sometimes` that is never true means the faults never reached that path. Raise `crash_on_io` (around 0.005 to 0.02), set `torn_writes`, lengthen `duration`, or make the workload write more.
 - If no outside fault can reach a path (a lost reply after a successful apply, an error return, a minimal quorum), mark it in the service with `if sim.Buggify("site") { ... }` and set `"buggify": true` in `faults`. The sweep then lists each site as reached, enabled and fired; see the MCP resource `seedfall://docs/buggify` (docs/buggify.md).
+- If goroutines inside one node share state, sweep with `"preempt": {"strategy": "random"}` for short check-then-act windows and `"strategy": "pct"` for bugs that need one goroutine to stall while another runs a long stretch; set `preempt.steps` near the counted calls the trace's `pct:` line reports. Add `"loops": true` when the code has call-free loops (checksums, spin-waits). See `seedfall://docs/how-it-works`, section Preemption.
 - A failure here may be a real bug. Switch to the `seedfall-triage` skill.
 
 ## 4. Grade the checks with mutants
@@ -2622,7 +2660,7 @@ seedfall run -c C -seeds N
 The output ends with `class:`.
 - `bug`: the replay fails with the same trace. Continue.
 - `nondeterministic`: something leaks host nondeterminism, such as real time, unseeded randomness or map iteration feeding I/O. The first diverging trace line is shown; `seedfall run -seeds N -check` goes further and names the first host call that differs (a clock read, a `random_get`, a file or network call) with its node and virtual time. Fix the leak first: it is a harness problem, not the bug.
-- `timeout`: the real-time watchdog fired. A busy loop that never yields, or a host that is too slow. Rerun on an idle machine, or raise `watchdog`, before treating it as a bug.
+- `timeout`: the real-time watchdog fired. A busy loop that never yields, or a host that is too slow. Rerun on an idle machine, or raise `watchdog`, before treating it as a bug. To make a busy loop reproducible, set `"preempt": {"loops": true}` with `liveness.within`: the spinning node then parks like any other and fails as `liveness` on the same seed every time.
 
 The line after it, `artifacts: .seedfall/failures/<config>-seed-N`, is a folder with the full trace, a replayable `faults.json`, the operation history, each node's disk image at the failure, and `timeline.html` and `timeline.mmd`, a space-time diagram of every node, message and fault. Read `trace.txt` there instead of rerunning for it, and attach the folder if you file an issue.
 
@@ -2675,7 +2713,7 @@ A `linearizability` or `isolation` failure is about the recorded history, not th
 Write the explanation down as one sentence, for example "the crash in op #56 leaves a torn record, and recovery appends after it instead of truncating". Then test it by changing one thing and replaying.
 
 - **Drop a fault.** `seedfall faults -c C -seed N -remove 2 -out hypothesis.json` copies `.seedfall/seed-N.faults.json` without its second fault (`seedfall faults -c C -seed N` alone lists the faults with their positions). Then run `seedfall replay -c C -seed N -faults hypothesis.json`. If it now passes, that fault is necessary. If it still fails, compare the failure message with the original: a different message means you uncovered a second bug, so note it and triage it separately.
-- **Move a fault.** `-shift 1=-1` moves a `crash_io` entry one disk operation earlier, and `-shift 2=+20ms` moves a `crash` 20ms later, to put the crash just before or after the suspect operation; then replay again. On a `buggify` entry, the count is which hit of that site on that node fires. `-add '{"at":"1s","kind":"pause","node":"server","until":"1.5s"}'` adds a fault. Every edit is checked against the config (known nodes, `until` not before `at`, a timed fault inside the run) before it is written, and the schedule format is in `seedfall://docs/faults` under "Editing a schedule".
+- **Move a fault.** `-shift 1=-1` moves a `crash_io` entry one disk operation earlier, and `-shift 2=+20ms` moves a `crash` 20ms later, to put the crash just before or after the suspect operation; then replay again. On a `buggify` entry, the count is which hit of that site on that node fires; on a `preempt` entry (from `preempt.strategy` `pct`) it is the counted call at which that node's running goroutine is preempted, so a failure that survives shrinking with only a `preempt` fault is a goroutine interleaving inside that node. `-add '{"at":"1s","kind":"pause","node":"server","until":"1.5s"}'` adds a fault. Every edit is checked against the config (known nodes, `until` not before `at`, a timed fault inside the run) before it is written, and the schedule format is in `seedfall://docs/faults` under "Editing a schedule".
 - **Change the world.** In a copy of `C`, turn off `torn_writes`, or turn `strict_dirs` on or off, and replay the same seed. If the failure needs torn writes, the bug is in recovery parsing. If it needs `strict_dirs`, a directory fsync is missing.
 
 `replay` exits 1 and prints the trace when the seed fails, and ends with `seed N: ok, ... steps` when it passes. Over MCP, use `seedfall_faults_edit` (with `out`), then `seedfall_replay` with `faults`, and `seedfall_shrink`, `seedfall_cause` and `seedfall_inspect`, which take the same arguments as JSON.

@@ -27,6 +27,7 @@ const (
 	FaultLostWrite   = "lost_write"
 	FaultMisdirected = "misdirected_write"
 	FaultBitrot      = "bitrot"
+	FaultPreempt     = "preempt"
 	DamageCrash      = "corrupt_on_crash"
 )
 
@@ -73,7 +74,7 @@ func PresetNames() []string {
 	return names
 }
 
-var runtimeKinds = []string{FaultCrashIO, FaultFsyncEIO, FaultBuggify, FaultWriteEIO, FaultENOSPC, FaultReadEIO, FaultReadCorrupt, FaultLostWrite, FaultMisdirected}
+var runtimeKinds = []string{FaultCrashIO, FaultFsyncEIO, FaultBuggify, FaultWriteEIO, FaultENOSPC, FaultReadEIO, FaultReadCorrupt, FaultLostWrite, FaultMisdirected, FaultPreempt}
 
 func observedAtRuntime(kind string) bool {
 	return slices.Contains(runtimeKinds, kind)
@@ -286,6 +287,8 @@ func (f Fault) Describe() string {
 		return fmt.Sprintf("%8s  reset every connection of %s", at(f.At), f.Node)
 	case FaultSlow:
 		return fmt.Sprintf("%8s  slow %s down %.1fx until %s", at(f.At), f.Node, f.Factor, at(f.Until))
+	case FaultPreempt:
+		return fmt.Sprintf("%8s  preempt %s's running goroutine at counted call #%d", at(f.At), f.Node, f.Op)
 	}
 	return fmt.Sprintf("%8s  %s until %s", at(f.At), f.partitionText(), at(f.Until))
 }

@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	FaultKinds  = []string{FaultCrash, FaultCrashIO, FaultPartition, FaultPause, FaultClockJump, FaultClog, FaultReset, FaultSlow, FaultBitrot, FaultFsyncEIO, FaultWriteEIO, FaultENOSPC, FaultReadEIO, FaultReadCorrupt, FaultLostWrite, FaultMisdirected, FaultBuggify}
+	FaultKinds  = []string{FaultCrash, FaultCrashIO, FaultPartition, FaultPause, FaultClockJump, FaultClog, FaultReset, FaultSlow, FaultBitrot, FaultFsyncEIO, FaultWriteEIO, FaultENOSPC, FaultReadEIO, FaultReadCorrupt, FaultLostWrite, FaultMisdirected, FaultBuggify, FaultPreempt}
 	windowKinds = []string{FaultCrash, FaultCrashIO, FaultPartition, FaultPause, FaultClog, FaultSlow}
 )
 
@@ -85,7 +85,11 @@ func (c *Config) CheckSchedule(s Schedule) error {
 	names := namesWhere(c, func(NodeSpec) bool { return true })
 	var errs []error
 	for i, f := range s.Faults {
-		for _, problem := range f.problems(names, horizon) {
+		problems := f.problems(names, horizon)
+		if f.Kind == FaultPreempt && c.Preempt.Strategy != StrategyPCT {
+			problems = append(problems, fmt.Sprintf("a preempt fault fires only with preempt.strategy %s, and the config's strategy is %s", StrategyPCT, c.Preempt.Strategy))
+		}
+		for _, problem := range problems {
 			errs = append(errs, fmt.Errorf("fault %d (%s at %s): %s", i+1, f.Kind, time.Duration(f.At), problem))
 		}
 	}
@@ -120,7 +124,7 @@ func (f Fault) problems(names []string, horizon time.Duration) []string {
 		add(f.Node == "", "node is required")
 	}
 	add(f.Kind == FaultSlow && f.Factor < 1, "factor %g is below 1", f.Factor)
-	add(f.FiresAtOp() && f.Op < 1, "op %d is below 1: disk operations, reads and buggify hits count from 1", f.Op)
+	add(f.FiresAtOp() && f.Op < 1, "op %d is below 1: disk operations, reads, buggify hits and counted calls count from 1", f.Op)
 	add(f.Kind == FaultBuggify && f.Site == "", "a buggify fault needs site")
 	return out
 }

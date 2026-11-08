@@ -31,7 +31,7 @@ Every finding, and the failure `seedfall run` stops at, gets a class that says w
 |---|---|
 | `bug` | Replaying the seed fails again with the same trace. A real, reproducible failure of the system under test |
 | `nondeterministic` | The replay diverges from the original run: something in the harness or the system leaks host nondeterminism. The first diverging trace line is shown |
-| `timeout` | The real-time watchdog fired. This depends on host speed and load, not only on the seed |
+| `timeout` | The real-time watchdog fired. This depends on host speed and load, not only on the seed. With `preempt.loops` a busy loop fails on `liveness` instead |
 
 ```
 FAIL seed 1 at t=2.892s ...

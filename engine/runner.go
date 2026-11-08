@@ -70,7 +70,9 @@ func NewRunner(cfg *Config) (*Runner, error) {
 		if err != nil {
 			return "", fmt.Errorf("node %s: %w", name, err)
 		}
-		modules[path] = instrument(b)
+		if modules[path], err = instrument(b, cfg.Preempt.Loops); err != nil {
+			return "", fmt.Errorf("node %s: %w", name, err)
+		}
 		order = append(order, path)
 		return path, nil
 	}
@@ -242,6 +244,7 @@ func (r *Runner) run(seed uint64, s Schedule, o runOptions) Result {
 	res := Result{Seed: seed, Faults: s.Faults, Horizon: time.Duration(w.horizon)}
 	w.setup()
 	w.loop()
+	w.preemptSummary()
 	w.debugEnd()
 	w.capture()
 	w.shutdown()
@@ -268,6 +271,9 @@ func (r *Runner) run(seed uint64, s Schedule, o runOptions) Result {
 }
 
 func (w *world) setup() {
+	if mode := w.cfg.Preempt.describe(); mode != "" {
+		w.trace.add(w.now, "%s", mode)
+	}
 	for _, s := range w.cfg.all() {
 		n := &node{spec: s, crashable: w.cfg.faultable(s), workload: w.cfg.isWorkload(s.Name), compiled: w.compiled[s.Name], upgrade: w.upgrades[s.Name], restartAt: -1}
 		n.fs = newMemFS(func() int64 { return epochNanos + w.now })
@@ -284,6 +290,7 @@ func (w *world) setup() {
 			w.wireDisk(n)
 		}
 		n.skew = w.clockSkew(n)
+		w.planChanges(n)
 		n.fs.special = func(p string) (fsapi.File, fsapi.Errno, bool) { return w.openSpecial(n, p) }
 		n.fs.observe = func(op, p string, arg int64) { w.hostCall(n.live, op, p, arg) }
 		w.nodes = append(w.nodes, n)

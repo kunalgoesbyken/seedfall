@@ -17,7 +17,7 @@ import (
 
 type faultShift struct {
 	Fault int    `json:"fault" jsonschema:"position of the fault in the schedule, counting from 1"`
-	By    string `json:"by" jsonschema:"how far to move it: a signed duration such as -50ms for a timed fault, or a signed count such as +2 for a fault that fires at a disk operation, read or buggify hit"`
+	By    string `json:"by" jsonschema:"how far to move it: a signed duration such as -50ms for a timed fault, or a signed count such as +2 for a fault that fires at a disk operation, read, buggify hit or counted call"`
 }
 
 type faultsEditArgs struct {
@@ -58,7 +58,7 @@ func cmdFaults(args []string) error {
 		a.Remove = append(a.Remove, n)
 		return err
 	})
-	fs.Func("shift", "move a fault, as position=amount: 2=-50ms for a timed fault, 3=+2 for a disk-op, read or buggify fault; repeatable", func(s string) error {
+	fs.Func("shift", "move a fault, as position=amount: 2=-50ms for a timed fault, 3=+2 for a disk-op, read, buggify or preempt fault; repeatable", func(s string) error {
 		pos, by, ok := strings.Cut(s, "=")
 		n, err := strconv.Atoi(pos)
 		if !ok || err != nil {
@@ -186,7 +186,7 @@ func shiftFault(f engine.Fault, by string) (engine.Fault, error) {
 	if f.FiresAtOp() {
 		n, err := strconv.ParseInt(by, 10, 64)
 		if err != nil {
-			return f, fmt.Errorf("a %s fault fires at a disk operation, read or buggify hit, so shift it by a count such as +2, not %q", f.Kind, by)
+			return f, fmt.Errorf("a %s fault fires at a disk operation, read, buggify hit or counted call, so shift it by a count such as +2, not %q", f.Kind, by)
 		}
 		f.Op += n
 		return f, nil

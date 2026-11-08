@@ -46,6 +46,9 @@ type node struct {
 	slowUntil  int64
 	slowFactor float64
 	monoShift  int64
+	calls      int64
+	changes    []int64
+	fired      int
 }
 
 func (n *node) name() string { return n.spec.Name }
@@ -283,6 +286,7 @@ func (w *world) moduleConfig(inst *instance) wazero.ModuleConfig {
 func (w *world) park(inst *instance, at int64) {
 	w.hostCall(inst, "park", "", at)
 	inst.wakeAt = at
+	inst.preempt.settle()
 	w.events <- event{inst: inst}
 	if !<-inst.resume {
 		panic(errKilled)
@@ -312,8 +316,9 @@ func (w *world) start(n *node) {
 		}
 		mod, err := w.rt.InstantiateModule(ctx, module, cfg)
 		if err == nil {
-			inst.preempt = newPreemption(mod, w.interleaver(inst))
+			inst.preempt = w.newPreemption(mod, inst)
 			_, err = mod.ExportedFunction("_start").Call(ctx)
+			inst.preempt.settle()
 		}
 		if mod != nil {
 			mod.Close(context.Background())
