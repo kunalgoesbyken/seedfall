@@ -49,7 +49,7 @@ npx skills add kunalgoesbyken/seedfall                                 # the sam
 claude mcp add seedfall -- seedfall mcp                                # or only the MCP server
 ```
 
-- **`seedfall init`** inspects a module with `go list`, reports every package that will not build for `wasip1` (compile errors and cgo) with the import chain to it, and scaffolds `seedfall.json` and a workload.
+- **`seedfall init`** inspects a module with `go list`, reports every package that will not build for `wasip1` (compile errors and cgo) with the import chain to it, and scaffolds `seedfall.json`, with `strict`, `resilient` and `everything` profiles, and a workload.
 - **Four skills**: `seedfall-setup`, `seedfall-properties` (write checks, then grade them with `mutate`), `seedfall-triage` (shrink, cause, inspect, then a counterfactual replay) and `seedfall-fix-and-prove` (finish with `verify` and paste the proof into the PR).
 - **MCP**: every command as a tool, the skills as prompts, and the config schema and these docs as resources.
 - **[llms.txt](https://seedfall-lemon.vercel.app/llms.txt)** and [llms-full.txt](https://seedfall-lemon.vercel.app/llms-full.txt) for models that read docs directly.
@@ -141,6 +141,8 @@ The [getting started guide](docs/getting-started.md) walks through finding, shri
 - **A disk that misbehaves.** A full disk that returns `ENOSPC`, read and write `EIO`, corrupted reads, lost and misdirected writes that fsync reports as done, bits flipped by a crash or by bit rot, and slow fsyncs. Every one replays and shrinks, and `seedfall inspect` shows the corrupted ranges. [Disk faults](docs/faults.md#disk-faults)
 - **Storage engines that need `mmap`.** bbolt, pebble and badger run unmodified via `compat_overlay`, which swaps their platform files for `wasip1` versions. [Compat](docs/compat.md)
 - **A real network.** Partitions in Jepsen's topologies (half, one, majority, majorities ring, random groups), one-way clogs that stop, jam or slow a link, FoundationDB-style swizzles, connection resets without a crash, per-link latency, through `sim` or with zero code changes via `net_overlay`, including `net/http` and hashicorp/raft's stock TCP transport. [Networking](docs/networking.md), [network faults](docs/faults.md#network-faults)
+- **One config, many variants.** `extends` builds a config on another, `profiles` keeps every variant in one `seedfall.json` (`-profile nofsync`), `-set faults.crash_per_sec=2` overrides one value, and fault presets from `none` to `everything` replace hand-tuned rates. The profile follows a failure into its replay command, artifacts and pinned regressions. [Config](docs/config.md)
+- **Seeded disks and upgrades.** Start a node from an existing disk image or host fixture files, durable from t=0, including a failing state exported by `seedfall inspect -out`, and swap in a new version of its program on restart to test upgrades against real old data. [Seeded disks](docs/config.md#seeded-disks-and-files), [examples/upgrade](examples/upgrade)
 - **Real processes.** Every node is its own wasm instance. A crash kills the process; a restart boots fresh over the surviving disk. `supervise` restarts nodes that exit, like systemd.
 - **Goroutine interleavings.** Spinning goroutines are preempted after a counted number of function calls, and `"preempt": {"interleave": true}` preempts at seeded points, so a check-then-act race inside one process fails on a seed and replays exactly. [How it works](docs/how-it-works.md#preemption)
 - **Pauses, slow nodes, clock skew and clock jumps.** Freeze a node like a long GC pause, slow it down like an overloaded machine, offset or jump its wall clock. These catch stale reads and lease bugs: a raft store that reads without `VerifyLeader` fails on seed 35 under pauses, and on seed 20 under slow nodes and clogs.
@@ -192,6 +194,7 @@ The [getting started guide](docs/getting-started.md) walks through finding, shri
 | [`examples/buggify`](examples/buggify) | A counter whose client retries a lost reply: passes without faults, and a `sim.Buggify` site that drops the reply after applying finds the double increment |
 | [`examples/liveness`](examples/liveness) | A primary and backup under liveness mode with a `finally` check and the client crashing too: a primary that never reconnects fails liveness, and retries without request deduplication apply an add twice |
 | [`examples/aikv`](examples/aikv) | Nine key-value stores written by Claude from one prompt, each under five fault profiles and two durability mutants |
+| [`examples/upgrade`](examples/upgrade) | A ledger that changes its on-disk format: the node starts from a seeded v1 disk, restarts into v2 after its first crash, and an in-place migration that a crash leaves half done loses deposits |
 | [`examples/gostman`](examples/gostman) | A [Gostman](https://github.com/kunalgoesbyken/gostman) collection as the workload: its checks must pass after every fault window |
 
 `bash scripts/regress.sh` runs every example against its expected result; CI runs it nightly. [Testing seedfall itself](docs/testing.md) covers the unit tests and CI.

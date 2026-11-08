@@ -46,13 +46,13 @@ Cursor, or any client that reads an `mcpServers` file:
 }
 ```
 
-Config paths in tool calls are resolved against the server's working directory, which is normally your project root.
+Config paths in tool calls are resolved against the server's working directory, which is normally your project root. Every tool that takes `config` also takes an optional `profile` and a `set` list of `path=value` overrides, the same as `-profile` and `-set` on the command line ([config.md](config.md)).
 
 ## Tools
 
 | Tool | Arguments | Returns |
 |---|---|---|
-| `seedfall_init` | optional `dir`, `config`, `nodes`, `workload`, `dry_run` | The module's `main` packages and which become nodes, the packages that block a `GOOS=wasip1` build (compile errors and cgo, each with its import chain), the starter config, the files written, and the next steps. See [onboarding](#onboarding-a-new-module) |
+| `seedfall_init` | optional `dir`, `config`, `nodes`, `workload`, `dry_run` | The module's `main` packages and which become nodes, the packages that block a `GOOS=wasip1` build (compile errors and cgo, each with its import chain), the starter config and its starter profiles, the files written, and the next steps. See [onboarding](#onboarding-a-new-module) |
 | `seedfall_run` | `config`, `seeds` (for example `1-200`), optional `check`, `skip_pinned` | First the [pinned regressions](verify.md#pinned-regressions), stopping at one that fails again. Then seeds passed, the lowest failing seed with its reason, [classification](reports.md#classification), the faults before the failure, the trace tail, a replay command and `artifacts_dir` ([failure artifacts](reports.md#failure-artifacts)), plus property coverage and, with `faults.buggify` on, `buggify_sites` ([buggify](buggify.md#coverage)) |
 | `seedfall_replay` | `config`, `seed`, optional `faults` file | The same failure view for one seed, or the trace tail if it passes, with a `note` when a shrunk schedule's shorter duration ended the run before the workload finished. A failure view of a run that recorded operations also names its `history_file` and, on a linearizability violation, its `timeline_file`. Every result has the run's `determinism_hash` and its `events` from `sim.Event` or `lifecycle.SendEvent` |
 | `seedfall_shrink` | `config`, `seed`, optional `budget` (runs such as `300`, or time such as `10m`) | The original and minimal sizes (faults, duration and, with [`sim.Budget`](properties.md#workload-size), workload operations), the runs used, whether the budget ran out, the path of the saved schedule, and the failure view under that schedule with its replay command ([shrinking](how-it-works.md#shrinking)) |
@@ -112,7 +112,7 @@ The Claude Code plugin registers a Stop hook that runs `seedfall hook`. It does 
 { "env": { "SEEDFALL_HOOK_SEEDS": "1-20" } }
 ```
 
-When Claude finishes a turn in a directory that has `seedfall.json` (or the file named by `SEEDFALL_HOOK_CONFIG`), the hook sweeps those seeds. On a failure or an unmet property, it blocks the stop and hands Claude the seed and the replay and shrink commands. To avoid loops, it skips a stop that a hook has already continued once.
+When Claude finishes a turn in a directory that has `seedfall.json` (or the file named by `SEEDFALL_HOOK_CONFIG`), the hook sweeps those seeds, under the profile named by `SEEDFALL_HOOK_PROFILE` if it is set. On a failure or an unmet property, it blocks the stop and hands Claude the seed and the replay and shrink commands. To avoid loops, it skips a stop that a hook has already continued once.
 
 ## Docs for models
 

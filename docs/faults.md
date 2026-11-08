@@ -1,6 +1,6 @@
 # Configuration and faults
 
-A world is described in a JSON file, `seedfall.json` by default. Paths inside it are relative to the file.
+A world is described in a JSON file, `seedfall.json` by default. Paths inside it are relative to the file. One file can extend another, hold named profiles selected with `-profile`, take `-set path=value` overrides and start from a fault preset such as `"faults": "resilient"`; see [config.md](config.md).
 
 ```json
 {
@@ -34,7 +34,7 @@ A world is described in a JSON file, `seedfall.json` by default. Paths inside it
 
 | Field | Default | Meaning |
 |---|---|---|
-| `nodes[]` | | Crashable nodes. Each has a `name`, then either `pkg` (a Go package, built for wasip1 automatically) or `wasm` (a prebuilt module), plus optional `args`, `env` and `faults`. `"faults": false` keeps every fault away from the node: it is never crashed, paused, slowed or skewed, its disk never fails, and partitions and clogs never cut its links, like Antithesis's fault exclusions. `sim.Buggify` sites in its own code still fire |
+| `nodes[]` | | Crashable nodes. Each has a `name`, then either `pkg` (a Go package, built for wasip1 automatically) or `wasm` (a prebuilt module), plus optional `args`, `env`, `faults`, `disk`, `files` and `upgrade_to`. `disk` and `files` copy a host directory and host files onto the node's disk before it first starts, durable and synced, and `upgrade_to` names a package the node runs from its first restart on ([seeded disks](config.md#seeded-disks-and-files), [upgrades](config.md#upgrades)). `"faults": false` keeps every fault away from the node: it is never crashed, paused, slowed or skewed, its disk never fails, and partitions and clogs never cut its links, like Antithesis's fault exclusions. `sim.Buggify` sites in its own code still fire |
 | `workload` | | The checker. Same fields as a node. It takes none of the per-node faults (crashes, pauses, clock skew and jumps, slowdowns, resets, disk faults) unless `faults.include_workload` or its own `"faults": true` says so; partitions and clogs reach it like any node. The run passes when it exits 0 |
 | `workloads[]` | | Several workloads instead of, or next to, `workload`. Each is a client like `workload`, and the run passes when every one of them has exited 0. See [Faults on the workload](#faults-on-the-workload) |
 | `finally` | | A check that starts only after every workload has exited 0, with all faults stopped and the network healed. Same fields as a node; it never takes faults. The run passes when it exits 0, and its properties count like any other. See [properties.md](properties.md#liveness-recovery-and-finally-checks) |
@@ -57,6 +57,7 @@ All faults come from the seed. Faults that depend on what the program does, such
 
 | Field | Default | Meaning |
 |---|---|---|
+| `preset` | | Start from a built-in fault level, `none`, `durability`, `resilient`, `high_availability` or `everything`, each adding to the one before; fields set next to it override it, and `"faults": "resilient"` is shorthand for `{"preset": "resilient"}`. The values each level sets are in [config.md](config.md#fault-presets) |
 | `crash_per_sec` | `0` | Rate of crashes per node, at random points in time |
 | `restart_after` | `["10ms", "1s"]` | Downtime after a crash, and the delay before a supervised restart |
 | `partition_per_sec` | `0` | Rate of network partitions. A partition splits all nodes, workload included, into groups that cannot reach each other. A new partition replaces the previous one |

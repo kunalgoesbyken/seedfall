@@ -71,4 +71,14 @@ Then confirm that nothing leaks host nondeterminism:
 seedfall run -c seedfall.json -seeds 1-20 -check
 ```
 
-The config fields and their defaults are in the MCP resource `seedfall://schema/config`. What each one means is in `seedfall://docs/faults` (docs/faults.md).
+Once 20 seeds pass, harden the faults without editing the base config. Init wrote three profiles into `seedfall.json`; run them in order and treat each failure as a finding for the `seedfall-triage` skill:
+
+```sh
+seedfall run -c seedfall.json -profile strict -seeds 1-20       # strict POSIX directory durability
+seedfall run -c seedfall.json -profile resilient -seeds 1-20    # adds the resilient fault preset
+seedfall run -c seedfall.json -profile everything -seeds 1-20   # every fault, including disk corruption
+```
+
+Over MCP, pass `"profile": "resilient"` to any tool. Keep new variants as profiles in the same file, and use `"set": ["faults.crash_per_sec=2"]` or `-set` for a one-off change. If the service must start from existing data, such as a fixture database or a config file, give the node `"disk": "dir"` or `"files": {"guest/path": "host/path"}` instead of baking them into the binary.
+
+The config fields and their defaults are in the MCP resource `seedfall://schema/config`. What each one means is in `seedfall://docs/faults` (docs/faults.md), and profiles, presets, `-set`, seeded disks and upgrades are in `seedfall://docs/config` (docs/config.md).

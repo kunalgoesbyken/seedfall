@@ -6,6 +6,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -174,6 +175,16 @@ func TestInitScaffoldsANetworkedMain(t *testing.T) {
 	}
 	if cfg.Workload.Pkg != "./seedfall/workload" {
 		t.Errorf("workload pkg = %q", cfg.Workload.Pkg)
+	}
+	for name := range v.Profiles {
+		p, err := engine.Load(engine.ConfigRef{Path: filepath.Join(dir, "seedfall.json"), Profile: name})
+		if err != nil {
+			t.Errorf("profile %s: %v", name, err)
+			continue
+		}
+		if reflect.DeepEqual(p.Faults, cfg.Faults) {
+			t.Errorf("profile %s does not change the faults", name)
+		}
 	}
 	again := callInit(t, cs, dir)
 	if len(again.Wrote) != 0 || len(again.Kept) != 2 {

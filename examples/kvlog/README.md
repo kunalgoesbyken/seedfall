@@ -2,6 +2,8 @@
 
 A log-structured key-value server that appends `key=value` lines to `data/kv.log`. It shows how a storage engine that looks correct loses acknowledged writes, one fault class at a time.
 
+Every config other than `seedfall.json` extends it (`"extends": "seedfall.json"`) and sets only what differs, usually the server flags and one fault ([config.md](../../docs/config.md#extends)).
+
 | Config | Server flags | Result |
 |---|---|---|
 | `seedfall.json` | `-sync batch` (acknowledges before fsync) | fails on seed 1 |

@@ -91,6 +91,7 @@ type initView struct {
 	Cgo              []blocker     `json:"cgo_packages"`
 	ConfigPath       string        `json:"config_path"`
 	Config           engine.Config `json:"config"`
+	Profiles         profiles      `json:"profiles" jsonschema:"profiles written into the config, each selected with -profile name"`
 	Wrote            []string      `json:"wrote"`
 	Kept             []string      `json:"kept_existing"`
 	Next             []string      `json:"next_steps"`
@@ -155,7 +156,7 @@ func runInit(a initArgs) (initView, error) {
 		}
 		v.Cgo = cgoPackages(hostListed, nodes, module)
 	}
-	v.Config = starterConfig(nodes, "./"+a.Workload)
+	v.Config, v.Profiles = starterConfig(nodes, "./"+a.Workload), starterProfiles()
 	v.Next = nextSteps(v, a, nodes)
 	if a.DryRun {
 		return v, nil
@@ -393,6 +394,16 @@ func starterConfig(nodes []mainPackage, workloadPkg string) engine.Config {
 	return cfg
 }
 
+type profiles map[string]map[string]any
+
+func starterProfiles() profiles {
+	return profiles{
+		"strict":     {"faults": map[string]any{"strict_dirs": true}},
+		"resilient":  {"faults": "resilient"},
+		"everything": {"faults": "everything"},
+	}
+}
+
 func nextSteps(v initView, a initArgs, nodes []mainPackage) []string {
 	var steps []string
 	if !v.RequiresSeedfall {
@@ -412,12 +423,16 @@ func nextSteps(v initView, a initArgs, nodes []mainPackage) []string {
 	steps = append(steps,
 		fmt.Sprintf("implement put and get in %s/main.go against your API; until then the sweep fails with \"the workload got acknowledged writes\" never true", a.Workload),
 		fmt.Sprintf("seedfall run -c %s -seeds 1-20", a.Config),
+		fmt.Sprintf("once that passes, harden the faults with a profile: seedfall run -c %s -profile resilient -seeds 1-20 (the profiles are strict, resilient and everything; see docs/config.md)", a.Config),
 	)
 	return steps
 }
 
 func scaffold(v *initView, a initArgs) error {
-	b, err := json.MarshalIndent(v.Config, "", "  ")
+	b, err := json.MarshalIndent(struct {
+		engine.Config
+		Profiles profiles `json:"profiles"`
+	}{v.Config, v.Profiles}, "", "  ")
 	if err != nil {
 		return err
 	}

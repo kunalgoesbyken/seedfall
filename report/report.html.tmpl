@@ -107,6 +107,7 @@ textarea.issue { width: 100%; height: 220px; margin-top: 8px; background: #0d080
 
   <h2>Fault profile</h2>
   <table>
+    {{if .Faults.Preset}}<tr><td>preset</td><td class="num">{{.Faults.Preset}}</td></tr>{{end}}
     <tr><td>crashes per second per node</td><td class="num">{{.Faults.CrashPerSec}}</td></tr>
     <tr><td>partitions per second</td><td class="num">{{.Faults.PartitionPerSec}}</td></tr>
     <tr><td>partition topologies</td><td class="num">{{range $i, $t := .Faults.PartitionTopologies}}{{if $i}} · {{end}}{{$t}}{{end}}</td></tr>

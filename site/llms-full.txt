@@ -51,13 +51,13 @@ Cursor, or any client that reads an `mcpServers` file:
 }
 ```
 
-Config paths in tool calls are resolved against the server's working directory, which is normally your project root.
+Config paths in tool calls are resolved against the server's working directory, which is normally your project root. Every tool that takes `config` also takes an optional `profile` and a `set` list of `path=value` overrides, the same as `-profile` and `-set` on the command line ([config.md](config.md)).
 
 ## Tools
 
 | Tool | Arguments | Returns |
 |---|---|---|
-| `seedfall_init` | optional `dir`, `config`, `nodes`, `workload`, `dry_run` | The module's `main` packages and which become nodes, the packages that block a `GOOS=wasip1` build (compile errors and cgo, each with its import chain), the starter config, the files written, and the next steps. See [onboarding](#onboarding-a-new-module) |
+| `seedfall_init` | optional `dir`, `config`, `nodes`, `workload`, `dry_run` | The module's `main` packages and which become nodes, the packages that block a `GOOS=wasip1` build (compile errors and cgo, each with its import chain), the starter config and its starter profiles, the files written, and the next steps. See [onboarding](#onboarding-a-new-module) |
 | `seedfall_run` | `config`, `seeds` (for example `1-200`), optional `check`, `skip_pinned` | First the [pinned regressions](verify.md#pinned-regressions), stopping at one that fails again. Then seeds passed, the lowest failing seed with its reason, [classification](reports.md#classification), the faults before the failure, the trace tail, a replay command and `artifacts_dir` ([failure artifacts](reports.md#failure-artifacts)), plus property coverage and, with `faults.buggify` on, `buggify_sites` ([buggify](buggify.md#coverage)) |
 | `seedfall_replay` | `config`, `seed`, optional `faults` file | The same failure view for one seed, or the trace tail if it passes, with a `note` when a shrunk schedule's shorter duration ended the run before the workload finished. A failure view of a run that recorded operations also names its `history_file` and, on a linearizability violation, its `timeline_file`. Every result has the run's `determinism_hash` and its `events` from `sim.Event` or `lifecycle.SendEvent` |
 | `seedfall_shrink` | `config`, `seed`, optional `budget` (runs such as `300`, or time such as `10m`) | The original and minimal sizes (faults, duration and, with [`sim.Budget`](properties.md#workload-size), workload operations), the runs used, whether the budget ran out, the path of the saved schedule, and the failure view under that schedule with its replay command ([shrinking](how-it-works.md#shrinking)) |
@@ -117,7 +117,7 @@ The Claude Code plugin registers a Stop hook that runs `seedfall hook`. It does 
 { "env": { "SEEDFALL_HOOK_SEEDS": "1-20" } }
 ```
 
-When Claude finishes a turn in a directory that has `seedfall.json` (or the file named by `SEEDFALL_HOOK_CONFIG`), the hook sweeps those seeds. On a failure or an unmet property, it blocks the stop and hands Claude the seed and the replay and shrink commands. To avoid loops, it skips a stop that a hook has already continued once.
+When Claude finishes a turn in a directory that has `seedfall.json` (or the file named by `SEEDFALL_HOOK_CONFIG`), the hook sweeps those seeds, under the profile named by `SEEDFALL_HOOK_PROFILE` if it is set. On a failure or an unmet property, it blocks the stop and hands Claude the seed and the replay and shrink commands. To avoid loops, it skips a stop that a hook has already continued once.
 
 ## Docs for models
 
@@ -164,7 +164,7 @@ property       seeds reached  seeds true
 
 ok  20 seeds passed (0 hit the time horizon) in 908ms
 
-$ seedfall run -c seedfall.nofsync.json -seeds 1-20
+$ seedfall run -c seedfall.json -profile nofsync -seeds 1-20
 FAIL seed 1 at t=2.940793302s (618 scheduler steps, 336ms real)
   client#1: ledger total covers every acknowledged deposit: {"left":4203,"right":5608,"unacked":1729}
 ```
@@ -508,11 +508,142 @@ Pebble records which manifest is current with an empty marker file. It creates t
 - Libraries that need cgo, such as RocksDB bindings or `mattn/go-sqlite3`.
 
 
+<!-- docs/config.md -->
+
+# Config files, profiles and seeded disks
+
+One `seedfall.json` can hold every variant you test: a base config, named profiles that change a few fields, fault presets instead of hand-tuned rates, and one-off overrides from the command line. Nodes can start from an existing disk instead of an empty one, get files from the host, and restart into a new version of their program.
+
+## Layers
+
+A config is built from up to four layers, each merged over the one before:
+
+1. the file named in `"extends"`, if any, itself built the same way
+2. the file you pass with `-c`
+3. the profile you pass with `-profile name`
+4. every `-set path=value`, in order
+
+Merging works the same way at every layer:
+
+- objects merge key by key, so `{"faults": {"crash_on_io": 0.1}}` changes one rate and keeps the rest
+- lists of named entries, such as `nodes` and `workloads`, merge by `name`: an entry with a known name merges into it, a new name is appended
+- anything else, including `args` and other lists, replaces the value
+
+Fields that no layer sets keep their defaults, as listed in the `seedfall://schema/config` MCP resource.
+
+### extends
+
+```json
+{
+  "extends": "seedfall.json",
+  "nodes": [{ "name": "server", "args": ["-sync", "always", "-repair"] }],
+  "faults": { "bitrot_per_sec": 0.5 }
+}
+```
+
+`extends` names another config file, relative to the file that extends it, and can chain. A file that extends itself, directly or through others, is an error. Paths inside the config, such as `pkg`, `wasm`, `files` and `disk`, are resolved from the directory of the file you pass with `-c`, so keep extended files in the same directory as the configs that use them. `examples/kvlog` keeps one file per variant this way, each a few lines over `seedfall.json`, because the getting started guide and CI name those files.
+
+### profiles
+
+```json
+{
+  "nodes": [{ "name": "counter", "pkg": "./counter" }],
+  "workload": { "name": "client", "pkg": "./client" },
+  "faults": { "buggify": true },
+  "profiles": {
+    "fixed": { "nodes": [{ "name": "counter", "args": ["-dedupe"] }] },
+    "off": { "faults": "none" }
+  }
+}
+```
+
+```sh
+seedfall run -c seedfall.json -profile fixed -seeds 1-20
+```
+
+A profile is a partial config merged over the file. Asking for a profile that does not exist fails and lists the ones that do. Every command that takes `-c` takes `-profile`, and so do the MCP tools (`"profile": "fixed"`). `seedfall init` writes three starter profiles: `strict`, `resilient` and `everything`.
+
+A profile is part of the config's identity everywhere seedfall prints or saves it:
+
+- replay and shrink commands carry it: `replay: seedfall replay -c seedfall.json -profile fixed -seed 2`
+- failure artifacts go to `.seedfall/failures/seedfall.fixed-seed-2/`, the same folder a separate `seedfall.fixed.json` would use
+- `seedfall pin` records the profile and `-set` overrides in the pinned file (`"profile": "fixed"`), and a pinned schedule is replayed only by runs with the same config file, profile and overrides
+- reports, proofs and the hook print the full config reference
+
+The Claude Code hook reads the profile from `$SEEDFALL_HOOK_PROFILE`.
+
+### -set
+
+```sh
+seedfall run -set faults.crash_per_sec=2 -set duration=10s -seeds 1-50
+seedfall run -set 'nodes.server.args=["-sync","always"]' -seeds 1-50
+seedfall replay -seed 7 -set faults=resilient
+```
+
+`-set path=value` overrides one value after every other layer, and can repeat. The path is a dot-separated list of keys. Inside a list, a part is either the `name` of an entry or its index, so `nodes.server.env.MODE` and `nodes.0.env.MODE` both work. Missing objects along the path are created. The value is read as JSON when it parses as JSON (`2`, `true`, `["-x"]`, `{}`) and as a plain string otherwise (`10s`, `resilient`). To set a string that looks like JSON, quote it: `-set 'nodes.server.env.PORT="7000"'`.
+
+## Fault presets
+
+```json
+{ "faults": "resilient" }
+{ "faults": { "preset": "high_availability", "crash_per_sec": 2, "clog_per_sec": 0 } }
+```
+
+A preset fills in a documented fault level. Fields set next to it override it, and the string form is shorthand for `{"preset": name}`. Each level adds to the one before:
+
+| Preset | Adds |
+|---|---|
+| `none` | no faults |
+| `durability` | `crash_per_sec` 0.5, `crash_on_io` 0.002, `torn_writes`, `reorder_writes`, `strict_dirs` |
+| `resilient` | `pause_per_sec` 0.1, `slow_per_sec` 0.1, `reset_per_sec` 0.1, `clock_jump_per_sec` 0.05 |
+| `high_availability` | `partition_per_sec` 0.2, `clog_per_sec` 0.2, `swizzle_per_sec` 0.05 |
+| `everything` | `fsync_eio` 0.01, `write_eio`, `write_enospc`, `read_eio`, `read_corrupt`, `lost_write` and `misdirected_write` 0.005 each, `corrupt_on_crash`, `bitrot_per_sec` 0.05, `buggify` |
+
+Durations, topologies and clog modes keep their defaults, and every rate is per node per second, or per disk operation for the I/O faults, as in [faults](faults.md). The levels are seedfall's own, named after the fault tolerance levels Antithesis offers, not a copy of them. `high_availability` and `everything` include partitions, clogs and swizzles, which need at least two nodes that take faults, workload included. `everything` includes faults such as corrupted reads that only a system with checksums can survive.
+
+A layer that names a preset starts its faults from that preset, and fault fields from earlier layers are dropped, so a profile with `"faults": "none"` turns every fault off even when the base config sets rates. A layer without a preset merges its fault fields as usual. The preset in effect shows up as `faults.preset` in the triage report JSON and in the HTML report's fault table.
+
+## Seeded disks and files
+
+Every node starts with an empty disk unless its entry says otherwise:
+
+```json
+{
+  "name": "ledger",
+  "pkg": "./v1",
+  "disk": "image",
+  "files": { "etc/ledger.conf": "fixtures/atomic.conf" }
+}
+```
+
+- `disk` names a host directory. Its files and directories are copied onto the node's disk, the directory itself becoming `/`.
+- `files` maps a path on the node's disk to a host file. A file listed here replaces the same path from `disk`.
+
+Both are read from the host once, when the config loads, and copied into memory, so a run never touches the host disk and stays deterministic. The copied files are durable and synced before the node first starts, as if an earlier life had written and fsynced them: a crash never loses them, and `seedfall inspect` shows them as durable from t=0. Directories leading to them are durable too, even with `strict_dirs`. Symlinks and other special files in `disk` are rejected. The trace opens with a line per seeded node, `ledger's disk starts with 2 durable files, 86 bytes`, and the config hash in failure artifacts covers the bytes of every seeded file, so changing a fixture changes `config_sha256`.
+
+`seedfall inspect -out dir` exports each node's durable disk as `dir/<node>/`, in exactly the layout `disk` reads, so a failing state can become the starting point of new runs:
+
+```sh
+seedfall inspect -seed 21 -out state
+seedfall run -set nodes.ledger.disk=state/ledger -seeds 1-20
+```
+
+## Upgrades
+
+```json
+{ "name": "ledger", "pkg": "./v1", "upgrade_to": "./v2" }
+```
+
+`upgrade_to` names a second Go package for the node. seedfall builds both, the node starts as `pkg`, and every start from its first restart on runs `upgrade_to` instead, over whatever the old version left on disk. Restarts come from crash faults, `crash_on_io` and `supervise`. The trace marks the switch with `start ledger#2, upgraded to ./v2`. `upgrade_to` takes a package, not a prebuilt `wasm` file, and `seedfall mutate -app` mutates only `pkg`.
+
+Together with `disk`, this tests the upgrade path FoundationDB's restart tests cover: real old data, a crash, and the new version's recovery code. [examples/upgrade](../examples/upgrade) seeds a v1 ledger, upgrades it to v2 on the first crash, and catches an in-place migration that a crash leaves half done.
+
+
 <!-- docs/faults.md -->
 
 # Configuration and faults
 
-A world is described in a JSON file, `seedfall.json` by default. Paths inside it are relative to the file.
+A world is described in a JSON file, `seedfall.json` by default. Paths inside it are relative to the file. One file can extend another, hold named profiles selected with `-profile`, take `-set path=value` overrides and start from a fault preset such as `"faults": "resilient"`; see [config.md](config.md).
 
 ```json
 {
@@ -546,7 +677,7 @@ A world is described in a JSON file, `seedfall.json` by default. Paths inside it
 
 | Field | Default | Meaning |
 |---|---|---|
-| `nodes[]` | | Crashable nodes. Each has a `name`, then either `pkg` (a Go package, built for wasip1 automatically) or `wasm` (a prebuilt module), plus optional `args`, `env` and `faults`. `"faults": false` keeps every fault away from the node: it is never crashed, paused, slowed or skewed, its disk never fails, and partitions and clogs never cut its links, like Antithesis's fault exclusions. `sim.Buggify` sites in its own code still fire |
+| `nodes[]` | | Crashable nodes. Each has a `name`, then either `pkg` (a Go package, built for wasip1 automatically) or `wasm` (a prebuilt module), plus optional `args`, `env`, `faults`, `disk`, `files` and `upgrade_to`. `disk` and `files` copy a host directory and host files onto the node's disk before it first starts, durable and synced, and `upgrade_to` names a package the node runs from its first restart on ([seeded disks](config.md#seeded-disks-and-files), [upgrades](config.md#upgrades)). `"faults": false` keeps every fault away from the node: it is never crashed, paused, slowed or skewed, its disk never fails, and partitions and clogs never cut its links, like Antithesis's fault exclusions. `sim.Buggify` sites in its own code still fire |
 | `workload` | | The checker. Same fields as a node. It takes none of the per-node faults (crashes, pauses, clock skew and jumps, slowdowns, resets, disk faults) unless `faults.include_workload` or its own `"faults": true` says so; partitions and clogs reach it like any node. The run passes when it exits 0 |
 | `workloads[]` | | Several workloads instead of, or next to, `workload`. Each is a client like `workload`, and the run passes when every one of them has exited 0. See [Faults on the workload](#faults-on-the-workload) |
 | `finally` | | A check that starts only after every workload has exited 0, with all faults stopped and the network healed. Same fields as a node; it never takes faults. The run passes when it exits 0, and its properties count like any other. See [properties.md](properties.md#liveness-recovery-and-finally-checks) |
@@ -569,6 +700,7 @@ All faults come from the seed. Faults that depend on what the program does, such
 
 | Field | Default | Meaning |
 |---|---|---|
+| `preset` | | Start from a built-in fault level, `none`, `durability`, `resilient`, `high_availability` or `everything`, each adding to the one before; fields set next to it override it, and `"faults": "resilient"` is shorthand for `{"preset": "resilient"}`. The values each level sets are in [config.md](config.md#fault-presets) |
 | `crash_per_sec` | `0` | Rate of crashes per node, at random points in time |
 | `restart_after` | `["10ms", "1s"]` | Downtime after a crash, and the delay before a supervised restart |
 | `partition_per_sec` | `0` | Rate of network partitions. A partition splits all nodes, workload included, into groups that cannot reach each other. A new partition replaces the previous one |
@@ -748,7 +880,7 @@ cd seedfall/examples/kvlog
 
 ## 2. Look at the world
 
-`seedfall.always.json` runs one server and one client (abridged):
+`seedfall.always.json` runs one server and one client. It extends `seedfall.json` and changes only the server's `-sync` flag; merged, it reads (abridged):
 
 ```json
 {
@@ -816,6 +948,7 @@ The property table shows that the recovery path really ran: hundreds of seeds pr
 
 - `seedfall.fsyncgate.json` adds `fsync_eio`, and the "fixed" server fails again: a failed fsync leaves a hole in the durable log. `seedfall.rewind.json` adds the fix.
 - `seedfall.strict.json` adds strict POSIX directory durability.
+- Each of these files is a few lines that extend `seedfall.json`. In your own project you can keep such variants as profiles in one file and run them with `-profile`, or try a fault preset with `-set faults=resilient` ([config.md](config.md)).
 
 ## Your own project
 
@@ -864,7 +997,7 @@ Nodes cannot read files on the host, which is why the collection is embedded. Va
 ```sh
 cd examples/gostman
 seedfall run -seeds 1-120
-seedfall replay -c seedfall.nofsync.json -seed 1
+seedfall replay -c seedfall.json -profile nofsync -seed 1
 ```
 
 With fsync before every acknowledgement every seed passes. With `-fsync=false` the first seed fails once a crash drops an acknowledged write:
@@ -1053,7 +1186,7 @@ seedfall inspect [-c seedfall.json] -seed N [-faults file.json] [-at DURATION] [
 | `-at` | Snapshot at this virtual time instead of at the failure, for example `-at 4.4s`. The snapshot is taken at the last scheduler step at or before it. If the run fails or ends first, the snapshot is taken there. |
 | `-node` | Only this node |
 | `-cat` | Print the durable content of one file: text as is, binary as a hex dump. The file must exist in the durable image. |
-| `-out` | Write each node's durable disk image to `dir/<node>/`, so you can open it with the library's own tools. The target must not exist yet. |
+| `-out` | Write each node's durable disk image to `dir/<node>/`, so you can open it with the library's own tools, or start new runs from it with `"disk": "dir/<node>"` ([seeded disks](config.md#seeded-disks-and-files)). The target must not exist yet. |
 
 The run is the same as `seedfall replay`: same seed, same faults, same trace. Inspecting changes nothing about it.
 
@@ -1713,7 +1846,7 @@ Every failure seedfall reports gets a folder you can attach to an issue or uploa
 
 seedfall writes it by replaying the failing seed once more and capturing the disks at the failure, so it costs one run per reported failure, not one per seed. `seedfall run` writes it for the failure it stops at, `run -report` for the example seed of each finding (the report links it), `replay` for a failing replay, `shrink` for the minimal schedule, and a failing [pinned regression](verify.md#pinned-regressions) for itself. The folder is named after the config and the seed, `<config>-seed-N`, so two configs in one directory keep separate folders. A run from the seed alone goes to `<config>-seed-N`; a replay from a schedule file to `<config>-seed-N-schedule`, a shrunk schedule to `<config>-seed-N-shrunk` and a pinned one to `<config>-seed-N-pinned`, so they do not overwrite each other. A new failure of the same seed replaces the folder. `run -json` writes artifacts only for failing regressions, not for every failing seed.
 
-`report.json` has `reproduced`, which is false when the replay did not fail the same way as the reported run, `classification` ([above](#classification)), `seedfall_version` (from the binary's build information), `config_sha256` (of the config file's bytes), `commit` (`git rev-parse HEAD` in the config's directory, so uncommitted changes are not reflected) and `replay`, a command that replays `faults.json` exactly:
+`report.json` has `reproduced`, which is false when the replay did not fail the same way as the reported run, `classification` ([above](#classification)), `seedfall_version` (from the binary's build information), `config_sha256` (of the resolved config after `extends`, the profile and `-set`, plus the bytes of every file seeded onto a node's disk), `commit` (`git rev-parse HEAD` in the config's directory, so uncommitted changes are not reflected) and `replay`, a command that replays `faults.json` exactly:
 
 ```sh
 seedfall replay -c seedfall.always.json -seed 1 -faults .seedfall/failures/seedfall.always-seed-1/faults.json
@@ -2155,7 +2288,17 @@ Then confirm that nothing leaks host nondeterminism:
 seedfall run -c seedfall.json -seeds 1-20 -check
 ```
 
-The config fields and their defaults are in the MCP resource `seedfall://schema/config`. What each one means is in `seedfall://docs/faults` (docs/faults.md).
+Once 20 seeds pass, harden the faults without editing the base config. Init wrote three profiles into `seedfall.json`; run them in order and treat each failure as a finding for the `seedfall-triage` skill:
+
+```sh
+seedfall run -c seedfall.json -profile strict -seeds 1-20       # strict POSIX directory durability
+seedfall run -c seedfall.json -profile resilient -seeds 1-20    # adds the resilient fault preset
+seedfall run -c seedfall.json -profile everything -seeds 1-20   # every fault, including disk corruption
+```
+
+Over MCP, pass `"profile": "resilient"` to any tool. Keep new variants as profiles in the same file, and use `"set": ["faults.crash_per_sec=2"]` or `-set` for a one-off change. If the service must start from existing data, such as a fixture database or a config file, give the node `"disk": "dir"` or `"files": {"guest/path": "host/path"}` instead of baking them into the binary.
+
+The config fields and their defaults are in the MCP resource `seedfall://schema/config`. What each one means is in `seedfall://docs/faults` (docs/faults.md), and profiles, presets, `-set`, seeded disks and upgrades are in `seedfall://docs/config` (docs/config.md).
 
 
 <!-- skills/seedfall-triage/SKILL.md -->
