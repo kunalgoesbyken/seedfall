@@ -14,7 +14,10 @@ const (
 	branchMix    = 0x9e3779b97f4a7c15
 )
 
-var BranchStreams = []string{"sched", "net", "disk", "io", "udp", "disklatency", "mutant", streamRandom}
+var (
+	replayedStreams = []string{"sched", "net", "disk", "disklatency", streamRandom}
+	BranchStreams   = append(slices.Clone(replayedStreams), "io", "udp", "mutant")
+)
 
 type Branch struct {
 	At     Duration `json:"at"`

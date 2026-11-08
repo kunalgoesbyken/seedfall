@@ -139,12 +139,12 @@ func sweepUntilNovelty(r *Runner, lo, hi uint64, opts SweepOptions, started time
 		if opts.OnRound != nil {
 			opts.OnRound(point)
 		}
-		if quiet = quietRounds(point, quiet); quiet >= opts.UntilNovelty {
-			sum.Stopped = fmt.Sprintf("%d batches in a row added nothing new", quiet)
-			return sum
-		}
 		if !opts.KeepGoing && sum.First != nil {
 			sum.Stopped = "failure found"
+			return sum
+		}
+		if quiet = quietRounds(point, quiet); quiet >= opts.UntilNovelty {
+			sum.Stopped = fmt.Sprintf("%d batches in a row added nothing new", quiet)
 			return sum
 		}
 	}

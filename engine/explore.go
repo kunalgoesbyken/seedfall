@@ -32,7 +32,6 @@ type ExploreOptions struct {
 	Seed         uint64
 	KeepGoing    bool
 	Corpus       string
-	OnResult     func(Result)
 	OnRound      func(GrowthPoint)
 }
 
@@ -125,9 +124,6 @@ func (e *explorer) round(round int, tasks []exploreTask, started time.Time) (Gro
 	functions := 0
 	for i, res := range results {
 		e.sum.record(res)
-		if e.opts.OnResult != nil {
-			e.opts.OnResult(res)
-		}
 		sigs, funcs := e.fb.absorb(res)
 		fresh, functions = append(fresh, sigs...), functions+funcs
 		if (len(sigs) > 0 || funcs > 0) && !res.Failed {
@@ -224,7 +220,7 @@ func (e *explorer) child(parent *CorpusEntry) exploreTask {
 		s.Branches = append(s.Branches, Branch{At: Duration(sig.At) + 1, Key: e.rng.Uint64() | 1, reroll: true})
 	case choice == checkpointWeight && parent.Horizon > time.Duration(last+1):
 		at := last + 1 + Duration(e.rng.Int64N(int64(parent.Horizon-time.Duration(last+1))))
-		s.Branches = append(s.Branches, Branch{At: at, Key: e.rng.Uint64() | 1, Stream: BranchStreams[e.rng.IntN(len(BranchStreams))]})
+		s.Branches = append(s.Branches, Branch{At: at, Key: e.rng.Uint64() | 1, Stream: replayedStreams[e.rng.IntN(len(replayedStreams))]})
 	default:
 		e.mutateFaults(&s, parent)
 	}
@@ -235,7 +231,7 @@ func (e *explorer) mutateFaults(s *Schedule, parent *CorpusEntry) {
 	faults := slices.Clone(s.Faults)
 	switch e.rng.IntN(mutationKinds) {
 	case 0:
-		pool := slices.DeleteFunc(generateFaults(e.r.cfg, e.r.cfg.Faults.forSeed(parent.Seed), rand.New(rand.NewPCG(e.rng.Uint64(), exploreStream))), func(f Fault) bool { return observedAtRuntime(f.Kind) })
+		pool := generateFaults(e.r.cfg, e.r.cfg.Faults.forSeed(parent.Seed), rand.New(rand.NewPCG(e.rng.Uint64(), exploreStream)))
 		if len(pool) > 0 {
 			faults = append(faults, pool[e.rng.IntN(len(pool))])
 		}
@@ -264,8 +260,8 @@ func shiftFault(f *Fault, rng *rand.Rand, horizon time.Duration) {
 	}
 	by := Duration(rng.Int64N(2*limit+1) - limit)
 	span := f.Until - f.At
-	f.At = max(f.At+by, 0)
-	if span > 0 {
+	f.At = min(max(f.At+by, 0), Duration(horizon))
+	if span >= 0 {
 		f.Until = f.At + span
 	}
 }
@@ -284,10 +280,7 @@ func loadCorpus(dir string, cfg *Config) ([]exploreTask, int, error) {
 	stale := 0
 	for _, p := range paths {
 		file, err := ReadScheduleFile(p)
-		if err != nil {
-			return nil, 0, err
-		}
-		if cfg.CheckSchedule(file.Schedule) != nil {
+		if err != nil || cfg.CheckSchedule(file.Schedule) != nil {
 			stale++
 			continue
 		}

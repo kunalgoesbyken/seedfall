@@ -54,7 +54,7 @@ func (w *world) activeFaults() uint32 {
 	var mask uint32
 	for _, list := range [][]Fault{w.faults[:w.nextFault], w.ioFaults} {
 		for _, f := range list {
-			if int64(f.Until) > w.now {
+			if int64(f.At) <= w.now && int64(f.Until) > w.now {
 				mask |= kindBits[f.Kind]
 			}
 		}

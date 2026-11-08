@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -158,6 +159,34 @@ func TestFindingStatusAcrossRuns(t *testing.T) {
 		if err != nil || loaded.Total != r.Total || len(loaded.Findings) != len(r.Findings) {
 			t.Fatalf("%s: reloaded report %+v, %v", s.name, loaded, err)
 		}
+	}
+}
+
+func TestScheduledFindingCarriesItsScheduleAndExplorationIsReported(t *testing.T) {
+	bad := failing(3)
+	bad.Scheduled = true
+	in := input("1-8", 7, bad)
+	in.Summary.Growth = []engine.GrowthPoint{{Round: 1, Runs: 8, NewSignals: 4, Signals: 4}}
+	in.Summary.Stopped = "failure found"
+	r := Build(in, nil)
+	ex := r.Findings[0].Example
+	want := ".seedfall/failures/seedfall-seed-3/" + engine.ArtifactFaults
+	if ex.Schedule != want || !strings.HasSuffix(ex.Replay, "-faults "+want) || !strings.HasSuffix(ex.Shrink, "-faults "+want) {
+		t.Fatalf("schedule %q, replay %q, shrink %q", ex.Schedule, ex.Replay, ex.Shrink)
+	}
+	if len(r.Exploration) != 1 || r.Stopped != "failure found" {
+		t.Fatalf("exploration %+v, stopped %q", r.Exploration, r.Stopped)
+	}
+	path := filepath.Join(t.TempDir(), "report.html")
+	if _, err := Generate(in, path, filepath.Join(filepath.Dir(path), "history.jsonl")); err != nil {
+		t.Fatal(err)
+	}
+	page, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(page, []byte("<h2>Exploration</h2>")) {
+		t.Fatal("the report has no Exploration section")
 	}
 }
 

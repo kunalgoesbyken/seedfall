@@ -39,7 +39,7 @@ A run that adds a signal or a function joins the corpus as a schedule: its seed,
 
 - pick a corpus entry, more often when it holds rare signals
 - with odds 3 of 5, branch at the moment just after one of its signals fired, more often a rare one, and re-randomize the future. This is the checkpoint step: a run that reached the rare state continues from there, so a rare state followed by another rare event no longer needs both to happen in the same attempt
-- with odds 1 of 5, re-key one stream (`sched`, `net`, `disk`, `io`, `udp`, `disklatency`, `mutant` or `random`) from a random moment
+- with odds 1 of 5, re-key one stream (`sched`, `net`, `disk`, `disklatency` or `random`) from a random moment
 - otherwise add, remove or shift a fault
 
 Branching uses the machinery [`seedfall cause`](cause.md) already had, with branches now recorded in the run and chained, so a child of a child branches again. A branch at virtual time *T* re-keys the streams at the first scheduler step at or after *T*. Nothing is snapshotted: replay is exact, so reaching *T* again means re-running the seed.
@@ -70,7 +70,7 @@ Those commands and the report's replay and shrink lines use the file because the
 
 ## Corpus
 
-Corpus entries are written to `.seedfall/corpus/<config>/<seed>-<id>.json` and replayed in the first round of the next `seedfall explore`, so a search keeps building where it left off. Pass `-corpus dir` to keep them somewhere committed, like Go fuzz testdata. An entry whose faults no longer fit the config (a node was renamed, for example) is skipped and counted as stale. Delete the directory to start over.
+Corpus entries are written to `.seedfall/corpus/<config>/<seed>-<id>.json` and replayed in the first round of the next `seedfall explore`, so a search keeps building where it left off. Pass `-corpus dir` to keep them somewhere committed, like Go fuzz testdata. An entry whose faults no longer fit the config (a node was renamed, for example) or that cannot be read is skipped and counted as stale. Delete the directory to start over.
 
 ## What re-keying does not reach
 
@@ -108,7 +108,7 @@ Numbers from one Windows 11 machine, `-j 2`, seedfall built with this repository
 
 A CPU profile of kvlog (10 seeds, `-j 1`, taken with a one-off build because `-cpuprofile` is refused on Windows) spent 55% of its samples in the guest's compiled code, 22% in wazero's call path to and from the guest, and 3.7% instantiating modules; the per-step watchdog timer did not appear in the top of the profile.
 
-`seedfall run -cpuprofile cpu.pprof` writes a Go pprof profile on the platforms where Go's profiler can unwind through wazero's compiled code. seedfall refuses it on Windows: the Go runtime crashes unwinding those frames, consistently with parallel guests and intermittently at one guest, reported with a `fatal error` from `runtime.sigprof`.
+`seedfall run -cpuprofile cpu.pprof` is meant to write a Go pprof profile on platforms where Go's profiler can unwind through wazero's compiled code; it has not been verified on Linux or macOS. seedfall refuses it on Windows: the Go runtime crashes unwinding those frames, consistently with parallel guests and intermittently at one guest, reported with a `fatal error` from `runtime.sigprof`.
 
 There is no snapshotting. `seedfall cause` and every branched run re-execute the seed from the start, in parallel on `-j` workers.
 

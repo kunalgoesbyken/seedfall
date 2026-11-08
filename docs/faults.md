@@ -303,7 +303,7 @@ A schedule file can also hold `branches`, which [`seedfall explore`](explore.md)
 "branches": [{ "at": "921.003003ms", "key": 257366709774643251 }, { "at": "1.2s", "key": 9, "stream": "sched" }]
 ```
 
-Each branch re-keys the seed's random streams at the first scheduler step at or after `at`, in order. Without `stream` it re-keys every stream; with one of `sched`, `net`, `disk`, `io`, `udp`, `disklatency`, `mutant` or `random` it re-keys only that one. `replay`, `shrink`, `inspect`, `debug`, `logs` and `pin` all honor them, and `at` values must not decrease.
+Each branch re-keys the seed's random streams at the first scheduler step at or after `at`, in order. Without `stream` it re-keys every stream; with one of `sched`, `net`, `disk`, `io`, `udp`, `disklatency`, `mutant` or `random` it re-keys only that one. Re-keying `io` or `udp` changes nothing in a schedule, because those streams only decide faults and a schedule already fixes them; `mutant` matters only under `seedfall mutate`. `replay`, `shrink`, `inspect`, `debug`, `logs` and `pin` all honor them, and `at` values must not decrease.
 
 ## Choosing rates
 

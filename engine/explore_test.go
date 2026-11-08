@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -62,12 +63,12 @@ func TestGuestChainedBranchesReplay(t *testing.T) {
 func TestGuestStreamBranchReplays(t *testing.T) {
 	r := guestRunner(t, false)
 	base := r.Replay(5, Schedule{})
-	res := r.Replay(5, Schedule{Branches: []Branch{{At: Duration(300 * time.Millisecond), Key: 11, Stream: "sched"}}})
+	res := r.Replay(5, Schedule{Branches: []Branch{{At: Duration(300 * time.Millisecond), Key: 11, Stream: "net"}}})
 	if !res.Scheduled {
 		t.Fatal("a branched run is not marked scheduled")
 	}
-	if slices.Equal(base.Trace, res.Trace) {
-		t.Fatal("re-keying the scheduler stream changed nothing")
+	if slices.Equal(base.Trace, withoutBranchLine(res.Trace)) {
+		t.Fatal("re-keying the network stream changed nothing")
 	}
 	if diff, diverged := divergence(res.Trace, r.Replay(5, scheduleRoundTrip(t, res.Schedule(Schedule{}))).Trace); diverged {
 		t.Fatalf("a stream branch does not replay: %s", diff)
@@ -165,12 +166,15 @@ func TestGuestExploreCorpusPersists(t *testing.T) {
 	if err := os.WriteFile(paths[0], []byte(`{"seed":1,"faults":[{"at":"1s","kind":"nonsense","node":"store"}]}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(dir, "truncated.json"), []byte(`{"seed":1,"fau`), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	third, err := Explore(r, ExploreOptions{Lo: 1, Hi: 1, Rounds: 1, Batch: 2, Seed: 1, Jobs: 2, Corpus: dir, KeepGoing: true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if third.Stale != 1 {
-		t.Fatalf("stale %d, want 1", third.Stale)
+	if third.Stale != 2 {
+		t.Fatalf("stale %d, want 2", third.Stale)
 	}
 }
 
@@ -239,10 +243,76 @@ func TestActiveFaultsFollowsOpenWindows(t *testing.T) {
 	w := &world{now: int64(time.Second), faults: []Fault{
 		{At: Duration(100 * time.Millisecond), Kind: FaultPartition, Until: Duration(2 * time.Second)},
 		{At: Duration(200 * time.Millisecond), Kind: FaultCrash, Until: Duration(500 * time.Millisecond)},
-	}, nextFault: 2, ioFaults: []Fault{{At: Duration(300 * time.Millisecond), Kind: FaultPause, Until: Duration(3 * time.Second)}}}
+		{At: Duration(2 * time.Second), Kind: FaultCrashIO, Until: Duration(3 * time.Second)},
+	}, nextFault: 3, ioFaults: []Fault{{At: Duration(300 * time.Millisecond), Kind: FaultPause, Until: Duration(3 * time.Second)}}}
 	if got, want := activeNames(w.activeFaults()), "partition,pause"; got != want {
 		t.Fatalf("active %q, want %q", got, want)
 	}
+}
+
+func TestShiftFaultStaysAValidScheduleEntry(t *testing.T) {
+	r := rand.New(rand.NewPCG(1, 2))
+	horizon := time.Second
+	names := []string{"store"}
+	for _, start := range []Fault{
+		{Kind: FaultCrash, Node: "store", At: Duration(horizon), Until: Duration(horizon)},
+		{Kind: FaultBitrot, Node: "store", At: Duration(horizon - time.Millisecond), Until: Duration(horizon - time.Millisecond)},
+		{Kind: FaultClockJump, Node: "store", At: Duration(horizon - time.Millisecond), Shift: Duration(time.Millisecond)},
+	} {
+		f := start
+		for range 200 {
+			shiftFault(&f, r, horizon)
+			if problems := f.problems(names, horizon); len(problems) > 0 {
+				t.Fatalf("%s shifted to %+v: %v", start.Kind, f, problems)
+			}
+		}
+	}
+}
+
+func TestGuestRerollFromARecordedScheduleReplays(t *testing.T) {
+	r := guestRunner(t, false)
+	for seed := uint64(1); seed <= 4; seed++ {
+		parent := r.Replay(seed, Schedule{})
+		s := parent.Schedule(Schedule{})
+		s.Branches = []Branch{{At: Duration(parent.Duration / 2), Key: 5, reroll: true}}
+		child := r.Replay(seed, s)
+		if len(child.Branches) != 1 || child.Branches[0].reroll {
+			t.Fatalf("seed %d: branches %+v", seed, child.Branches)
+		}
+		grandchild := child.Schedule(Schedule{})
+		grandchild.Branches = append(slices.Clone(grandchild.Branches), Branch{At: Duration(child.Duration*3/4) + 1, Key: 9, reroll: true})
+		for _, run := range []Result{child, r.Replay(seed, grandchild)} {
+			replay := r.Replay(seed, scheduleRoundTrip(t, run.Schedule(Schedule{})))
+			if diff, diverged := divergence(run.Trace, replay.Trace); diverged {
+				t.Fatalf("seed %d: a re-rolled child of a recorded schedule diverges on replay at %s", seed, diff)
+			}
+		}
+	}
+}
+
+func TestGuestFaultStreamsAreFixedByASchedule(t *testing.T) {
+	r := guestRunner(t, true)
+	base := r.Replay(3, Schedule{})
+	s := base.Schedule(Schedule{})
+	replayed := r.Replay(3, s)
+	at := Duration(base.Duration / 4)
+	for _, stream := range BranchStreams {
+		if slices.Contains(replayedStreams, stream) {
+			continue
+		}
+		s.Branches = []Branch{{At: at, Key: 5, Stream: stream}}
+		if !slices.Equal(withoutBranchLine(r.Replay(3, s).Trace), replayed.Trace) {
+			t.Fatalf("re-keying %s changed a scheduled run, so exploration should pick it", stream)
+		}
+	}
+	s.Branches = []Branch{{At: at, Key: 5, Stream: "net"}}
+	if slices.Equal(withoutBranchLine(r.Replay(3, s).Trace), replayed.Trace) {
+		t.Fatal("re-keying the network changed nothing")
+	}
+}
+
+func withoutBranchLine(trace []string) []string {
+	return slices.DeleteFunc(slices.Clone(trace), func(l string) bool { return strings.Contains(l, "branch ") && strings.Contains(l, " taken at ") })
 }
 
 func TestShiftFaultKeepsOpFaultsValidAndWindowsIntact(t *testing.T) {

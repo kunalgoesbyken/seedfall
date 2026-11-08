@@ -367,7 +367,8 @@ func (w *world) start(n *node) {
 	ctx := context.WithValue(context.WithValue(w.ctx, worldKey{}, w), instKey{}, inst)
 	cfg := w.moduleConfig(inst)
 	module := n.compiled
-	if n.upgrade != nil && n.starts > 1 {
+	upgraded := n.upgrade != nil && n.starts > 1
+	if upgraded {
 		module = n.upgrade
 	}
 	go func() {
@@ -382,7 +383,7 @@ func (w *world) start(n *node) {
 			inst.preempt.settle()
 		}
 		if mod != nil {
-			w.feedback.collect(n, n.upgrade != nil && n.starts > 1, mod)
+			w.feedback.collect(n, upgraded, mod)
 			n.fs.endInstance(inst.killed)
 			mod.Close(context.Background())
 		}
