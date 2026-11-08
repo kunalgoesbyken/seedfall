@@ -256,9 +256,13 @@ func TestShrinkStopsAtItsBudget(t *testing.T) {
 	if len(shrunk.Schedule.Faults) >= 32 {
 		t.Fatalf("no progress within the budget: %d faults", len(shrunk.Schedule.Faults))
 	}
-	timed := Shrink(f, original, ShrinkOptions{MaxTime: time.Nanosecond})
-	if !timed.Exhausted || !timed.Result.sameFailure(original) {
-		t.Fatalf("a spent time budget gave %+v", timed)
+	slow := &fakeReplayer{fails: func(s Schedule) (Failure, string) {
+		time.Sleep(time.Millisecond)
+		return f.fails(s)
+	}}
+	timed := Shrink(slow, original, ShrinkOptions{MaxTime: time.Millisecond})
+	if !timed.Exhausted || timed.Runs != 1 || !timed.Result.sameFailure(original) {
+		t.Fatalf("a time budget shorter than one run gave %d runs, exhausted %v, %q", timed.Runs, timed.Exhausted, timed.Result.Reason)
 	}
 }
 
