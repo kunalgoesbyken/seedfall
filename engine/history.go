@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"time"
 
 	"github.com/anishathalye/porcupine"
 )
@@ -122,6 +121,6 @@ func checkHistory(h *history, end int64) Linearizability {
 	if len(ops) == 0 {
 		return Linearizability{}
 	}
-	result, info := porcupine.CheckOperationsVerbose(kvModel, ops, time.Minute)
-	return Linearizability{Checked: true, Ok: result != porcupine.Illegal, Ops: len(ops), info: info}
+	result, info := porcupine.CheckOperationsVerbose(kvModel, ops, 0)
+	return Linearizability{Checked: true, Ok: result == porcupine.Ok, Ops: len(ops), info: info}
 }
