@@ -7,6 +7,9 @@ inputs:
   config:
     description: Path to seedfall.json
     default: seedfall.json
+  profile:
+    description: Profile from the config's profiles to merge over it
+    default: ""
   seeds:
     description: Seed or inclusive seed range
     default: 1-200
@@ -42,12 +45,13 @@ runs:
       shell: bash
       env:
         CONFIG: ${{ inputs.config }}
+        PROFILE: ${{ inputs.profile }}
         SEEDS: ${{ inputs.seeds }}
         CHECK: ${{ inputs.check }}
         REPORT: ${{ inputs.report }}
       run: |
         set -o pipefail
-        args=(run -c "$CONFIG" -seeds "$SEEDS" -check="$CHECK")
+        args=(run -c "$CONFIG" -profile "$PROFILE" -seeds "$SEEDS" -check="$CHECK")
         [ "$REPORT" = "true" ] && args+=(-report "$RUNNER_TEMP/seedfall-report/report.html")
         "$RUNNER_TEMP/seedfall" "${args[@]}" | tee "$RUNNER_TEMP/seedfall.txt"
     - name: Summarize

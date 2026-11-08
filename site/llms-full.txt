@@ -355,6 +355,7 @@ jobs:
 | Input | Default | Meaning |
 |---|---|---|
 | `config` | `seedfall.json` | Path to the world description |
+| `profile` | | Profile from the config's `profiles` to merge over it ([config.md](config.md#profiles)) |
 | `seeds` | `1-200` | Seed or inclusive range |
 | `check` | `false` | Run every seed twice and fail at the first host call or trace line that differs |
 | `go-version` | `stable` | Go version for building seedfall and your nodes |
