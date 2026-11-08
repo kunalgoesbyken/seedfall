@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -31,15 +30,21 @@ func (d *Duration) UnmarshalJSON(b []byte) error {
 type Range [2]Duration
 
 type NodeSpec struct {
-	Name   string            `json:"name"`
-	Pkg    string            `json:"pkg,omitempty"`
-	Wasm   string            `json:"wasm,omitempty"`
-	Args   []string          `json:"args,omitempty"`
-	Env    map[string]string `json:"env,omitempty"`
-	Faults *bool             `json:"faults,omitempty"`
+	Name      string            `json:"name"`
+	Pkg       string            `json:"pkg,omitempty"`
+	Wasm      string            `json:"wasm,omitempty"`
+	Args      []string          `json:"args,omitempty"`
+	Env       map[string]string `json:"env,omitempty"`
+	Faults    *bool             `json:"faults,omitempty"`
+	Files     map[string]string `json:"files,omitempty" jsonschema:"files placed on the node's disk before it first starts, durable and synced: guest path to host path, relative to the config's directory"`
+	Disk      string            `json:"disk,omitempty" jsonschema:"host directory copied onto the node's disk before it first starts, durable and synced, for example a node directory written by seedfall inspect -out"`
+	UpgradeTo string            `json:"upgrade_to,omitempty" jsonschema:"Go package that replaces pkg from the node's first restart on, to test upgrades against the data the old version left on disk"`
+
+	upgradeWasm string
 }
 
 type FaultSpec struct {
+	Preset              string   `json:"preset,omitempty" jsonschema:"start from a built-in fault level: none, durability, resilient, high_availability or everything; fields set next to it override it"`
 	CrashPerSec         float64  `json:"crash_per_sec"`
 	RestartAfter        Range    `json:"restart_after"`
 	PartitionPerSec     float64  `json:"partition_per_sec"`
@@ -116,6 +121,11 @@ type Config struct {
 	Preempt          PreemptSpec  `json:"preempt"`
 	Dir              string       `json:"-"`
 	Path             string       `json:"-"`
+	Profile          string       `json:"-"`
+	Sets             []string     `json:"-"`
+
+	resolved []byte
+	disks    map[string][]seedFile
 }
 
 func defaultConfig() Config {
@@ -140,20 +150,41 @@ func defaultConfig() Config {
 }
 
 func (c *Config) Stem() string {
-	return strings.TrimSuffix(filepath.Base(c.Path), filepath.Ext(c.Path))
+	stem := strings.TrimSuffix(filepath.Base(c.Path), filepath.Ext(c.Path))
+	if c.Profile != "" {
+		stem += "." + c.Profile
+	}
+	return stem
 }
 
-func LoadConfig(path string) (*Config, error) {
-	b, err := os.ReadFile(path)
+func (c *Config) Ref() ConfigRef { return ConfigRef{Path: c.Path, Profile: c.Profile, Sets: c.Sets} }
+
+func LoadConfig(path string) (*Config, error) { return Load(ConfigRef{Path: path}) }
+
+func Load(ref ConfigRef) (*Config, error) {
+	doc, err := resolveLayers(ref)
+	if err != nil {
+		return nil, err
+	}
+	b, err := json.Marshal(doc)
 	if err != nil {
 		return nil, err
 	}
 	cfg := defaultConfig()
-	if err := json.Unmarshal(b, &cfg); err != nil {
-		return nil, fmt.Errorf("%s: %w", path, err)
+	if faults, ok := doc["faults"].(map[string]any); ok && faults["preset"] != nil {
+		name, _ := faults["preset"].(string)
+		if cfg.Faults, err = presetFaults(cfg.Faults, name); err != nil {
+			return nil, err
+		}
 	}
-	cfg.Dir, cfg.Path = filepath.Dir(path), path
-	return &cfg, cfg.validate()
+	if err := json.Unmarshal(b, &cfg); err != nil {
+		return nil, fmt.Errorf("%s: %w", ref, err)
+	}
+	cfg.Dir, cfg.Path, cfg.Profile, cfg.Sets, cfg.resolved = filepath.Dir(ref.Path), ref.Path, ref.Profile, ref.Sets, b
+	if err := cfg.validate(); err != nil {
+		return &cfg, err
+	}
+	return &cfg, cfg.loadDisks()
 }
 
 func (c *Config) validate() error {
@@ -177,6 +208,9 @@ func (c *Config) validate() error {
 		}
 		if s.Pkg == "" && s.Wasm == "" {
 			return fmt.Errorf("config: node %q needs pkg or wasm", s.Name)
+		}
+		if strings.HasPrefix(s.UpgradeTo, "-") {
+			return fmt.Errorf("config: node %q has an invalid upgrade_to %q", s.Name, s.UpgradeTo)
 		}
 	}
 	if c.Faults.DiskBytes < 0 {

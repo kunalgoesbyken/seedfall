@@ -15,7 +15,7 @@ import (
 )
 
 type shrinkArgs struct {
-	Config string `json:"config" jsonschema:"path to seedfall.json"`
+	configArgs
 	Seed   uint64 `json:"seed" jsonschema:"failing seed to shrink"`
 	Budget string `json:"budget,omitempty" jsonschema:"optional limit: a number of runs such as 300, or a wall-clock duration such as 10m; default is no limit"`
 }
@@ -33,17 +33,18 @@ type shrinkView struct {
 
 func cmdShrink(args []string) error {
 	fs := flag.NewFlagSet("shrink", flag.ExitOnError)
-	conf := fs.String("c", "seedfall.json", "config file")
+	ca := configFlags(fs)
 	seed := seedFlag(fs)
 	jobs := fs.Int("j", runtime.NumCPU(), "candidate schedules run at once; the result is the same for any value")
 	budget := fs.String("budget", "", "stop after this many runs (300) or this much wall-clock time (10m) and keep the smallest schedule so far")
 	fs.Parse(args)
+	conf := ca.ref().String()
 	opts, err := parseBudget(*budget)
 	if err != nil {
 		return err
 	}
 	opts.Jobs = *jobs
-	r, _, err := load(*conf)
+	r, _, err := load(ca.ref())
 	if err != nil {
 		return err
 	}
@@ -55,7 +56,7 @@ func cmdShrink(args []string) error {
 	opts.Progress = func(p engine.ShrinkStep) { fmt.Printf("  run %4d  %3d faults  %s\n", p.Runs, p.Faults, p.Change) }
 	started := time.Now()
 	shrunk := engine.Shrink(r, original, opts)
-	out, err := saveSchedule(*conf, *seed, shrunk)
+	out, err := saveSchedule(ca.Config, *seed, shrunk)
 	if err != nil {
 		return err
 	}
@@ -65,13 +66,13 @@ func cmdShrink(args []string) error {
 	if shrunk.Exhausted {
 		fmt.Println("budget spent: the schedule fails the same way but may not be minimal; run shrink again with a larger -budget")
 	}
-	a, _, err := r.SaveArtifacts(*seed, shrunk.Schedule, engine.ArtifactOptions{Config: *conf, ScheduleFile: out, Label: "shrunk", Original: &shrunk.Result})
+	a, _, err := r.SaveArtifacts(*seed, shrunk.Schedule, engine.ArtifactOptions{Config: conf, ScheduleFile: out, Label: "shrunk", Original: &shrunk.Result})
 	printArtifacts(a, err)
 	label := "minimal schedule"
 	if shrunk.Exhausted {
 		label = "shrunk schedule"
 	}
-	fmt.Printf("%s: %s\nreplay: seedfall replay -c %s -seed %d -faults %s\n", label, out, *conf, *seed, out)
+	fmt.Printf("%s: %s\nreplay: seedfall replay -c %s -seed %d -faults %s\n", label, out, conf, *seed, out)
 	return nil
 }
 
@@ -81,7 +82,7 @@ func toolShrink(_ context.Context, _ *mcp.CallToolRequest, a shrinkArgs) (*mcp.C
 		return nil, shrinkView{}, err
 	}
 	opts.Jobs = runtime.NumCPU()
-	r, _, err := load(a.Config)
+	r, _, err := load(a.ref())
 	if err != nil {
 		return nil, shrinkView{}, err
 	}
@@ -94,9 +95,9 @@ func toolShrink(_ context.Context, _ *mcp.CallToolRequest, a shrinkArgs) (*mcp.C
 	if err != nil {
 		return nil, shrinkView{}, err
 	}
-	failure := viewFailure(a.Config, shrunk.Result)
-	withArtifacts(r, failure, a.Config, shrunk.Schedule, engine.ArtifactOptions{Config: a.Config, ScheduleFile: path, Label: "shrunk", Original: &shrunk.Result})
-	failure.Replay = fmt.Sprintf("seedfall replay -c %s -seed %d -faults %s", a.Config, a.Seed, path)
+	failure := viewFailure(a.ref().String(), shrunk.Result)
+	withArtifacts(r, failure, a.ref().String(), shrunk.Schedule, engine.ArtifactOptions{Config: a.ref().String(), ScheduleFile: path, Label: "shrunk", Original: &shrunk.Result})
+	failure.Replay = fmt.Sprintf("seedfall replay -c %s -seed %d -faults %s", a.ref().String(), a.Seed, path)
 	return nil, shrinkView{
 		OriginalFaults: shrunk.Before.Faults, MinimalFaults: shrunk.After.Faults,
 		Original: shrunk.Before, Minimal: shrunk.After, Runs: shrunk.Runs, BudgetExhausted: shrunk.Exhausted,

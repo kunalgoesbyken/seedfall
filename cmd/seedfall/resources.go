@@ -134,6 +134,14 @@ func configSchema() (string, error) {
 	for _, m := range engine.Models() {
 		s.Properties["checker"].Properties["model"].Enum = append(s.Properties["checker"].Properties["model"].Enum, m)
 	}
+	faults := s.Properties["faults"]
+	for _, name := range engine.PresetNames() {
+		faults.Properties["preset"].Enum = append(faults.Properties["preset"].Enum, name)
+	}
+	faults.Type, faults.Types = "", []string{"object", "string"}
+	faults.AnyOf = []*jsonschema.Schema{{Type: "object"}, {Type: "string", Enum: faults.Properties["preset"].Enum, Description: "shorthand for {\"preset\": name}"}}
+	s.Properties["extends"] = &jsonschema.Schema{Type: "string", Description: "another config file, relative to this one, that this file is merged over: objects merge key by key, lists of named entries such as nodes merge by name, anything else replaces"}
+	s.Properties["profiles"] = &jsonschema.Schema{Type: "object", Description: "named partial configs, merged over this config by -profile name", AdditionalProperties: &jsonschema.Schema{Type: "object"}}
 	s.AnyOf = []*jsonschema.Schema{{Required: []string{"workload"}}, {Required: []string{"workloads"}}}
 	s.Title = "seedfall.json"
 	out, err := json.MarshalIndent(s, "", "  ")

@@ -107,6 +107,14 @@ func TestMCPListsInitPromptsAndResources(t *testing.T) {
 	if _, ok := schema.Properties["faults"].Properties["include_workload"]; !ok {
 		t.Error("schema has no faults.include_workload field")
 	}
+	if preset := schema.Properties["faults"].Properties["preset"]; !slices.Equal(preset.Enum, engine.PresetNames()) {
+		t.Errorf("faults.preset enum %v, want %v", preset.Enum, engine.PresetNames())
+	}
+	for _, field := range []string{"extends", "profiles"} {
+		if _, ok := schema.Properties[field]; !ok {
+			t.Errorf("schema has no %s field", field)
+		}
+	}
 	if model := schema.Properties["checker"].Properties["model"]; string(model.Default) != `"kv"` || !slices.Equal(model.Enum, engine.Models()) {
 		t.Errorf("checker.model default %s enum %v", model.Default, model.Enum)
 	}

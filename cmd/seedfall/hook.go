@@ -25,15 +25,16 @@ func cmdHook([]string) error {
 	if seeds == "" || in.StopHookActive {
 		return nil
 	}
-	config := filepath.Join(in.Cwd, cmp.Or(os.Getenv("SEEDFALL_HOOK_CONFIG"), "seedfall.json"))
-	if _, err := os.Stat(config); err != nil {
+	ref := engine.ConfigRef{Path: filepath.Join(in.Cwd, cmp.Or(os.Getenv("SEEDFALL_HOOK_CONFIG"), "seedfall.json")), Profile: os.Getenv("SEEDFALL_HOOK_PROFILE")}
+	if _, err := os.Stat(ref.Path); err != nil {
 		return nil
 	}
+	config := ref.String()
 	lo, hi, err := engine.ParseSeeds(seeds)
 	if err != nil {
 		return err
 	}
-	r, cfg, err := load(config)
+	r, cfg, err := load(ref)
 	if err != nil {
 		return err
 	}

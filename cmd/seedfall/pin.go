@@ -15,7 +15,7 @@ import (
 )
 
 type pinArgs struct {
-	Config string `json:"config" jsonschema:"path to seedfall.json"`
+	configArgs
 	Seed   uint64 `json:"seed" jsonschema:"seed to pin"`
 	Faults string `json:"faults,omitempty" jsonschema:"fault schedule to pin; default is the schedule seedfall_shrink saved for the seed, or else the seed's own faults"`
 }
@@ -30,11 +30,11 @@ type pinView struct {
 
 func cmdPin(args []string) error {
 	fs := flag.NewFlagSet("pin", flag.ExitOnError)
-	conf := fs.String("c", "seedfall.json", "config file")
+	ca := configFlags(fs)
 	seed := seedFlag(fs)
 	faultsFile := fs.String("faults", "", "schedule to pin (default: .seedfall/seed-N.faults.json from shrink if present, else the seed's own faults)")
 	fs.Parse(args)
-	out, err := pin(pinArgs{Config: *conf, Seed: *seed, Faults: *faultsFile})
+	out, err := pin(pinArgs{configArgs: *ca, Seed: *seed, Faults: *faultsFile})
 	if err != nil {
 		return err
 	}
@@ -53,7 +53,7 @@ func toolPin(_ context.Context, _ *mcp.CallToolRequest, a pinArgs) (*mcp.CallToo
 }
 
 func pin(a pinArgs) (pinView, error) {
-	r, cfg, err := load(a.Config)
+	r, cfg, err := load(a.ref())
 	if err != nil {
 		return pinView{}, err
 	}
@@ -63,12 +63,13 @@ func pin(a pinArgs) (pinView, error) {
 	}
 	file.Duration, file.ShrunkFrom, file.ShrinkRuns, file.BudgetExhausted = 0, nil, 0, false
 	res := r.Replay(a.Seed, file.Schedule)
-	file.Pinned = &engine.Pin{Config: filepath.Base(cfg.Path), From: from, Version: engine.Version(), Date: time.Now().UTC()}
+	file.Pinned = engine.NewPin(cfg)
+	file.Pinned.From, file.Pinned.Version, file.Pinned.Date = from, engine.Version(), time.Now().UTC()
 	out := pinView{File: engine.PinPath(cfg, a.Seed), From: from, Faults: len(file.Faults), Passes: !res.Failed}
 	if res.Failed {
 		file.Pinned.Finding, file.Pinned.Reason = res.Failure.Key(), res.Reason
-		out.Failure = viewFailure(a.Config, res)
-		out.Failure.Replay = fmt.Sprintf("seedfall replay -c %s -seed %d -faults %s", a.Config, a.Seed, filepath.ToSlash(out.File))
+		out.Failure = viewFailure(a.ref().String(), res)
+		out.Failure.Replay = fmt.Sprintf("seedfall replay -c %s -seed %d -faults %s", a.ref().String(), a.Seed, filepath.ToSlash(out.File))
 	}
 	return out, engine.WriteScheduleFile(out.File, file)
 }

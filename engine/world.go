@@ -33,6 +33,7 @@ type node struct {
 	workload   bool
 	done       bool
 	compiled   wazero.CompiledModule
+	upgrade    wazero.CompiledModule
 	fs         *memFS
 	live       *instance
 	starts     int
@@ -102,6 +103,7 @@ type world struct {
 	scheduled   map[string]bool
 	spec        FaultSpec
 	compiled    map[string]wazero.CompiledModule
+	upgrades    map[string]wazero.CompiledModule
 	history     history
 	lin         HistoryCheck
 	props       properties
@@ -291,12 +293,16 @@ func (w *world) start(n *node) {
 	n.live, n.restartAt, n.pausedTo = inst, -1, 0
 	ctx := context.WithValue(context.WithValue(w.ctx, worldKey{}, w), instKey{}, inst)
 	cfg := w.moduleConfig(inst)
+	module := n.compiled
+	if n.upgrade != nil && n.starts > 1 {
+		module = n.upgrade
+	}
 	go func() {
 		if !<-inst.resume {
 			w.events <- event{inst: inst, exit: true, err: errKilled}
 			return
 		}
-		mod, err := w.rt.InstantiateModule(ctx, n.compiled, cfg)
+		mod, err := w.rt.InstantiateModule(ctx, module, cfg)
 		if err == nil {
 			inst.preempt = newPreemption(mod, w.interleaver(inst))
 			_, err = mod.ExportedFunction("_start").Call(ctx)
@@ -306,6 +312,10 @@ func (w *world) start(n *node) {
 		}
 		w.events <- event{inst: inst, exit: true, err: err}
 	}()
+	if n.upgrade != nil && n.starts == 2 {
+		w.trace.add(w.now, "start %s, upgraded to %s", inst.label, n.spec.UpgradeTo)
+		return
+	}
 	w.trace.add(w.now, "start %s", inst.label)
 }
 

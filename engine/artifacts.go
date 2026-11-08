@@ -2,8 +2,6 @@ package engine
 
 import (
 	"cmp"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -76,9 +74,7 @@ func (r *Runner) SaveArtifacts(seed uint64, s Schedule, opts ArtifactOptions) (A
 		ScheduleFile: opts.ScheduleFile, Config: opts.Config, Version: Version(), GoVersion: runtime.Version(),
 		Commit: Commit(r.cfg.Dir), Created: time.Now().UTC(), Replay: replayCommand(opts.Config, seed, dir),
 	}
-	if a.ConfigSHA256, err = fileSHA256(r.cfg.Path); err != nil {
-		return a, res, err
-	}
+	a.ConfigSHA256 = r.cfg.Digest()
 	if err := os.RemoveAll(a.Dir); err != nil {
 		return a, res, err
 	}
@@ -140,13 +136,4 @@ func writeArtifact(path string, write func(io.Writer) error) error {
 		return err
 	}
 	return f.Close()
-}
-
-func fileSHA256(path string) (string, error) {
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-	sum := sha256.Sum256(b)
-	return hex.EncodeToString(sum[:]), nil
 }

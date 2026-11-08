@@ -21,7 +21,7 @@ import (
 const defaultCheckSeeds = 10
 
 type verifyArgs struct {
-	Config     string  `json:"config" jsonschema:"path to seedfall.json"`
+	configArgs
 	Seed       *uint64 `json:"seed,omitempty" jsonschema:"failing seed that the change should fix"`
 	Faults     string  `json:"faults,omitempty" jsonschema:"fault schedule file for that seed, written by seedfall_shrink"`
 	Report     string  `json:"report,omitempty" jsonschema:"triage report from seedfall run -report; every finding in it is replayed"`
@@ -70,7 +70,7 @@ func toolVerify(_ context.Context, _ *mcp.CallToolRequest, a verifyArgs) (*mcp.C
 func parseVerify(args []string) (verifyArgs, error) {
 	fs := flag.NewFlagSet("verify", flag.ExitOnError)
 	var a verifyArgs
-	fs.StringVar(&a.Config, "c", "seedfall.json", "config file")
+	a.register(fs)
 	seed := seedFlag(fs)
 	fs.StringVar(&a.Faults, "faults", "", "fault schedule for -seed, from seedfall shrink")
 	fs.StringVar(&a.Report, "report", "", "triage report from run -report; replay every finding in it")
@@ -106,7 +106,7 @@ func (a verifyArgs) validate() error {
 }
 
 func (a verifyArgs) command() string {
-	parts := []string{"seedfall verify -c", a.Config}
+	parts := []string{"seedfall verify -c", a.ref().String()}
 	if a.Seed != nil {
 		parts = append(parts, "-seed", strconv.FormatUint(*a.Seed, 10))
 	}
@@ -136,12 +136,12 @@ func runVerify(a verifyArgs) (verify.Proof, error) {
 	if err != nil {
 		return verify.Proof{}, err
 	}
-	r, _, err := load(a.Config)
+	r, _, err := load(a.ref())
 	if err != nil {
 		return verify.Proof{}, err
 	}
 	proof := verify.Run(r, plan)
-	proof.Config, proof.Command = a.Config, a.command()
+	proof.Config, proof.Command = a.ref().String(), a.command()
 	if a.Markdown == "" {
 		return proof, nil
 	}
@@ -161,7 +161,7 @@ func verifyPlan(a verifyArgs, targets []verify.Target, last uint64) (verify.Plan
 }
 
 func verifyTargets(a verifyArgs) ([]verify.Target, uint64, error) {
-	targets, err := pinnedTargets(a.Config)
+	targets, err := pinnedTargets(a.ref())
 	if err != nil {
 		return nil, 0, err
 	}
@@ -216,8 +216,8 @@ func savedSchedule(config string, seed uint64, f report.Finding) ([]verify.Targe
 	return []verify.Target{{Label: fmt.Sprintf("%s %s", f.Key, scheduleLabel(seed, path)), Seed: seed, Schedule: sched, Rate: f.Rate}}, nil
 }
 
-func pinnedTargets(config string) ([]verify.Target, error) {
-	cfg, err := engine.LoadConfig(config)
+func pinnedTargets(ref engine.ConfigRef) ([]verify.Target, error) {
+	cfg, err := engine.Load(ref)
 	if err != nil {
 		return nil, err
 	}

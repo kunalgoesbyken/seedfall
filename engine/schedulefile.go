@@ -20,6 +20,8 @@ type ScheduleFile struct {
 
 type Pin struct {
 	Config  string    `json:"config"`
+	Profile string    `json:"profile,omitempty"`
+	Set     []string  `json:"set,omitempty"`
 	Finding string    `json:"finding,omitempty"`
 	Reason  string    `json:"reason,omitempty"`
 	From    string    `json:"from,omitempty"`

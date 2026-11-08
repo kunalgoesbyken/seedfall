@@ -30,6 +30,9 @@ usage:
   seedfall verify [-c seedfall.json] [-seed N [-faults file.json]] [-report report.html] [-seeds range] [-check 10] [-mutate] [-app-mutants N] [-md proof.md]
   seedfall mcp    serve init, run, replay, shrink, cause, inspect, check, mutate, pin, findings and verify to AI coding agents over MCP (stdio)
   seedfall hook   Claude Code Stop hook: sweep $SEEDFALL_HOOK_SEEDS (unset: do nothing) and block the stop on a failure
+
+every command that takes -c also takes -profile name, to merge a profile from the config's profiles over it,
+and -set path=value (repeatable), to override one value last, for example -set faults=resilient -set duration=10s
 `
 
 func main() {
@@ -49,8 +52,8 @@ func main() {
 	}
 }
 
-func load(path string) (*engine.Runner, *engine.Config, error) {
-	cfg, err := engine.LoadConfig(path)
+func load(ref engine.ConfigRef) (*engine.Runner, *engine.Config, error) {
+	cfg, err := engine.Load(ref)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -63,7 +66,7 @@ func load(path string) (*engine.Runner, *engine.Config, error) {
 
 func cmdRun(args []string) error {
 	fs := flag.NewFlagSet("run", flag.ExitOnError)
-	conf := fs.String("c", "seedfall.json", "config file")
+	ca := configFlags(fs)
 	seeds := fs.String("seeds", "1-200", "seed or seed range")
 	jobs := fs.Int("j", runtime.NumCPU(), "parallel runs")
 	verbose := fs.Bool("v", false, "print every seed")
@@ -73,6 +76,7 @@ func cmdRun(args []string) error {
 	pinned := fs.Bool("pinned", true, "replay the schedules pinned in "+engine.RegressionsDir+"/ before the sweep")
 	seedsFile := fs.String("seeds-file", "", "file of known-bad seeds, one or more per line with # comments, replayed before the sweep")
 	fs.Parse(args)
+	conf := ca.ref().String()
 	if *jsonOut && *reportPath != "" {
 		return errors.New("-json and -report cannot be combined")
 	}
@@ -80,7 +84,7 @@ func cmdRun(args []string) error {
 	if err != nil {
 		return err
 	}
-	r, cfg, err := load(*conf)
+	r, cfg, err := load(ca.ref())
 	if err != nil {
 		return err
 	}
@@ -91,13 +95,13 @@ func cmdRun(args []string) error {
 		return err
 	}
 	if *jsonOut {
-		return runJSON(r, *conf, regs, lo, hi, *jobs)
+		return runJSON(r, conf, regs, lo, hi, *jobs)
 	}
 	printRegressions(regs)
 	if bad := engine.FirstFailed(regs); bad != nil && *reportPath == "" {
 		fmt.Printf("FAIL regression %s\n", bad.String())
 		printFailure(bad.Result, 25)
-		a, err := regressionArtifacts(r, *conf, *bad)
+		a, err := regressionArtifacts(r, conf, *bad)
 		printArtifacts(a, err)
 		fmt.Printf("replay: %s\n", a.Replay)
 		os.Exit(1)
@@ -109,14 +113,14 @@ func cmdRun(args []string) error {
 	}})
 	took := time.Since(started).Round(time.Millisecond)
 	if *reportPath != "" {
-		return writeReport(r, cfg, *conf, *seeds, *reportPath, sum, viewRegressions(r, *conf, regs), took)
+		return writeReport(r, cfg, conf, *seeds, *reportPath, sum, viewRegressions(r, conf, regs), took)
 	}
 	if sum.First != nil {
 		printFailure(*sum.First, 25)
-		a, _, err := r.SaveArtifacts(sum.First.Seed, engine.Schedule{}, engine.ArtifactOptions{Config: *conf, Original: sum.First})
+		a, _, err := r.SaveArtifacts(sum.First.Seed, engine.Schedule{}, engine.ArtifactOptions{Config: conf, Original: sum.First})
 		printArtifacts(a, err)
 		fmt.Printf("\n%d seeds passed before the failure, %s\n", sum.Passed, took)
-		fmt.Printf("replay: seedfall replay -c %s -seed %d\nshrink: seedfall shrink -c %s -seed %d\n", *conf, sum.First.Seed, *conf, sum.First.Seed)
+		fmt.Printf("replay: seedfall replay -c %s -seed %d\nshrink: seedfall shrink -c %s -seed %d\n", conf, sum.First.Seed, conf, sum.First.Seed)
 		os.Exit(1)
 	}
 	printCoverage(sum.Coverage)
@@ -239,11 +243,12 @@ func seedFlag(fs *flag.FlagSet) *uint64 { return fs.Uint64("seed", 0, "seed to r
 
 func cmdReplay(args []string) error {
 	fs := flag.NewFlagSet("replay", flag.ExitOnError)
-	conf := fs.String("c", "seedfall.json", "config file")
+	ca := configFlags(fs)
 	seed := seedFlag(fs)
 	faultsFile := fs.String("faults", "", "fault schedule from seedfall shrink")
 	fs.Parse(args)
-	r, cfg, err := load(*conf)
+	conf := ca.ref().String()
+	r, cfg, err := load(ca.ref())
 	if err != nil {
 		return err
 	}
@@ -266,7 +271,7 @@ func cmdReplay(args []string) error {
 	}
 	printFailure(res, 0)
 	fmt.Printf("\ndeterminism hash %s over %d host calls\n", res.Hash(), res.HostCalls)
-	opts := engine.ArtifactOptions{Config: *conf, ScheduleFile: *faultsFile, Original: &res}
+	opts := engine.ArtifactOptions{Config: conf, ScheduleFile: *faultsFile, Original: &res}
 	if *faultsFile != "" {
 		opts.Label = "schedule"
 	}

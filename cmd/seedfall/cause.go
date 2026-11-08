@@ -18,13 +18,13 @@ const (
 
 func cmdCause(args []string) error {
 	fs := flag.NewFlagSet("cause", flag.ExitOnError)
-	conf := fs.String("c", "seedfall.json", "config file")
+	ca := configFlags(fs)
 	seed := seedFlag(fs)
 	points := fs.Int("points", defaultPoints, "evenly spaced moments to branch from, in addition to every fault")
 	branches := fs.Int("branches", defaultBranches, "alternate futures run from each moment")
 	jobs := fs.Int("j", runtime.NumCPU(), "parallel runs")
 	fs.Parse(args)
-	r, _, err := load(*conf)
+	r, _, err := load(ca.ref())
 	if err != nil {
 		return err
 	}

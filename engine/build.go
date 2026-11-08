@@ -19,23 +19,32 @@ func Build(cfg *Config) error {
 		return err
 	}
 	built := map[string]string{}
-	for _, s := range specs {
-		if s.Pkg == "" {
-			continue
+	build := func(pkg string) (string, error) {
+		if out, ok := built[pkg]; ok {
+			return out, nil
 		}
-		if out, ok := built[s.Pkg]; ok {
-			s.Wasm = out
-			continue
-		}
-		out := filepath.Join(".seedfall", strings.NewReplacer("/", "_", "\\", "_", ".", "_").Replace(s.Pkg)+".wasm")
-		cmd := exec.Command("go", append(append([]string{"build"}, flags...), "-o", out, s.Pkg)...)
+		out := filepath.Join(".seedfall", strings.NewReplacer("/", "_", "\\", "_", ".", "_").Replace(pkg)+".wasm")
+		cmd := exec.Command("go", append(append([]string{"build"}, flags...), "-o", out, pkg)...)
 		cmd.Dir = cfg.Dir
 		cmd.Env = append(os.Environ(), "GOOS=wasip1", "GOARCH=wasm")
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("build %s: %w", s.Pkg, err)
+			return "", fmt.Errorf("build %s: %w", pkg, err)
 		}
-		built[s.Pkg], s.Wasm = out, out
+		built[pkg] = out
+		return out, nil
+	}
+	for _, s := range specs {
+		if s.Pkg != "" {
+			if s.Wasm, err = build(s.Pkg); err != nil {
+				return err
+			}
+		}
+		if s.UpgradeTo != "" {
+			if s.upgradeWasm, err = build(s.UpgradeTo); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }

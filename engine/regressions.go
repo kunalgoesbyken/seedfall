@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -47,12 +48,20 @@ func Pinned(cfg *Config) ([]Regression, error) {
 		if err != nil {
 			return nil, err
 		}
-		if file.Pinned != nil && file.Pinned.Config != "" && file.Pinned.Config != filepath.Base(cfg.Path) {
+		if file.Pinned != nil && file.Pinned.Config != "" && !file.Pinned.matches(cfg) {
 			continue
 		}
 		out = append(out, Regression{Source: p, Path: p, Label: "pinned", File: file})
 	}
 	return out, nil
+}
+
+func (p *Pin) matches(cfg *Config) bool {
+	return p.Config == filepath.Base(cfg.Path) && p.Profile == cfg.Profile && slices.Equal(p.Set, cfg.Sets)
+}
+
+func NewPin(cfg *Config) *Pin {
+	return &Pin{Config: filepath.Base(cfg.Path), Profile: cfg.Profile, Set: cfg.Sets}
 }
 
 func SeedsFile(path string) ([]Regression, error) {

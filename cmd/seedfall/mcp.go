@@ -20,14 +20,14 @@ const mcpTraceTail = 60
 const mcpInstructions = "seedfall runs Go services as wasip1 guests under simulated crashes, torn writes, fsync errors, disk corruption, full disks, partitions, clogs and slow nodes, with exact replay from a seed. In a module without a seedfall.json, call seedfall_init first. Read seedfall://docs/properties before writing checks and seedfall://schema/config before editing seedfall.json. The prompts seedfall-setup, seedfall-properties, seedfall-triage and seedfall-fix-and-prove walk through each stage."
 
 type runArgs struct {
-	Config     string `json:"config" jsonschema:"path to seedfall.json"`
+	configArgs
 	Seeds      string `json:"seeds" jsonschema:"seed or inclusive range, for example 1-200"`
 	Check      bool   `json:"check,omitempty" jsonschema:"run every seed twice and fail at the first host call or trace line that differs"`
 	SkipPinned bool   `json:"skip_pinned,omitempty" jsonschema:"do not replay the schedules pinned in seedfall-regressions/ before the sweep"`
 }
 
 type seedArgs struct {
-	Config string `json:"config" jsonschema:"path to seedfall.json"`
+	configArgs
 	Seed   uint64 `json:"seed" jsonschema:"seed to run"`
 	Faults string `json:"faults,omitempty" jsonschema:"optional fault schedule file written by seedfall_shrink"`
 }
@@ -108,7 +108,7 @@ func events(res engine.Result) []eventView {
 }
 
 type causeArgs struct {
-	Config   string `json:"config" jsonschema:"path to seedfall.json"`
+	configArgs
 	Seed     uint64 `json:"seed" jsonschema:"failing seed to explain"`
 	Points   int    `json:"points,omitempty" jsonschema:"evenly spaced moments to branch from, default 16"`
 	Branches int    `json:"branches,omitempty" jsonschema:"alternate futures per moment, default 20"`
@@ -126,7 +126,7 @@ type causeView struct {
 }
 
 type inspectArgs struct {
-	Config string `json:"config" jsonschema:"path to seedfall.json"`
+	configArgs
 	Seed   uint64 `json:"seed" jsonschema:"seed to replay"`
 	Faults string `json:"faults,omitempty" jsonschema:"optional fault schedule file written by seedfall_shrink"`
 	At     string `json:"at,omitempty" jsonschema:"virtual time to snapshot at, for example 1.5s; default is the moment of failure"`
@@ -220,7 +220,7 @@ func toolRun(_ context.Context, _ *mcp.CallToolRequest, a runArgs) (*mcp.CallToo
 	if err != nil {
 		return nil, runView{}, err
 	}
-	r, cfg, err := load(a.Config)
+	r, cfg, err := load(a.ref())
 	if err != nil {
 		return nil, runView{}, err
 	}
@@ -230,9 +230,9 @@ func toolRun(_ context.Context, _ *mcp.CallToolRequest, a runArgs) (*mcp.CallToo
 	if err != nil {
 		return nil, runView{}, err
 	}
-	out := runView{Regressions: viewRegressions(r, a.Config, regs)}
+	out := runView{Regressions: viewRegressions(r, a.ref().String(), regs)}
 	if bad := engine.FirstFailed(regs); bad != nil {
-		out.Failure = viewFailure(a.Config, bad.Result)
+		out.Failure = viewFailure(a.ref().String(), bad.Result)
 		if bad.Path != "" {
 			out.Failure.Replay += " -faults " + filepath.ToSlash(bad.Path)
 		}
@@ -249,14 +249,14 @@ func toolRun(_ context.Context, _ *mcp.CallToolRequest, a runArgs) (*mcp.CallToo
 	out.Passed, out.Unfinished, out.Properties, out.Buggify = sum.Passed, sum.Unfinished, properties(sum.Coverage), buggifySites(sum.Buggify)
 	out.Elapsed = time.Since(started).Round(time.Millisecond).String()
 	if sum.First != nil {
-		out.Failure = viewFailure(a.Config, *sum.First)
-		withArtifacts(r, out.Failure, a.Config, engine.Schedule{}, engine.ArtifactOptions{Config: a.Config, Original: sum.First})
+		out.Failure = viewFailure(a.ref().String(), *sum.First)
+		withArtifacts(r, out.Failure, a.ref().String(), engine.Schedule{}, engine.ArtifactOptions{Config: a.ref().String(), Original: sum.First})
 	}
 	return nil, out, nil
 }
 
 func toolReplay(_ context.Context, _ *mcp.CallToolRequest, a seedArgs) (*mcp.CallToolResult, seedView, error) {
-	r, cfg, err := load(a.Config)
+	r, cfg, err := load(a.ref())
 	if err != nil {
 		return nil, seedView{}, err
 	}
@@ -267,12 +267,12 @@ func toolReplay(_ context.Context, _ *mcp.CallToolRequest, a seedArgs) (*mcp.Cal
 	res := r.Replay(a.Seed, sched)
 	out := seedView{Seed: a.Seed, Passed: !res.Failed, Steps: res.Steps, Hash: res.Hash(), Events: events(res)}
 	if res.Failed {
-		out.Failure = viewFailure(a.Config, res)
-		opts := engine.ArtifactOptions{Config: a.Config, ScheduleFile: a.Faults, Original: &res}
+		out.Failure = viewFailure(a.ref().String(), res)
+		opts := engine.ArtifactOptions{Config: a.ref().String(), ScheduleFile: a.Faults, Original: &res}
 		if a.Faults != "" {
 			opts.Label = "schedule"
 		}
-		withArtifacts(r, out.Failure, a.Config, sched, opts)
+		withArtifacts(r, out.Failure, a.ref().String(), sched, opts)
 		return nil, out, nil
 	}
 	out.Trace = tail(res.Trace, mcpTraceTail)
@@ -281,7 +281,7 @@ func toolReplay(_ context.Context, _ *mcp.CallToolRequest, a seedArgs) (*mcp.Cal
 }
 
 func toolCause(_ context.Context, _ *mcp.CallToolRequest, a causeArgs) (*mcp.CallToolResult, causeView, error) {
-	r, _, err := load(a.Config)
+	r, _, err := load(a.ref())
 	if err != nil {
 		return nil, causeView{}, err
 	}
@@ -290,7 +290,7 @@ func toolCause(_ context.Context, _ *mcp.CallToolRequest, a causeArgs) (*mcp.Cal
 	if err != nil {
 		return nil, causeView{}, err
 	}
-	out := causeView{Failure: viewFailure(a.Config, original)}
+	out := causeView{Failure: viewFailure(a.ref().String(), original)}
 	for _, p := range curve {
 		view := causePointView{At: p.At.String(), Probability: p.Probability()}
 		for _, f := range p.Faults {
@@ -306,7 +306,7 @@ func toolInspect(_ context.Context, _ *mcp.CallToolRequest, a inspectArgs) (*mcp
 	if err != nil {
 		return nil, inspectView{}, err
 	}
-	r, _, err := load(a.Config)
+	r, _, err := load(a.ref())
 	if err != nil {
 		return nil, inspectView{}, err
 	}
@@ -320,7 +320,7 @@ func toolInspect(_ context.Context, _ *mcp.CallToolRequest, a inspectArgs) (*mcp
 	}
 	out := inspectView{Seed: a.Seed, Passed: !in.Result.Failed, At: in.At.String(), Disks: in.Disks}
 	if in.Result.Failed {
-		out.Failure = viewFailure(a.Config, in.Result)
+		out.Failure = viewFailure(a.ref().String(), in.Result)
 	}
 	if a.Path == "" {
 		return nil, out, nil

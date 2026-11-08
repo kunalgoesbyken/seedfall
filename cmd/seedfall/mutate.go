@@ -20,7 +20,7 @@ const (
 )
 
 type mutateArgs struct {
-	Config  string `json:"config" jsonschema:"path to seedfall.json"`
+	configArgs
 	Seeds   string `json:"seeds,omitempty" jsonschema:"seed range each mutant is swept over, default 1-100"`
 	Only    string `json:"only,omitempty" jsonschema:"comma-separated mutants to run, default all"`
 	App     bool   `json:"app,omitempty" jsonschema:"mutate the node packages' source instead: flip comparisons, skip early returns on non-nil errors and skip Sync calls, one rebuild per mutant"`
@@ -48,7 +48,7 @@ type mutateView struct {
 func cmdMutate(args []string) error {
 	fs := flag.NewFlagSet("mutate", flag.ExitOnError)
 	var a mutateArgs
-	fs.StringVar(&a.Config, "c", "seedfall.json", "config file")
+	a.register(fs)
 	fs.StringVar(&a.Seeds, "seeds", defaultMutateSeeds, "seed or seed range for each mutant")
 	fs.IntVar(&a.jobs, "j", runtime.NumCPU(), "parallel runs")
 	fs.StringVar(&a.Only, "only", "", "comma-separated mutants to run (default: all)")
@@ -105,7 +105,7 @@ func runMutate(a mutateArgs) (mutateView, error) {
 	if err != nil {
 		return mutateView{}, err
 	}
-	r, _, err := load(a.Config)
+	r, _, err := load(a.ref())
 	if err != nil {
 		return mutateView{}, err
 	}

@@ -15,10 +15,10 @@ func TestPinSourceRejectsAScheduleForAnotherSeed(t *testing.T) {
 		t.Fatal(err)
 	}
 	config := filepath.Join(dir, "seedfall.json")
-	if _, _, err := pinSource(nil, pinArgs{Config: config, Seed: 5, Faults: path}); err == nil || !strings.Contains(err.Error(), "seed 4, not 5") {
+	if _, _, err := pinSource(nil, pinArgs{configArgs: configArgs{Config: config}, Seed: 5, Faults: path}); err == nil || !strings.Contains(err.Error(), "seed 4, not 5") {
 		t.Fatalf("pinning seed 5 from a seed 4 schedule: %v", err)
 	}
-	file, from, err := pinSource(nil, pinArgs{Config: config, Seed: 4, Faults: path})
+	file, from, err := pinSource(nil, pinArgs{configArgs: configArgs{Config: config}, Seed: 4, Faults: path})
 	if err != nil || file.Seed != 4 || file.Ops != 12 || from != filepath.ToSlash(path) {
 		t.Fatalf("pinSource = %+v, %q, %v", file, from, err)
 	}

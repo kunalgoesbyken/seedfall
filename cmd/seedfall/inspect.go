@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"path"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -23,7 +24,7 @@ const (
 
 func cmdInspect(args []string) error {
 	fs := flag.NewFlagSet("inspect", flag.ExitOnError)
-	conf := fs.String("c", "seedfall.json", "config file")
+	ca := configFlags(fs)
 	seed := seedFlag(fs)
 	faultsFile := fs.String("faults", "", "fault schedule from seedfall shrink")
 	at := fs.Duration("at", 0, "virtual time to snapshot the disks at; 0 means the moment of failure")
@@ -34,7 +35,7 @@ func cmdInspect(args []string) error {
 	if *cat != "" && *out != "" {
 		return errors.New("-cat and -out cannot be combined")
 	}
-	r, _, err := load(*conf)
+	r, _, err := load(ca.ref())
 	if err != nil {
 		return err
 	}
@@ -315,6 +316,9 @@ func exportImages(disks []engine.Disk, dir string) error {
 	roots, err := engine.ExportDisks(disks, dir)
 	for i, root := range roots {
 		fmt.Printf("\nexported the durable disk image of node %s to %s\n", disks[i].Node, root)
+	}
+	if len(roots) > 0 {
+		fmt.Printf("\nstart a node from an exported image with \"disk\" in its config entry, for example \"disk\": %q\n", filepath.ToSlash(roots[0]))
 	}
 	return err
 }

@@ -48,6 +48,7 @@ type Runner struct {
 	cfg         *Config
 	rt          wazero.Runtime
 	compiled    map[string]wazero.CompiledModule
+	upgrades    map[string]wazero.CompiledModule
 }
 
 func NewRunner(cfg *Config) (*Runner, error) {
@@ -55,21 +56,32 @@ func NewRunner(cfg *Config) (*Runner, error) {
 	if err != nil {
 		return nil, err
 	}
-	paths := map[string]string{}
+	paths, upgrades := map[string]string{}, map[string]string{}
 	var order []string
 	modules := map[string][]byte{}
-	for _, s := range cfg.all() {
-		path := resolve(cfg.Dir, s.Wasm)
-		paths[s.Name] = path
+	add := func(name, wasm string) (string, error) {
+		path := resolve(cfg.Dir, wasm)
 		if _, ok := modules[path]; ok {
-			continue
+			return path, nil
 		}
 		b, err := os.ReadFile(path)
 		if err != nil {
-			return nil, fmt.Errorf("node %s: %w", s.Name, err)
+			return "", fmt.Errorf("node %s: %w", name, err)
 		}
 		modules[path] = instrument(b)
 		order = append(order, path)
+		return path, nil
+	}
+	for _, s := range cfg.all() {
+		if paths[s.Name], err = add(s.Name, s.Wasm); err != nil {
+			return nil, err
+		}
+		if s.upgradeWasm == "" {
+			continue
+		}
+		if upgrades[s.Name], err = add(s.Name, s.upgradeWasm); err != nil {
+			return nil, err
+		}
 	}
 	bytes := make([][]byte, len(order))
 	for i, p := range order {
@@ -87,7 +99,7 @@ func NewRunner(cfg *Config) (*Runner, error) {
 	if err := hostModule(ctx, rt); err != nil {
 		return nil, err
 	}
-	r := &Runner{cfg: cfg, rt: rt, compiled: map[string]wazero.CompiledModule{}, catalog: entries}
+	r := &Runner{cfg: cfg, rt: rt, compiled: map[string]wazero.CompiledModule{}, upgrades: map[string]wazero.CompiledModule{}, catalog: entries}
 	byPath := map[string]wazero.CompiledModule{}
 	for _, p := range order {
 		if byPath[p], err = rt.CompileModule(ctx, modules[p]); err != nil {
@@ -96,6 +108,9 @@ func NewRunner(cfg *Config) (*Runner, error) {
 	}
 	for name, p := range paths {
 		r.compiled[name] = byPath[p]
+	}
+	for name, p := range upgrades {
+		r.upgrades[name] = byPath[p]
 	}
 	return r, nil
 }
@@ -192,7 +207,7 @@ func (r *Runner) run(seed uint64, s Schedule, explicit bool, b *branch, p *probe
 		cfg: r.cfg, seed: seed, ctx: ctx, cancel: cancel, rt: r.rt,
 		sched: streams(seed, "sched"), netRand: streams(seed, "net"), diskRand: streams(seed, "disk"), latRand: streams(seed, "disklatency"), mutantRand: streams(seed, "mutant"),
 		events: make(chan event), faults: slices.Clone(s.Faults), horizon: int64(cmp.Or(s.Duration, r.cfg.Duration)), opsLimit: s.Ops, trace: &tracer{}, compiled: r.compiled,
-		explicit: explicit, ioRand: streams(seed, "io"), props: properties{}, spec: r.cfg.Faults.forSeed(seed), branch: b, probe: p,
+		upgrades: r.upgrades, explicit: explicit, ioRand: streams(seed, "io"), props: properties{}, spec: r.cfg.Faults.forSeed(seed), branch: b, probe: p,
 		mutation: r.Mutation, weakened: func() { r.weakened.Add(1) }, shielded: map[string]bool{}, deadline: never,
 		history: history{model: r.cfg.Checker.Model}, calls: newHostCalls(capture),
 	}
@@ -223,10 +238,13 @@ func (r *Runner) run(seed uint64, s Schedule, explicit bool, b *branch, p *probe
 
 func (w *world) setup() {
 	for _, s := range w.cfg.all() {
-		n := &node{spec: s, crashable: w.cfg.faultable(s), workload: w.cfg.isWorkload(s.Name), compiled: w.compiled[s.Name], restartAt: -1}
+		n := &node{spec: s, crashable: w.cfg.faultable(s), workload: w.cfg.isWorkload(s.Name), compiled: w.compiled[s.Name], upgrade: w.upgrades[s.Name], restartAt: -1}
 		n.fs = newMemFS(func() int64 { return epochNanos + w.now })
 		if w.spec.StrictDirs {
 			n.fs.strict()
+		}
+		if files, size := n.fs.seed(w.cfg.disks[s.Name]); files > 0 {
+			w.trace.add(w.now, "%s's disk starts with %d durable files, %d bytes", s.Name, files, size)
 		}
 		if n.crashable {
 			n.fs.mutated = func() { w.onDiskOp(n) }

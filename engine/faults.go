@@ -5,6 +5,7 @@ import (
 	"math"
 	"math/rand/v2"
 	"slices"
+	"strings"
 	"time"
 )
 
@@ -28,6 +29,49 @@ const (
 	FaultBitrot      = "bitrot"
 	DamageCrash      = "corrupt_on_crash"
 )
+
+type FaultPreset struct {
+	Name  string
+	Adds  string
+	apply func(*FaultSpec)
+}
+
+var FaultPresets = []FaultPreset{
+	{"none", "no faults", func(*FaultSpec) {}},
+	{"durability", "crashes with restarts, crashes in the middle of disk operations, torn and reordered writes, strict directory durability", func(s *FaultSpec) {
+		s.CrashPerSec, s.CrashOnIO, s.TornWrites, s.ReorderWrites, s.StrictDirs = 0.5, 0.002, true, true, true
+	}},
+	{"resilient", "process pauses, slow nodes, connection resets and wall clock jumps", func(s *FaultSpec) {
+		s.PausePerSec, s.SlowPerSec, s.ResetPerSec, s.ClockJumpPerSec = 0.1, 0.1, 0.1, 0.05
+	}},
+	{"high_availability", "partitions, clogged links and swizzles", func(s *FaultSpec) {
+		s.PartitionPerSec, s.ClogPerSec, s.SwizzlePerSec = 0.2, 0.2, 0.05
+	}},
+	{"everything", "fsync, write and read errors, full disks, corrupted, lost and misdirected writes, crash corruption, bit rot and buggify", func(s *FaultSpec) {
+		s.FsyncEIO, s.WriteEIO, s.WriteENOSPC, s.ReadEIO = 0.01, 0.005, 0.005, 0.005
+		s.ReadCorrupt, s.LostWrite, s.MisdirectedWrite, s.CorruptOnCrash, s.BitrotPerSec, s.Buggify = 0.005, 0.005, 0.005, true, 0.05, true
+	}},
+}
+
+func presetFaults(base FaultSpec, name string) (FaultSpec, error) {
+	i := slices.IndexFunc(FaultPresets, func(p FaultPreset) bool { return p.Name == name })
+	if i < 0 {
+		return base, fmt.Errorf("config: unknown faults preset %q, want one of %s", name, strings.Join(PresetNames(), ", "))
+	}
+	for _, p := range FaultPresets[:i+1] {
+		p.apply(&base)
+	}
+	base.Preset = name
+	return base, nil
+}
+
+func PresetNames() []string {
+	var names []string
+	for _, p := range FaultPresets {
+		names = append(names, p.Name)
+	}
+	return names
+}
 
 var runtimeKinds = []string{FaultCrashIO, FaultFsyncEIO, FaultBuggify, FaultWriteEIO, FaultENOSPC, FaultReadEIO, FaultReadCorrupt, FaultLostWrite, FaultMisdirected}
 
