@@ -158,7 +158,7 @@ func (r *Runner) run(seed uint64, faults []Fault, explicit bool, b *branch, p *p
 		sched: streams(seed, "sched"), netRand: streams(seed, "net"), diskRand: streams(seed, "disk"), latRand: streams(seed, "disklatency"),
 		events: make(chan event), faults: slices.Clone(faults), trace: &tracer{}, compiled: r.compiled,
 		explicit: explicit, ioRand: streams(seed, "io"), props: properties{}, spec: r.cfg.Faults.forSeed(seed), branch: b, probe: p,
-		mutation: r.Mutation, weakened: func() { r.weakened.Add(1) },
+		mutation: r.Mutation, weakened: func() { r.weakened.Add(1) }, shielded: map[string]bool{}, deadline: never,
 	}
 	w.net = newNetwork(w)
 	res := Result{Seed: seed, Faults: faults}
@@ -184,7 +184,7 @@ func (r *Runner) run(seed uint64, faults []Fault, explicit bool, b *branch, p *p
 
 func (w *world) setup() {
 	for _, s := range w.cfg.all() {
-		n := &node{spec: s, crashable: s.Name != w.cfg.Workload.Name, compiled: w.compiled[s.Name], restartAt: -1}
+		n := &node{spec: s, crashable: w.cfg.faultable(s), workload: w.cfg.isWorkload(s.Name), compiled: w.compiled[s.Name], restartAt: -1}
 		n.fs = newMemFS(func() int64 { return epochNanos + w.now })
 		if w.spec.StrictDirs {
 			n.fs.strict()
@@ -198,12 +198,15 @@ func (w *world) setup() {
 		n.skew = w.clockSkew(n)
 		n.fs.special = func(p string) (fsapi.File, fsapi.Errno, bool) { return w.openSpecial(n, p) }
 		w.nodes = append(w.nodes, n)
-		if !n.crashable {
-			w.workload = n
+		w.shielded[s.Name] = !w.cfg.networked(s)
+		if w.cfg.isFinally(s.Name) {
+			w.finally = n
 		}
 	}
 	for _, n := range w.nodes {
-		w.start(n)
+		if n != w.finally {
+			w.start(n)
+		}
 	}
 }
 

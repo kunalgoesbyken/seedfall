@@ -20,7 +20,7 @@ func record(t *testing.T, ops []op) *history {
 	ids := make([]int32, len(ops))
 	for i, o := range ops {
 		raw, _ := json.Marshal(kvInput{Client: o.client, Kind: o.kind, Key: o.key, Value: o.value})
-		if ids[i] = h.call(o.call, raw); ids[i] < 0 {
+		if ids[i] = h.call(o.call, raw, "client#1"); ids[i] < 0 {
 			t.Fatalf("op %d rejected", i)
 		}
 	}
@@ -80,11 +80,11 @@ func TestLinearizabilityVerdicts(t *testing.T) {
 func TestHistoryIgnoresMalformedCalls(t *testing.T) {
 	h := &history{}
 	for _, raw := range []string{"not json", `{"kind":"delete","key":"x"}`} {
-		if id := h.call(0, []byte(raw)); id != -1 {
+		if id := h.call(0, []byte(raw), "client#1"); id != -1 {
 			t.Fatalf("call(%q) = %d, want -1", raw, id)
 		}
 	}
-	id := h.call(0, []byte(`{"client":1,"kind":"put","key":"x","value":"1"}`))
+	id := h.call(0, []byte(`{"client":1,"kind":"put","key":"x","value":"1"}`), "client#1")
 	h.complete(5, id, "", outcomeOk)
 	h.complete(9, id, "", outcomeFailed)
 	h.complete(9, id+1, "", outcomeOk)

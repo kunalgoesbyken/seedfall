@@ -64,7 +64,8 @@
     "disk_latency": [
       "0s",
       "0s"
-    ]
+    ],
+    "include_workload": false
   },
   "findings": [
     {

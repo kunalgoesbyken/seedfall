@@ -130,7 +130,8 @@ func configSchema() (string, error) {
 	if err := applyDefaults(s, defaults); err != nil {
 		return "", err
 	}
-	s.Required, s.Properties["faults"].Required = []string{"workload"}, nil
+	s.Required, s.Properties["faults"].Required = nil, nil
+	s.AnyOf = []*jsonschema.Schema{{Required: []string{"workload"}}, {Required: []string{"workloads"}}}
 	s.Title = "seedfall.json"
 	out, err := json.MarshalIndent(s, "", "  ")
 	return string(out), err

@@ -28,7 +28,7 @@ With `swarm` as well, each seed turns buggify on or off along with the other fau
 |---|---|
 | Enable | The first time a site is reached in a run, it is enabled with probability 0.25 and stays enabled or disabled for the rest of that run |
 | Fire | Each time an enabled site is reached, it fires with probability 0.25 for `sim.Buggify(site)`, or `p` for `sim.BuggifyWithProb(site, p)` |
-| Quiet | A site never fires during `sim.QuietFor` or, with `faults_after_setup`, before `sim.SetupComplete` |
+| Quiet | A site never fires during `sim.QuietFor`, during the recovery phase of `liveness` or the `finally` check, or, with `faults_after_setup`, before `sim.SetupComplete` |
 
 A site is identified by its name, so keep names constant. Both decisions use random streams keyed by the seed and the site name (and, for firing, the node), so adding a site or reaching another site more often never changes when an existing site fires. Most seeds run with only some sites enabled, which explores combinations that firing every site everywhere would hide.
 

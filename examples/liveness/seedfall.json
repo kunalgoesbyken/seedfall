@@ -1,0 +1,21 @@
+{
+  "nodes": [
+    { "name": "primary", "pkg": "./server", "args": ["-backup", "backup:7000", "-dedupe", "-redial"] },
+    { "name": "backup", "pkg": "./server", "args": ["-dedupe"] }
+  ],
+  "workload": { "name": "client", "pkg": "./client" },
+  "finally": { "name": "check", "pkg": "./check" },
+  "duration": "5s",
+  "liveness": { "within": "10s" },
+  "latency": ["1ms", "5ms"],
+  "faults": {
+    "include_workload": true,
+    "crash_per_sec": 0.3,
+    "restart_after": ["50ms", "1s"],
+    "pause_per_sec": 0.3,
+    "pause_for": ["50ms", "500ms"],
+    "partition_per_sec": 0.3,
+    "partition_for": ["100ms", "1s"],
+    "reset_per_sec": 0.5
+  }
+}

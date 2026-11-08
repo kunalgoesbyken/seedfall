@@ -53,7 +53,8 @@ Every incarnation of a node is a fresh module instance. A crash kills the whole 
 
 A run fails when:
 - any node calls `sim.Fail`, fails `sim.Assert` or `sim.Always`, or reaches `sim.Unreachable`;
-- the workload exits non-zero;
+- a `sim.Eventually` condition is still false at its deadline, or, with `liveness`, the workload or the `finally` check has not finished within `liveness.within` of the recovery phase (liveness);
+- the workload or the `finally` check exits non-zero;
 - a node exits or panics, unless `supervise` restarts it (Go panics always fail);
 - every node is blocked with no timer or pending message (deadlock);
 - a node runs longer than `watchdog` of real time without yielding (livelock or busy loop);

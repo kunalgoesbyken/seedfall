@@ -91,6 +91,17 @@ func TestMCPListsInitPromptsAndResources(t *testing.T) {
 	if _, ok := schema.Properties["faults"].Properties["read_corrupt"]; !ok {
 		t.Error("schema has no faults.read_corrupt field")
 	}
+	for _, field := range []string{"workloads", "finally", "liveness"} {
+		if _, ok := schema.Properties[field]; !ok {
+			t.Errorf("schema has no %s field", field)
+		}
+	}
+	if _, ok := schema.Properties["liveness"].Properties["within"]; !ok {
+		t.Error("schema has no liveness.within field")
+	}
+	if _, ok := schema.Properties["faults"].Properties["include_workload"]; !ok {
+		t.Error("schema has no faults.include_workload field")
+	}
 	if _, err := cs.ReadResource(ctx, &mcp.ReadResourceParams{URI: "seedfall://docs/properties"}); err != nil {
 		t.Error(err)
 	}

@@ -20,6 +20,7 @@ var propertyFuncs = map[string]PropertyKind{
 	"Sometimes":           Sometimes,
 	"Reachable":           Reachable,
 	"Unreachable":         Unreachable,
+	"Eventually":          Eventually,
 }
 
 const simPackage = "github.com/kunalgoesbyken/seedfall/sim"

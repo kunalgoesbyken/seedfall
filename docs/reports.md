@@ -14,7 +14,7 @@ report: .seedfall/report.html
 
 ## Findings
 
-Failures are grouped by what failed, not by message text: the failure class (`property`, `assert`, `crash`, `exit`, `watchdog`, `deadlock`, `linearizability`, `nondeterminism`), the node, and, for properties, the property name. Use `sim.Always` with a constant message to get one finding per invariant.
+Failures are grouped by what failed, not by message text: the failure class (`property`, `assert`, `crash`, `exit`, `watchdog`, `deadlock`, `liveness`, `linearizability`, `nondeterminism`), the node, and, for properties, the property name. Use `sim.Always` with a constant message to get one finding per invariant.
 
 For each finding the report shows:
 - how many seeds failed and the rate, with findings under 1% marked rare;

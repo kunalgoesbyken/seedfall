@@ -36,6 +36,8 @@ This writes the minimal schedule to `.seedfall/seed-N.faults.json` and prints it
 
 Every fault left is needed for the failure. `crash ... during disk op #k` means the node died in the middle of its k-th disk operation, usually between a write and its fsync, or between a rename and the directory fsync.
 
+A failure with class `liveness` (the workload or the `finally` check did not finish within `liveness.within`, or a `sim.Eventually` never held) shrinks the same way. The faults left are the ones that leave the system stuck even after the `recovery:` line in the trace, where every fault stops and crashed nodes restart. Read the node output after that line to see which node stopped making progress.
+
 ## 3. Find the decisive moment
 
 ```sh

@@ -17,6 +17,7 @@ const (
 	FailLinearizability FailureClass = "linearizability"
 	FailNondeterminism  FailureClass = "nondeterminism"
 	FailSetup           FailureClass = "setup"
+	FailLiveness        FailureClass = "liveness"
 )
 
 type Failure struct {

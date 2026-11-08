@@ -27,6 +27,7 @@ sim.Unreachable("two leaders in the same term", term)
 | `Unreachable(msg, details...)` | it is called | |
 | `Sometimes(cond, msg, details...)` | | it was never reached, or `cond` was never true |
 | `Reachable(msg, details...)` | | it was never reached |
+| `Eventually(cond, msg, within)` | `cond()` is still false after `within` of virtual time, as a `liveness` failure | it was never reached |
 
 ```
 property       seeds reached  seeds true
@@ -38,7 +39,7 @@ ok  400 seeds passed (0 hit the time horizon) in 1m32s
 
 A property is identified by its message, so keep messages constant and pass changing values as details. Details appear in the failure message but do not create a new property. A `Sometimes` that is never satisfied means your faults never reached that path: raise a fault rate, lengthen `duration`, or change the workload.
 
-Properties are evaluated in any node, not only the workload. Outside the simulator, `Always` and `Unreachable` panic on violation and the others do nothing.
+Properties are evaluated in any node, not only the workload. Outside the simulator, `Always`, `Unreachable` and `Eventually` panic on violation and the others do nothing.
 
 ### The property catalog
 
@@ -54,9 +55,66 @@ FAIL 1 properties were never reached or never true in 5 seeds
 
 An `Always` that never runs proves nothing, so it has to be reached too. Calls whose message is not a string literal are still tracked once they run, but they cannot be cataloged in advance.
 
-## Liveness: quiet periods
+## Liveness: recovery and finally checks
 
-Safety properties say nothing bad happens. Liveness properties say something good eventually happens, and they can only be checked once the faults stop.
+Safety properties say nothing bad happens. Liveness properties say something good eventually happens, and they can only be checked once the faults stop. A cluster with a stuck leader, or a node that never reconnects after a network blip, passes every safety check: it just stops making progress, and a run that stops making progress only hits the time horizon.
+
+Liveness mode adds a recovery phase to every run:
+
+```json
+"duration": "20s",
+"liveness": { "within": "10s" }
+```
+
+For the first `duration`, faults fire as usual. Then the recovery phase starts: every remaining fault is suppressed, every partition, clog and slowdown ends, paused nodes resume, and crashed nodes restart at once instead of waiting out their downtime. From then on the workload has `within` of virtual time to finish. If it does not, the run fails with class `liveness`:
+
+```
+FAIL seed 1 at t=15s (2255 scheduler steps, 404ms real)
+  liveness: client did not finish within 10s of the recovery phase starting at 5.000s
+
+trace:
+    4.172s  fault reset 1 connections of primary#1
+    5.000s  recovery: the fault period ended; faults stop, partitions, clogs, slowdowns and pauses end, 0 crashed nodes restart now, everything must finish by 15.000s
+   15.000s  FAIL  liveness: client did not finish within 10s of the recovery phase starting at 5.000s
+```
+
+That failure shrinks like any other: `seedfall shrink` cuts it to the faults that leave the system stuck, here a single connection reset. Liveness failures are grouped apart from safety failures in reports, as `liveness · client`.
+
+### Eventually
+
+`sim.Eventually` checks a condition that must become true, rather than one that must always hold:
+
+```go
+sim.Eventually(func() bool { return leader() != "" }, "a leader is elected", 5*time.Second)
+```
+
+It calls `cond` until it returns true, sleeping `within/100` of virtual time between calls, and returns true. If `cond` is still false after `within`, the run fails with class `liveness`, the property's message and `not true within 5s`. It is a property like the others: it is cataloged from the source, shows up in the coverage table as `eventually`, and fails the sweep if no seed ever reaches it. Outside the simulator it uses real time and panics when the condition never holds.
+
+### Finally checks
+
+A `finally` program runs once, after every workload has exited 0, the way Antithesis runs `finally_` commands:
+
+```json
+"workload": { "name": "client", "pkg": "./client" },
+"finally": { "name": "check", "pkg": "./check" }
+```
+
+When the last workload exits, the recovery phase starts (if `liveness` has not started it already) and then the check starts. It never takes faults, it sees every node through a healed network, and the run passes when it exits 0. With `liveness`, it too must finish within `within` of the recovery phase. Its properties are cataloged and counted like the workload's, so this is the place for end-state checks: replicas converge, every acknowledged write is readable, nothing was applied twice.
+
+```go
+var p, b int
+sim.Eventually(func() bool {
+	p, b = count("primary:7000"), count("backup:7000")
+	return p >= 0 && p == b
+}, "primary and backup report the same count", 5*time.Second)
+sim.Always(p == adds, "every add is applied exactly once", fmt.Sprintf("count is %d after %d adds", p, adds))
+```
+
+[`examples/liveness`](../examples/liveness) shows all three: a primary that never reconnects to its backup fails liveness mode, a server without request deduplication fails the finally check once the client is crashed mid-request, and the fixed pair passes.
+
+### Quiet periods
+
+`sim.QuietFor(d)`, called from any node, starts a quiet period from inside the program: it suppresses every fault for `d` of virtual time and heals any active partition, lifts every clog and ends every slowdown. Unlike the recovery phase, nodes that are already down still restart on schedule. The trace records each suppressed fault. `examples/raftkv/client` uses this to check that the cluster recovers after the workload.
 
 ```go
 sim.QuietFor(10 * time.Second)
@@ -64,8 +122,6 @@ started := time.Now()
 waitUntilServed()
 sim.Always(time.Since(started) < 10*time.Second, "cluster serves reads again within the quiet period")
 ```
-
-`sim.QuietFor(d)` suppresses every fault for `d` of virtual time and heals any active partition, lifts every clog and ends every slowdown. Nodes that are already down still restart on schedule. The trace records each suppressed fault. `examples/raftkv/client` uses this to check that the cluster recovers after the workload.
 
 ## Faults at your own code sites
 

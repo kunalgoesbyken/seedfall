@@ -10,10 +10,7 @@ import (
 )
 
 func Build(cfg *Config) error {
-	specs := []*NodeSpec{&cfg.Workload}
-	for i := range cfg.Nodes {
-		specs = append(specs, &cfg.Nodes[i])
-	}
+	specs := cfg.specs()
 	if err := os.MkdirAll(filepath.Join(cfg.Dir, ".seedfall"), 0o755); err != nil {
 		return err
 	}

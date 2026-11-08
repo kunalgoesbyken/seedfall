@@ -216,7 +216,7 @@ With `swarm` as well, each seed turns buggify on or off along with the other fau
 |---|---|
 | Enable | The first time a site is reached in a run, it is enabled with probability 0.25 and stays enabled or disabled for the rest of that run |
 | Fire | Each time an enabled site is reached, it fires with probability 0.25 for `sim.Buggify(site)`, or `p` for `sim.BuggifyWithProb(site, p)` |
-| Quiet | A site never fires during `sim.QuietFor` or, with `faults_after_setup`, before `sim.SetupComplete` |
+| Quiet | A site never fires during `sim.QuietFor`, during the recovery phase of `liveness` or the `finally` check, or, with `faults_after_setup`, before `sim.SetupComplete` |
 
 A site is identified by its name, so keep names constant. Both decisions use random streams keyed by the seed and the site name (and, for firing, the node), so adding a site or reaching another site more often never changes when an existing site fires. Most seeds run with only some sites enabled, which explores combinations that firing every site everywhere would hide.
 
@@ -472,9 +472,12 @@ A world is described in a JSON file, `seedfall.json` by default. Paths inside it
 
 | Field | Default | Meaning |
 |---|---|---|
-| `nodes[]` | | Crashable nodes. Each has a `name`, then either `pkg` (a Go package, built for wasip1 automatically) or `wasm` (a prebuilt module), plus optional `args` and `env` |
-| `workload` | | The checker. Same fields as a node. It is never crashed, and the run passes when it exits 0 |
-| `duration` | `30s` | Virtual-time horizon. A run that reaches it without failing counts as passed and is reported as "hit the time horizon" |
+| `nodes[]` | | Crashable nodes. Each has a `name`, then either `pkg` (a Go package, built for wasip1 automatically) or `wasm` (a prebuilt module), plus optional `args`, `env` and `faults`. `"faults": false` keeps every fault away from the node: it is never crashed, paused, slowed or skewed, its disk never fails, and partitions and clogs never cut its links, like Antithesis's fault exclusions. `sim.Buggify` sites in its own code still fire |
+| `workload` | | The checker. Same fields as a node. It takes none of the per-node faults (crashes, pauses, clock skew and jumps, slowdowns, resets, disk faults) unless `faults.include_workload` or its own `"faults": true` says so; partitions and clogs reach it like any node. The run passes when it exits 0 |
+| `workloads[]` | | Several workloads instead of, or next to, `workload`. Each is a client like `workload`, and the run passes when every one of them has exited 0. See [Faults on the workload](#faults-on-the-workload) |
+| `finally` | | A check that starts only after every workload has exited 0, with all faults stopped and the network healed. Same fields as a node; it never takes faults. The run passes when it exits 0, and its properties count like any other. See [properties.md](properties.md#liveness-recovery-and-finally-checks) |
+| `liveness.within` | `0s` (off) | Liveness mode. At `duration` the faults stop, partitions, clogs, slowdowns and pauses end, and crashed nodes restart at once; then the workload (and the `finally` check, if any) must finish within `within`, or the run fails with class `liveness` |
+| `duration` | `30s` | Virtual-time horizon, and with `liveness` the end of the fault period. A run that reaches it without failing counts as passed and is reported as "hit the time horizon"; with `liveness`, reaching it starts the recovery phase instead |
 | `latency` | `["1ms", "10ms"]` | Per-chunk network delay range |
 | `links[]` | | Per-link latency overrides, each `{"from": "n1", "to": "n2", "latency": ["20ms", "80ms"]}`. Links are one-way; leave out `from` or `to` to match any node, so `{"to": "n3", ...}` slows everything sent to `n3`. The first matching entry wins. See [Network faults](#network-faults) |
 | `faults_after_setup` | `false` | Suppress all faults until a node calls `sim.SetupComplete()` |
@@ -527,7 +530,33 @@ All faults come from the seed. Faults that depend on what the program does, such
 | `clock_jump_per_sec` | `0` | Rate of wall-clock jumps per node. Each jump moves the node's wall clock forward or back by up to `clock_jump_max`; the monotonic clock is untouched |
 | `clock_jump_max` | `10s` | Largest clock jump in either direction |
 | `buggify` | `false` | Let `sim.Buggify` and `sim.BuggifyWithProb` sites in your code fire. Each site is enabled in a quarter of runs and then fires at its own rate; every firing is recorded as a `buggify` fault with its node, site and hit number. See [buggify.md](buggify.md) |
+| `include_workload` | `false` | Give the workloads the per-node faults too: crashes, pauses, clock skew and jumps, slowdowns, connection resets and disk faults. A crashed workload restarts as a fresh process after `restart_after`, with the same name and its disk as the crash left it. See [Faults on the workload](#faults-on-the-workload) |
 | `swarm` | `false` | Swarm testing. Each seed turns every fault type on or off and rescales its rate between 0 and 2× the configured value, so faults that hide each other get explored separately |
+
+## Faults on the workload
+
+By default the workload is the one process that never crashes, so a client's own retry, idempotency and session logic is never tested: what happens when a client restarts halfway through a write and sends it again? Set `"include_workload": true` to change that:
+
+```json
+"workload": { "name": "client", "pkg": "./client" },
+"faults": { "include_workload": true, "crash_per_sec": 0.3, "pause_per_sec": 0.3 }
+```
+
+- A crashed workload restarts as a fresh process after `restart_after`, like a node. It keeps its name, so `sim.Node()` and any client id derived from it stay the same, and it finds its disk as the crash left it. A client that saves its progress there can resume; one that keeps it in memory starts over.
+- A workload crash does not end the run. The run passes only when the last incarnation of every workload exits 0.
+- Operations the crashed workload had recorded with `sim.Put` or `sim.Get` and not yet completed stay open, and the trace says how many (`client#1 died with 2 operations in flight, their outcome is unknown`). The linearizability check treats an open write as one that may take effect at any time after it started, and drops open reads, so the check stays sound.
+- Per node, `"faults": true` or `false` overrides the default: `true` on one of several workloads faults only that one, and `false` on a node keeps it out of every fault, network faults included.
+
+`workloads[]` runs several clients side by side, each its own process, so one can crash while the others keep going:
+
+```json
+"workloads": [
+  { "name": "writer", "pkg": "./client", "args": ["-mode", "write"], "faults": true },
+  { "name": "reader", "pkg": "./client", "args": ["-mode", "read"] }
+]
+```
+
+[`examples/liveness`](../examples/liveness) has a client that saves its progress and resends the add in flight after a crash. Without request deduplication on the server, one crash during an add applies it twice.
 
 ## Network faults
 
@@ -545,7 +574,7 @@ Partition topologies follow Jepsen's nemeses. `half` is the original random spli
 
 A slowdown by factor F stretches everything the node waits for: its timers and sleeps take F times as long, every message it sends or receives takes F times its latency, and a goroutine that spins is parked F times as long. The node still reads the true time, so it sees its own timeouts fire late, the way an overloaded machine does. CPU work between two waits stays free, as it is for every node in seedfall.
 
-`sim.QuietFor` heals every partition, clog and slowdown at once.
+`sim.QuietFor` and the recovery phase of `liveness` heal every partition, clog and slowdown at once.
 
 In a fault schedule, the new kinds look like this:
 
@@ -837,7 +866,8 @@ Every incarnation of a node is a fresh module instance. A crash kills the whole 
 
 A run fails when:
 - any node calls `sim.Fail`, fails `sim.Assert` or `sim.Always`, or reaches `sim.Unreachable`;
-- the workload exits non-zero;
+- a `sim.Eventually` condition is still false at its deadline, or, with `liveness`, the workload or the `finally` check has not finished within `liveness.within` of the recovery phase (liveness);
+- the workload or the `finally` check exits non-zero;
 - a node exits or panics, unless `supervise` restarts it (Go panics always fail);
 - every node is blocked with no timer or pending message (deadlock);
 - a node runs longer than `watchdog` of real time without yielding (livelock or busy loop);
@@ -1106,6 +1136,7 @@ sim.Unreachable("two leaders in the same term", term)
 | `Unreachable(msg, details...)` | it is called | |
 | `Sometimes(cond, msg, details...)` | | it was never reached, or `cond` was never true |
 | `Reachable(msg, details...)` | | it was never reached |
+| `Eventually(cond, msg, within)` | `cond()` is still false after `within` of virtual time, as a `liveness` failure | it was never reached |
 
 ```
 property       seeds reached  seeds true
@@ -1117,7 +1148,7 @@ ok  400 seeds passed (0 hit the time horizon) in 1m32s
 
 A property is identified by its message, so keep messages constant and pass changing values as details. Details appear in the failure message but do not create a new property. A `Sometimes` that is never satisfied means your faults never reached that path: raise a fault rate, lengthen `duration`, or change the workload.
 
-Properties are evaluated in any node, not only the workload. Outside the simulator, `Always` and `Unreachable` panic on violation and the others do nothing.
+Properties are evaluated in any node, not only the workload. Outside the simulator, `Always`, `Unreachable` and `Eventually` panic on violation and the others do nothing.
 
 ### The property catalog
 
@@ -1133,9 +1164,66 @@ FAIL 1 properties were never reached or never true in 5 seeds
 
 An `Always` that never runs proves nothing, so it has to be reached too. Calls whose message is not a string literal are still tracked once they run, but they cannot be cataloged in advance.
 
-## Liveness: quiet periods
+## Liveness: recovery and finally checks
 
-Safety properties say nothing bad happens. Liveness properties say something good eventually happens, and they can only be checked once the faults stop.
+Safety properties say nothing bad happens. Liveness properties say something good eventually happens, and they can only be checked once the faults stop. A cluster with a stuck leader, or a node that never reconnects after a network blip, passes every safety check: it just stops making progress, and a run that stops making progress only hits the time horizon.
+
+Liveness mode adds a recovery phase to every run:
+
+```json
+"duration": "20s",
+"liveness": { "within": "10s" }
+```
+
+For the first `duration`, faults fire as usual. Then the recovery phase starts: every remaining fault is suppressed, every partition, clog and slowdown ends, paused nodes resume, and crashed nodes restart at once instead of waiting out their downtime. From then on the workload has `within` of virtual time to finish. If it does not, the run fails with class `liveness`:
+
+```
+FAIL seed 1 at t=15s (2255 scheduler steps, 404ms real)
+  liveness: client did not finish within 10s of the recovery phase starting at 5.000s
+
+trace:
+    4.172s  fault reset 1 connections of primary#1
+    5.000s  recovery: the fault period ended; faults stop, partitions, clogs, slowdowns and pauses end, 0 crashed nodes restart now, everything must finish by 15.000s
+   15.000s  FAIL  liveness: client did not finish within 10s of the recovery phase starting at 5.000s
+```
+
+That failure shrinks like any other: `seedfall shrink` cuts it to the faults that leave the system stuck, here a single connection reset. Liveness failures are grouped apart from safety failures in reports, as `liveness · client`.
+
+### Eventually
+
+`sim.Eventually` checks a condition that must become true, rather than one that must always hold:
+
+```go
+sim.Eventually(func() bool { return leader() != "" }, "a leader is elected", 5*time.Second)
+```
+
+It calls `cond` until it returns true, sleeping `within/100` of virtual time between calls, and returns true. If `cond` is still false after `within`, the run fails with class `liveness`, the property's message and `not true within 5s`. It is a property like the others: it is cataloged from the source, shows up in the coverage table as `eventually`, and fails the sweep if no seed ever reaches it. Outside the simulator it uses real time and panics when the condition never holds.
+
+### Finally checks
+
+A `finally` program runs once, after every workload has exited 0, the way Antithesis runs `finally_` commands:
+
+```json
+"workload": { "name": "client", "pkg": "./client" },
+"finally": { "name": "check", "pkg": "./check" }
+```
+
+When the last workload exits, the recovery phase starts (if `liveness` has not started it already) and then the check starts. It never takes faults, it sees every node through a healed network, and the run passes when it exits 0. With `liveness`, it too must finish within `within` of the recovery phase. Its properties are cataloged and counted like the workload's, so this is the place for end-state checks: replicas converge, every acknowledged write is readable, nothing was applied twice.
+
+```go
+var p, b int
+sim.Eventually(func() bool {
+	p, b = count("primary:7000"), count("backup:7000")
+	return p >= 0 && p == b
+}, "primary and backup report the same count", 5*time.Second)
+sim.Always(p == adds, "every add is applied exactly once", fmt.Sprintf("count is %d after %d adds", p, adds))
+```
+
+[`examples/liveness`](../examples/liveness) shows all three: a primary that never reconnects to its backup fails liveness mode, a server without request deduplication fails the finally check once the client is crashed mid-request, and the fixed pair passes.
+
+### Quiet periods
+
+`sim.QuietFor(d)`, called from any node, starts a quiet period from inside the program: it suppresses every fault for `d` of virtual time and heals any active partition, lifts every clog and ends every slowdown. Unlike the recovery phase, nodes that are already down still restart on schedule. The trace records each suppressed fault. `examples/raftkv/client` uses this to check that the cluster recovers after the workload.
 
 ```go
 sim.QuietFor(10 * time.Second)
@@ -1143,8 +1231,6 @@ started := time.Now()
 waitUntilServed()
 sim.Always(time.Since(started) < 10*time.Second, "cluster serves reads again within the quiet period")
 ```
-
-`sim.QuietFor(d)` suppresses every fault for `d` of virtual time and heals any active partition, lifts every clog and ends every slowdown. Nodes that are already down still restart on schedule. The trace records each suppressed fault. `examples/raftkv/client` uses this to check that the cluster recovers after the workload.
 
 ## Faults at your own code sites
 
@@ -1209,7 +1295,7 @@ report: .seedfall/report.html
 
 ## Findings
 
-Failures are grouped by what failed, not by message text: the failure class (`property`, `assert`, `crash`, `exit`, `watchdog`, `deadlock`, `linearizability`, `nondeterminism`), the node, and, for properties, the property name. Use `sim.Always` with a constant message to get one finding per invariant.
+Failures are grouped by what failed, not by message text: the failure class (`property`, `assert`, `crash`, `exit`, `watchdog`, `deadlock`, `liveness`, `linearizability`, `nondeterminism`), the node, and, for properties, the property name. Use `sim.Always` with a constant message to get one finding per invariant.
 
 For each finding the report shows:
 - how many seeds failed and the rate, with findings under 1% marked rare;
@@ -1280,13 +1366,14 @@ seedfall is only useful if its own model of crashes, faults and replay is right,
 | Disk faults | `engine/diskfaults_test.go` | `disk_bytes` cuts a write short and then refuses it, flagged so the guest gets `ENOSPC`, while overwrites still fit; a failed write writes nothing but counts as a disk operation; a corrupted read flips the returned buffer and never the stored data; a lost write keeps the old page on disk (zeros for a new page) and a misdirected write puts the page at another offset, while the page cache keeps the new content, and rewriting the page later writes it in full; crash corruption flips exactly one bit inside the bytes that were being written; bit rot flips one stored bit; `fsync_corrupts` flips only the durable copy; a misdirected write is chosen from the seed and operation number and replays from its recorded fault |
 | File system calls | `engine/memfs_test.go` | `OpenFile` flags, `Mkdir`, `Rename`, `Unlink`, `Rmdir` and `Readdir` return the POSIX errors and results |
 | `strict_dirs` | `engine/namespace_test.go` | New entries need the parent directory fsynced to survive, a rename reverts without a directory fsync, and a torn crash recovers an in-order prefix of directory operations |
-| Fault schedules | `engine/faults_test.go` | Schedules are identical for the same seed and differ across seeds, stay inside the time horizon and in order, never crash the workload, and never plan runtime-only faults; swarm rates stay in `[0, 2 x rate)`, swarm mixes are deterministic per seed, and partition sides are never empty |
+| Fault schedules | `engine/faults_test.go` | Schedules are identical for the same seed and differ across seeds, stay inside the time horizon and in order, never crash the workload unless asked, and never plan runtime-only faults; swarm rates stay in `[0, 2 x rate)`, swarm mixes are deterministic per seed, and partition sides are never empty |
 | Network faults | `engine/netfaults_test.go` | Every partition topology has the promised shape (a ring gives each node a distinct majority), the default `half` topology keeps the old schedule, a one-way clog holds one direction only, `jam` accepts late without an error, `slow` adds its delay, per-link latency overrides apply one way, a reset breaks both ends, including connections waiting to be accepted, while the listener stays open, a slow node stretches its latency and timers, `sim.QuietFor` heals clogs, swizzles clog one node at a time and unclog in random order, and bad settings, including network faults on a single-node config, are rejected |
 | Scheduler | `engine/sched_test.go` | The next step is the earliest one; at the same time a planned fault goes before a restart and a restart before a resume; every resume due at that time is a candidate for the seeded scheduler; a paused node waits for its pause to end |
 | Shrinking | `engine/shrink_test.go` | Against a fake runner, `Shrink` keeps the original failure, ignores a different failure, and returns a 1-minimal schedule; failure matching ignores numbers only |
 | Network | `engine/net_test.go` | Messages on one connection arrive in order under random latency, reads wait for arrival, a partition holds messages until it heals, close delivers EOF after data, and a crash resets every connection |
 | Linearizability | `engine/history_test.go` | The key-value model accepts and rejects known histories, including unknown, pending and failed operations |
 | End to end | `engine/guest_test.go` | A small guest in `engine/testdata/guest` runs under crashes, partitions, torn writes, out-of-order writeback, crashes during disk operations and pauses: two runs of a seed give byte-identical traces, `-check` passes, a sweep finds the same failing seeds with 1 or 4 jobs, a failure replays exactly from its saved fault schedule, and a shrunk schedule keeps the failure, replays exactly and is 1-minimal. Under clogs, swizzles, resets, slow nodes and partition topologies, two runs of a seed and a replay of its fault schedule give byte-identical traces. Under every disk fault the same holds, a full disk and `write_enospc` reach the guest as `syscall.ENOSPC`, and a failure caused by a lost write shrinks to a schedule that keeps the lost write and replays exactly |
+| Liveness and workload faults | `engine/liveness_test.go` | Against the guest: with `liveness`, a workload that never finishes fails as `liveness` at `duration + within` and without it only hits the horizon; the recovery phase restarts a node that would stay down and heals a partition, so the workload finishes; a `finally` check starts only after the workload, with no fault after it, and its `sim.Eventually` counts as a property; an `Eventually` that never holds fails as `liveness` with its message; `include_workload` crashes and pauses the client, open operations are reported and stay sound for linearizability, and a replay of the recorded faults is byte-identical; every one of several workloads must finish. Without the guest: `"faults": false` keeps a node out of every planned fault and every partition, the workload is a fault target only when asked, configs with `workloads[]`, `finally` and `liveness` are validated, and `sim.Eventually` is cataloged |
 | Confidence math | `report/report_test.go` | `SeedsToConfirm` and the detectable failure rate against known values, findings moving through new, ongoing, not seen, resolved and regressed across runs, and the JSON report against a golden file |
 | Proof rendering | `verify/verify_test.go` | How many seeds a proof needs, and the text and Markdown proof blocks against golden files |
 
@@ -1506,7 +1593,9 @@ The full reference is the MCP resource `seedfall://docs/properties` (docs/proper
 | Something must never happen | `sim.Unreachable("two leaders in the same term", term)` |
 | A dangerous path actually ran | `sim.Sometimes(tornTail, "recovery found a torn tail")`, `sim.Reachable("a node restored from a snapshot")` |
 | Concurrent clients see a linearizable history | Wrap each call: `op := sim.Put(client, key, value)`, then `op.Ok("")`, `op.Unknown()` on a timeout, or `op.Failed()` when it definitely did not apply. Use `sim.Get` for reads |
-| The system recovers | `sim.QuietFor(10 * time.Second)`, then assert that it serves again within that window |
+| The system recovers | Set `"liveness": {"within": "10s"}` in seedfall.json: after `duration` the faults stop, crashed nodes restart, and a workload that does not finish within 10s fails as `liveness`. Inside a program, `sim.Eventually(func() bool { return served() }, "cluster serves reads again", 10*time.Second)` |
+| The end state is right | A `"finally": {"name": "check", "pkg": "./check"}` program runs after the workload with faults stopped; check convergence and exactly-once effects there with `sim.Eventually` and `sim.Always` |
+| Client retries are safe | `"include_workload": true` in `faults` crashes and pauses the workload too. Derive request ids from `sim.Node()` and saved progress, so a restarted client resends the same id, then check in `finally` that nothing was applied twice |
 
 Rules:
 - Keep messages constant string literals and pass changing values as extra arguments. seedfall catalogs literal messages before the sweep, and an `Always` or `Reachable` that no seed reaches fails the sweep.
@@ -1656,6 +1745,8 @@ This writes the minimal schedule to `.seedfall/seed-N.faults.json` and prints it
 ```
 
 Every fault left is needed for the failure. `crash ... during disk op #k` means the node died in the middle of its k-th disk operation, usually between a write and its fsync, or between a rename and the directory fsync.
+
+A failure with class `liveness` (the workload or the `finally` check did not finish within `liveness.within`, or a `sim.Eventually` never held) shrinks the same way. The faults left are the ones that leave the system stuck even after the `recovery:` line in the trace, where every fault stops and crashed nodes restart. Read the node output after that line to see which node stopped making progress.
 
 ## 3. Find the decisive moment
 

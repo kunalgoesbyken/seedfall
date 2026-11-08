@@ -30,6 +30,8 @@ type (
 type node struct {
 	spec       NodeSpec
 	crashable  bool
+	workload   bool
+	done       bool
 	compiled   wazero.CompiledModule
 	fs         *memFS
 	live       *instance
@@ -74,7 +76,10 @@ type world struct {
 	diskRand    *rand.Rand
 	latRand     *rand.Rand
 	nodes       []*node
-	workload    *node
+	finally     *node
+	shielded    map[string]bool
+	recovering  bool
+	deadline    int64
 	net         *network
 	events      chan event
 	faults      []Fault
@@ -150,7 +155,7 @@ func hostModule(ctx context.Context, rt wazero.Runtime) error {
 	})
 	export("history_call", func(ctx context.Context, m api.Module, p, n uint32) int32 {
 		w := worldOf(ctx)
-		return w.history.call(w.now, readBytes(m, p, n))
+		return w.history.call(w.now, readBytes(m, p, n), w.instance(ctx).label)
 	})
 	export("history_return", func(ctx context.Context, m api.Module, id int32, p, n uint32, outcome int32) {
 		w := worldOf(ctx)
@@ -292,11 +297,17 @@ func (w *world) handle(ev event) {
 		if ev.inst.crashUntil > 0 {
 			w.crashDisk(n, ev.inst.crashUntil, fmt.Sprintf("op/%d", n.ops))
 		}
+		if open := w.history.open(ev.inst.label); open > 0 {
+			w.trace.add(w.now, "%s died with %d operations in flight, their outcome is unknown", ev.inst.label, open)
+		}
 	case w.ctx.Err() != nil:
 		w.fail(Failure{Class: FailWatchdog, Node: n.name()}, fmt.Sprintf("watchdog: %s ran for more than %s of real time without yielding (livelock or busy loop)", ev.inst.label, time.Duration(w.cfg.Watchdog)))
-	case n == w.workload && exitedCleanly(ev.err):
+	case n.workload && exitedCleanly(ev.err):
+		n.done = true
+		w.workloadDone(ev.inst)
+	case n == w.finally && exitedCleanly(ev.err):
 		w.finished = true
-		w.trace.add(w.now, "workload finished")
+		w.trace.add(w.now, "finally check %s passed", ev.inst.label)
 	case w.supervised(n, ev.err):
 		n.restartAt = w.now + int64(uniform(w.sched, w.spec.RestartAfter))
 		w.trace.add(w.now, "%s exited (%v), supervisor restarts it at %s", ev.inst.label, ev.err, fmtTime(n.restartAt))
@@ -315,7 +326,7 @@ func (w *world) kill(inst *instance) {
 
 func (w *world) applyFault(f *Fault) {
 	if w.faultsSuppressed() {
-		w.trace.add(w.now, "fault %s suppressed by a quiet period", f.Kind)
+		w.trace.add(w.now, "fault %s suppressed by %s", f.Kind, w.quietReason())
 		return
 	}
 	switch f.Kind {
@@ -461,8 +472,11 @@ func (w *world) loop() {
 		if w.takeBranch(candidates[0].at) {
 			continue
 		}
+		if w.livenessDue(candidates[0].at) {
+			continue
+		}
 		s := candidates[w.sched.IntN(len(candidates))]
-		if s.at > horizon {
+		if s.at > horizon && w.deadline == never {
 			w.trace.add(w.now, "horizon %s reached before the workload finished", fmtTime(horizon))
 			return
 		}

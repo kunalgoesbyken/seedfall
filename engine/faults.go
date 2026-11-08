@@ -108,10 +108,10 @@ func generateFaults(cfg *Config, spec FaultSpec, r *rand.Rand) []Fault {
 	var out []Fault
 	horizon := time.Duration(cfg.Duration)
 	if rate := spec.CrashPerSec; rate > 0 {
-		for _, n := range cfg.Nodes {
+		for _, n := range faultTargets(cfg) {
 			for t := exponential(r, rate); t < horizon; {
 				until := t + uniform(r, spec.RestartAfter)
-				out = append(out, Fault{At: Duration(t), Kind: FaultCrash, Node: n.Name, Until: Duration(until)})
+				out = append(out, Fault{At: Duration(t), Kind: FaultCrash, Node: n, Until: Duration(until)})
 				t = until + exponential(r, rate)
 			}
 		}
@@ -180,9 +180,9 @@ func perNode(cfg *Config, rate float64, r *rand.Rand, fault func(node string, at
 	}
 	var out []Fault
 	horizon := time.Duration(cfg.Duration)
-	for _, n := range cfg.Nodes {
+	for _, n := range faultTargets(cfg) {
 		for t := exponential(r, rate); t < horizon; {
-			f, end := fault(n.Name, t)
+			f, end := fault(n, t)
 			out = append(out, f)
 			t = end + exponential(r, rate)
 		}
@@ -190,10 +190,16 @@ func perNode(cfg *Config, rate float64, r *rand.Rand, fault func(node string, at
 	return out
 }
 
-func nodeNames(cfg *Config) []string {
+func nodeNames(cfg *Config) []string { return namesWhere(cfg, cfg.networked) }
+
+func faultTargets(cfg *Config) []string { return namesWhere(cfg, cfg.faultable) }
+
+func namesWhere(cfg *Config, keep func(NodeSpec) bool) []string {
 	var names []string
 	for _, s := range cfg.all() {
-		names = append(names, s.Name)
+		if keep(s) {
+			names = append(names, s.Name)
+		}
 	}
 	return names
 }

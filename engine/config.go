@@ -31,11 +31,12 @@ func (d *Duration) UnmarshalJSON(b []byte) error {
 type Range [2]Duration
 
 type NodeSpec struct {
-	Name string            `json:"name"`
-	Pkg  string            `json:"pkg,omitempty"`
-	Wasm string            `json:"wasm,omitempty"`
-	Args []string          `json:"args,omitempty"`
-	Env  map[string]string `json:"env,omitempty"`
+	Name   string            `json:"name"`
+	Pkg    string            `json:"pkg,omitempty"`
+	Wasm   string            `json:"wasm,omitempty"`
+	Args   []string          `json:"args,omitempty"`
+	Env    map[string]string `json:"env,omitempty"`
+	Faults *bool             `json:"faults,omitempty"`
 }
 
 type FaultSpec struct {
@@ -75,6 +76,7 @@ type FaultSpec struct {
 	CorruptOnCrash      bool     `json:"corrupt_on_crash"`
 	BitrotPerSec        float64  `json:"bitrot_per_sec"`
 	DiskLatency         Range    `json:"disk_latency"`
+	IncludeWorkload     bool     `json:"include_workload"`
 }
 
 type Link struct {
@@ -87,20 +89,27 @@ type PreemptSpec struct {
 	Interleave bool `json:"interleave"`
 }
 
+type LivenessSpec struct {
+	Within Duration `json:"within"`
+}
+
 type Config struct {
-	Nodes            []NodeSpec  `json:"nodes"`
-	Workload         NodeSpec    `json:"workload"`
-	Duration         Duration    `json:"duration"`
-	Latency          Range       `json:"latency"`
-	Links            []Link      `json:"links,omitempty"`
-	Faults           FaultSpec   `json:"faults"`
-	Watchdog         Duration    `json:"watchdog"`
-	NetOverlay       bool        `json:"net_overlay"`
-	CompatOverlay    bool        `json:"compat_overlay"`
-	Supervise        bool        `json:"supervise"`
-	FaultsAfterSetup bool        `json:"faults_after_setup"`
-	Preempt          PreemptSpec `json:"preempt"`
-	Dir              string      `json:"-"`
+	Nodes            []NodeSpec   `json:"nodes"`
+	Workload         NodeSpec     `json:"workload"`
+	Workloads        []NodeSpec   `json:"workloads,omitempty"`
+	Finally          *NodeSpec    `json:"finally,omitempty"`
+	Liveness         LivenessSpec `json:"liveness"`
+	Duration         Duration     `json:"duration"`
+	Latency          Range        `json:"latency"`
+	Links            []Link       `json:"links,omitempty"`
+	Faults           FaultSpec    `json:"faults"`
+	Watchdog         Duration     `json:"watchdog"`
+	NetOverlay       bool         `json:"net_overlay"`
+	CompatOverlay    bool         `json:"compat_overlay"`
+	Supervise        bool         `json:"supervise"`
+	FaultsAfterSetup bool         `json:"faults_after_setup"`
+	Preempt          PreemptSpec  `json:"preempt"`
+	Dir              string       `json:"-"`
 }
 
 func defaultConfig() Config {
@@ -137,8 +146,11 @@ func LoadConfig(path string) (*Config, error) {
 }
 
 func (c *Config) validate() error {
-	if c.Workload.Name == "" {
+	if len(c.workloads()) == 0 {
 		return errors.New("config: workload.name is required")
+	}
+	if c.Liveness.Within < 0 {
+		return errors.New("config: liveness.within is negative")
 	}
 	seen := map[string]bool{}
 	for _, s := range c.all() {
@@ -162,6 +174,53 @@ func (c *Config) validate() error {
 	return c.validateNetwork(seen)
 }
 
-func (c *Config) all() []NodeSpec { return append(append([]NodeSpec{}, c.Nodes...), c.Workload) }
+func (c *Config) specs() []*NodeSpec {
+	var out []*NodeSpec
+	for i := range c.Nodes {
+		out = append(out, &c.Nodes[i])
+	}
+	if c.Workload.Name != "" || len(c.Workloads) == 0 {
+		out = append(out, &c.Workload)
+	}
+	for i := range c.Workloads {
+		out = append(out, &c.Workloads[i])
+	}
+	if c.Finally != nil {
+		out = append(out, c.Finally)
+	}
+	return out
+}
+
+func (c *Config) all() []NodeSpec {
+	var out []NodeSpec
+	for _, s := range c.specs() {
+		out = append(out, *s)
+	}
+	return out
+}
+
+func (c *Config) workloads() []NodeSpec {
+	return slices.DeleteFunc(c.all(), func(s NodeSpec) bool { return s.Name == "" || !c.isWorkload(s.Name) })
+}
+
+func (c *Config) isWorkload(name string) bool {
+	return name == c.Workload.Name || slices.ContainsFunc(c.Workloads, func(s NodeSpec) bool { return s.Name == name })
+}
+
+func (c *Config) isFinally(name string) bool { return c.Finally != nil && c.Finally.Name == name }
+
+func (c *Config) networked(s NodeSpec) bool {
+	return (s.Faults == nil || *s.Faults) && !c.isFinally(s.Name)
+}
+
+func (c *Config) faultable(s NodeSpec) bool {
+	switch {
+	case c.isFinally(s.Name):
+		return false
+	case s.Faults != nil:
+		return *s.Faults
+	}
+	return !c.isWorkload(s.Name) || c.Faults.IncludeWorkload
+}
 
 func DefaultConfig() Config { return defaultConfig() }

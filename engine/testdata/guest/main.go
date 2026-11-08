@@ -23,12 +23,22 @@ func main() {
 	role := flag.String("role", "store", "store or client")
 	durable := flag.Bool("fsync", true, "fsync every write before acknowledging it")
 	writes := flag.Int("writes", 60, "writes the client sends")
+	forever := flag.Bool("forever", false, "keep the client running after its writes")
+	record := flag.Bool("history", false, "record every write in the linearizability history")
+	least := flag.Int("least", 0, "count the finally check waits for")
+	within := flag.Duration("within", time.Second, "how long the finally check waits")
 	flag.Parse()
-	if *role == "client" {
-		client(*writes)
-		return
+	switch *role {
+	case "client":
+		client(*writes, *record, *forever)
+	case "finally":
+		sim.Eventually(func() bool {
+			stored, err := call("COUNT")
+			return err == nil && stored >= *least
+		}, "the store answers after recovery", *within)
+	default:
+		store(*durable)
 	}
-	store(*durable)
 }
 
 func store(durable bool) {
@@ -77,17 +87,28 @@ func store(durable bool) {
 	}
 }
 
-func client(writes int) {
+func client(writes int, record, forever bool) {
 	acked := 0
-	for range writes {
-		if _, err := call("PUT"); err == nil {
+	for i := range writes {
+		var op sim.Op
+		if record {
+			op = sim.Put(0, "k", strconv.Itoa(i))
+		}
+		_, err := call("PUT")
+		switch {
+		case err == nil:
 			acked++
+			if record {
+				op.Ok("")
+			}
+		case record:
+			op.Unknown()
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
 	sim.Sometimes(acked < writes, "a fault interrupted the workload")
 	for {
-		if stored, err := call("COUNT"); err == nil {
+		if stored, err := call("COUNT"); err == nil && !forever {
 			sim.Assert(stored >= acked, fmt.Sprintf("acknowledged writes lost: %d acknowledged, %d stored", acked, stored))
 			return
 		}

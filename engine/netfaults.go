@@ -54,12 +54,13 @@ func (c *Config) validateNetwork(names map[string]bool) error {
 	if err := oneOf("faults.clog_modes", f.ClogModes, clogModes); err != nil {
 		return err
 	}
-	if max(f.PartitionPerSec, f.ClogPerSec, f.SwizzlePerSec) > 0 && len(names) < splitNodes {
-		return fmt.Errorf("config: partitions, clogs and swizzles need at least %d nodes, workload included", splitNodes)
+	targets := len(nodeNames(c))
+	if max(f.PartitionPerSec, f.ClogPerSec, f.SwizzlePerSec) > 0 && targets < splitNodes {
+		return fmt.Errorf("config: partitions, clogs and swizzles need at least %d nodes that take faults, workload included", splitNodes)
 	}
 	for _, t := range f.PartitionTopologies {
-		if f.PartitionPerSec > 0 && len(names) < minNodes[t] {
-			return fmt.Errorf("config: partition topology %q needs at least %d nodes, workload included", t, minNodes[t])
+		if f.PartitionPerSec > 0 && targets < minNodes[t] {
+			return fmt.Errorf("config: partition topology %q needs at least %d nodes that take faults, workload included", t, minNodes[t])
 		}
 	}
 	if f.ClogPerSec > 0 && len(f.ClogModes) == 0 {
@@ -214,6 +215,9 @@ type linkState struct {
 
 func (w *world) link(from, to string) linkState {
 	var s linkState
+	if w.shielded[from] || w.shielded[to] {
+		return s
+	}
 	for _, f := range w.netFaults {
 		if int64(f.Until) <= w.now || !f.affects(from, to) {
 			continue

@@ -27,7 +27,10 @@ const (
 	reachable
 	unreachable
 	alwaysOrUnreachable
+	eventually
 )
+
+const eventuallyPolls = 100
 
 func Always(cond bool, msg string, details ...any) { property(always, cond, msg, details) }
 
@@ -40,6 +43,19 @@ func Sometimes(cond bool, msg string, details ...any) { property(sometimes, cond
 func Reachable(msg string, details ...any) { property(reachable, true, msg, details) }
 
 func Unreachable(msg string, details ...any) { property(unreachable, false, msg, details) }
+
+func Eventually(cond func() bool, msg string, within time.Duration) bool {
+	deadline := time.Now().Add(within)
+	for !cond() {
+		if !time.Now().Before(deadline) {
+			property(eventually, false, msg, []any{"not true within ", within})
+			return false
+		}
+		time.Sleep(within / eventuallyPolls)
+	}
+	property(eventually, true, msg, nil)
+	return true
+}
 
 func SetupComplete() { setupComplete() }
 

@@ -1,0 +1,16 @@
+{
+  "nodes": [
+    { "name": "primary", "pkg": "./server", "args": ["-backup", "backup:7000", "-redial"], "faults": false },
+    { "name": "backup", "pkg": "./server", "faults": false }
+  ],
+  "workload": { "name": "client", "pkg": "./client", "args": ["-gap", "10ms"] },
+  "finally": { "name": "check", "pkg": "./check" },
+  "duration": "5s",
+  "liveness": { "within": "10s" },
+  "latency": ["1ms", "5ms"],
+  "faults": {
+    "include_workload": true,
+    "crash_per_sec": 2,
+    "restart_after": ["10ms", "200ms"]
+  }
+}

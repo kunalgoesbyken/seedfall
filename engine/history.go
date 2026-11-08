@@ -22,16 +22,28 @@ type kvOutput struct {
 }
 
 type history struct {
-	ops []porcupine.Operation
+	ops    []porcupine.Operation
+	owners []string
 }
 
-func (h *history) call(now int64, raw []byte) int32 {
+func (h *history) call(now int64, raw []byte, owner string) int32 {
 	var in kvInput
 	if err := json.Unmarshal(raw, &in); err != nil || (in.Kind != "put" && in.Kind != "get") {
 		return -1
 	}
 	h.ops = append(h.ops, porcupine.Operation{ClientId: in.Client, Input: in, Call: now, Return: -1})
+	h.owners = append(h.owners, owner)
 	return int32(len(h.ops) - 1)
+}
+
+func (h *history) open(owner string) int {
+	n := 0
+	for i, op := range h.ops {
+		if op.Return < 0 && h.owners[i] == owner {
+			n++
+		}
+	}
+	return n
 }
 
 const (

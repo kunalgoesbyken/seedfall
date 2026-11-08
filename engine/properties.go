@@ -15,14 +15,22 @@ const (
 	Reachable
 	Unreachable
 	AlwaysOrUnreachable
+	Eventually
 )
 
-var kindNames = [...]string{"always", "sometimes", "reachable", "unreachable", "always_or_unreachable"}
+var kindNames = [...]string{"always", "sometimes", "reachable", "unreachable", "always_or_unreachable", "eventually"}
 
 func (k PropertyKind) String() string { return kindNames[k] }
 
 func (k PropertyKind) violatedBy(cond bool) bool {
-	return ((k == Always || k == AlwaysOrUnreachable) && !cond) || k == Unreachable
+	return ((k == Always || k == AlwaysOrUnreachable || k == Eventually) && !cond) || k == Unreachable
+}
+
+func (k PropertyKind) failureClass() FailureClass {
+	if k == Eventually {
+		return FailLiveness
+	}
+	return FailProperty
 }
 
 func (k PropertyKind) needsWitness() bool { return k == Sometimes || k == Reachable }
@@ -114,13 +122,13 @@ func (c Coverage) Unmet() []string {
 }
 
 func (w *world) observeProperty(inst *instance, kind PropertyKind, cond bool, msg, detail string) {
-	if kind < Always || kind > AlwaysOrUnreachable {
+	if kind < Always || kind > Eventually {
 		w.fail(Failure{Class: FailAssert, Node: inst.node.name()}, fmt.Sprintf("%s: unknown property kind %d", inst.label, kind))
 		panic(errFailed)
 	}
 	w.props.observe(kind, cond, msg)
 	if kind.violatedBy(cond) {
-		w.fail(Failure{Class: FailProperty, Node: inst.node.name(), Property: msg}, strings.TrimSuffix(fmt.Sprintf("%s: %s: %s", inst.label, msg, detail), ": "))
+		w.fail(Failure{Class: kind.failureClass(), Node: inst.node.name(), Property: msg}, strings.TrimSuffix(fmt.Sprintf("%s: %s: %s", inst.label, msg, detail), ": "))
 		panic(errFailed)
 	}
 }
