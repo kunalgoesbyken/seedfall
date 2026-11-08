@@ -70,6 +70,7 @@ func TestMCPListsInitPromptsAndResources(t *testing.T) {
 		Default    json.RawMessage `json:"default"`
 		Properties map[string]struct {
 			Default json.RawMessage `json:"default"`
+			Enum    []string        `json:"enum"`
 		} `json:"properties"`
 	}
 	var schema struct {
@@ -101,6 +102,9 @@ func TestMCPListsInitPromptsAndResources(t *testing.T) {
 	}
 	if _, ok := schema.Properties["faults"].Properties["include_workload"]; !ok {
 		t.Error("schema has no faults.include_workload field")
+	}
+	if model := schema.Properties["checker"].Properties["model"]; string(model.Default) != `"kv"` || !slices.Equal(model.Enum, engine.Models()) {
+		t.Errorf("checker.model default %s enum %v", model.Default, model.Enum)
 	}
 	if _, err := cs.ReadResource(ctx, &mcp.ReadResourceParams{URI: "seedfall://docs/properties"}); err != nil {
 		t.Error(err)
@@ -162,5 +166,38 @@ func TestInitScaffoldsANetworkedMain(t *testing.T) {
 	again := callInit(t, cs, dir)
 	if len(again.Wrote) != 0 || len(again.Kept) != 2 {
 		t.Errorf("second init wrote %v, kept %v", again.Wrote, again.Kept)
+	}
+}
+
+func TestMCPChecksAStoredHistory(t *testing.T) {
+	cs := connect(t)
+	dir := t.TempDir()
+	file := filepath.Join(dir, "seed-1.history.jsonl")
+	lines := `{"type":"invoke","process":1,"f":"put","key":"x","value":"1","time":0,"id":0}
+{"type":"ok","process":1,"f":"put","key":"x","value":"","time":10,"id":0}
+{"type":"invoke","process":2,"f":"get","key":"x","time":20,"id":1}
+{"type":"ok","process":2,"f":"get","key":"x","value":"","time":30,"id":1}
+`
+	if err := os.WriteFile(file, []byte(lines), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "seedfall_check", Arguments: map[string]any{"history": file}})
+	if err != nil || res.IsError {
+		t.Fatalf("seedfall_check: %v %v", err, res.Content)
+	}
+	b, _ := json.Marshal(res.StructuredContent)
+	var v checkView
+	if err := json.Unmarshal(b, &v); err != nil {
+		t.Fatal(err)
+	}
+	if v.Ok || v.Model != "kv" || v.Operations != 2 || v.Timeline != filepath.Join(dir, "seed-1.history.html") {
+		t.Fatalf("check view %+v", v)
+	}
+	if _, err := os.Stat(v.Timeline); err != nil {
+		t.Fatal(err)
+	}
+	res, err = cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "seedfall_check", Arguments: map[string]any{"history": file, "model": "queue"}})
+	if err != nil || !res.IsError {
+		t.Fatalf("a kv history checked as a queue: %v %v", err, res.Content)
 	}
 }

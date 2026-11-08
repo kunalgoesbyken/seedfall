@@ -139,7 +139,7 @@ property       seeds reached  seeds true
       <div>
         <p class="kicker">Correctness</p>
         <h4>Properties with coverage</h4>
-        <p><code>Always</code>, <code>Sometimes</code> and <code>Reachable</code> are counted across the sweep, so you know the dangerous paths ran. Linearizability is checked with Porcupine.</p>
+        <p><code>Always</code>, <code>Sometimes</code> and <code>Reachable</code> are counted across the sweep, so you know the dangerous paths ran. Histories are checked with Porcupine against a key-value, compare-and-set, log, queue, set or counter model, and list-append transactions for Elle-style isolation anomalies.</p>
       </div>
       <div>
         <p class="kicker">Filesystem</p>

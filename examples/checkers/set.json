@@ -1,0 +1,5 @@
+{
+  "workload": { "name": "store", "pkg": "./store", "args": ["-model", "set"] },
+  "checker": { "model": "set" },
+  "duration": "10s"
+}

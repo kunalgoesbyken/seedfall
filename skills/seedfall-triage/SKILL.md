@@ -56,6 +56,8 @@ seedfall inspect -c C -seed N -faults .seedfall/seed-N.faults.json -node server 
 
 Inspect shows each node's files at the failure, or at the virtual time `-at`, with live and durable sizes, the byte ranges a crash would lose, directory entries that are not durable yet, the last torn write, and removed entries a crash would bring back. Take `-at` just before and just after the decisive fault from step 3. `-cat` prints one file's durable content. `-out dir` exports the durable images so the project's own tools can open them.
 
+A `linearizability` or `isolation` failure is about the recorded history, not the disk. The failing run saved it to `.seedfall/seed-N.history.jsonl`, and a linearizability violation also to the timeline `.seedfall/seed-N.history.html`; find the first operation that no order explains. For `isolation`, the trace names each anomaly with its dependency cycle (`T4 -rw z-> T0 -wr z-> T6 -ww y-> T4`) and every transaction on it. `seedfall check -history .seedfall/seed-N.history.jsonl -model M` re-checks the file without running anything, also over MCP as `seedfall_check`.
+
 ## 5. Check the hypothesis with a replay
 
 Write the explanation down as one sentence, for example "the crash in op #56 leaves a torn record, and recovery appends after it instead of truncating". Then test it by changing one thing and replaying.

@@ -25,7 +25,7 @@ type Result struct {
 	Faults     []Fault
 	Trace      []string
 	Elapsed    time.Duration
-	History    Linearizability
+	History    HistoryCheck
 	Properties map[string]*Property
 	Failure    Failure
 	Buggify    map[string]*BuggifySite
@@ -159,6 +159,7 @@ func (r *Runner) run(seed uint64, faults []Fault, explicit bool, b *branch, p *p
 		events: make(chan event), faults: slices.Clone(faults), trace: &tracer{}, compiled: r.compiled,
 		explicit: explicit, ioRand: streams(seed, "io"), props: properties{}, spec: r.cfg.Faults.forSeed(seed), branch: b, probe: p,
 		mutation: r.Mutation, weakened: func() { r.weakened.Add(1) }, shielded: map[string]bool{}, deadline: never,
+		history: history{model: r.cfg.Checker.Model},
 	}
 	w.net = newNetwork(w)
 	res := Result{Seed: seed, Faults: faults}
@@ -166,7 +167,7 @@ func (r *Runner) run(seed uint64, faults []Fault, explicit bool, b *branch, p *p
 	w.loop()
 	w.capture()
 	w.shutdown()
-	w.checkLinearizable()
+	w.checkHistory()
 	res.History = w.lin
 	res.Properties = w.props
 	res.Buggify = w.bugs.sites

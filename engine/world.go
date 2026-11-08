@@ -98,7 +98,7 @@ type world struct {
 	spec        FaultSpec
 	compiled    map[string]wazero.CompiledModule
 	history     history
-	lin         Linearizability
+	lin         HistoryCheck
 	props       properties
 	branch      *branch
 	probe       *probe
@@ -155,11 +155,14 @@ func hostModule(ctx context.Context, rt wazero.Runtime) error {
 	})
 	export("history_call", func(ctx context.Context, m api.Module, p, n uint32) int32 {
 		w := worldOf(ctx)
-		return w.history.call(w.now, readBytes(m, p, n), w.instance(ctx).label)
+		inst := w.instance(ctx)
+		id, err := w.history.call(w.now, readBytes(m, p, n), inst.label)
+		w.historyError(inst, err)
+		return id
 	})
 	export("history_return", func(ctx context.Context, m api.Module, id int32, p, n uint32, outcome int32) {
 		w := worldOf(ctx)
-		w.history.complete(w.now, id, string(readBytes(m, p, n)), outcome)
+		w.historyError(w.instance(ctx), w.history.complete(w.now, id, readBytes(m, p, n), outcome))
 	})
 	export("property", func(ctx context.Context, m api.Module, kind, cond int32, p, n, dp, dn uint32) {
 		w := worldOf(ctx)
@@ -392,16 +395,29 @@ func (w *world) crashDisk(n *node, until int64, crash string) {
 	n.restartAt = until
 }
 
-func (w *world) checkLinearizable() {
-	if w.failure != "" {
+func (w *world) historyError(inst *instance, err error) {
+	if err == nil {
 		return
 	}
-	w.lin = checkHistory(&w.history, w.now)
-	if w.lin.Checked {
-		w.trace.add(w.now, "checked %d operations for linearizability: %s", w.lin.Ops, map[bool]string{true: "ok", false: "VIOLATION"}[w.lin.Ok])
+	w.fail(Failure{Class: FailAssert, Node: inst.node.name()}, fmt.Sprintf("%s: history (model %s): %v", inst.label, w.cfg.Checker.Model, err))
+	panic(errFailed)
+}
+
+func (w *world) checkHistory() {
+	if w.failure != "" {
+		w.lin = HistoryCheck{Model: w.history.model, Ops: w.history.finished()}
+		return
 	}
-	if w.lin.Checked && !w.lin.Ok {
-		w.fail(Failure{Class: FailLinearizability}, fmt.Sprintf("history of %d operations is not linearizable", w.lin.Ops))
+	w.lin = w.history.check()
+	if !w.lin.Checked {
+		return
+	}
+	w.trace.add(w.now, "checked %s", w.lin.Summary())
+	for _, a := range w.lin.Anomalies {
+		w.trace.add(w.now, "%s: %s", a.Kind, a.Explain)
+	}
+	if !w.lin.Ok {
+		w.fail(w.lin.failure())
 	}
 }
 

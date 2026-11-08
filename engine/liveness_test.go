@@ -242,11 +242,11 @@ func TestConfigValidatesWorkloadsAndLiveness(t *testing.T) {
 
 func TestHistoryCountsOpenOperationsPerInstance(t *testing.T) {
 	h := &history{}
-	put := []byte(`{"client":1,"kind":"put","key":"x","value":"1"}`)
-	done := h.call(0, put, "client#1")
+	put := []byte(`{"client":1,"f":"put","key":"x","value":"1"}`)
+	done, _ := h.call(0, put, "client#1")
 	h.call(1, put, "client#1")
 	h.call(2, put, "client#2")
-	h.complete(3, done, "", outcomeOk)
+	h.complete(3, done, nil, outcomeOk)
 	if h.open("client#1") != 1 || h.open("client#2") != 1 || h.open("client#3") != 0 {
 		t.Fatalf("open counts %d %d %d, want 1 1 0", h.open("client#1"), h.open("client#2"), h.open("client#3"))
 	}

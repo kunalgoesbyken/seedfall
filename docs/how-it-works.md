@@ -58,7 +58,7 @@ A run fails when:
 - a node exits or panics, unless `supervise` restarts it (Go panics always fail);
 - every node is blocked with no timer or pending message (deadlock);
 - a node runs longer than `watchdog` of real time without yielding (livelock or busy loop);
-- the recorded `sim.Put` / `sim.Get` history is not linearizable.
+- the recorded `sim.Put` / `sim.Get` / `sim.Invoke` history is not linearizable under the configured model, or the `sim.Txn` history has an isolation anomaly.
 
 A sweep also fails when a cataloged property is never reached, or a `Sometimes` is never true, in any seed.
 

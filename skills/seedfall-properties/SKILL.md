@@ -1,6 +1,6 @@
 ---
 name: seedfall-properties
-description: Read a Go service's storage and replication code, turn its durability and consistency promises into seedfall properties (sim.Assert, sim.Always, sim.Sometimes, sim.Reachable, sim.Unreachable, sim.Eventually, and linearizability through sim.Put and sim.Get), and grade them with seedfall mutate until every exercised durability mutant is killed. Use after seedfall-setup, when asked what to check, to strengthen a workload, or when a green sweep might be proving nothing.
+description: Read a Go service's storage and replication code, turn its durability and consistency promises into seedfall properties (sim.Assert, sim.Always, sim.Sometimes, sim.Reachable, sim.Unreachable, sim.Eventually, linearizability through sim.Put, sim.Get and sim.Invoke, and transactional isolation through sim.Txn), and grade them with seedfall mutate until every exercised durability mutant is killed. Use after seedfall-setup, when asked what to check, to strengthen a workload, or when a green sweep might be proving nothing.
 compatibility: Requires Go 1.25 or newer, the seedfall CLI, and a seedfall.json that already runs (see seedfall-setup).
 ---
 
@@ -31,6 +31,8 @@ The full reference is the MCP resource `seedfall://docs/properties` (docs/proper
 | Something must never happen | `sim.Unreachable("two leaders in the same term", term)` |
 | A dangerous path actually ran | `sim.Sometimes(tornTail, "recovery found a torn tail")`, `sim.Reachable("a node restored from a snapshot")` |
 | Concurrent clients see a linearizable history | Wrap each call: `op := sim.Put(client, key, value)`, then `op.Ok("")`, `op.Unknown()` on a timeout, or `op.Failed()` when it definitely did not apply. Use `sim.Get` for reads |
+| A lock, queue, log, set or counter behaves like one | Set `"checker": {"model": "cas"}` (or `queue`, `append`, `set`, `counter`) in seedfall.json and record each call with `sim.Invoke(client, f, key, value)`, for example `sim.Invoke(c, "cas", "lock", []string{"", me})` then `op.Ok(swapped)`, or `sim.Invoke(c, "dequeue", "q", nil)` then `op.Ok(item)`. The table of operations per model is in docs/properties.md, Other models |
+| Transactions are serializable | Set `"checker": {"model": "list-append"}`, record each transaction with `op := sim.Txn(client, sim.Read("x"), sim.Append("y", unique))`, and pass the micro-ops back with each read's `Value` set to the list it returned: `op.Ok(mops)`. Appended values must be unique per key. Failures name the anomaly (`G-single`, `G2`, ...) and the cycle |
 | The system recovers | Set `"liveness": {"within": "10s"}` in seedfall.json: after `duration` the faults stop, crashed nodes restart, and a workload that does not finish within 10s fails as `liveness`. Inside a program, `sim.Eventually(func() bool { return served() }, "cluster serves reads again", 10*time.Second)` |
 | The end state is right | A `"finally": {"name": "check", "pkg": "./check"}` program runs after the workload with faults stopped; check convergence and exactly-once effects there with `sim.Eventually` and `sim.Always` |
 | Client retries are safe | `"include_workload": true` in `faults` crashes and pauses the workload too. Derive request ids from `sim.Node()` and saved progress, so a restarted client resends the same id, then check in `finally` that nothing was applied twice |

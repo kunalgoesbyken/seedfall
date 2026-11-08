@@ -27,9 +27,9 @@ func quietFor(time.Duration) {}
 
 type Op struct{}
 
-func call(int, string, string, string) Op { return Op{} }
+func call(int, string, string, any) Op { return Op{} }
 
-func (o Op) Ok(string) {}
+func (o Op) Ok(any) {}
 
 func (o Op) Unknown() {}
 

@@ -139,6 +139,19 @@ expect bboltkv  seedfall.nosync.json           1-10  fail
 expect_replay bboltkv seedfall.strict.nodirsync.json 1 createdir.faults.json fail
 expect pebblekv seedfall.json                  1-30  pass
 expect pebblekv seedfall.nosync.json           1-10  fail
+expect checkers queue.json         1-20  pass
+expect checkers queue.racy.json    1-20  fail
+expect checkers cas.json           1-20  pass
+expect checkers cas.racy.json      1-20  fail
+expect checkers counter.json       1-20  pass
+expect checkers counter.racy.json  1-20  fail
+expect checkers set.json           1-20  pass
+expect checkers set.racy.json      1-20  fail
+expect checkers append.json        1-20  pass
+expect checkers append.racy.json   1-20  fail
+expect checkers txn.json           1-20  pass
+expect checkers txn.racy.json      1-20  fail
+deterministic checkers txn.racy.json 1
 expect interleave seedfall.json         1-50  pass
 expect interleave interleave.json       1-5   fail
 expect interleave interleave.lock.json  1-50  pass

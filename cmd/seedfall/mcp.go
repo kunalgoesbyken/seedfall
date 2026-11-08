@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/google/jsonschema-go/jsonschema"
@@ -33,14 +34,21 @@ type seedArgs struct {
 }
 
 type failureView struct {
-	Seed   uint64   `json:"seed"`
-	At     string   `json:"at"`
-	Reason string   `json:"reason"`
-	Faults []string `json:"faults_before_failure"`
-	Trace  []string `json:"trace_tail"`
-	Replay string   `json:"replay_command"`
+	Seed     uint64   `json:"seed"`
+	At       string   `json:"at"`
+	Reason   string   `json:"reason"`
+	Faults   []string `json:"faults_before_failure"`
+	Trace    []string `json:"trace_tail"`
+	Replay   string   `json:"replay_command"`
+	History  string   `json:"history_file,omitempty"`
+	Timeline string   `json:"timeline_file,omitempty"`
 
 	Class *engine.Classification `json:"classification,omitempty"`
+}
+
+type checkArgs struct {
+	History string `json:"history" jsonschema:"history file, for example .seedfall/seed-4.history.jsonl"`
+	Model   string `json:"model,omitempty" jsonschema:"model to check against, default kv"`
 }
 
 type propertyView struct {
@@ -169,6 +177,10 @@ func newMCPServer() (*mcp.Server, error) {
 		Description: "Prove a fix: replay the failing seeds and schedules (given directly or taken from a triage report), sweep enough fresh seeds for 95% confidence, check determinism and optionally re-run the durability mutants. Returns the verdict and a Markdown proof block for the pull request.",
 	}, toolVerify)
 	mcp.AddTool(server, &mcp.Tool{
+		Name:        "seedfall_check",
+		Description: "Re-check a recorded operation history (the history_file of a failure, or .seedfall/seed-N.history.jsonl written by replay) against a model, one of " + strings.Join(engine.Models(), ", ") + ". list-append checks transactions for anomalies (G0, G1a, G1b, G1c, G-single, G2), every other model checks linearizability. Returns the verdict, each anomaly with its dependency cycle, and on a linearizability violation an HTML timeline file.",
+	}, toolCheck)
+	mcp.AddTool(server, &mcp.Tool{
 		Name:        "seedfall_inspect",
 		Description: "Replay a seed and snapshot every node's simulated disk at the failure or at a virtual time. Returns each file's size, durable size, the byte ranges a crash would lose, directory entries that are not durable yet, removed entries a crash would bring back, the last torn write, under reorder_writes which pending writes the last crash kept, the ranges disk faults corrupted, and with disk_bytes how full each disk is. Optionally returns one file's durable content.",
 	}, toolInspect)
@@ -291,6 +303,11 @@ func toolInspect(_ context.Context, _ *mcp.CallToolRequest, a inspectArgs) (*mcp
 	return nil, out, nil
 }
 
+func toolCheck(_ context.Context, _ *mcp.CallToolRequest, a checkArgs) (*mcp.CallToolResult, checkView, error) {
+	out, err := checkFile(a.History, cmp.Or(a.Model, engine.DefaultConfig().Checker.Model), "")
+	return nil, out, err
+}
+
 func parseAt(s string) (time.Duration, error) {
 	if s == "" {
 		return 0, nil
@@ -332,10 +349,12 @@ func viewFailure(config string, res engine.Result) *failureView {
 	for i, f := range happened {
 		described[i] = f.Describe()
 	}
+	files := saveHistory(res)
 	return &failureView{
 		Seed: res.Seed, At: res.At.String(), Reason: res.Reason,
 		Faults: described, Trace: tail(res.Trace, mcpTraceTail),
-		Replay: fmt.Sprintf("seedfall replay -c %s -seed %d", config, res.Seed),
+		Replay:  fmt.Sprintf("seedfall replay -c %s -seed %d", config, res.Seed),
+		History: files.History, Timeline: files.Timeline,
 	}
 }
 

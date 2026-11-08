@@ -133,7 +133,7 @@ With `"faults_after_setup": true`, no faults fire until some node calls `sim.Set
 
 ## Linearizability
 
-Workloads can record key-value operations from any number of concurrent clients. When the workload finishes, seedfall checks the history with [Porcupine](https://github.com/anishathalye/porcupine).
+Workloads can record operations from any number of concurrent clients. When the workload finishes, seedfall checks the history with [Porcupine](https://github.com/anishathalye/porcupine) against the model named in `seedfall.json` (`kv` when there is no `checker`).
 
 ```go
 op := sim.Put(clientID, "k1", "v7")
@@ -153,11 +153,115 @@ if err != nil {
 }
 ```
 
-- `Ok(value)` means the operation took effect. For a read, `value` is what was read, with `""` meaning absent.
+- `Ok(output)` means the operation took effect. For a read, `output` is what was read, with `""` meaning absent.
 - `Unknown()` means it may or may not have taken effect, such as a timeout. Unknown writes may land any time after they start; unknown reads are dropped.
 - `Failed()` means it definitely did not take effect, such as a redirect to the leader.
 
 On a violation, seedfall writes an interactive timeline to `.seedfall/seed-N.history.html`.
+
+### Other models
+
+`sim.Put` and `sim.Get` are shorthands for `sim.Invoke(client, f, key, value)`, which records any operation. Pick the model in `seedfall.json`:
+
+```json
+"checker": { "model": "queue" }
+```
+
+| Model | Operations: `sim.Invoke(client, f, key, value)`, then `op.Ok(output)` | Checked as |
+|---|---|---|
+| `kv` (default) | `put` with a string value; `get` with the string read as output, `""` for absent | A linearizable register per key |
+| `cas` | `put` and `get` as in `kv`, plus `cas` with value `[]string{old, new}` and output `true` if it swapped, `false` if the value was not `old` | A linearizable compare-and-set register per key, for locks and leases |
+| `append` | `append` with a string value; `read` with the whole list as output, a `[]string` | A linearizable append-only log per key |
+| `queue` | `enqueue` with a string value; `dequeue` with the item taken as output, `""` when empty | A linearizable FIFO queue per key: no item lost, delivered twice or out of order |
+| `set` | `add` with a string value; `read` with the members as output, a `[]string` in any order | A linearizable grow-only set per key |
+| `counter` | `add` with an integer value; `read` with the integer read as output | A linearizable counter per key |
+| `list-append` | `sim.Txn(client, mops...)`, see [transactions](#transactions) | Serializability, with Elle-style anomaly detection |
+
+Every model checks each key on its own. An unknown `dequeue` stays in the history with any result allowed, since it may have removed an item; unknown pure reads (`get`, `read`) are dropped. An operation the model does not have, or an input or output of the wrong type, fails the run as an `assert` that names the operation, for example `history (model queue): operation "put" is not one of dequeue, enqueue`, so a typo cannot silently weaken the check.
+
+```go
+op := sim.Invoke(client, "cas", "leader-lock", []string{"", me})
+swapped, err := locks.CompareAndSwap("leader-lock", "", me)
+if err != nil {
+	op.Unknown()
+} else {
+	op.Ok(swapped)
+}
+```
+
+### Transactions
+
+With `"checker": {"model": "list-append"}`, workloads record transactions over append-only lists, the workload Elle uses, and seedfall infers the dependencies between them:
+
+```go
+mops := []sim.Mop{sim.Read("x"), sim.Append("y", "c1-17")}
+op := sim.Txn(client, mops...)
+err := db.Txn(func(tx *Tx) {
+	mops[0].Value = tx.List("x")
+	tx.Append("y", "c1-17")
+})
+if err != nil {
+	op.Unknown()
+} else {
+	op.Ok(mops)
+}
+```
+
+`Ok` takes the same micro-ops back, with every read's `Value` set to the list it returned (a `[]string`). Appended values must be unique per key. seedfall takes each key's version order from its longest read, builds write-write, write-read and read-write edges between transactions, finds the strongly connected components with Tarjan's algorithm, and searches them for the shortest cycle of each kind:
+
+| Anomaly | Meaning |
+|---|---|
+| `G0` | A cycle of write-write edges: two transactions' appends interleave in different orders on different keys |
+| `G1a` | A committed transaction read an append made by a transaction that `Failed()` |
+| `G1b` | A transaction read a list ending in an intermediate append of another transaction, which appended to that key again later |
+| `G1c` | A cycle of write-write and write-read edges with at least one write-read edge |
+| `G-single` | A cycle with exactly one read-write edge, such as read skew |
+| `G2` | A cycle that needs two or more read-write edges, such as write skew |
+| `internal` | A transaction's read does not match its own earlier reads and appends |
+| `incompatible-order` | Two reads of a key where neither is a prefix of the other, such as after a lost append |
+| `duplicate-elements` | A read that contains the same element twice |
+| `duplicate-append` | The same value appended to a key twice, which makes the history impossible to analyse |
+| `garbage-read` | A read returned an element nobody appended |
+
+A history with any of these fails as `isolation`, with one explained example of each kind in the trace:
+
+```
+G-single: T4 -rw z-> T0 -wr z-> T6 -ww y-> T4; T4 (client 4, ok) [r z ["4-0"], append y "4-1", r y ["3-0" "1-1" "4-1"]]; T0 ...
+FAIL  history of 121 transactions is not serializable: G-single, G2, internal
+```
+
+`Tn` is the transaction's `id` in the history file. The check is serializability, not strict serializability: real-time order between transactions is not used. Transactions that returned `Unknown()` or never returned count as possibly committed: their appends are used once someone reads them, and their reads are ignored.
+
+### History files
+
+Every failing `run`, `replay` and `shrink`, and every passing `replay`, writes the recorded history to `.seedfall/seed-N.history.jsonl`, one event per line in Jepsen's invoke and completion shape:
+
+```json
+{"index":0,"type":"invoke","process":1,"f":"enqueue","key":"q","value":"1-0","time":8,"id":0}
+{"index":4,"type":"ok","process":1,"f":"enqueue","key":"q","value":null,"time":648261,"id":0}
+```
+
+`type` is `invoke`, then `ok`, `info` (unknown) or `fail`; an operation that never returned has no completion line. `time` is virtual nanoseconds, and `id` pairs an invocation with its completion. A completion's `value` is the output for `ok` and the input otherwise. For `list-append`, `value` holds the micro-ops as `[f, key, value]` triples, the same layout as Elle's list-append micro-ops (seedfall's keys and values are strings). Over MCP, the failure view names the files as `history_file` and `timeline_file`.
+
+Re-check a stored history, or check it against a different model, without running anything:
+
+```sh
+seedfall check -history .seedfall/seed-1.history.jsonl -model queue
+```
+
+It prints the verdict and every anomaly, writes the timeline next to the history file (or to `-timeline`) on a linearizability violation, and exits 1 when the history fails. The MCP tool is `seedfall_check`.
+
+### Your own Porcupine model
+
+For a data type none of the models cover, read a history file in Go and check it with your own [Porcupine](https://github.com/anishathalye/porcupine) model:
+
+```go
+f, _ := os.Open(".seedfall/seed-1.history.jsonl")
+ops, err := engine.ReadHistory(f)
+ok := porcupine.CheckOperations(myModel, engine.PorcupineOperations(ops))
+```
+
+`PorcupineOperations` drops failed operations and gives unknown and pending ones a return time after the end of the history. Each operation's `Input` and `Output` are its `engine.HistoryOp`, with the raw JSON `Value` and `Output` and the `Status`; your `Step` should accept any output when `Status` is not `ok`.
 
 ## Determinism check
 

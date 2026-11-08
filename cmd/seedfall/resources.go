@@ -130,7 +130,10 @@ func configSchema() (string, error) {
 	if err := applyDefaults(s, defaults); err != nil {
 		return "", err
 	}
-	s.Required, s.Properties["faults"].Required = nil, nil
+	s.Required, s.Properties["faults"].Required, s.Properties["checker"].Required = nil, nil, nil
+	for _, m := range engine.Models() {
+		s.Properties["checker"].Properties["model"].Enum = append(s.Properties["checker"].Properties["model"].Enum, m)
+	}
 	s.AnyOf = []*jsonschema.Schema{{Required: []string{"workload"}}, {Required: []string{"workloads"}}}
 	s.Title = "seedfall.json"
 	out, err := json.MarshalIndent(s, "", "  ")

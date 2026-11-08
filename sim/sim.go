@@ -3,6 +3,7 @@ package sim
 import (
 	"crypto/rand"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"math"
 	"os"
@@ -100,6 +101,22 @@ func describe(details []any) string {
 	return fmt.Sprint(details...)
 }
 
-func Put(client int, key, value string) Op { return call(client, "put", key, value) }
+func Put(client int, key, value string) Op { return Invoke(client, "put", key, value) }
 
-func Get(client int, key string) Op { return call(client, "get", key, "") }
+func Get(client int, key string) Op { return Invoke(client, "get", key, nil) }
+
+func Invoke(client int, f, key string, value any) Op { return call(client, f, key, value) }
+
+type Mop struct {
+	F     string
+	Key   string
+	Value any
+}
+
+func (m Mop) MarshalJSON() ([]byte, error) { return json.Marshal([]any{m.F, m.Key, m.Value}) }
+
+func Append(key, value string) Mop { return Mop{F: "append", Key: key, Value: value} }
+
+func Read(key string) Mop { return Mop{F: "r", Key: key} }
+
+func Txn(client int, mops ...Mop) Op { return call(client, "txn", "", mops) }

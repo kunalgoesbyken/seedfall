@@ -106,7 +106,7 @@ By default the workload is the one process that never crashes, so a client's own
 
 - A crashed workload restarts as a fresh process after `restart_after`, like a node. It keeps its name, so `sim.Node()` and any client id derived from it stay the same, and it finds its disk as the crash left it. A client that saves its progress there can resume; one that keeps it in memory starts over.
 - A workload crash does not end the run. The run passes only when the last incarnation of every workload exits 0.
-- Operations the crashed workload had recorded with `sim.Put` or `sim.Get` and not yet completed stay open, and the trace says how many (`client#1 died with 2 operations in flight, their outcome is unknown`). The linearizability check treats an open write as one that may take effect at any time after it started, and drops open reads, so the check stays sound.
+- Operations the crashed workload had recorded with `sim.Put`, `sim.Get`, `sim.Invoke` or `sim.Txn` and not yet completed stay open, and the trace says how many (`client#1 died with 2 operations in flight, their outcome is unknown`). The history check treats an open write as one that may take effect at any time after it started, and drops open reads, so the check stays sound under every [model](properties.md#other-models).
 - Per node, `"faults": true` or `false` overrides the default: `true` on one of several workloads faults only that one, and `false` on a node keeps it out of every fault, network faults included.
 
 `workloads[]` runs several clients side by side, each its own process, so one can crash while the others keep going:

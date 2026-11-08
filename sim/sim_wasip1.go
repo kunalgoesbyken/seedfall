@@ -204,13 +204,13 @@ func hostHistoryReturn(id int32, p unsafe.Pointer, n uint32, outcome int32)
 
 type Op struct{ id int32 }
 
-func call(client int, kind, key, value string) Op {
-	b, _ := json.Marshal(map[string]any{"client": client, "kind": kind, "key": key, "value": value})
+func call(client int, f, key string, value any) Op {
+	b, _ := json.Marshal(map[string]any{"client": client, "f": f, "key": key, "value": value})
 	return Op{id: hostHistoryCall(bytesPtr(b), uint32(len(b)))}
 }
 
-func (o Op) Ok(value string) {
-	b := []byte(value)
+func (o Op) Ok(output any) {
+	b, _ := json.Marshal(output)
 	hostHistoryReturn(o.id, bytesPtr(b), uint32(len(b)), 1)
 }
 

@@ -89,6 +89,10 @@ type PreemptSpec struct {
 	Interleave bool `json:"interleave"`
 }
 
+type CheckerSpec struct {
+	Model string `json:"model" jsonschema:"model the sim.Invoke and sim.Txn history is checked against"`
+}
+
 type LivenessSpec struct {
 	Within Duration `json:"within"`
 }
@@ -99,6 +103,7 @@ type Config struct {
 	Workloads        []NodeSpec   `json:"workloads,omitempty"`
 	Finally          *NodeSpec    `json:"finally,omitempty"`
 	Liveness         LivenessSpec `json:"liveness"`
+	Checker          CheckerSpec  `json:"checker"`
 	Duration         Duration     `json:"duration"`
 	Latency          Range        `json:"latency"`
 	Links            []Link       `json:"links,omitempty"`
@@ -117,6 +122,7 @@ func defaultConfig() Config {
 		Duration: Duration(30 * time.Second),
 		Latency:  Range{Duration(time.Millisecond), Duration(10 * time.Millisecond)},
 		Watchdog: Duration(30 * time.Second),
+		Checker:  CheckerSpec{Model: defaultModel},
 		Faults: FaultSpec{
 			RestartAfter:        Range{Duration(10 * time.Millisecond), Duration(time.Second)},
 			PartitionFor:        Range{Duration(50 * time.Millisecond), Duration(2 * time.Second)},
@@ -170,6 +176,9 @@ func (c *Config) validate() error {
 	}
 	if c.Faults.DiskBytes < 0 {
 		return errors.New("config: faults.disk_bytes is negative")
+	}
+	if err := knownModel(c.Checker.Model); err != nil {
+		return fmt.Errorf("config: checker.model: %w", err)
 	}
 	return c.validateNetwork(seen)
 }

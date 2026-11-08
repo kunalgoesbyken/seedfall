@@ -23,8 +23,9 @@ usage:
   seedfall cause  [-c seedfall.json] -seed N [-points 16] [-branches 20]
   seedfall inspect [-c seedfall.json] -seed N [-faults file.json] [-at DURATION] [-node name] [-cat path | -out dir]
   seedfall mutate [-c seedfall.json] [-seeds 1-100]
+  seedfall check  -history .seedfall/seed-N.history.jsonl [-model kv] [-timeline file.html]
   seedfall verify [-c seedfall.json] [-seed N [-faults file.json]] [-report report.html] [-seeds range] [-check 10] [-mutate] [-md proof.md]
-  seedfall mcp    serve init, run, replay, shrink, cause, inspect and verify to AI coding agents over MCP (stdio)
+  seedfall mcp    serve init, run, replay, shrink, cause, inspect, check and verify to AI coding agents over MCP (stdio)
   seedfall hook   Claude Code Stop hook: sweep $SEEDFALL_HOOK_SEEDS (unset: do nothing) and block the stop on a failure
 `
 
@@ -33,7 +34,7 @@ func main() {
 		fmt.Print(usage)
 		os.Exit(2)
 	}
-	commands := map[string]func([]string) error{"run": cmdRun, "replay": cmdReplay, "shrink": cmdShrink, "cause": cmdCause, "inspect": cmdInspect, "mutate": cmdMutate, "verify": cmdVerify, "mcp": cmdMCP, "init": cmdInit, "hook": cmdHook}
+	commands := map[string]func([]string) error{"run": cmdRun, "replay": cmdReplay, "shrink": cmdShrink, "cause": cmdCause, "inspect": cmdInspect, "mutate": cmdMutate, "verify": cmdVerify, "check": cmdCheck, "mcp": cmdMCP, "init": cmdInit, "hook": cmdHook}
 	cmd, ok := commands[os.Args[1]]
 	if !ok {
 		fmt.Print(usage)
@@ -179,23 +180,8 @@ func status(res engine.Result) string {
 	return "ok"
 }
 
-func saveHistory(res engine.Result) {
-	if !res.History.Checked || res.History.Ok {
-		return
-	}
-	path := filepath.Join(".seedfall", fmt.Sprintf("seed-%d.history.html", res.Seed))
-	f, err := os.Create(path)
-	if err != nil {
-		return
-	}
-	defer f.Close()
-	if res.History.Visualize(f) == nil {
-		fmt.Printf("\nlinearizability timeline: %s\n", path)
-	}
-}
-
 func printFailure(res engine.Result, traceLines int) {
-	defer saveHistory(res)
+	defer saveHistory(res).print()
 	fmt.Printf("FAIL seed %d at t=%s (%d scheduler steps, %s real)\n  %s\n\n", res.Seed, res.At, res.Steps, res.Elapsed.Round(time.Millisecond), res.Reason)
 	happened := res.FaultsBefore()
 	fmt.Printf("faults before the failure (%d):\n", len(happened))
@@ -236,6 +222,7 @@ func cmdReplay(args []string) error {
 			fmt.Println(l)
 		}
 		fmt.Printf("\nseed %d: %s, %d steps, %s real\n", *seed, status(res), res.Steps, res.Elapsed.Round(time.Millisecond))
+		saveHistory(res).print()
 		return nil
 	}
 	printFailure(res, 0)

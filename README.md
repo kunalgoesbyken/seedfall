@@ -123,6 +123,7 @@ seedfall replay -seed 9                # exact replay with the full trace
 seedfall shrink -seed 9                # minimal fault schedule, saved to .seedfall/
 seedfall cause  -seed 9                # probability of failing over time, and the fault that caused it
 seedfall inspect -seed 9               # every node's disk at the failure: durable, pending and torn bytes
+seedfall check  -history .seedfall/seed-9.history.jsonl -model queue   # re-check a recorded history
 seedfall run    -seeds 1-500 -check    # run every seed twice, fail on any divergence
 seedfall run    -seeds 1-500 -report .seedfall/report.html   # triage report of every failure
 seedfall run    -seeds 1-500 -json     # one JSON object per seed, then a summary
@@ -147,7 +148,7 @@ The [getting started guide](docs/getting-started.md) walks through finding, shri
 - **Properties with coverage.** `Always`, `Sometimes`, `Reachable`, `Unreachable` and `Eventually`, cataloged from your source and aggregated across the sweep, so a property that never ran fails the build instead of passing silently. [Properties](docs/properties.md)
 - **Liveness checks.** `"liveness": {"within": "10s"}` adds a recovery phase to every run: the faults stop, the network heals, crashed nodes restart, and a workload that does not finish in time fails as `liveness`. `sim.Eventually` asserts that a condition becomes true by a deadline, a `finally` program checks the end state after the workload with faults stopped, and `sim.QuietFor` starts a quiet period from inside the program. [Properties](docs/properties.md#liveness-recovery-and-finally-checks)
 - **Faults on the client too.** `include_workload` crashes, pauses and skews the workload, so client retries and idempotency get tested: operations in flight at a client crash count as unknown, and `workloads[]` runs several clients. `"faults": false` keeps any node out of every fault. [Faults on the workload](docs/faults.md#faults-on-the-workload)
-- **Linearizability.** Record concurrent `sim.Put` / `sim.Get` operations and get a Porcupine check with an HTML timeline.
+- **Linearizability and isolation checkers.** Record concurrent operations with `sim.Put`, `sim.Get` or `sim.Invoke` and pick a model in `"checker"`: key-value, compare-and-set, append-only log, FIFO queue, set or counter, each checked with Porcupine and an HTML timeline. `sim.Txn` records list-append transactions, checked Elle-style for `G0`, `G1a`, `G1b`, `G1c`, `G-single` and `G2` with the dependency cycle explained. Every history is saved as JSONL, `seedfall check` re-checks it under any model, and your own Porcupine model can read it. [Properties](docs/properties.md#linearizability)
 - **Exact replay and shrinking.** Same seed, same run, byte for byte. Shrunk schedules replay exactly.
 - **Causality analysis.** `seedfall cause` replays a failing seed to many moments, re-randomizes everything after each one, and plots the probability of failing over time. The fault where it jumps is the cause. [Cause](docs/cause.md)
 - **Disk inspection.** `seedfall inspect` snapshots every node's simulated disk at the failure or any virtual time: which bytes are durable, which a crash would lose, which directory entries are not durable yet, where the last crash tore a write, and which ranges a disk fault corrupted. `-out` exports the durable image for the library's own tools. [Inspect](docs/inspect.md)
@@ -182,6 +183,7 @@ The [getting started guide](docs/getting-started.md) walks through finding, shri
 | [`examples/bboltkv`](examples/bboltkv) | Unmodified bbolt through `compat_overlay`, including the directory-fsync finding |
 | [`examples/pebblekv`](examples/pebblekv) | Unmodified pebble v2 through `compat_overlay`, with `Sync` and `NoSync` writes |
 | [`examples/badgerkv`](examples/badgerkv) | Unmodified badger v4 through `compat_overlay`, its writable `mmap` emulated |
+| [`examples/checkers`](examples/checkers) | One store behind every history checker: queue, compare-and-set lock, counter, set, append-only log and list-append transactions, each passing with a lock and failing on seed 1 without it |
 | [`examples/interleave`](examples/interleave) | A check-then-act race between goroutines in one process, found only with seeded preemption (`preempt.interleave`) |
 | [`examples/buggify`](examples/buggify) | A counter whose client retries a lost reply: passes without faults, and a `sim.Buggify` site that drops the reply after applying finds the double increment |
 | [`examples/liveness`](examples/liveness) | A primary and backup under liveness mode with a `finally` check and the client crashing too: a primary that never reconnects fails liveness, and retries without request deduplication apply an add twice |
