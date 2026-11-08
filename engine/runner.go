@@ -41,11 +41,31 @@ type Runner struct {
 }
 
 func NewRunner(cfg *Config) (*Runner, error) {
-	cache, err := wazero.NewCompilationCacheWithDir(filepath.Join(cfg.Dir, ".seedfall", "cache"))
+	entries, err := catalog(cfg)
 	if err != nil {
 		return nil, err
 	}
-	entries, err := catalog(cfg)
+	paths := map[string]string{}
+	var order []string
+	modules := map[string][]byte{}
+	for _, s := range cfg.all() {
+		path := resolve(cfg.Dir, s.Wasm)
+		paths[s.Name] = path
+		if _, ok := modules[path]; ok {
+			continue
+		}
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("node %s: %w", s.Name, err)
+		}
+		modules[path] = instrument(b)
+		order = append(order, path)
+	}
+	bytes := make([][]byte, len(order))
+	for i, p := range order {
+		bytes[i] = modules[p]
+	}
+	cache, err := compilationCache(filepath.Join(cfg.Dir, ".seedfall", "cache"), bytes)
 	if err != nil {
 		return nil, err
 	}
@@ -58,25 +78,16 @@ func NewRunner(cfg *Config) (*Runner, error) {
 		return nil, err
 	}
 	r := &Runner{cfg: cfg, rt: rt, compiled: map[string]wazero.CompiledModule{}, catalog: entries}
-	return r, r.compile(ctx)
-}
-
-func (r *Runner) compile(ctx context.Context) error {
 	byPath := map[string]wazero.CompiledModule{}
-	for _, s := range r.cfg.all() {
-		path := resolve(r.cfg.Dir, s.Wasm)
-		if _, ok := byPath[path]; !ok {
-			b, err := os.ReadFile(path)
-			if err != nil {
-				return fmt.Errorf("node %s: %w", s.Name, err)
-			}
-			if byPath[path], err = r.rt.CompileModule(ctx, instrument(b)); err != nil {
-				return fmt.Errorf("compile %s: %w", s.Name, err)
-			}
+	for _, p := range order {
+		if byPath[p], err = rt.CompileModule(ctx, modules[p]); err != nil {
+			return nil, fmt.Errorf("compile %s: %w", filepath.Base(p), err)
 		}
-		r.compiled[s.Name] = byPath[path]
 	}
-	return nil
+	for name, p := range paths {
+		r.compiled[name] = byPath[p]
+	}
+	return r, nil
 }
 
 func resolve(dir, p string) string {

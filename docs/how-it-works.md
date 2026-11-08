@@ -71,6 +71,6 @@ Virtual time never waits on the wall clock. When every node is blocked, the sche
 
 - **Guest CPU.** Nodes run as wasm compiled to native code by wazero, with a check on every loop iteration so the watchdog can stop a busy loop. That check costs about a third of guest CPU and is what makes livelocks reportable instead of hanging the run. Host calls (clock, `poll_oneoff`, files, network) are a few percent.
 - **Booting nodes.** Every start and restart is a fresh module instance: wazero sets up memory and data segments, then the Go runtime and your `main` run. For nats-server this is 0.1-0.3s per start, so short seeds with many crashes are dominated by boots.
-- **Compiling, once.** Each guest is compiled once per process and shared by every seed and every node that runs the same binary. Compiled code is cached in `.seedfall/cache`, so later processes only load it.
+- **Compiling, once.** Each guest is compiled once per process and shared by every seed and every node that runs the same binary. Compiled code is cached in `.seedfall/cache`, so later processes only load it. The cache keeps the 8 most recently used sets of binaries and deletes older ones, so rebuilding a guest many times does not fill the disk.
 
 A busy 3-node NATS JetStream cluster under crashes and partitions simulates about 2.5-3x faster than real time; a JetStream node that mostly waits on its client about 7x. Seeds are independent, so `seedfall run -j N` runs N at once.
