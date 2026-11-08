@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -77,7 +78,7 @@ func guestRunner(t *testing.T, fsync bool) *Runner {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { r.rt.Close(t.Context()) })
+	t.Cleanup(func() { r.rt.Close(context.Background()) })
 	return r
 }
 

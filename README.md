@@ -155,7 +155,7 @@ The [getting started guide](docs/getting-started.md) walks through finding, shri
 - **Proof of fix.** `seedfall verify` replays the failing schedules, sweeps enough fresh seeds for 95% confidence, checks determinism and mutants, and writes a Markdown proof block for the pull request. [Verify](docs/verify.md)
 - **AI-agent native.** `seedfall mcp` lets Claude Code, Cursor and other agents run, replay and shrink on their own, and prove a fix before opening a PR. [Agents](docs/agents.md)
 - **CI ready.** A GitHub Action, a `go test` helper, and `run -json` for one JSON object per seed. [CI](docs/ci.md)
-- **Tested itself.** Unit tests pin down the crash, torn-write, writeback, fsync `EIO`, `strict_dirs`, network, shrink and confidence models, and an end-to-end guest proves byte-identical replay. CI runs them with `-race` on Linux, macOS and Windows, plus staticcheck, govulncheck and CodeQL, and every example nightly. [Testing](docs/testing.md)
+- **Tested itself.** Unit tests pin down the crash, torn-write, writeback, fsync `EIO`, `strict_dirs`, scheduler, network, shrink and confidence models, and an end-to-end guest proves byte-identical replay. CI runs them with `-race` on Linux, macOS and Windows, plus staticcheck, govulncheck and CodeQL, and every example nightly. [Testing](docs/testing.md)
 - **Gostman collections as workloads.** Run the API checks you already keep in a [Gostman](https://github.com/kunalgoesbyken/gostman) collection while seedfall crashes and partitions the service behind them. [Gostman](docs/gostman.md)
 
 ## Examples
