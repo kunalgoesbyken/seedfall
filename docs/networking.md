@@ -1,8 +1,10 @@
 # Networking
 
-seedfall gives every node a simulated network: ordered byte streams with seeded latency, partitions that hold traffic until they heal, and connection resets when a peer crashes. Node names are host names, so a node named `server` is reachable at `server:7000`.
+seedfall gives every node a simulated network: ordered byte streams with seeded latency, per-link latency overrides, partitions that hold traffic until they heal, one-way clogs that stop, jam or slow a link, slow nodes, and connection resets when a peer crashes or a reset fault fires. Node names are host names, so a node named `server` is reachable at `server:7000`.
 
-There are two ways to connect your code to it.
+How each network fault behaves and how to configure it is in [faults.md](faults.md#network-faults).
+
+There are two ways to connect your code to the simulated network.
 
 ## Option 1: `sim.Listen` and `sim.Dial`
 

@@ -93,6 +93,9 @@ td.num { font-family: ui-monospace, monospace; white-space: nowrap; }
   <table>
     <tr><td>crashes per second per node</td><td class="num">{{.Faults.CrashPerSec}}</td></tr>
     <tr><td>partitions per second</td><td class="num">{{.Faults.PartitionPerSec}}</td></tr>
+    <tr><td>partition topologies</td><td class="num">{{range $i, $t := .Faults.PartitionTopologies}}{{if $i}} · {{end}}{{$t}}{{end}}</td></tr>
+    <tr><td>clogs · swizzles per second</td><td class="num">{{.Faults.ClogPerSec}} · {{.Faults.SwizzlePerSec}}</td></tr>
+    <tr><td>connection resets · slowdowns per second per node</td><td class="num">{{.Faults.ResetPerSec}} · {{.Faults.SlowPerSec}}</td></tr>
     <tr><td>crash probability per disk operation</td><td class="num">{{.Faults.CrashOnIO}}</td></tr>
     <tr><td>fsync EIO probability</td><td class="num">{{.Faults.FsyncEIO}}</td></tr>
     <tr><td>torn writes · strict directories · swarm</td><td class="num">{{.Faults.TornWrites}} · {{.Faults.StrictDirs}} · {{.Faults.Swarm}}</td></tr>

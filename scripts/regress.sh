@@ -61,6 +61,9 @@ expect raftkv tcp.lin.json           1-20   pass
 expect raftkv pause.lin.json         1-60   pass
 expect raftkv pause.localreads.lin.json 1-40 fail
 expect raftkv tcp.nofsync.lin.json   1-150  fail
+expect raftkv netfaults.json         1-20   pass
+expect raftkv netfaults.localreads.lin.json 20 fail
+expect_replay raftkv netfaults.localreads.lin.json 20 slowleader.faults.json fail
 expect ledger seedfall.json          1-60   pass
 expect ledger seedfall.nofsync.json  1-20   fail
 expect httpkv seedfall.json          1-40   pass
@@ -144,6 +147,7 @@ expect aikv configs/sonnet-3.reorder.json 1-10 pass
 deterministic kvlog  seedfall.always.json 1
 deterministic metapage seedfall.reorder.json 16
 deterministic raftkv seedfall.lin.json    3
+deterministic raftkv netfaults.json       3
 deterministic wals   rosedb.json             1
 
 echo

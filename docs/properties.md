@@ -65,7 +65,7 @@ waitUntilServed()
 sim.Always(time.Since(started) < 10*time.Second, "cluster serves reads again within the quiet period")
 ```
 
-`sim.QuietFor(d)` suppresses every fault for `d` of virtual time and heals any active partition. Nodes that are already down still restart on schedule. The trace records each suppressed fault. `examples/raftkv/client` uses this to check that the cluster recovers after the workload.
+`sim.QuietFor(d)` suppresses every fault for `d` of virtual time and heals any active partition, lifts every clog and ends every slowdown. Nodes that are already down still restart on schedule. The trace records each suppressed fault. `examples/raftkv/client` uses this to check that the cluster recovers after the workload.
 
 ## Faults at your own code sites
 

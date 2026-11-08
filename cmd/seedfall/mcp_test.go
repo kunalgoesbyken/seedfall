@@ -66,16 +66,27 @@ func TestMCPListsInitPromptsAndResources(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var schema struct {
+	type property struct {
+		Default    json.RawMessage `json:"default"`
 		Properties map[string]struct {
 			Default json.RawMessage `json:"default"`
 		} `json:"properties"`
+	}
+	var schema struct {
+		Properties map[string]property `json:"properties"`
 	}
 	if err := json.Unmarshal([]byte(read.Contents[0].Text), &schema); err != nil {
 		t.Fatal(err)
 	}
 	if string(schema.Properties["duration"].Default) != `"30s"` {
 		t.Errorf("duration default = %s", schema.Properties["duration"].Default)
+	}
+	var modes []string
+	if err := json.Unmarshal(schema.Properties["faults"].Properties["clog_modes"].Default, &modes); err != nil || !slices.Equal(modes, []string{"stop", "slow", "jam"}) {
+		t.Errorf("faults.clog_modes default = %v (%v)", modes, err)
+	}
+	if _, ok := schema.Properties["links"]; !ok {
+		t.Error("schema has no links field")
 	}
 	if _, err := cs.ReadResource(ctx, &mcp.ReadResourceParams{URI: "seedfall://docs/properties"}); err != nil {
 		t.Error(err)

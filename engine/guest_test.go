@@ -218,3 +218,31 @@ func TestGuestBuggifyFiringsReplayExactly(t *testing.T) {
 		t.Fatal("no buggify site fired in 8 seeds")
 	}
 }
+
+func TestGuestNetworkFaultsReplayExactly(t *testing.T) {
+	r := guestRunner(t, true)
+	f := &r.cfg.Faults
+	f.PartitionTopologies = []string{TopologyHalf, TopologyOne}
+	f.ClogPerSec, f.SwizzlePerSec, f.ResetPerSec, f.SlowPerSec = 2, 0.5, 1, 1
+	kinds := map[string]bool{}
+	for seed := range uint64(4) {
+		a := r.Run(seed, nil)
+		if a.Failed {
+			t.Fatalf("seed %d: the fsync store failed under network faults: %s", seed, a.Reason)
+		}
+		if diff, diverged := divergence(a.Trace, r.Run(seed, nil).Trace); diverged {
+			t.Fatalf("seed %d: two runs diverge at %s", seed, diff)
+		}
+		if diff, diverged := divergence(a.Trace, r.Run(seed, a.Faults).Trace); diverged {
+			t.Fatalf("seed %d: replaying the schedule diverges at %s", seed, diff)
+		}
+		for _, f := range a.FaultsApplied() {
+			kinds[f.Kind] = true
+		}
+	}
+	for _, k := range []string{FaultClog, FaultReset, FaultSlow, FaultPartition} {
+		if !kinds[k] {
+			t.Errorf("no seed applied a %s", k)
+		}
+	}
+}

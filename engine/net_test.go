@@ -84,11 +84,11 @@ func TestReadWaitsForArrival(t *testing.T) {
 func TestPartitionHoldsMessagesUntilHeal(t *testing.T) {
 	f := connected(t, Range{ms(2), ms(4)})
 	heal := f.w.now + int64(time.Second)
-	f.w.part = &partition{side: map[string]bool{"server": true}, until: heal}
-	if _, cut := f.w.cutUntil("client", "server"); !cut {
+	f.w.applyNetFault(Fault{Kind: FaultPartition, Side: []string{"server"}, Until: Duration(heal)})
+	if !f.w.cut("client", "server") {
 		t.Fatal("client and server should be cut")
 	}
-	if _, cut := f.w.cutUntil("client", "client"); cut {
+	if f.w.cut("client", "client") {
 		t.Fatal("a node is never cut from itself")
 	}
 	f.w.net.write(f.client, f.conn, []byte("held"))

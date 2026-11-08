@@ -28,16 +28,18 @@ type (
 )
 
 type node struct {
-	spec      NodeSpec
-	crashable bool
-	compiled  wazero.CompiledModule
-	fs        *memFS
-	live      *instance
-	starts    int
-	ops       int64
-	restartAt int64
-	skew      int64
-	pausedTo  int64
+	spec       NodeSpec
+	crashable  bool
+	compiled   wazero.CompiledModule
+	fs         *memFS
+	live       *instance
+	starts     int
+	ops        int64
+	restartAt  int64
+	skew       int64
+	pausedTo   int64
+	slowUntil  int64
+	slowFactor float64
 }
 
 func (n *node) name() string { return n.spec.Name }
@@ -59,11 +61,6 @@ type event struct {
 	err  error
 }
 
-type partition struct {
-	side  map[string]bool
-	until int64
-}
-
 type world struct {
 	cfg         *Config
 	seed        uint64
@@ -80,7 +77,7 @@ type world struct {
 	events      chan event
 	faults      []Fault
 	nextFault   int
-	part        *partition
+	netFaults   []Fault
 	trace       *tracer
 	failure     string
 	failAt      int64
@@ -110,20 +107,6 @@ func streams(seed uint64, name string) *rand.Rand {
 		h = (h ^ uint64(b)) * 1099511628211
 	}
 	return rand.New(rand.NewPCG(seed, h))
-}
-
-func (w *world) latency() int64 { return int64(uniform(w.netRand, w.cfg.Latency)) }
-
-func (w *world) cutUntil(a, b string) (int64, bool) {
-	if w.part == nil || w.now >= w.part.until || w.part.side[a] == w.part.side[b] {
-		return 0, false
-	}
-	return w.part.until, true
-}
-
-func (w *world) cut(a, b string) bool {
-	_, c := w.cutUntil(a, b)
-	return c
 }
 
 func worldOf(ctx context.Context) *world {
@@ -224,7 +207,7 @@ func (w *world) moduleConfig(inst *instance) wazero.ModuleConfig {
 			return t / int64(time.Second), int32(t % int64(time.Second))
 		}, 1).
 		WithNanotime(func() int64 { return epochNanos + w.tick() }, 1).
-		WithNanosleep(func(ns int64) { w.park(inst, w.now+max(ns, 0)) }).
+		WithNanosleep(func(ns int64) { w.park(inst, w.now+w.stretch(max(ns, 0), n)) }).
 		WithFSConfig(wazero.NewFSConfig().(sysfs.FSConfig).WithSysFSMount(n.fs, "/"))
 	for _, k := range sortedKeys(n.spec.Env) {
 		cfg = cfg.WithEnv(k, n.spec.Env[k])
@@ -356,12 +339,28 @@ func (w *world) applyFault(f Fault) {
 		n.skew += int64(f.Shift)
 		w.trace.add(w.now, "fault %s's wall clock jumps %s", f.Node, fmtSigned(int64(f.Shift)))
 	case FaultPartition:
-		side := map[string]bool{}
-		for _, s := range f.Side {
-			side[s] = true
+		w.applyNetFault(f)
+		if len(f.Groups) > 0 {
+			w.trace.add(w.now, "fault partition %s, heals at %s", fmtGroups(f.Groups), fmtTime(int64(f.Until)))
+			return
 		}
-		w.part = &partition{side: side, until: int64(f.Until)}
 		w.trace.add(w.now, "fault partition %v | rest, heals at %s", f.Side, fmtTime(int64(f.Until)))
+	case FaultClog:
+		w.applyNetFault(f)
+		w.trace.add(w.now, "fault clog %s, lifts at %s", f.clogTarget(), fmtTime(int64(f.Until)))
+	case FaultReset:
+		n := w.nodeByName(f.Node)
+		if n == nil || n.live == nil {
+			return
+		}
+		w.trace.add(w.now, "fault reset %d connections of %s", w.net.reset(n.live), n.live.label)
+	case FaultSlow:
+		n := w.nodeByName(f.Node)
+		if n == nil {
+			return
+		}
+		n.slowUntil, n.slowFactor = int64(f.Until), f.Factor
+		w.trace.add(w.now, "fault slow %s down %.1fx until %s", f.Node, f.Factor, fmtTime(n.slowUntil))
 	}
 }
 

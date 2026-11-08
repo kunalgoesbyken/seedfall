@@ -18,7 +18,7 @@ import (
 
 const mcpTraceTail = 60
 
-const mcpInstructions = "seedfall runs Go services as wasip1 guests under simulated crashes, torn writes, fsync errors and partitions, with exact replay from a seed. In a module without a seedfall.json, call seedfall_init first. Read seedfall://docs/properties before writing checks and seedfall://schema/config before editing seedfall.json. The prompts seedfall-setup, seedfall-properties, seedfall-triage and seedfall-fix-and-prove walk through each stage."
+const mcpInstructions = "seedfall runs Go services as wasip1 guests under simulated crashes, torn writes, fsync errors, partitions, clogs and slow nodes, with exact replay from a seed. In a module without a seedfall.json, call seedfall_init first. Read seedfall://docs/properties before writing checks and seedfall://schema/config before editing seedfall.json. The prompts seedfall-setup, seedfall-properties, seedfall-triage and seedfall-fix-and-prove walk through each stage."
 
 type runArgs struct {
 	Config string `json:"config" jsonschema:"path to seedfall.json"`
@@ -150,7 +150,7 @@ func newMCPServer() (*mcp.Server, error) {
 	}, toolInit)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "seedfall_run",
-		Description: "Sweep a seed range under simulated crashes, torn writes, fsync errors and partitions. Returns the lowest failing seed with its fault schedule and trace tail, plus property coverage and, with faults.buggify on, how often each sim.Buggify site was reached, enabled and fired.",
+		Description: "Sweep a seed range under simulated crashes, torn writes, fsync errors, partitions, clogs and slow nodes. Returns the lowest failing seed with its fault schedule and trace tail, plus property coverage and, with faults.buggify on, how often each sim.Buggify site was reached, enabled and fired.",
 	}, toolRun)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "seedfall_replay",

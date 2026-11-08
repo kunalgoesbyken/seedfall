@@ -1,0 +1,24 @@
+{
+  "nodes": [
+    { "name": "n1", "pkg": "./node", "args": ["-local-reads"] },
+    { "name": "n2", "pkg": "./node", "args": ["-local-reads"] },
+    { "name": "n3", "pkg": "./node", "args": ["-local-reads"] }
+  ],
+  "workload": { "name": "client", "pkg": "./linclient" },
+  "duration": "120s",
+  "latency": ["1ms", "8ms"],
+  "links": [
+    { "from": "n3", "latency": ["5ms", "40ms"] }
+  ],
+  "faults": {
+    "partition_per_sec": 0.5,
+    "partition_for": ["200ms", "2s"],
+    "partition_topologies": ["half", "one", "majority", "majorities_ring", "random_groups"],
+    "clog_per_sec": 1,
+    "clog_for": ["200ms", "2s"],
+    "swizzle_per_sec": 0.2,
+    "reset_per_sec": 0.2,
+    "slow_per_sec": 0.5,
+    "slow_for": ["1s", "5s"]
+  }
+}

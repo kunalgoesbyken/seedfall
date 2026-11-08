@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"fmt"
 	"reflect"
 	"slices"
 	"testing"
@@ -115,19 +116,22 @@ func TestForSeedVariesOnlyUnderSwarm(t *testing.T) {
 		t.Fatalf("forSeed changed a non-swarm spec: %+v", got)
 	}
 	spec.Swarm = true
-	mixes := map[FaultSpec]bool{}
+	mixes := map[string]bool{}
 	for seed := range uint64(40) {
 		a := spec.forSeed(seed)
-		if a != spec.forSeed(seed) {
+		if !reflect.DeepEqual(a, spec.forSeed(seed)) {
 			t.Fatalf("seed %d: swarm mix is not deterministic", seed)
 		}
 		if a.CrashPerSec > 2*spec.CrashPerSec || a.PartitionPerSec > 2*spec.PartitionPerSec {
 			t.Fatalf("seed %d: swarm raised a rate beyond twice the configured one: %+v", seed, a)
 		}
-		if a.StrictDirs != spec.StrictDirs || a.RestartAfter != spec.RestartAfter {
+		if a.StrictDirs != spec.StrictDirs || a.RestartAfter != spec.RestartAfter || !slices.Equal(a.ClogModes, spec.ClogModes) {
 			t.Fatalf("seed %d: swarm changed a setting it does not own: %+v", seed, a)
 		}
-		mixes[a] = true
+		if a.ClogPerSec > 2*spec.ClogPerSec || a.SlowPerSec > 2*spec.SlowPerSec || a.ResetPerSec > 2*spec.ResetPerSec || a.SwizzlePerSec > 2*spec.SwizzlePerSec {
+			t.Fatalf("seed %d: swarm raised a network rate beyond twice the configured one: %+v", seed, a)
+		}
+		mixes[fmt.Sprint(a)] = true
 	}
 	if len(mixes) < 20 {
 		t.Fatalf("only %d distinct swarm mixes over 40 seeds", len(mixes))

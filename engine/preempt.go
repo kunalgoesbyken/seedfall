@@ -76,7 +76,8 @@ func (w *world) schedYield(ctx context.Context, m api.Module, stack []uint64) {
 		p.arm()
 		return
 	}
-	w.park(w.instance(ctx), w.now+preemptSlice)
+	inst := w.instance(ctx)
+	w.park(inst, w.now+w.stretch(preemptSlice, inst.node))
 }
 
 func (w *world) interleaver(inst *instance) *rand.Rand {

@@ -1,0 +1,63 @@
+[
+  {
+    "at": "120.918219ms",
+    "kind": "slow",
+    "node": "n1",
+    "factor": 9.6,
+    "until": "1.566413769s"
+  },
+  {
+    "at": "236.933725ms",
+    "kind": "clog",
+    "node": "n3",
+    "dir": "both",
+    "mode": "jam",
+    "until": "1.327806788s"
+  },
+  {
+    "at": "357.237848ms",
+    "kind": "net_reset",
+    "node": "n2",
+    "until": "357.237848ms"
+  },
+  {
+    "at": "693.099439ms",
+    "kind": "slow",
+    "node": "n3",
+    "factor": 6.4,
+    "until": "2.997553943s"
+  },
+  {
+    "at": "1.010051971s",
+    "kind": "slow",
+    "node": "n2",
+    "factor": 4.7,
+    "until": "3.115624544s"
+  },
+  {
+    "at": "1.585750842s",
+    "kind": "clog",
+    "from": "n1",
+    "to": "n3",
+    "mode": "slow",
+    "delay": "21.00448ms",
+    "until": "2.695882428s"
+  },
+  {
+    "at": "1.5947395s",
+    "kind": "partition",
+    "side": [
+      "n1",
+      "n3",
+      "client"
+    ],
+    "until": "3.589201006s"
+  },
+  {
+    "at": "2.072453846s",
+    "kind": "slow",
+    "node": "n1",
+    "factor": 4.7,
+    "until": "5.842204326s"
+  }
+]

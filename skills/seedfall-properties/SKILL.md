@@ -70,4 +70,4 @@ Repeat steps 2 to 4 until every exercised mutant is killed, or until you can sta
 
 ## 5. Widen the fault model
 
-Once the basic sweep and the mutants pass, add one fault class at a time and sweep again: `fsync_eio` (around 0.01), `strict_dirs`, `partition_per_sec`, then `pause_per_sec` and `clock_jump_per_sec` for lease and timeout logic. Set `swarm` for long CI sweeps. A fault class that breaks the service is a finding, not noise: triage it.
+Once the basic sweep and the mutants pass, add one fault class at a time and sweep again: `fsync_eio` (around 0.01), `strict_dirs`, `partition_per_sec`, then `pause_per_sec` and `clock_jump_per_sec` for lease and timeout logic, and for consensus or leader election `partition_topologies`, `clog_per_sec` and `slow_per_sec` (one-way links, jammed links and slow leaders). Set `swarm` for long CI sweeps. A fault class that breaks the service is a finding, not noise: triage it.

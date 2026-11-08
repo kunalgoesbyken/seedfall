@@ -18,6 +18,25 @@
       "0s",
       "0s"
     ],
+    "partition_topologies": null,
+    "clog_per_sec": 0,
+    "clog_for": [
+      "0s",
+      "0s"
+    ],
+    "clog_modes": null,
+    "clog_delay": [
+      "0s",
+      "0s"
+    ],
+    "swizzle_per_sec": 0,
+    "reset_per_sec": 0,
+    "slow_per_sec": 0,
+    "slow_for": [
+      "0s",
+      "0s"
+    ],
+    "slow_factor": 0,
     "torn_writes": false,
     "reorder_writes": false,
     "crash_on_io": 0,

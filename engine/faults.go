@@ -16,6 +16,9 @@ const (
 	FaultPause     = "pause"
 	FaultClockJump = "clock_jump"
 	FaultBuggify   = "buggify"
+	FaultClog      = "clog"
+	FaultReset     = "net_reset"
+	FaultSlow      = "slow"
 )
 
 func observedAtRuntime(kind string) bool {
@@ -23,14 +26,21 @@ func observedAtRuntime(kind string) bool {
 }
 
 type Fault struct {
-	At    Duration `json:"at"`
-	Kind  string   `json:"kind"`
-	Node  string   `json:"node,omitempty"`
-	Site  string   `json:"site,omitempty"`
-	Side  []string `json:"side,omitempty"`
-	Until Duration `json:"until"`
-	Op    int64    `json:"op,omitempty"`
-	Shift Duration `json:"shift,omitempty"`
+	At     Duration   `json:"at"`
+	Kind   string     `json:"kind"`
+	Node   string     `json:"node,omitempty"`
+	Site   string     `json:"site,omitempty"`
+	Side   []string   `json:"side,omitempty"`
+	Groups [][]string `json:"groups,omitempty"`
+	From   string     `json:"from,omitempty"`
+	To     string     `json:"to,omitempty"`
+	Dir    string     `json:"dir,omitempty"`
+	Mode   string     `json:"mode,omitempty"`
+	Delay  Duration   `json:"delay,omitempty"`
+	Factor float64    `json:"factor,omitempty"`
+	Until  Duration   `json:"until"`
+	Op     int64      `json:"op,omitempty"`
+	Shift  Duration   `json:"shift,omitempty"`
 }
 
 func uniform(r *rand.Rand, rg Range) time.Duration {
@@ -59,6 +69,10 @@ func (s FaultSpec) forSeed(seed uint64) FaultSpec {
 	s.TornWrites = s.TornWrites && r.IntN(2) == 0
 	s.ReorderWrites = s.ReorderWrites && r.IntN(2) == 0
 	s.Buggify = s.Buggify && r.IntN(2) == 0
+	s.ClogPerSec = swarmRate(r, s.ClogPerSec)
+	s.SwizzlePerSec = swarmRate(r, s.SwizzlePerSec)
+	s.ResetPerSec = swarmRate(r, s.ResetPerSec)
+	s.SlowPerSec = swarmRate(r, s.SlowPerSec)
 	return s
 }
 
@@ -85,7 +99,9 @@ func generateFaults(cfg *Config, spec FaultSpec, r *rand.Rand) []Fault {
 		names := nodeNames(cfg)
 		for t := exponential(r, rate); t < horizon; {
 			until := t + uniform(r, spec.PartitionFor)
-			out = append(out, Fault{At: Duration(t), Kind: FaultPartition, Side: randomSide(r, names), Until: Duration(until)})
+			f := randomPartition(r, names, spec.PartitionTopologies)
+			f.At, f.Until = Duration(t), Duration(until)
+			out = append(out, f)
 			t = until + exponential(r, rate)
 		}
 	}
@@ -98,7 +114,39 @@ func generateFaults(cfg *Config, spec FaultSpec, r *rand.Rand) []Fault {
 		shift := r.Int64N(2*limit+1) - limit
 		return Fault{At: Duration(t), Kind: FaultClockJump, Node: n, Shift: Duration(shift)}, t
 	})...)
+	out = append(out, netFaults(cfg, spec, r)...)
+	out = slices.DeleteFunc(out, func(f Fault) bool { return time.Duration(f.At) >= horizon })
 	slices.SortStableFunc(out, func(a, b Fault) int { return int(a.At - b.At) })
+	return out
+}
+
+func netFaults(cfg *Config, spec FaultSpec, r *rand.Rand) []Fault {
+	var out []Fault
+	horizon := time.Duration(cfg.Duration)
+	names := nodeNames(cfg)
+	if rate := spec.ClogPerSec; rate > 0 {
+		for t := exponential(r, rate); t < horizon; {
+			until := t + uniform(r, spec.ClogFor)
+			f := randomClog(r, names, spec)
+			f.At, f.Until = Duration(t), Duration(until)
+			out = append(out, f)
+			t = until + exponential(r, rate)
+		}
+	}
+	if rate := spec.SwizzlePerSec; rate > 0 {
+		for t := exponential(r, rate); t < horizon; {
+			clogs, end := swizzle(r, t, names, spec)
+			out = append(out, clogs...)
+			t = end + exponential(r, rate)
+		}
+	}
+	out = append(out, perNode(cfg, spec.ResetPerSec, r, func(n string, t time.Duration) (Fault, time.Duration) {
+		return Fault{At: Duration(t), Kind: FaultReset, Node: n, Until: Duration(t)}, t
+	})...)
+	out = append(out, perNode(cfg, spec.SlowPerSec, r, func(n string, t time.Duration) (Fault, time.Duration) {
+		until := t + uniform(r, spec.SlowFor)
+		return Fault{At: Duration(t), Kind: FaultSlow, Node: n, Factor: slowFactor(r, spec.SlowFactor), Until: Duration(until)}, until
+	})...)
 	return out
 }
 
@@ -155,6 +203,12 @@ func (f Fault) Describe() string {
 		return fmt.Sprintf("%8s  %s's wall clock jumps %s", at(f.At), f.Node, fmtSigned(int64(f.Shift)))
 	case FaultBuggify:
 		return fmt.Sprintf("%8s  buggify %q fires on %s at hit #%d", at(f.At), f.Site, f.Node, f.Op)
+	case FaultClog:
+		return fmt.Sprintf("%8s  clog %s until %s", at(f.At), f.clogTarget(), at(f.Until))
+	case FaultReset:
+		return fmt.Sprintf("%8s  reset every connection of %s", at(f.At), f.Node)
+	case FaultSlow:
+		return fmt.Sprintf("%8s  slow %s down %.1fx until %s", at(f.At), f.Node, f.Factor, at(f.Until))
 	}
-	return fmt.Sprintf("%8s  partition %v from the rest until %s", at(f.At), f.Side, at(f.Until))
+	return fmt.Sprintf("%8s  %s until %s", at(f.At), f.partitionText(), at(f.Until))
 }

@@ -110,11 +110,18 @@ func (n *network) dial(inst *instance, addr string) int32 {
 	host, port := splitHostPort(addr)
 	host = n.resolve(inst, host)
 	l, ok := n.listeners[host+":"+port]
-	if !ok || n.w.cut(inst.node.name(), host) {
+	from := inst.node.name()
+	if !ok || n.w.cut(from, host) {
 		return codeRefused
 	}
+	there := n.w.link(from, host)
+	acceptAt := n.w.now + n.w.latency(from, host)
+	if held := max(there.held, n.w.link(host, from).held); held > 0 {
+		acceptAt = max(acceptAt, held+n.w.latency(from, host))
+	}
+	acceptAt += there.delay
 	client := &endpoint{id: n.alloc(), owner: inst}
-	server := &endpoint{owner: l.owner, peer: client, acceptAt: n.w.now + n.w.latency()}
+	server := &endpoint{owner: l.owner, peer: client, acceptAt: acceptAt}
 	client.peer = server
 	l.backlog = append(l.backlog, server)
 	l.owner.wakeAt = min(l.owner.wakeAt, server.acceptAt)
@@ -148,10 +155,13 @@ func (n *network) endpoint(inst *instance, id int32) *endpoint {
 
 func (n *network) send(from *endpoint, kind chunkKind, data []byte) {
 	to := from.peer
-	at := n.w.now + n.w.latency()
-	if heal, cut := n.w.cutUntil(from.owner.node.name(), to.owner.node.name()); cut {
-		at = max(at, heal+n.w.latency())
+	src, dst := from.owner.node.name(), to.owner.node.name()
+	link := n.w.link(src, dst)
+	at := n.w.now + n.w.latency(src, dst)
+	if link.held > 0 {
+		at = max(at, link.held+n.w.latency(src, dst))
 	}
+	at += link.delay
 	at = max(at, from.lastSent)
 	from.lastSent = at
 	to.inbox = append(to.inbox, chunk{at: at, kind: kind, data: data})
@@ -222,13 +232,33 @@ func (n *network) closeEndpoint(ep *endpoint, kind chunkKind) {
 	delete(n.handles, ep.id)
 }
 
-func (n *network) drop(inst *instance) {
+func (n *network) ids() []int32 {
 	ids := make([]int32, 0, len(n.handles))
 	for id := range n.handles {
 		ids = append(ids, id)
 	}
 	slices.Sort(ids)
-	for _, id := range ids {
+	return ids
+}
+
+func (n *network) reset(inst *instance) int {
+	count := 0
+	for _, id := range n.ids() {
+		ep, ok := n.handles[id].(*endpoint)
+		if !ok || ep.owner != inst || ep.gone || ep.peer.gone {
+			continue
+		}
+		n.send(ep, chunkReset, nil)
+		ep.inbox = []chunk{{at: n.w.now, kind: chunkReset}}
+		ep.gone, ep.peer.gone = true, true
+		inst.wakeAt = min(inst.wakeAt, n.w.now)
+		count++
+	}
+	return count
+}
+
+func (n *network) drop(inst *instance) {
+	for _, id := range n.ids() {
 		switch h := n.handles[id].(type) {
 		case *listener:
 			if h.owner == inst {

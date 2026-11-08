@@ -54,7 +54,7 @@ func wasiModule(ctx context.Context, rt wazero.Runtime) error {
 func (w *world) pollOneoff(ctx context.Context, m api.Module, stack []uint64) {
 	in, out, count, resultPtr := uint32(stack[0]), uint32(stack[1]), uint32(stack[2]), uint32(stack[3])
 	inst := w.instance(ctx)
-	subs, ok := w.readSubscriptions(m, in, count)
+	subs, ok := w.readSubscriptions(m, in, count, inst.node)
 	if !ok {
 		stack[0] = errnoFault
 		return
@@ -69,7 +69,7 @@ func (w *world) pollOneoff(ctx context.Context, m api.Module, stack []uint64) {
 	}
 }
 
-func (w *world) readSubscriptions(m api.Module, in, count uint32) ([]subscription, bool) {
+func (w *world) readSubscriptions(m api.Module, in, count uint32, n *node) ([]subscription, bool) {
 	buf, ok := m.Memory().Read(in, count*subscriptionSize)
 	if !ok {
 		return nil, false
@@ -81,10 +81,10 @@ func (w *world) readSubscriptions(m api.Module, in, count uint32) ([]subscriptio
 		switch s.kind {
 		case eventClock:
 			timeout := int64(binary.LittleEndian.Uint64(b[24:]))
-			s.deadline = w.now + timeout
 			if binary.LittleEndian.Uint16(b[40:])&clockAbstime != 0 {
-				s.deadline = timeout - epochNanos
+				timeout -= epochNanos + w.now
 			}
+			s.deadline = w.now + w.stretch(timeout, n)
 		default:
 			s.fd = int32(binary.LittleEndian.Uint32(b[16:]))
 		}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 )
@@ -38,22 +39,38 @@ type NodeSpec struct {
 }
 
 type FaultSpec struct {
-	CrashPerSec     float64  `json:"crash_per_sec"`
-	RestartAfter    Range    `json:"restart_after"`
-	PartitionPerSec float64  `json:"partition_per_sec"`
-	PartitionFor    Range    `json:"partition_for"`
-	TornWrites      bool     `json:"torn_writes"`
-	ReorderWrites   bool     `json:"reorder_writes"`
-	CrashOnIO       float64  `json:"crash_on_io"`
-	StrictDirs      bool     `json:"strict_dirs"`
-	FsyncEIO        float64  `json:"fsync_eio"`
-	ClockSkew       Duration `json:"clock_skew"`
-	Swarm           bool     `json:"swarm"`
-	PausePerSec     float64  `json:"pause_per_sec"`
-	PauseFor        Range    `json:"pause_for"`
-	ClockJumpPerSec float64  `json:"clock_jump_per_sec"`
-	ClockJumpMax    Duration `json:"clock_jump_max"`
-	Buggify         bool     `json:"buggify"`
+	CrashPerSec         float64  `json:"crash_per_sec"`
+	RestartAfter        Range    `json:"restart_after"`
+	PartitionPerSec     float64  `json:"partition_per_sec"`
+	PartitionFor        Range    `json:"partition_for"`
+	PartitionTopologies []string `json:"partition_topologies"`
+	ClogPerSec          float64  `json:"clog_per_sec"`
+	ClogFor             Range    `json:"clog_for"`
+	ClogModes           []string `json:"clog_modes"`
+	ClogDelay           Range    `json:"clog_delay"`
+	SwizzlePerSec       float64  `json:"swizzle_per_sec"`
+	ResetPerSec         float64  `json:"reset_per_sec"`
+	SlowPerSec          float64  `json:"slow_per_sec"`
+	SlowFor             Range    `json:"slow_for"`
+	SlowFactor          float64  `json:"slow_factor"`
+	TornWrites          bool     `json:"torn_writes"`
+	ReorderWrites       bool     `json:"reorder_writes"`
+	CrashOnIO           float64  `json:"crash_on_io"`
+	StrictDirs          bool     `json:"strict_dirs"`
+	FsyncEIO            float64  `json:"fsync_eio"`
+	ClockSkew           Duration `json:"clock_skew"`
+	Swarm               bool     `json:"swarm"`
+	PausePerSec         float64  `json:"pause_per_sec"`
+	PauseFor            Range    `json:"pause_for"`
+	ClockJumpPerSec     float64  `json:"clock_jump_per_sec"`
+	ClockJumpMax        Duration `json:"clock_jump_max"`
+	Buggify             bool     `json:"buggify"`
+}
+
+type Link struct {
+	From    string `json:"from,omitempty"`
+	To      string `json:"to,omitempty"`
+	Latency Range  `json:"latency"`
 }
 
 type PreemptSpec struct {
@@ -65,6 +82,7 @@ type Config struct {
 	Workload         NodeSpec    `json:"workload"`
 	Duration         Duration    `json:"duration"`
 	Latency          Range       `json:"latency"`
+	Links            []Link      `json:"links,omitempty"`
 	Faults           FaultSpec   `json:"faults"`
 	Watchdog         Duration    `json:"watchdog"`
 	NetOverlay       bool        `json:"net_overlay"`
@@ -81,10 +99,16 @@ func defaultConfig() Config {
 		Latency:  Range{Duration(time.Millisecond), Duration(10 * time.Millisecond)},
 		Watchdog: Duration(30 * time.Second),
 		Faults: FaultSpec{
-			RestartAfter: Range{Duration(10 * time.Millisecond), Duration(time.Second)},
-			PartitionFor: Range{Duration(50 * time.Millisecond), Duration(2 * time.Second)},
-			PauseFor:     Range{Duration(100 * time.Millisecond), Duration(3 * time.Second)},
-			ClockJumpMax: Duration(10 * time.Second),
+			RestartAfter:        Range{Duration(10 * time.Millisecond), Duration(time.Second)},
+			PartitionFor:        Range{Duration(50 * time.Millisecond), Duration(2 * time.Second)},
+			PartitionTopologies: []string{TopologyHalf},
+			ClogFor:             Range{Duration(100 * time.Millisecond), Duration(2 * time.Second)},
+			ClogModes:           slices.Clone(clogModes),
+			ClogDelay:           Range{Duration(10 * time.Millisecond), Duration(200 * time.Millisecond)},
+			SlowFor:             Range{Duration(500 * time.Millisecond), Duration(5 * time.Second)},
+			SlowFactor:          10,
+			PauseFor:            Range{Duration(100 * time.Millisecond), Duration(3 * time.Second)},
+			ClockJumpMax:        Duration(10 * time.Second),
 		},
 	}
 }
@@ -122,7 +146,7 @@ func (c *Config) validate() error {
 			return fmt.Errorf("config: node %q needs pkg or wasm", s.Name)
 		}
 	}
-	return nil
+	return c.validateNetwork(seen)
 }
 
 func (c *Config) all() []NodeSpec { return append(append([]NodeSpec{}, c.Nodes...), c.Workload) }

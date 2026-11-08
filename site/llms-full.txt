@@ -476,6 +476,7 @@ A world is described in a JSON file, `seedfall.json` by default. Paths inside it
 | `workload` | | The checker. Same fields as a node. It is never crashed, and the run passes when it exits 0 |
 | `duration` | `30s` | Virtual-time horizon. A run that reaches it without failing counts as passed and is reported as "hit the time horizon" |
 | `latency` | `["1ms", "10ms"]` | Per-chunk network delay range |
+| `links[]` | | Per-link latency overrides, each `{"from": "n1", "to": "n2", "latency": ["20ms", "80ms"]}`. Links are one-way; leave out `from` or `to` to match any node, so `{"to": "n3", ...}` slows everything sent to `n3`. The first matching entry wins. See [Network faults](#network-faults) |
 | `faults_after_setup` | `false` | Suppress all faults until a node calls `sim.SetupComplete()` |
 | `supervise` | `false` | Restart a node that exits with an error, after `restart_after`. Go panics (exit code 2) still fail the run |
 | `net_overlay` | `false` | Route plain `net.Listen` / `net.Dial` through the simulated network. See [networking.md](networking.md) |
@@ -493,8 +494,18 @@ All faults come from the seed. Faults that depend on what the program does, such
 |---|---|---|
 | `crash_per_sec` | `0` | Rate of crashes per node, at random points in time |
 | `restart_after` | `["10ms", "1s"]` | Downtime after a crash, and the delay before a supervised restart |
-| `partition_per_sec` | `0` | Rate of network partitions. A partition splits all nodes, workload included, into two random sides |
+| `partition_per_sec` | `0` | Rate of network partitions. A partition splits all nodes, workload included, into groups that cannot reach each other. A new partition replaces the previous one |
 | `partition_for` | `["50ms", "2s"]` | Partition duration. Traffic across the cut is held and delivered after the heal |
+| `partition_topologies` | `["half"]` | Shapes a partition can take; each partition picks one at random. `half` (two random sides), `one` (isolate one node), `majority` (a random majority against the rest), `majorities_ring` (every node sees a majority, and no two nodes see the same one) and `random_groups` (two or more random groups). See [Network faults](#network-faults) |
+| `clog_per_sec` | `0` | Rate of clogs. A clog hits one direction of one link, or everything a node sends, receives, or both, and lasts `clog_for` |
+| `clog_for` | `["100ms", "2s"]` | Clog duration, also the length of a swizzle |
+| `clog_modes` | `["stop", "slow", "jam"]` | Modes a clog can take; each clog picks one at random. `stop` refuses new connections and holds traffic, `jam` holds connections and traffic without any error, `slow` adds `clog_delay` to every message |
+| `clog_delay` | `["10ms", "200ms"]` | Extra latency per message of a `slow` clog, drawn once per clog |
+| `swizzle_per_sec` | `0` | Rate of swizzles (FoundationDB's swizzle-clogging): a random subset of nodes is clogged one node at a time, then unclogged in a different random order |
+| `reset_per_sec` | `0` | Rate of connection resets per node. Every open connection of the node is reset at once, as if a middlebox dropped them; the process keeps running and both ends see `ECONNRESET` |
+| `slow_per_sec` | `0` | Rate of slowdowns per node: a gray failure where the node stays up but everything it does takes longer |
+| `slow_for` | `["500ms", "5s"]` | Slowdown duration |
+| `slow_factor` | `10` | Largest slowdown. Each slowdown picks a factor between 1 and this value |
 | `torn_writes` | `false` | A crash keeps a random in-order prefix of unsynced writes, possibly ending in a partial write |
 | `reorder_writes` | `false` | A crash keeps any subset of the dirty 4 KiB pages of each file, keeping writes in order within a page. This finds a commit record or header that reaches the disk before the data it points to. Combine with `torn_writes` to also tear the last write kept in each page. See [how-it-works.md](how-it-works.md#disk) |
 | `crash_on_io` | `0` | Probability that a node crashes *during* each disk operation. This is how you hit the window between a write and its fsync |
@@ -508,9 +519,41 @@ All faults come from the seed. Faults that depend on what the program does, such
 | `buggify` | `false` | Let `sim.Buggify` and `sim.BuggifyWithProb` sites in your code fire. Each site is enabled in a quarter of runs and then fires at its own rate; every firing is recorded as a `buggify` fault with its node, site and hit number. See [buggify.md](buggify.md) |
 | `swarm` | `false` | Swarm testing. Each seed turns every fault type on or off and rescales its rate between 0 and 2× the configured value, so faults that hide each other get explored separately |
 
+## Network faults
+
+Every network fault is directional underneath: it decides what happens to traffic from one node to another. A connection needs both directions to open, so a stopped direction either way refuses a dial, and a jammed one holds it.
+
+| Mode | New connections | Data in flight | Errors the program sees |
+|---|---|---|---|
+| partition, or clog `stop` | refused | held, delivered after the heal | `ECONNREFUSED` on dial |
+| clog `jam` | accepted only after the clog lifts | held, delivered after the clog lifts | none, only timeouts |
+| clog `slow` | accepted `clog_delay` later when the slow direction points at the listener | arrives `clog_delay` later, in order | none |
+
+A clog targets one of four shapes, chosen at random: one link in one direction (`n1 -> n2`), or a node's inbound, outbound, or inbound and outbound traffic. A one-way partition, where `n1` can hear `n2` but `n2` cannot hear `n1`, is a `stop` clog on one link or an outbound clog on one node. Faults stack: a slow clog over a partition adds its delay to the held traffic.
+
+Partition topologies follow Jepsen's nemeses. `half` is the original random split and stays the default, so existing seeds keep their schedules. `majority` needs at least 3 nodes and `majorities_ring` at least 4, workload included; the config is rejected otherwise. A ring partition is written as overlapping groups, and two nodes can talk only if some group holds both.
+
+A slowdown by factor F stretches everything the node waits for: its timers and sleeps take F times as long, every message it sends or receives takes F times its latency, and a goroutine that spins is parked F times as long. The node still reads the true time, so it sees its own timeouts fire late, the way an overloaded machine does. CPU work between two waits stays free, as it is for every node in seedfall.
+
+`sim.QuietFor` heals every partition, clog and slowdown at once.
+
+In a fault schedule, the new kinds look like this:
+
+```json
+{ "at": "1.2s", "kind": "partition", "groups": [["n1", "n2"], ["n2", "n3"], ["n3", "client"], ["client", "n1"]], "until": "2s" }
+{ "at": "1.5s", "kind": "clog", "from": "n1", "to": "n2", "mode": "stop", "until": "3s" }
+{ "at": "1.6s", "kind": "clog", "node": "n3", "dir": "out", "mode": "slow", "delay": "80ms", "until": "2.4s" }
+{ "at": "2.1s", "kind": "net_reset", "node": "n2", "until": "2.1s" }
+{ "at": "2.5s", "kind": "slow", "node": "n1", "factor": 4.5, "until": "6s" }
+```
+
+`dir` is `in`, `out` or `both`. A swizzle shows up as a run of `both` clogs in `stop` mode. Like every other planned fault, each one replays and shrinks on its own, appears in the trace, `seedfall cause` and the report, and joins swarm testing.
+
+Not modelled: dropped or duplicated packets. The simulated network carries TCP byte streams, where the kernel retransmits and deduplicates, so a program never sees either. UDP is not simulated (see [networking.md](networking.md)).
+
 ## Choosing rates
 
-Start with crashes and torn writes, then add `crash_on_io` around `0.005`, so a few hundred disk operations per run produce one or two mid-operation crashes. Add `fsync_eio`, `strict_dirs` and `reorder_writes` once the basic durability path passes. Turn on `buggify` once you have marked sites in your code that should sometimes take the rare path. Turn on `swarm` for long CI sweeps. Use property coverage ([properties.md](properties.md)) to confirm the faults are actually reaching the code you care about.
+Start with crashes and torn writes, then add `crash_on_io` around `0.005`, so a few hundred disk operations per run produce one or two mid-operation crashes. Add `fsync_eio`, `strict_dirs` and `reorder_writes` once the basic durability path passes. For consensus and leader-election code, add `partition_topologies` beyond `half`, then `clog_per_sec` and `slow_per_sec`: one-way links and slow leaders are the gray failures that break leases and stale-read checks. Turn on `buggify` once you have marked sites in your code that should sometimes take the rare path. Turn on `swarm` for long CI sweeps. Use property coverage ([properties.md](properties.md)) to confirm the faults are actually reaching the code you care about.
 
 ## Durations
 
@@ -715,7 +758,7 @@ See [faults.md](faults.md) for every fault type.
 
 ## Network
 
-Connections are ordered byte streams with seeded per-chunk latency. Partitions hold traffic until they heal, and a crashed node's connections are reset. Every connection is a virtual file registered with Go's own network poller, so blocking reads, deadlines and `Accept` behave exactly like `net`, and nothing polls. See [networking.md](networking.md).
+Connections are ordered byte streams with seeded per-chunk latency. Partitions and `stop` or `jam` clogs hold traffic until they heal, `slow` clogs and slow nodes add latency, and a crashed node's connections are reset, as are a live node's when a `net_reset` fault fires. Every fault is a rule on one direction of a link, so one-way partitions fall out of the same code. Every connection is a virtual file registered with Go's own network poller, so blocking reads, deadlines and `Accept` behave exactly like `net`, and nothing polls. See [networking.md](networking.md).
 
 ## Crashes and restarts
 
@@ -912,9 +955,11 @@ The baseline must pass first; otherwise mutants would be killed by the existing 
 
 # Networking
 
-seedfall gives every node a simulated network: ordered byte streams with seeded latency, partitions that hold traffic until they heal, and connection resets when a peer crashes. Node names are host names, so a node named `server` is reachable at `server:7000`.
+seedfall gives every node a simulated network: ordered byte streams with seeded latency, per-link latency overrides, partitions that hold traffic until they heal, one-way clogs that stop, jam or slow a link, slow nodes, and connection resets when a peer crashes or a reset fault fires. Node names are host names, so a node named `server` is reachable at `server:7000`.
 
-There are two ways to connect your code to it.
+How each network fault behaves and how to configure it is in [faults.md](faults.md#network-faults).
+
+There are two ways to connect your code to the simulated network.
 
 ## Option 1: `sim.Listen` and `sim.Dial`
 
@@ -1021,7 +1066,7 @@ waitUntilServed()
 sim.Always(time.Since(started) < 10*time.Second, "cluster serves reads again within the quiet period")
 ```
 
-`sim.QuietFor(d)` suppresses every fault for `d` of virtual time and heals any active partition. Nodes that are already down still restart on schedule. The trace records each suppressed fault. `examples/raftkv/client` uses this to check that the cluster recovers after the workload.
+`sim.QuietFor(d)` suppresses every fault for `d` of virtual time and heals any active partition, lifts every clog and ends every slowdown. Nodes that are already down still restart on schedule. The trace records each suppressed fault. `examples/raftkv/client` uses this to check that the cluster recovers after the workload.
 
 ## Faults at your own code sites
 
@@ -1157,11 +1202,12 @@ seedfall is only useful if its own model of crashes, faults and replay is right,
 | File system calls | `engine/memfs_test.go` | `OpenFile` flags, `Mkdir`, `Rename`, `Unlink`, `Rmdir` and `Readdir` return the POSIX errors and results |
 | `strict_dirs` | `engine/namespace_test.go` | New entries need the parent directory fsynced to survive, a rename reverts without a directory fsync, and a torn crash recovers an in-order prefix of directory operations |
 | Fault schedules | `engine/faults_test.go` | Schedules are identical for the same seed and differ across seeds, stay inside the time horizon and in order, never crash the workload, and never plan runtime-only faults; swarm rates stay in `[0, 2 x rate)`, swarm mixes are deterministic per seed, and partition sides are never empty |
+| Network faults | `engine/netfaults_test.go` | Every partition topology has the promised shape (a ring gives each node a distinct majority), the default `half` topology keeps the old schedule, a one-way clog holds one direction only, `jam` accepts late without an error, `slow` adds its delay, per-link latency overrides apply one way, a reset breaks both ends while the listener stays open, a slow node stretches its latency and timers, `sim.QuietFor` heals clogs, swizzles clog one node at a time and unclog in random order, and bad settings are rejected |
 | Scheduler | `engine/sched_test.go` | The next step is the earliest one; at the same time a planned fault goes before a restart and a restart before a resume; every resume due at that time is a candidate for the seeded scheduler; a paused node waits for its pause to end |
 | Shrinking | `engine/shrink_test.go` | Against a fake runner, `Shrink` keeps the original failure, ignores a different failure, and returns a 1-minimal schedule; failure matching ignores numbers only |
 | Network | `engine/net_test.go` | Messages on one connection arrive in order under random latency, reads wait for arrival, a partition holds messages until it heals, close delivers EOF after data, and a crash resets every connection |
 | Linearizability | `engine/history_test.go` | The key-value model accepts and rejects known histories, including unknown, pending and failed operations |
-| End to end | `engine/guest_test.go` | A small guest in `engine/testdata/guest` runs under crashes, partitions, torn writes, out-of-order writeback, crashes during disk operations and pauses: two runs of a seed give byte-identical traces, `-check` passes, a sweep finds the same failing seeds with 1 or 4 jobs, a failure replays exactly from its saved fault schedule, and a shrunk schedule keeps the failure, replays exactly and is 1-minimal |
+| End to end | `engine/guest_test.go` | A small guest in `engine/testdata/guest` runs under crashes, partitions, torn writes, out-of-order writeback, crashes during disk operations and pauses, and separately under clogs, swizzles, resets and slow nodes: two runs of a seed give byte-identical traces, `-check` passes, a sweep finds the same failing seeds with 1 or 4 jobs, a failure replays exactly from its saved fault schedule, and a shrunk schedule keeps the failure, replays exactly and is 1-minimal |
 | Confidence math | `report/report_test.go` | `SeedsToConfirm` and the detectable failure rate against known values, findings moving through new, ongoing, not seen, resolved and regressed across runs, and the JSON report against a golden file |
 | Proof rendering | `verify/verify_test.go` | How many seeds a proof needs, and the text and Markdown proof blocks against golden files |
 
@@ -1418,7 +1464,7 @@ Repeat steps 2 to 4 until every exercised mutant is killed, or until you can sta
 
 ## 5. Widen the fault model
 
-Once the basic sweep and the mutants pass, add one fault class at a time and sweep again: `fsync_eio` (around 0.01), `strict_dirs`, `partition_per_sec`, then `pause_per_sec` and `clock_jump_per_sec` for lease and timeout logic. Set `swarm` for long CI sweeps. A fault class that breaks the service is a finding, not noise: triage it.
+Once the basic sweep and the mutants pass, add one fault class at a time and sweep again: `fsync_eio` (around 0.01), `strict_dirs`, `partition_per_sec`, then `pause_per_sec` and `clock_jump_per_sec` for lease and timeout logic, and for consensus or leader election `partition_topologies`, `clog_per_sec` and `slow_per_sec` (one-way links, jammed links and slow leaders). Set `swarm` for long CI sweeps. A fault class that breaks the service is a finding, not noise: triage it.
 
 
 <!-- skills/seedfall-setup/SKILL.md -->
