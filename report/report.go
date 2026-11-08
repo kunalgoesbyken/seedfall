@@ -52,12 +52,14 @@ type Finding struct {
 }
 
 type Property struct {
-	Kind         string `json:"kind"`
-	Message      string `json:"message"`
-	Location     string `json:"location,omitempty"`
-	SeedsReached int    `json:"seeds_reached"`
-	SeedsTrue    int    `json:"seeds_true"`
-	Problem      string `json:"problem,omitempty"`
+	Kind         string   `json:"kind"`
+	Message      string   `json:"message"`
+	Location     string   `json:"location,omitempty"`
+	SeedsReached int      `json:"seeds_reached"`
+	SeedsTrue    int      `json:"seeds_true"`
+	Problem      string   `json:"problem,omitempty"`
+	Margin       *float64 `json:"margin,omitempty"`
+	MarginNote   string   `json:"-"`
 }
 
 type Report struct {
@@ -194,7 +196,7 @@ func properties(c engine.Coverage) []Property {
 	var out []Property
 	for _, msg := range c.Messages() {
 		p := c[msg]
-		out = append(out, Property{Kind: p.Kind.String(), Message: msg, Location: p.Location, SeedsReached: p.SeedsReached, SeedsTrue: p.SeedsTrue, Problem: p.Problem()})
+		out = append(out, Property{Kind: p.Kind.String(), Message: msg, Location: p.Location, SeedsReached: p.SeedsReached, SeedsTrue: p.SeedsTrue, Problem: p.Problem(), Margin: p.Margin, MarginNote: p.Kind.MarginNote(p.Margin)})
 	}
 	return out
 }

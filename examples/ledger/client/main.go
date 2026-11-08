@@ -33,7 +33,10 @@ func main() {
 	}
 	assert.Sometimes(unacked > 0, "a crash interrupted a deposit", nil)
 	total, _ := strconv.Atoi(untilServed(*addr, "TOTAL"))
-	assert.Always(total >= acked && total <= acked+unacked, "ledger total accounts for every acknowledged deposit", map[string]any{"total": total, "acked": acked, "unacked": unacked})
+	lifecycle.SendEvent("deposits finished", map[string]any{"total": total, "acked": acked, "unacked": unacked})
+	assert.AlwaysGreaterThanOrEqualTo(total, acked, "ledger total covers every acknowledged deposit", map[string]any{"unacked": unacked})
+	assert.AlwaysLessThanOrEqualTo(total, acked+unacked, "ledger total holds no deposit that was never sent", nil)
+	assert.SometimesAll([]assert.NamedBool{{First: "interrupted", Second: unacked > 0}, {First: "kept", Second: total > acked}}, "an unacknowledged deposit survived a crash", nil)
 	fmt.Printf("total %d, acknowledged %d\n", total, acked)
 }
 

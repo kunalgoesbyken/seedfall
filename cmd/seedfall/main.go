@@ -64,7 +64,7 @@ func cmdRun(args []string) error {
 	seeds := fs.String("seeds", "1-200", "seed or seed range")
 	jobs := fs.Int("j", runtime.NumCPU(), "parallel runs")
 	verbose := fs.Bool("v", false, "print every seed")
-	check := fs.Bool("check", false, "run every seed twice and fail if the traces differ")
+	check := fs.Bool("check", false, "run every seed twice and fail at the first host call or trace line that differs")
 	reportPath := fs.String("report", "", "sweep every seed and write an HTML triage report (plus .json) to this path")
 	jsonOut := fs.Bool("json", false, "sweep every seed and print one JSON object per finished seed, then a summary object")
 	fs.Parse(args)
@@ -119,8 +119,11 @@ func printCoverage(c engine.Coverage) {
 	for _, msg := range msgs {
 		p := c[msg]
 		mark := ""
+		if note := p.Kind.MarginNote(p.Margin); note != "" {
+			mark = fmt.Sprintf("  (%s)", note)
+		}
 		if problem := p.Problem(); problem != "" {
-			mark = fmt.Sprintf("  <- %s (%s)", problem, p.Location)
+			mark += fmt.Sprintf("  <- %s (%s)", problem, p.Location)
 		}
 		fmt.Printf("  %-12s %12d %11d  %s%s\n", p.Kind, p.SeedsReached, p.SeedsTrue, msg, mark)
 	}
@@ -222,6 +225,7 @@ func cmdReplay(args []string) error {
 			fmt.Println(l)
 		}
 		fmt.Printf("\nseed %d: %s, %d steps, %s real\n", *seed, status(res), res.Steps, res.Elapsed.Round(time.Millisecond))
+		fmt.Printf("determinism hash %s over %d host calls\n", res.Hash(), res.HostCalls)
 		if note := cutShort(res, cfg); note != "" {
 			fmt.Println("note:", note)
 		}
@@ -229,6 +233,7 @@ func cmdReplay(args []string) error {
 		return nil
 	}
 	printFailure(res, 0)
+	fmt.Printf("\ndeterminism hash %s over %d host calls\n", res.Hash(), res.HostCalls)
 	os.Exit(1)
 	return nil
 }

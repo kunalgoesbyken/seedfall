@@ -19,7 +19,7 @@ jobs:
 |---|---|---|
 | `config` | `seedfall.json` | Path to the world description |
 | `seeds` | `1-200` | Seed or inclusive range |
-| `check` | `false` | Run every seed twice and fail if the traces differ |
+| `check` | `false` | Run every seed twice and fail at the first host call or trace line that differs |
 | `go-version` | `stable` | Go version for building seedfall and your nodes |
 | `report` | `true` | Sweep every seed and upload an HTML triage report |
 | `artifact-name` | `seedfall-report` | Name of the report artifact; make it unique per job in a matrix |
@@ -35,7 +35,7 @@ seedfall run -c seedfall.always.json -seeds 1-100 -json | jq -c 'select(.type ==
 ```
 
 ```json
-{"type":"seed","seed":1,"passed":false,"finished":false,"failure":{"class":"assert","node":"client"},"reason":"client#1: acknowledged write lost: k96=v96, server now answers \"NONE\"","virtual_seconds":2.891820635,"faults":3}
+{"type":"seed","seed":1,"passed":false,"finished":false,"failure":{"class":"assert","node":"client"},"reason":"client#1: acknowledged write lost: k96=v96, server now answers \"NONE\"","virtual_seconds":2.8918212,"faults":3,"host_calls":6810,"determinism_hash":"53786fa3165d442b"}
 ```
 
 | Field | Meaning |
@@ -46,8 +46,9 @@ seedfall run -c seedfall.always.json -seeds 1-100 -json | jq -c 'select(.type ==
 | `reason` | The failure message |
 | `virtual_seconds` | Simulated time the run covered |
 | `faults` | Faults that happened during the run |
+| `host_calls`, `determinism_hash` | How many host calls the run made, and the running hash over them ([determinism check](properties.md#determinism-check)). It covers only simulated values, so the same seed and guest binary should give the same hash on any machine, and a CI matrix can compare it across operating systems to check |
 
-The summary has `passed`, `failed`, `unfinished`, `unmet_properties` and `properties`, the same coverage table `seedfall_run` returns over MCP, with a `problem` on each property that was never reached or never true. With `faults.buggify` on it also has `buggify_sites`: each `sim.Buggify` site with `seeds_reached`, `seeds_enabled`, `seeds_fired`, `fired` and a `problem` of `never reached` or `never fired`, which does not change the exit code. The exit code is 1 if any seed failed or any property is unmet. `-json` cannot be combined with `-report`.
+The summary has `passed`, `failed`, `unfinished`, `unmet_properties` and `properties`, the same coverage table `seedfall_run` returns over MCP, with a `problem` on each property that was never reached or never true and a `margin` on each numeric property. With `faults.buggify` on it also has `buggify_sites`: each `sim.Buggify` site with `seeds_reached`, `seeds_enabled`, `seeds_fired`, `fired` and a `problem` of `never reached` or `never fired`, which does not change the exit code. The exit code is 1 if any seed failed or any property is unmet. `-json` cannot be combined with `-report`.
 
 ## `go test`
 

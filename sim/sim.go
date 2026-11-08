@@ -5,8 +5,10 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"math"
 	"os"
+	"slices"
 	"time"
 )
 
@@ -33,29 +35,103 @@ const (
 
 const eventuallyPolls = 100
 
-func Always(cond bool, msg string, details ...any) { property(always, cond, msg, details) }
+func Always(cond bool, msg string, details ...any) { property(always, cond, msg, describe(details)) }
 
 func AlwaysOrUnreachable(cond bool, msg string, details ...any) {
-	property(alwaysOrUnreachable, cond, msg, details)
+	property(alwaysOrUnreachable, cond, msg, describe(details))
 }
 
-func Sometimes(cond bool, msg string, details ...any) { property(sometimes, cond, msg, details) }
+func Sometimes(cond bool, msg string, details ...any) {
+	property(sometimes, cond, msg, describe(details))
+}
 
-func Reachable(msg string, details ...any) { property(reachable, true, msg, details) }
+func Reachable(msg string, details ...any) { property(reachable, true, msg, describe(details)) }
 
-func Unreachable(msg string, details ...any) { property(unreachable, false, msg, details) }
+func Unreachable(msg string, details ...any) { property(unreachable, false, msg, describe(details)) }
 
 func Eventually(cond func() bool, msg string, within time.Duration) bool {
 	deadline := time.Now().Add(within)
 	for !cond() {
 		if !time.Now().Before(deadline) {
-			property(eventually, false, msg, []any{"not true within ", within})
+			property(eventually, false, msg, describe([]any{"not true within ", within}))
 			return false
 		}
 		time.Sleep(within / eventuallyPolls)
 	}
-	property(eventually, true, msg, nil)
+	property(eventually, true, msg, "")
 	return true
+}
+
+type Number interface {
+	~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr | ~float32 | ~float64
+}
+
+func AlwaysGreaterThan[T Number](left, right T, msg string, details ...any) {
+	compare(always, left > right, float64(left)-float64(right), left, right, msg, details)
+}
+
+func AlwaysGreaterThanOrEqualTo[T Number](left, right T, msg string, details ...any) {
+	compare(always, left >= right, float64(left)-float64(right), left, right, msg, details)
+}
+
+func AlwaysLessThan[T Number](left, right T, msg string, details ...any) {
+	compare(always, left < right, float64(right)-float64(left), left, right, msg, details)
+}
+
+func AlwaysLessThanOrEqualTo[T Number](left, right T, msg string, details ...any) {
+	compare(always, left <= right, float64(right)-float64(left), left, right, msg, details)
+}
+
+func SometimesGreaterThan[T Number](left, right T, msg string, details ...any) {
+	compare(sometimes, left > right, float64(left)-float64(right), left, right, msg, details)
+}
+
+func SometimesGreaterThanOrEqualTo[T Number](left, right T, msg string, details ...any) {
+	compare(sometimes, left >= right, float64(left)-float64(right), left, right, msg, details)
+}
+
+func SometimesLessThan[T Number](left, right T, msg string, details ...any) {
+	compare(sometimes, left < right, float64(right)-float64(left), left, right, msg, details)
+}
+
+func SometimesLessThanOrEqualTo[T Number](left, right T, msg string, details ...any) {
+	compare(sometimes, left <= right, float64(right)-float64(left), left, right, msg, details)
+}
+
+func compare[T Number](k kind, cond bool, margin float64, left, right T, msg string, details []any) {
+	numeric(k, cond, margin, msg, detailJSON(map[string]any{"left": left, "right": right}, details))
+}
+
+func AlwaysSome(named map[string]bool, msg string, details ...any) {
+	property(always, slices.Contains(slices.Collect(maps.Values(named)), true), msg, grouped(named, details))
+}
+
+func SometimesAll(named map[string]bool, msg string, details ...any) {
+	property(sometimes, !slices.Contains(slices.Collect(maps.Values(named)), false), msg, grouped(named, details))
+}
+
+func grouped(named map[string]bool, details []any) string {
+	fields := map[string]any{}
+	for name, v := range named {
+		fields[name] = v
+	}
+	return detailJSON(fields, details)
+}
+
+func detailJSON(fields map[string]any, details []any) string {
+	if len(details) > 0 {
+		fields["details"] = describe(details)
+	}
+	b, _ := json.Marshal(fields)
+	return string(b)
+}
+
+func Event(name string, details any) {
+	b, err := json.Marshal(details)
+	if err != nil {
+		b, _ = json.Marshal(fmt.Sprint(details))
+	}
+	event(name, string(b))
 }
 
 func SetupComplete() { setupComplete() }

@@ -128,6 +128,27 @@ func TestGuestDoublecheckPasses(t *testing.T) {
 	}
 }
 
+func TestGuestNumericAssertionsEventsAndHashReplay(t *testing.T) {
+	r := guestRunner(t, true)
+	a, b := r.Run(3, nil), r.Run(3, nil)
+	p := a.Properties["a fault cost an acknowledgement"]
+	if p == nil || p.Margin == nil || p.Kind != Sometimes {
+		t.Fatalf("numeric property %+v", p)
+	}
+	if len(a.Events) != 1 || a.Events[0].Name != "writes finished" || !strings.Contains(a.Events[0].Details, `"writes":60`) {
+		t.Fatalf("events %+v", a.Events)
+	}
+	if !slices.ContainsFunc(a.Trace, func(l string) bool { return strings.Contains(l, "event writes finished from client#") }) {
+		t.Fatal("the event is not in the trace")
+	}
+	if a.HostCalls == 0 || a.Hash() != b.Hash() || !reflect.DeepEqual(a.Events, b.Events) || *p.Margin != *b.Properties["a fault cost an acknowledgement"].Margin {
+		t.Fatalf("replay differs: %d calls, hashes %s and %s", a.HostCalls, a.Hash(), b.Hash())
+	}
+	if r.Run(4, nil).Hash() == a.Hash() {
+		t.Fatal("seeds 3 and 4 have the same determinism hash")
+	}
+}
+
 func TestGuestBudgetCapsTheWorkloadAndShortensTheRun(t *testing.T) {
 	r := guestRunner(t, true)
 	full := r.Run(3, nil)

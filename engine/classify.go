@@ -29,7 +29,7 @@ func (r *Runner) Classify(failed Result, s Schedule) Classification {
 	case FailNondeterminism:
 		return Classification{Verdict: VerdictNondeterministic}
 	}
-	replay := r.once(failed.Seed, s)
+	replay := r.once(failed.Seed, s, 0)
 	if diff, diverged := divergence(failed.Trace, replay.Trace); diverged {
 		return Classification{Verdict: VerdictNondeterministic, Divergence: diff}
 	}

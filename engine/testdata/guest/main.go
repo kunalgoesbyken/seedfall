@@ -107,6 +107,8 @@ func client(writes int, record, forever bool) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	sim.Sometimes(acked < writes, "a fault interrupted the workload")
+	sim.SometimesLessThan(acked, writes, "a fault cost an acknowledgement")
+	sim.Event("writes finished", map[string]int{"acked": acked, "writes": writes})
 	for {
 		if stored, err := call("COUNT"); err == nil && !forever {
 			sim.Assert(stored >= acked, fmt.Sprintf("acknowledged writes lost: %d acknowledged, %d stored", acked, stored))

@@ -23,6 +23,9 @@ func main() {
 	flag.Parse()
 	done := progress()
 	sim.Sometimes(done > 0, "the client resumed after a crash")
+	if done > 0 {
+		sim.Event("client resumed", map[string]int{"next add": done})
+	}
 	for i := done; i < *adds; i++ {
 		id := fmt.Sprintf("%s-%d", sim.Node(), i)
 		for !acked(*addr, id) {

@@ -182,6 +182,7 @@ expect_replay liveness seedfall.json 1 stuck.faults.json pass
 expect_replay liveness nodedupe.json 2 client-crash.faults.json fail
 expect_replay liveness seedfall.json 2 client-crash.faults.json pass
 deterministic liveness seedfall.json 1
+deterministic ledger seedfall.json 3
 expect aikv configs/haiku-1.reorder.json 1     fail
 expect aikv configs/opus-2.harsh.json    99    fail
 expect aikv configs/sonnet-3.reorder.json 1-10 pass

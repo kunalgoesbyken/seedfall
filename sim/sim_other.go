@@ -13,11 +13,15 @@ func Dial(network, address string) (net.Conn, error) { return net.Dial(network, 
 
 func Fail(msg string) { panic("seedfall: " + msg) }
 
-func property(k kind, cond bool, msg string, details []any) {
+func property(k kind, cond bool, msg, detail string) {
 	if ((k == always || k == alwaysOrUnreachable || k == eventually) && !cond) || k == unreachable {
-		Fail(msg + ": " + describe(details))
+		Fail(msg + ": " + detail)
 	}
 }
+
+func numeric(k kind, cond bool, _ float64, msg, detail string) { property(k, cond, msg, detail) }
+
+func event(string, string) {}
 
 func setupComplete() {}
 

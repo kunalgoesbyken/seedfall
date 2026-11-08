@@ -22,7 +22,8 @@ func main() {
 		p, b = count(*primary), count(*backup)
 		return p >= 0 && p == b
 	}, "primary and backup report the same count", *within)
-	sim.Always(p == *adds, "every add is applied exactly once", fmt.Sprintf("count is %d after %d adds", p, *adds))
+	sim.AlwaysLessThanOrEqualTo(p, *adds, "no add is applied twice")
+	sim.AlwaysGreaterThanOrEqualTo(p, *adds, "no acknowledged add is lost")
 	fmt.Printf("primary and backup agree on %d\n", p)
 }
 

@@ -84,7 +84,7 @@ td.num { font-family: ui-monospace, monospace; white-space: nowrap; }
   <table>
     <tr><th>kind</th><th>property</th><th>seeds reached</th><th>seeds true</th><th>location</th></tr>
     {{range .Properties}}
-    <tr><td class="mono">{{.Kind}}</td><td>{{.Message}}{{if .Problem}} <span class="problem">· {{.Problem}}</span>{{end}}</td><td class="num">{{.SeedsReached}}</td><td class="num">{{.SeedsTrue}}</td><td class="mono dim">{{.Location}}</td></tr>
+    <tr><td class="mono">{{.Kind}}</td><td>{{.Message}}{{if .Problem}} <span class="problem">· {{.Problem}}</span>{{end}}{{if .MarginNote}} <span class="dim">· {{.MarginNote}}</span>{{end}}</td><td class="num">{{.SeedsReached}}</td><td class="num">{{.SeedsTrue}}</td><td class="mono dim">{{.Location}}</td></tr>
     {{end}}
   </table>
   {{end}}

@@ -70,13 +70,32 @@ func buggify(site string, p float64) bool {
 //go:wasmimport seedfall property
 func hostProperty(k, cond int32, msg unsafe.Pointer, msgLen uint32, detail unsafe.Pointer, detailLen uint32)
 
-func property(k kind, cond bool, msg string, details []any) {
-	m, d := []byte(msg), []byte(describe(details))
-	c := int32(0)
+//go:wasmimport seedfall numeric
+func hostNumeric(k, cond int32, margin float64, msg unsafe.Pointer, msgLen uint32, detail unsafe.Pointer, detailLen uint32)
+
+//go:wasmimport seedfall event
+func hostEvent(name unsafe.Pointer, nameLen uint32, detail unsafe.Pointer, detailLen uint32)
+
+func boolInt(cond bool) int32 {
 	if cond {
-		c = 1
+		return 1
 	}
-	hostProperty(int32(k), c, bytesPtr(m), uint32(len(m)), bytesPtr(d), uint32(len(d)))
+	return 0
+}
+
+func property(k kind, cond bool, msg, detail string) {
+	m, d := []byte(msg), []byte(detail)
+	hostProperty(int32(k), boolInt(cond), bytesPtr(m), uint32(len(m)), bytesPtr(d), uint32(len(d)))
+}
+
+func numeric(k kind, cond bool, margin float64, msg, detail string) {
+	m, d := []byte(msg), []byte(detail)
+	hostNumeric(int32(k), boolInt(cond), margin, bytesPtr(m), uint32(len(m)), bytesPtr(d), uint32(len(d)))
+}
+
+func event(name, detail string) {
+	n, d := []byte(name), []byte(detail)
+	hostEvent(bytesPtr(n), uint32(len(n)), bytesPtr(d), uint32(len(d)))
 }
 
 func Fail(msg string) {

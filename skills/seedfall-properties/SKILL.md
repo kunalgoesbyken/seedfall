@@ -27,7 +27,8 @@ The full reference is the MCP resource `seedfall://docs/properties` (docs/proper
 | Promise | Check |
 |---|---|
 | Acknowledged writes survive | The workload records each acknowledged write, then reads it back after the faults: `sim.Assert(got == want, "acknowledged write lost: "+key)` |
-| State never goes backwards | In the node: `sim.Always(len(log) >= committed, "log never shrinks below the commit index", len(log), committed)` |
+| State never goes backwards | In the node: `sim.AlwaysGreaterThanOrEqualTo(len(log), committed, "log never shrinks below the commit index")`. The numeric forms (`AlwaysGreaterThan`, `AlwaysLessThan`, `SometimesGreaterThan`, ... and their `OrEqualTo` variants) put `left` and `right` in the failure and report a margin: the smallest one shows how close an `always` came to failing |
+| One of several things holds | `sim.AlwaysSome(map[string]bool{"primary": p >= 0, "backup": b >= 0}, "some replica answers")`; `sim.SometimesAll(...)` for a combination that must happen at least once |
 | Something must never happen | `sim.Unreachable("two leaders in the same term", term)` |
 | A dangerous path actually ran | `sim.Sometimes(tornTail, "recovery found a torn tail")`, `sim.Reachable("a node restored from a snapshot")` |
 | Concurrent clients see a linearizable history | Wrap each call: `op := sim.Put(client, key, value)`, then `op.Ok("")`, `op.Unknown()` on a timeout, or `op.Failed()` when it definitely did not apply. Use `sim.Get` for reads |
@@ -40,6 +41,7 @@ The full reference is the MCP resource `seedfall://docs/properties` (docs/proper
 Rules:
 - Keep messages constant string literals and pass changing values as extra arguments. seedfall catalogs literal messages before the sweep, and an `Always` or `Reachable` that no seed reaches fails the sweep.
 - Add a `Sometimes` for each fault-dependent path you care about. The coverage table then proves the faults reached it.
+- Use `sim.Event("name", details)` to mark a moment (a recovery finishing, a leader change) in the trace without asserting anything; triage then reads it next to the faults.
 - Properties can live in nodes. Outside the simulator, `Always`, `Unreachable` and `Eventually` panic on violation and the others do nothing, so only put invariants in node code that must hold in production too.
 
 ## 3. Sweep and read the coverage table
@@ -48,7 +50,9 @@ Rules:
 seedfall run -c seedfall.json -seeds 1-100
 ```
 
-Over MCP: `seedfall_run`, which returns `properties` with `seeds_reached`, `seeds_true` and a `problem` for each one.
+Over MCP: `seedfall_run`, which returns `properties` with `seeds_reached`, `seeds_true`, a `problem` for each one and a `margin` for numeric ones.
+
+- An `always` numeric property whose smallest margin stays far from 0 never got near failing: the faults may not be stressing it. A margin of exactly 0 on an `OrEqualTo` means the boundary was reached.
 
 - A `Sometimes` that is never true means the faults never reached that path. Raise `crash_on_io` (around 0.005 to 0.02), set `torn_writes`, lengthen `duration`, or make the workload write more.
 - If no outside fault can reach a path (a lost reply after a successful apply, an error return, a minimal quorum), mark it in the service with `if sim.Buggify("site") { ... }` and set `"buggify": true` in `faults`. The sweep then lists each site as reached, enabled and fired; see the MCP resource `seedfall://docs/buggify` (docs/buggify.md).

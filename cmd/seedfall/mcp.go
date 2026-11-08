@@ -20,7 +20,7 @@ const mcpInstructions = "seedfall runs Go services as wasip1 guests under simula
 type runArgs struct {
 	Config string `json:"config" jsonschema:"path to seedfall.json"`
 	Seeds  string `json:"seeds" jsonschema:"seed or inclusive range, for example 1-200"`
-	Check  bool   `json:"check,omitempty" jsonschema:"run every seed twice and fail if the traces differ"`
+	Check  bool   `json:"check,omitempty" jsonschema:"run every seed twice and fail at the first host call or trace line that differs"`
 }
 
 type seedArgs struct {
@@ -48,12 +48,13 @@ type checkArgs struct {
 }
 
 type propertyView struct {
-	Kind         string `json:"kind"`
-	Message      string `json:"message"`
-	Location     string `json:"location,omitempty"`
-	Problem      string `json:"problem,omitempty"`
-	SeedsReached int    `json:"seeds_reached"`
-	SeedsTrue    int    `json:"seeds_true"`
+	Kind         string   `json:"kind"`
+	Message      string   `json:"message"`
+	Location     string   `json:"location,omitempty"`
+	Problem      string   `json:"problem,omitempty"`
+	SeedsReached int      `json:"seeds_reached"`
+	SeedsTrue    int      `json:"seeds_true"`
+	Margin       *float64 `json:"margin,omitempty" jsonschema:"numeric assertions only: the smallest margin seen for always, the largest for sometimes, where margin is left minus right for GreaterThan and right minus left for LessThan"`
 }
 
 type buggifyView struct {
@@ -79,9 +80,26 @@ type seedView struct {
 	Seed    uint64       `json:"seed"`
 	Passed  bool         `json:"passed"`
 	Steps   int          `json:"steps"`
+	Hash    string       `json:"determinism_hash"`
 	Failure *failureView `json:"failure,omitempty"`
 	Trace   []string     `json:"trace_tail,omitempty"`
+	Events  []eventView  `json:"events,omitempty"`
 	Note    string       `json:"note,omitempty"`
+}
+
+type eventView struct {
+	At       string `json:"at"`
+	Instance string `json:"instance"`
+	Name     string `json:"name"`
+	Details  string `json:"details,omitempty"`
+}
+
+func events(res engine.Result) []eventView {
+	var out []eventView
+	for _, e := range res.Events {
+		out = append(out, eventView{At: e.At.String(), Instance: e.Instance, Name: e.Name, Details: e.Details})
+	}
+	return out
 }
 
 type causeArgs struct {
@@ -211,7 +229,7 @@ func toolReplay(_ context.Context, _ *mcp.CallToolRequest, a seedArgs) (*mcp.Cal
 		return nil, seedView{}, err
 	}
 	res := r.Replay(a.Seed, sched)
-	out := seedView{Seed: a.Seed, Passed: !res.Failed, Steps: res.Steps}
+	out := seedView{Seed: a.Seed, Passed: !res.Failed, Steps: res.Steps, Hash: res.Hash(), Events: events(res)}
 	if res.Failed {
 		out.Failure = viewFailure(a.Config, res)
 		class := r.Classify(res, sched)
@@ -317,7 +335,7 @@ func properties(c engine.Coverage) []propertyView {
 	out := []propertyView{}
 	for _, msg := range c.Messages() {
 		p := c[msg]
-		out = append(out, propertyView{Kind: p.Kind.String(), Message: msg, Location: p.Location, Problem: p.Problem(), SeedsReached: p.SeedsReached, SeedsTrue: p.SeedsTrue})
+		out = append(out, propertyView{Kind: p.Kind.String(), Message: msg, Location: p.Location, Problem: p.Problem(), SeedsReached: p.SeedsReached, SeedsTrue: p.SeedsTrue, Margin: p.Margin})
 	}
 	return out
 }

@@ -30,8 +30,14 @@ type Result struct {
 	Elapsed    time.Duration
 	History    HistoryCheck
 	Properties map[string]*Property
+	Events     []Event
 	Failure    Failure
 	Buggify    map[string]*BuggifySite
+	HostCalls  int64
+
+	hostHash    uint64
+	checkpoints []uint64
+	captured    []hostCall
 }
 
 type Runner struct {
@@ -124,21 +130,33 @@ func (r *Runner) Run(seed uint64, faults []Fault) Result {
 }
 
 func (r *Runner) Replay(seed uint64, s Schedule) Result {
-	res := r.once(seed, s)
+	res := r.once(seed, s, 0)
 	if !r.Doublecheck {
 		return res
 	}
-	if diff, diverged := divergence(res.Trace, r.once(seed, s).Trace); diverged {
+	if diff, diverged := r.divergence(seed, s, res, r.once(seed, s, 0)); diverged {
 		res.Failed, res.At, res.Failure = true, 0, Failure{Class: FailNondeterminism}
 		res.Reason = fmt.Sprintf("nondeterminism: two runs of seed %d diverge at %s", seed, diff)
 	}
 	return res
 }
 
-func (r *Runner) once(seed uint64, s Schedule) Result {
+func (r *Runner) divergence(seed uint64, s Schedule, a, b Result) (string, bool) {
+	window, diverged := firstHostWindow(a, b)
+	if !diverged {
+		return divergence(a.Trace, b.Trace)
+	}
+	diff := hostDivergence(window, r.once(seed, s, window), r.once(seed, s, window))
+	if line, ok := divergence(a.Trace, b.Trace); ok {
+		diff += "; " + line
+	}
+	return diff, true
+}
+
+func (r *Runner) once(seed uint64, s Schedule, capture int64) Result {
 	s, explicit := r.schedule(seed, s)
 	started := time.Now()
-	res := r.run(seed, s, explicit, nil, nil)
+	res := r.run(seed, s, explicit, nil, nil, capture)
 	res.Elapsed = time.Since(started)
 	return res
 }
@@ -164,7 +182,7 @@ func lineAt(lines []string, i int) string {
 	return "<end of trace>"
 }
 
-func (r *Runner) run(seed uint64, s Schedule, explicit bool, b *branch, p *probe) Result {
+func (r *Runner) run(seed uint64, s Schedule, explicit bool, b *branch, p *probe, capture int64) Result {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	w := &world{
@@ -173,7 +191,7 @@ func (r *Runner) run(seed uint64, s Schedule, explicit bool, b *branch, p *probe
 		events: make(chan event), faults: slices.Clone(s.Faults), horizon: int64(cmp.Or(s.Duration, r.cfg.Duration)), opsLimit: s.Ops, trace: &tracer{}, compiled: r.compiled,
 		explicit: explicit, ioRand: streams(seed, "io"), props: properties{}, spec: r.cfg.Faults.forSeed(seed), branch: b, probe: p,
 		mutation: r.Mutation, weakened: func() { r.weakened.Add(1) }, shielded: map[string]bool{}, deadline: never,
-		history: history{model: r.cfg.Checker.Model},
+		history: history{model: r.cfg.Checker.Model}, calls: newHostCalls(capture),
 	}
 	w.net = newNetwork(w)
 	res := Result{Seed: seed, Faults: s.Faults, Horizon: time.Duration(w.horizon)}
@@ -184,6 +202,8 @@ func (r *Runner) run(seed uint64, s Schedule, explicit bool, b *branch, p *probe
 	w.checkHistory()
 	res.History = w.lin
 	res.Properties = w.props
+	res.Events = w.sent
+	res.HostCalls, res.hostHash, res.checkpoints, res.captured = w.calls.n, w.calls.hash, w.calls.checkpoints, w.calls.captured
 	res.Buggify = w.bugs.sites
 	res.Failed = w.failure != ""
 	res.Reason = w.failure
@@ -213,6 +233,7 @@ func (w *world) setup() {
 		}
 		n.skew = w.clockSkew(n)
 		n.fs.special = func(p string) (fsapi.File, fsapi.Errno, bool) { return w.openSpecial(n, p) }
+		n.fs.observe = func(op, p string, arg int64) { w.hostCall(n.live, op, p, arg) }
 		w.nodes = append(w.nodes, n)
 		w.shielded[s.Name] = !w.cfg.networked(s)
 		if w.cfg.isFinally(s.Name) {

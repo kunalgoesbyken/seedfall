@@ -14,13 +14,35 @@ import (
 	"strconv"
 )
 
-var propertyFuncs = map[string]PropertyKind{
-	"Always":              Always,
-	"AlwaysOrUnreachable": AlwaysOrUnreachable,
-	"Sometimes":           Sometimes,
-	"Reachable":           Reachable,
-	"Unreachable":         Unreachable,
-	"Eventually":          Eventually,
+type propertyFunc struct {
+	kind       PropertyKind
+	messageArg int
+}
+
+const (
+	reachMessageArg   = 0
+	condMessageArg    = 1
+	groupedMessageArg = 1
+	numericMessageArg = 2
+)
+
+var propertyFuncs = map[string]propertyFunc{
+	"Always":                        {Always, condMessageArg},
+	"AlwaysOrUnreachable":           {AlwaysOrUnreachable, condMessageArg},
+	"Sometimes":                     {Sometimes, condMessageArg},
+	"Reachable":                     {Reachable, reachMessageArg},
+	"Unreachable":                   {Unreachable, reachMessageArg},
+	"Eventually":                    {Eventually, condMessageArg},
+	"AlwaysGreaterThan":             {Always, numericMessageArg},
+	"AlwaysGreaterThanOrEqualTo":    {Always, numericMessageArg},
+	"AlwaysLessThan":                {Always, numericMessageArg},
+	"AlwaysLessThanOrEqualTo":       {Always, numericMessageArg},
+	"SometimesGreaterThan":          {Sometimes, numericMessageArg},
+	"SometimesGreaterThanOrEqualTo": {Sometimes, numericMessageArg},
+	"SometimesLessThan":             {Sometimes, numericMessageArg},
+	"SometimesLessThanOrEqualTo":    {Sometimes, numericMessageArg},
+	"AlwaysSome":                    {Always, groupedMessageArg},
+	"SometimesAll":                  {Sometimes, groupedMessageArg},
 }
 
 const simPackage = "github.com/kunalgoesbyken/seedfall/sim"
@@ -146,15 +168,15 @@ func propertyCall(call *ast.CallExpr, aliases map[string]string) (CatalogEntry, 
 		site, ok := literalArg(call, 0)
 		return CatalogEntry{Message: site, Buggify: true}, ok
 	}
-	kind, ok := propertyFuncs[sel.Sel.Name]
+	fn, ok := propertyFuncs[sel.Sel.Name]
 	if !ok {
 		return CatalogEntry{}, false
 	}
-	msg, ok := literalArg(call, kind.messageArg())
+	msg, ok := literalArg(call, fn.messageArg)
 	if !ok {
 		return CatalogEntry{}, false
 	}
-	return CatalogEntry{Kind: kind, Message: msg}, true
+	return CatalogEntry{Kind: fn.kind, Message: msg}, true
 }
 
 func literalArg(call *ast.CallExpr, i int) (string, bool) {

@@ -103,6 +103,8 @@ type world struct {
 	history     history
 	lin         HistoryCheck
 	props       properties
+	sent        []Event
+	calls       hostCalls
 	branch      *branch
 	probe       *probe
 	mutation    Mutation
@@ -143,15 +145,23 @@ func hostModule(ctx context.Context, rt wazero.Runtime) error {
 	export := func(name string, fn any) { b.NewFunctionBuilder().WithFunc(fn).Export(name) }
 	export("net_listen", func(ctx context.Context, m api.Module, p, n uint32) int32 {
 		w := worldOf(ctx)
-		return w.net.listen(w.instance(ctx), string(readBytes(m, p, n)))
+		addr := string(readBytes(m, p, n))
+		id := w.net.listen(w.instance(ctx), addr)
+		w.hostCall(w.instance(ctx), "net_listen", addr, int64(id))
+		return id
 	})
 	export("net_dial", func(ctx context.Context, m api.Module, p, n uint32) int32 {
 		w := worldOf(ctx)
-		return w.net.dial(w.instance(ctx), string(readBytes(m, p, n)))
+		addr := string(readBytes(m, p, n))
+		id := w.net.dial(w.instance(ctx), addr)
+		w.hostCall(w.instance(ctx), "net_dial", addr, int64(id))
+		return id
 	})
 	export("net_accept", func(ctx context.Context, id int32) int32 {
 		w := worldOf(ctx)
-		return w.net.accept(w.instance(ctx), id)
+		conn := w.net.accept(w.instance(ctx), id)
+		w.hostCall(w.instance(ctx), "net_accept", "", int64(conn))
+		return conn
 	})
 	export("net_bind", func(ctx context.Context, fd, id int32) {
 		worldOf(ctx).instance(ctx).fds[fd] = id
@@ -160,35 +170,55 @@ func hostModule(ctx context.Context, rt wazero.Runtime) error {
 		w := worldOf(ctx)
 		inst := w.instance(ctx)
 		id, err := w.history.call(w.now, readBytes(m, p, n), inst.label)
+		w.hostCall(inst, "history_call", "", int64(id))
 		w.historyError(inst, err)
 		return id
 	})
 	export("history_return", func(ctx context.Context, m api.Module, id int32, p, n uint32, outcome int32) {
 		w := worldOf(ctx)
+		w.hostCall(w.instance(ctx), "history_return", "", int64(id))
 		w.historyError(w.instance(ctx), w.history.complete(w.now, id, readBytes(m, p, n), outcome))
 	})
 	export("property", func(ctx context.Context, m api.Module, kind, cond int32, p, n, dp, dn uint32) {
 		w := worldOf(ctx)
-		w.observeProperty(w.instance(ctx), PropertyKind(kind), cond != 0, string(readBytes(m, p, n)), string(readBytes(m, dp, dn)))
+		msg := string(readBytes(m, p, n))
+		w.hostCall(w.instance(ctx), "property", msg, int64(cond))
+		w.observeProperty(w.instance(ctx), PropertyKind(kind), cond != 0, msg, string(readBytes(m, dp, dn)))
+	})
+	export("numeric", func(ctx context.Context, m api.Module, kind, cond int32, margin float64, p, n, dp, dn uint32) {
+		w := worldOf(ctx)
+		msg := string(readBytes(m, p, n))
+		w.hostCall(w.instance(ctx), "numeric", msg, int64(cond))
+		w.observeNumeric(w.instance(ctx), PropertyKind(kind), cond != 0, margin, msg, string(readBytes(m, dp, dn)))
+	})
+	export("event", func(ctx context.Context, m api.Module, p, n, dp, dn uint32) {
+		w := worldOf(ctx)
+		name := string(readBytes(m, p, n))
+		w.hostCall(w.instance(ctx), "event", name, 0)
+		w.event(w.instance(ctx), name, string(readBytes(m, dp, dn)))
 	})
 	export("buggify", func(ctx context.Context, m api.Module, p, n uint32, prob float64) int32 {
 		w := worldOf(ctx)
-		if w.buggify(w.instance(ctx), string(readBytes(m, p, n)), prob) {
-			return 1
-		}
-		return 0
+		site := string(readBytes(m, p, n))
+		fired := w.buggify(w.instance(ctx), site, prob)
+		w.hostCall(w.instance(ctx), "buggify", site, int64(boolInt(fired)))
+		return boolInt(fired)
 	})
 	export("setup_complete", func(ctx context.Context) {
 		w := worldOf(ctx)
+		w.hostCall(w.instance(ctx), "setup_complete", "", 0)
 		w.setupComplete(w.instance(ctx))
 	})
 	export("quiet", func(ctx context.Context, ns int64) {
 		w := worldOf(ctx)
+		w.hostCall(w.instance(ctx), "quiet", "", ns)
 		w.quietFor(w.instance(ctx), time.Duration(ns))
 	})
 	export("budget", func(ctx context.Context, n int64) int64 {
 		w := worldOf(ctx)
-		return w.budget(w.instance(ctx), n)
+		got := w.budget(w.instance(ctx), n)
+		w.hostCall(w.instance(ctx), "budget", "", got)
+		return got
 	})
 	export("fail", func(ctx context.Context, m api.Module, p, n uint32) {
 		w := worldOf(ctx)
@@ -218,13 +248,18 @@ func (w *world) moduleConfig(inst *instance) wazero.ModuleConfig {
 		WithEnv("SEEDFALL_NODE", n.name()).
 		WithEnv(antithesisOutputEnv, "/"+antithesisOutputPath).
 		WithStdout(out).WithStderr(out).
-		WithRandSource(w.guestRandom(fmt.Sprintf("%s/%d", n.name(), n.starts))).
+		WithRandSource(w.guestRandom(inst, fmt.Sprintf("%s/%d", n.name(), n.starts))).
 		WithStartFunctions().
 		WithWalltime(func() (int64, int32) {
 			t := epochNanos + w.tick() + n.skew
+			w.hostCall(inst, "clock_walltime", "", t)
 			return t / int64(time.Second), int32(t % int64(time.Second))
 		}, 1).
-		WithNanotime(func() int64 { return epochNanos + w.tick() }, 1).
+		WithNanotime(func() int64 {
+			t := epochNanos + w.tick()
+			w.hostCall(inst, "clock_nanotime", "", t)
+			return t
+		}, 1).
 		WithNanosleep(func(ns int64) { w.park(inst, w.now+w.stretch(max(ns, 0), n)) }).
 		WithFSConfig(wazero.NewFSConfig().(sysfs.FSConfig).WithSysFSMount(n.fs, "/"))
 	for _, k := range sortedKeys(n.spec.Env) {
@@ -234,6 +269,7 @@ func (w *world) moduleConfig(inst *instance) wazero.ModuleConfig {
 }
 
 func (w *world) park(inst *instance, at int64) {
+	w.hostCall(inst, "park", "", at)
 	inst.wakeAt = at
 	w.events <- event{inst: inst}
 	if !<-inst.resume {

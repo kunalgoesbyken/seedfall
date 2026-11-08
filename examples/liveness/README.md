@@ -22,15 +22,16 @@ sim.Eventually(func() bool {
 	p, b = count(*primary), count(*backup)
 	return p >= 0 && p == b
 }, "primary and backup report the same count", *within)
-sim.Always(p == *adds, "every add is applied exactly once", fmt.Sprintf("count is %d after %d adds", p, *adds))
+sim.AlwaysLessThanOrEqualTo(p, *adds, "no add is applied twice")
+sim.AlwaysGreaterThanOrEqualTo(p, *adds, "no acknowledged add is lost")
 ```
 
 | Config | Result |
 |---|---|
 | `seedfall.json` | `-dedupe -redial`, liveness mode, every fault on the servers and the client: passes 20 seeds, each run twice with `-check`. The client resumed after a crash in 15 of them |
 | `noredial.json` | the same without `-redial`: fails on seed 1, 14 of the first 20 seeds, `liveness: client did not finish within 10s of the recovery phase starting at 5.000s`. `seedfall shrink` cuts seed 1 from 12 faults to one connection reset, saved as `stuck.faults.json` |
-| `noredial.noliveness.json` | the same bug without `liveness`: every seed passes, all 20 at the time horizon, because a stuck run and a slow run look the same when the run just ends. Only the property catalog notices, because the `finally` check never ran and its two properties were never reached |
-| `nodedupe.json` | servers with `"faults": false` and no `-dedupe`, and only the client crashing: fails on seed 2, 11 of the first 20 seeds, `every add is applied exactly once: count is 41 after 40 adds`. It shrinks to one client crash, saved as `client-crash.faults.json` |
+| `noredial.noliveness.json` | the same bug without `liveness`: every seed passes, all 20 at the time horizon, because a stuck run and a slow run look the same when the run just ends. Only the property catalog notices, because the `finally` check never ran and its three properties were never reached |
+| `nodedupe.json` | servers with `"faults": false` and no `-dedupe`, and only the client crashing: fails on seed 2, 11 of the first 20 seeds, `no add is applied twice: {"left":41,"right":40}`. It shrinks to one client crash, saved as `client-crash.faults.json` |
 | `stuck.faults.json` | the single reset. It fails `noredial.json` and passes `seedfall.json` |
 | `client-crash.faults.json` | the single client crash. It fails `nodedupe.json` and passes `seedfall.json` |
 
@@ -64,8 +65,8 @@ trace:
 The shrunk double apply:
 
 ```
-FAIL seed 2 at t=1.596559982s (328 scheduler steps, 61ms real)
-  check#1: every add is applied exactly once: count is 41 after 40 adds
+FAIL seed 2 at t=1.596559982s (328 scheduler steps, 125ms real)
+  check#1: no add is applied twice: {"left":41,"right":40}
 
 faults before the failure (1):
   1.411618s  crash client, restart at 1.553865s
@@ -76,9 +77,12 @@ trace:
     0.000s  start client#1
     1.412s  fault crash client#1, restart at 1.554s
     1.554s  start client#2
+    1.554s  event client resumed from client#2: {"next add":39}
     1.579s  client#2| all 40 adds acknowledged
     1.579s  workload finished, the finally check runs next
     1.579s  recovery: the workload finished; faults stop, partitions, clogs, slowdowns and pauses end, 0 crashed nodes restart now, everything must finish by 11.579s
     1.579s  start check#1
-    1.597s  FAIL  check#1: every add is applied exactly once: count is 41 after 40 adds
+    1.597s  FAIL  check#1: no add is applied twice: {"left":41,"right":40}
+
+determinism hash c4effe4a6634e9b4 over 3507 host calls
 ```

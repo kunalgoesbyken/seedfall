@@ -17,6 +17,8 @@ type seedLine struct {
 	Reason         string          `json:"reason,omitempty"`
 	VirtualSeconds float64         `json:"virtual_seconds"`
 	Faults         int             `json:"faults"`
+	HostCalls      int64           `json:"host_calls"`
+	Hash           string          `json:"determinism_hash"`
 }
 
 type summaryLine struct {
@@ -44,7 +46,7 @@ func runJSON(r *engine.Runner, lo, hi uint64, jobs int) error {
 func seedJSON(res engine.Result) seedLine {
 	line := seedLine{
 		Type: "seed", Seed: res.Seed, Passed: !res.Failed, Finished: res.Finished, Reason: res.Reason,
-		VirtualSeconds: res.Duration.Seconds(), Faults: len(res.FaultsApplied()),
+		VirtualSeconds: res.Duration.Seconds(), Faults: len(res.FaultsApplied()), HostCalls: res.HostCalls, Hash: res.Hash(),
 	}
 	if res.Failed {
 		line.Failure = &res.Failure

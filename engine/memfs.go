@@ -57,6 +57,7 @@ type memFS struct {
 	weaken     Mutation
 	onWeakened func()
 	special    func(string) (fsapi.File, fsapi.Errno, bool)
+	observe    func(op, path string, arg int64)
 	nextIno    uint64
 	files      map[string]*inode
 	dirs       map[string]uint64
@@ -67,6 +68,12 @@ func newMemFS(clock func() int64) *memFS {
 	m := &memFS{clock: clock, files: map[string]*inode{}, dirs: map[string]uint64{}}
 	m.dirs["."] = m.allocIno()
 	return m
+}
+
+func (m *memFS) call(op, p string, arg int64) {
+	if m.observe != nil {
+		m.observe(op, p, arg)
+	}
 }
 
 func (m *memFS) strict() {
@@ -99,6 +106,7 @@ func (m *memFS) parentExists(p string) bool {
 
 func (m *memFS) OpenFile(p string, flag fsapi.Oflag, _ fs.FileMode) (fsapi.File, fsapi.Errno) {
 	p = clean(p)
+	m.call("path_open", p, int64(flag))
 	if m.special != nil {
 		if f, errno, ok := m.special(p); ok {
 			return f, errno
@@ -138,6 +146,7 @@ func (m *memFS) OpenFile(p string, flag fsapi.Oflag, _ fs.FileMode) (fsapi.File,
 
 func (m *memFS) stat(p string) (sys.Stat_t, fsapi.Errno) {
 	p = clean(p)
+	m.call("path_stat", p, 0)
 	if ino, ok := m.dirs[p]; ok {
 		return dirStat(ino), 0
 	}
@@ -162,6 +171,7 @@ func (m *memFS) exists(p string) bool {
 
 func (m *memFS) Mkdir(p string, _ fs.FileMode) fsapi.Errno {
 	p = clean(p)
+	m.call("path_mkdir", p, 0)
 	if m.exists(p) {
 		return fsapi.EEXIST
 	}
@@ -186,6 +196,7 @@ func (m *memFS) children(dir string) []string {
 
 func (m *memFS) Rmdir(p string) fsapi.Errno {
 	p = clean(p)
+	m.call("path_rmdir", p, 0)
 	if _, ok := m.dirs[p]; !ok {
 		return fsapi.ENOENT
 	}
@@ -199,6 +210,7 @@ func (m *memFS) Rmdir(p string) fsapi.Errno {
 
 func (m *memFS) Unlink(p string) fsapi.Errno {
 	p = clean(p)
+	m.call("path_unlink", p, 0)
 	if _, ok := m.dirs[p]; ok {
 		return fsapi.EISDIR
 	}
@@ -212,6 +224,7 @@ func (m *memFS) Unlink(p string) fsapi.Errno {
 
 func (m *memFS) Rename(from, to string) fsapi.Errno {
 	from, to = clean(from), clean(to)
+	m.call("path_rename", from+" "+to, 0)
 	if !m.parentExists(to) {
 		return fsapi.ENOENT
 	}
@@ -502,6 +515,7 @@ func (f *memFile) Read(buf []byte) (int, fsapi.Errno) {
 }
 
 func (f *memFile) Pread(buf []byte, off int64) (int, fsapi.Errno) {
+	f.fs.call("fd_read", f.path, off)
 	if f.in == nil {
 		return 0, fsapi.EISDIR
 	}
@@ -546,6 +560,7 @@ func (f *memFile) Seek(offset int64, whence int) (int64, fsapi.Errno) {
 }
 
 func (f *memFile) Readdir(n int) ([]fsapi.Dirent, fsapi.Errno) {
+	f.fs.call("fd_readdir", f.path, int64(n))
 	if f.in != nil {
 		return nil, fsapi.ENOTDIR
 	}
@@ -572,6 +587,7 @@ func (f *memFile) Write(buf []byte) (int, fsapi.Errno) {
 }
 
 func (f *memFile) Pwrite(buf []byte, off int64) (int, fsapi.Errno) {
+	f.fs.call("fd_write", f.path, int64(len(buf)))
 	if f.in == nil {
 		return 0, fsapi.EISDIR
 	}
@@ -617,6 +633,7 @@ func (m *memFS) used() int64 {
 }
 
 func (f *memFile) Truncate(size int64) fsapi.Errno {
+	f.fs.call("fd_truncate", f.path, size)
 	if f.in == nil {
 		return fsapi.EISDIR
 	}
@@ -641,6 +658,7 @@ func (m *memFS) notify() {
 }
 
 func (f *memFile) Sync() fsapi.Errno {
+	f.fs.call("fd_sync", f.path, 0)
 	f.fs.notify()
 	if f.fs.syncWait != nil {
 		f.fs.syncWait()

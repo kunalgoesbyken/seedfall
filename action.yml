@@ -11,7 +11,7 @@ inputs:
     description: Seed or inclusive seed range
     default: 1-200
   check:
-    description: Run every seed twice and fail if the traces differ
+    description: Run every seed twice and fail at the first host call or trace line that differs
     default: "false"
   go-version:
     description: Go version used to build the nodes and seedfall

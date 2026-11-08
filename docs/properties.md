@@ -41,9 +41,49 @@ A property is identified by its message, so keep messages constant and pass chan
 
 Properties are evaluated in any node, not only the workload. Outside the simulator, `Always`, `Unreachable` and `Eventually` panic on violation and the others do nothing.
 
+### Numeric and grouped properties
+
+The comparison and grouped forms match the [Antithesis SDK](antithesis.md) and say more than a plain boolean:
+
+```go
+sim.AlwaysGreaterThanOrEqualTo(len(log), committed, "log never shrinks below the commit index")
+sim.SometimesGreaterThan(backlog, 100, "the queue backs up past 100")
+sim.AlwaysSome(map[string]bool{"primary": p >= 0, "backup": b >= 0}, "some replica answers")
+sim.SometimesAll(map[string]bool{"crashed": crashed, "recovered": recovered}, "a crashed node caught up")
+```
+
+| Function | Same as |
+|---|---|
+| `AlwaysGreaterThan(left, right, msg, details...)`, also `OrEqualTo` | `Always(left > right, ...)` (`>=`) |
+| `AlwaysLessThan(left, right, msg, details...)`, also `OrEqualTo` | `Always(left < right, ...)` (`<=`) |
+| `SometimesGreaterThan(left, right, msg, details...)`, also `OrEqualTo` | `Sometimes(left > right, ...)` (`>=`) |
+| `SometimesLessThan(left, right, msg, details...)`, also `OrEqualTo` | `Sometimes(left < right, ...)` (`<=`) |
+| `AlwaysSome(named, msg, details...)` | `Always` that at least one value in the `map[string]bool` is true |
+| `SometimesAll(named, msg, details...)` | `Sometimes` that every value in the map is true |
+
+`left` and `right` are any Go number type. On failure the details are JSON, `{"left":41,"right":40}` for the comparisons and the named booleans for the grouped forms, with any extra details under `"details"`.
+
+For the comparisons seedfall also keeps a margin: `left - right` for `GreaterThan`, `right - left` for `LessThan`, so a positive margin is on the true side. An `always` comparison reports its smallest margin over every hit and seed, which is how close it came to failing; a `sometimes` comparison reports its largest, which is how close it came to being true. A margin of 0 on an `OrEqualTo` assertion means the boundary was hit exactly:
+
+```
+property       seeds reached  seeds true
+  always                 20          20  no acknowledged add is lost  (smallest margin 0)
+  sometimes              20           0  the queue backs up past 100  (largest margin -37)  <- never true (client/main.go:41)
+```
+
+The margin is also in `-json`, the MCP `seedfall_run` result (`margin`) and the HTML report.
+
+### Events
+
+```go
+sim.Event("client resumed", map[string]int{"next add": done})
+```
+
+`sim.Event(name, details)` records a moment in the run without asserting anything. The details are encoded as JSON. Each event is a trace line (`event client resumed from client#2: {"next add":39}`), so it sits in order between the faults and the program output, and `seedfall_replay` returns the run's events as a list. Outside the simulator it does nothing. `lifecycle.SendEvent` from the Antithesis SDK is recorded the same way.
+
 ### The property catalog
 
-Before a sweep, seedfall scans the Go source of every node and the workload for calls to these functions with a constant message, so it knows about properties even if no seed ever executes them. A property that is never reached is reported with its location and fails the sweep:
+Before a sweep, seedfall scans the Go source of every node and the workload for calls to these functions, including the numeric and grouped forms, with a constant message, so it knows about properties even if no seed ever executes them. A property that is never reached is reported with its location and fails the sweep:
 
 ```
 property       seeds reached  seeds true
@@ -107,7 +147,8 @@ sim.Eventually(func() bool {
 	p, b = count("primary:7000"), count("backup:7000")
 	return p >= 0 && p == b
 }, "primary and backup report the same count", 5*time.Second)
-sim.Always(p == adds, "every add is applied exactly once", fmt.Sprintf("count is %d after %d adds", p, adds))
+sim.AlwaysLessThanOrEqualTo(p, adds, "no add is applied twice")
+sim.AlwaysGreaterThanOrEqualTo(p, adds, "no acknowledged add is lost")
 ```
 
 [`examples/liveness`](../examples/liveness) shows all three: a primary that never reconnects to its backup fails liveness mode, a server without request deduplication fails the finally check once the client is crashed mid-request, and the fixed pair passes.
@@ -284,4 +325,10 @@ ok := porcupine.CheckOperations(myModel, engine.PorcupineOperations(ops))
 seedfall run -seeds 1-200 -check
 ```
 
-Every seed runs twice, and the sweep fails with the first differing trace line if the two runs diverge. Run it in CI to make sure nothing in your program escapes the simulator.
+Every seed runs twice, and the sweep fails if the two runs diverge. Run it in CI to make sure nothing in your program escapes the simulator.
+
+The comparison does not wait for a difference to reach the trace. Every run keeps a running hash over its host calls: clock reads, `random_get` lengths, sleeps and `poll_oneoff`, file opens, stats, reads, writes, truncates, syncs, renames and directory changes, network listens, dials, accepts, reads, writes and closes, and every `sim` call that reaches the host, each with its node instance, arguments and virtual time. The hash is saved every 4,096 calls. When the two runs differ, seedfall finds the first window of 4,096 calls where they differ, runs the seed twice more recording that window, and reports the first call that differs, in the form `host call N: <call in one run> vs <call in the other>, after <last common call>; host calls <window> (...)`. Each call reads as instance, call, target, argument and virtual time, for example `server#1 random_get(8) at 1.204s` or `server#1 fd_write data/log(37) at 1.204s`. Every `-check` failure is a `nondeterminism` failure.
+
+If the extra runs do not reproduce the difference, the report names the window instead. If the host calls agree but the traces do not, it falls back to the first differing trace line.
+
+The final hash is printed at the end of `seedfall replay` (`determinism hash 4c9ab008f72df649 over 9126 host calls`) and is the `determinism_hash` field of every `-json` seed line and of `seedfall_replay`. The hash covers only simulated values, so two machines that build the same guest binary should get the same hash for the same seed; comparing the field from CI runs on different machines checks that. A different Go toolchain or source tree produces a different binary and may change the hash.

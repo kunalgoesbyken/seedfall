@@ -59,7 +59,7 @@ Config paths in tool calls are resolved against the server's working directory, 
 |---|---|---|
 | `seedfall_init` | optional `dir`, `config`, `nodes`, `workload`, `dry_run` | The module's `main` packages and which become nodes, the packages that block a `GOOS=wasip1` build (compile errors and cgo, each with its import chain), the starter config, the files written, and the next steps. See [onboarding](#onboarding-a-new-module) |
 | `seedfall_run` | `config`, `seeds` (for example `1-200`), optional `check` | Seeds passed, the lowest failing seed with its reason, [classification](reports.md#classification), the faults before the failure, the trace tail and a replay command, plus property coverage and, with `faults.buggify` on, `buggify_sites` ([buggify](buggify.md#coverage)) |
-| `seedfall_replay` | `config`, `seed`, optional `faults` file | The same failure view for one seed, or the trace tail if it passes, with a `note` when a shrunk schedule's shorter duration ended the run before the workload finished. A failure view of a run that recorded operations also names its `history_file` and, on a linearizability violation, its `timeline_file` |
+| `seedfall_replay` | `config`, `seed`, optional `faults` file | The same failure view for one seed, or the trace tail if it passes, with a `note` when a shrunk schedule's shorter duration ended the run before the workload finished. A failure view of a run that recorded operations also names its `history_file` and, on a linearizability violation, its `timeline_file`. Every result has the run's `determinism_hash` and its `events` from `sim.Event` or `lifecycle.SendEvent` |
 | `seedfall_shrink` | `config`, `seed`, optional `budget` (runs such as `300`, or time such as `10m`) | The original and minimal sizes (faults, duration and, with [`sim.Budget`](properties.md#workload-size), workload operations), the runs used, whether the budget ran out, the path of the saved schedule, and the failure view under that schedule with its replay command ([shrinking](how-it-works.md#shrinking)) |
 | `seedfall_inspect` | `config`, `seed`, optional `faults`, `at`, `node`, `path` | Every node's disk at the failure or at virtual time `at`: per file the live and durable sizes, the byte ranges a crash would lose, whether its directory entry is durable, the last torn write, and removed entries a crash would bring back. With `path`, one file's durable content as text or a hex dump ([inspect.md](inspect.md)) |
 | `seedfall_check` | `history`, optional `model` | Re-checks a recorded history file against a model: the verdict, each anomaly with its cycle, and on a linearizability violation the HTML timeline file ([properties.md](properties.md#history-files)) |
@@ -144,21 +144,26 @@ Code instrumented with the [Antithesis Go SDK](https://github.com/antithesishq/a
 lifecycle.SetupComplete(map[string]any{"ledger": addr})
 amount := int(random.GetRandom()%100) + 1
 assert.Sometimes(unacked > 0, "a crash interrupted a deposit", nil)
-assert.Always(total >= acked, "ledger total accounts for every acknowledged deposit", map[string]any{"total": total, "acked": acked})
+lifecycle.SendEvent("deposits finished", map[string]any{"total": total, "acked": acked, "unacked": unacked})
+assert.AlwaysGreaterThanOrEqualTo(total, acked, "ledger total covers every acknowledged deposit", map[string]any{"unacked": unacked})
+assert.AlwaysLessThanOrEqualTo(total, acked+unacked, "ledger total holds no deposit that was never sent", nil)
+assert.SometimesAll([]assert.NamedBool{{First: "interrupted", Second: unacked > 0}, {First: "kept", Second: total > acked}}, "an unacknowledged deposit survived a crash", nil)
 ```
 
 ```
-$ seedfall run -c seedfall.json -seeds 1-100
+$ seedfall run -c seedfall.json -seeds 1-20
 property       seeds reached  seeds true
-  sometimes             100          94  a crash interrupted a deposit
-  always                100         100  ledger total accounts for every acknowledged deposit
-  sometimes             100          23  recovery dropped a partial entry
+  sometimes              20          18  a crash interrupted a deposit
+  sometimes              20           2  an unacknowledged deposit survived a crash
+  always                 20          20  ledger total covers every acknowledged deposit  (smallest margin 0)
+  always                 20          20  ledger total holds no deposit that was never sent  (smallest margin 0)
+  sometimes              20           5  recovery dropped a partial entry
 
-ok  100 seeds passed (0 hit the time horizon) in 16.96s
+ok  20 seeds passed (0 hit the time horizon) in 908ms
 
-$ seedfall run -c seedfall.nofsync.json -seeds 1-50
-FAIL seed 1 at t=2.940789965s (618 scheduler steps, 607ms real)
-  client#1: ledger total accounts for every acknowledged deposit: {"acked":5608,"total":4203,"unacked":1729}
+$ seedfall run -c seedfall.nofsync.json -seeds 1-20
+FAIL seed 1 at t=2.940793302s (618 scheduler steps, 336ms real)
+  client#1: ledger total covers every acknowledged deposit: {"left":4203,"right":5608,"unacked":1729}
 ```
 
 ## How it works
@@ -172,11 +177,18 @@ On `wasip1` the SDK has no native Antithesis library to talk to, so it writes ea
 | `assert.Sometimes` | `sometimes`: fails the sweep if never true |
 | `assert.Reachable` | `reachable`: fails the sweep if never reached |
 | `assert.Unreachable` | `unreachable`: fails the seed when reached |
+| `assert.AlwaysGreaterThan`, `AlwaysGreaterThanOrEqualTo`, `AlwaysLessThan`, `AlwaysLessThanOrEqualTo` | `always`, with the smallest margin in the property table |
+| `assert.SometimesGreaterThan`, `SometimesGreaterThanOrEqualTo`, `SometimesLessThan`, `SometimesLessThanOrEqualTo` | `sometimes`, with the largest margin in the property table |
+| `assert.AlwaysSome` | `always`: at least one named boolean is true |
+| `assert.SometimesAll` | `sometimes`: every named boolean is true |
 | `lifecycle.SetupComplete` | ends the setup phase when `faults_after_setup` is on |
+| `lifecycle.SendEvent` | an [event](properties.md#events): a trace line with the details as JSON, returned by `seedfall_replay` |
 
-The SDK's details map appears as JSON in the failure message. seedfall's source catalog also recognizes `assert.*` calls with a constant message, so Antithesis assertions that never run are reported too.
+The SDK's details map appears as JSON in the failure message; the numeric variants add `left` and `right`, and the grouped variants add each named boolean. seedfall's source catalog recognizes every `assert.*` call above with a constant message, so Antithesis assertions that never run are reported too.
 
-The SDK's numeric and grouped variants (`AlwaysGreaterThan`, `SometimesAll` and similar) are evaluated by the SDK and reported with their result, so they work at run time, but they are not cataloged in advance. `lifecycle.SendEvent` output is ignored.
+The margin of a numeric assertion comes from the SDK's own guidance records. Like Antithesis, the SDK only reports a new value when it gets closer to failing (for `Always`) or closer to true (for `Sometimes`), so the smallest and largest margins are exact. The SDK also reports each assertion only the first time it passes and the first time it fails in a process, so the number of hits is lower than with `sim` assertions; seeds reached and seeds true are unaffected.
+
+`sim` has the same variants with the same names ([properties.md](properties.md#numeric-and-grouped-properties)), and `sim.Event` matches `lifecycle.SendEvent`.
 
 `random.GetRandom` and `random.RandomChoice` read `crypto/rand`, which seedfall feeds from the seed, so they replay exactly and draw from the same source as `sim.Random` and `sim.RandomChoice`. Antithesis custom faults are commands its platform runs from outside your program and have no SDK call to map; mark the same spots with `sim.Buggify` instead ([buggify.md](buggify.md)).
 
@@ -341,7 +353,7 @@ jobs:
 |---|---|---|
 | `config` | `seedfall.json` | Path to the world description |
 | `seeds` | `1-200` | Seed or inclusive range |
-| `check` | `false` | Run every seed twice and fail if the traces differ |
+| `check` | `false` | Run every seed twice and fail at the first host call or trace line that differs |
 | `go-version` | `stable` | Go version for building seedfall and your nodes |
 | `report` | `true` | Sweep every seed and upload an HTML triage report |
 | `artifact-name` | `seedfall-report` | Name of the report artifact; make it unique per job in a matrix |
@@ -357,7 +369,7 @@ seedfall run -c seedfall.always.json -seeds 1-100 -json | jq -c 'select(.type ==
 ```
 
 ```json
-{"type":"seed","seed":1,"passed":false,"finished":false,"failure":{"class":"assert","node":"client"},"reason":"client#1: acknowledged write lost: k96=v96, server now answers \"NONE\"","virtual_seconds":2.891820635,"faults":3}
+{"type":"seed","seed":1,"passed":false,"finished":false,"failure":{"class":"assert","node":"client"},"reason":"client#1: acknowledged write lost: k96=v96, server now answers \"NONE\"","virtual_seconds":2.8918212,"faults":3,"host_calls":6810,"determinism_hash":"53786fa3165d442b"}
 ```
 
 | Field | Meaning |
@@ -368,8 +380,9 @@ seedfall run -c seedfall.always.json -seeds 1-100 -json | jq -c 'select(.type ==
 | `reason` | The failure message |
 | `virtual_seconds` | Simulated time the run covered |
 | `faults` | Faults that happened during the run |
+| `host_calls`, `determinism_hash` | How many host calls the run made, and the running hash over them ([determinism check](properties.md#determinism-check)). It covers only simulated values, so the same seed and guest binary should give the same hash on any machine, and a CI matrix can compare it across operating systems to check |
 
-The summary has `passed`, `failed`, `unfinished`, `unmet_properties` and `properties`, the same coverage table `seedfall_run` returns over MCP, with a `problem` on each property that was never reached or never true. With `faults.buggify` on it also has `buggify_sites`: each `sim.Buggify` site with `seeds_reached`, `seeds_enabled`, `seeds_fired`, `fired` and a `problem` of `never reached` or `never fired`, which does not change the exit code. The exit code is 1 if any seed failed or any property is unmet. `-json` cannot be combined with `-report`.
+The summary has `passed`, `failed`, `unfinished`, `unmet_properties` and `properties`, the same coverage table `seedfall_run` returns over MCP, with a `problem` on each property that was never reached or never true and a `margin` on each numeric property. With `faults.buggify` on it also has `buggify_sites`: each `sim.Buggify` site with `seeds_reached`, `seeds_enabled`, `seeds_fired`, `fired` and a `problem` of `never reached` or `never fired`, which does not change the exit code. The exit code is 1 if any seed failed or any property is unmet. `-json` cannot be combined with `-report`.
 
 ## `go test`
 
@@ -1195,9 +1208,49 @@ A property is identified by its message, so keep messages constant and pass chan
 
 Properties are evaluated in any node, not only the workload. Outside the simulator, `Always`, `Unreachable` and `Eventually` panic on violation and the others do nothing.
 
+### Numeric and grouped properties
+
+The comparison and grouped forms match the [Antithesis SDK](antithesis.md) and say more than a plain boolean:
+
+```go
+sim.AlwaysGreaterThanOrEqualTo(len(log), committed, "log never shrinks below the commit index")
+sim.SometimesGreaterThan(backlog, 100, "the queue backs up past 100")
+sim.AlwaysSome(map[string]bool{"primary": p >= 0, "backup": b >= 0}, "some replica answers")
+sim.SometimesAll(map[string]bool{"crashed": crashed, "recovered": recovered}, "a crashed node caught up")
+```
+
+| Function | Same as |
+|---|---|
+| `AlwaysGreaterThan(left, right, msg, details...)`, also `OrEqualTo` | `Always(left > right, ...)` (`>=`) |
+| `AlwaysLessThan(left, right, msg, details...)`, also `OrEqualTo` | `Always(left < right, ...)` (`<=`) |
+| `SometimesGreaterThan(left, right, msg, details...)`, also `OrEqualTo` | `Sometimes(left > right, ...)` (`>=`) |
+| `SometimesLessThan(left, right, msg, details...)`, also `OrEqualTo` | `Sometimes(left < right, ...)` (`<=`) |
+| `AlwaysSome(named, msg, details...)` | `Always` that at least one value in the `map[string]bool` is true |
+| `SometimesAll(named, msg, details...)` | `Sometimes` that every value in the map is true |
+
+`left` and `right` are any Go number type. On failure the details are JSON, `{"left":41,"right":40}` for the comparisons and the named booleans for the grouped forms, with any extra details under `"details"`.
+
+For the comparisons seedfall also keeps a margin: `left - right` for `GreaterThan`, `right - left` for `LessThan`, so a positive margin is on the true side. An `always` comparison reports its smallest margin over every hit and seed, which is how close it came to failing; a `sometimes` comparison reports its largest, which is how close it came to being true. A margin of 0 on an `OrEqualTo` assertion means the boundary was hit exactly:
+
+```
+property       seeds reached  seeds true
+  always                 20          20  no acknowledged add is lost  (smallest margin 0)
+  sometimes              20           0  the queue backs up past 100  (largest margin -37)  <- never true (client/main.go:41)
+```
+
+The margin is also in `-json`, the MCP `seedfall_run` result (`margin`) and the HTML report.
+
+### Events
+
+```go
+sim.Event("client resumed", map[string]int{"next add": done})
+```
+
+`sim.Event(name, details)` records a moment in the run without asserting anything. The details are encoded as JSON. Each event is a trace line (`event client resumed from client#2: {"next add":39}`), so it sits in order between the faults and the program output, and `seedfall_replay` returns the run's events as a list. Outside the simulator it does nothing. `lifecycle.SendEvent` from the Antithesis SDK is recorded the same way.
+
 ### The property catalog
 
-Before a sweep, seedfall scans the Go source of every node and the workload for calls to these functions with a constant message, so it knows about properties even if no seed ever executes them. A property that is never reached is reported with its location and fails the sweep:
+Before a sweep, seedfall scans the Go source of every node and the workload for calls to these functions, including the numeric and grouped forms, with a constant message, so it knows about properties even if no seed ever executes them. A property that is never reached is reported with its location and fails the sweep:
 
 ```
 property       seeds reached  seeds true
@@ -1261,7 +1314,8 @@ sim.Eventually(func() bool {
 	p, b = count("primary:7000"), count("backup:7000")
 	return p >= 0 && p == b
 }, "primary and backup report the same count", 5*time.Second)
-sim.Always(p == adds, "every add is applied exactly once", fmt.Sprintf("count is %d after %d adds", p, adds))
+sim.AlwaysLessThanOrEqualTo(p, adds, "no add is applied twice")
+sim.AlwaysGreaterThanOrEqualTo(p, adds, "no acknowledged add is lost")
 ```
 
 [`examples/liveness`](../examples/liveness) shows all three: a primary that never reconnects to its backup fails liveness mode, a server without request deduplication fails the finally check once the client is crashed mid-request, and the fixed pair passes.
@@ -1438,7 +1492,13 @@ ok := porcupine.CheckOperations(myModel, engine.PorcupineOperations(ops))
 seedfall run -seeds 1-200 -check
 ```
 
-Every seed runs twice, and the sweep fails with the first differing trace line if the two runs diverge. Run it in CI to make sure nothing in your program escapes the simulator.
+Every seed runs twice, and the sweep fails if the two runs diverge. Run it in CI to make sure nothing in your program escapes the simulator.
+
+The comparison does not wait for a difference to reach the trace. Every run keeps a running hash over its host calls: clock reads, `random_get` lengths, sleeps and `poll_oneoff`, file opens, stats, reads, writes, truncates, syncs, renames and directory changes, network listens, dials, accepts, reads, writes and closes, and every `sim` call that reaches the host, each with its node instance, arguments and virtual time. The hash is saved every 4,096 calls. When the two runs differ, seedfall finds the first window of 4,096 calls where they differ, runs the seed twice more recording that window, and reports the first call that differs, in the form `host call N: <call in one run> vs <call in the other>, after <last common call>; host calls <window> (...)`. Each call reads as instance, call, target, argument and virtual time, for example `server#1 random_get(8) at 1.204s` or `server#1 fd_write data/log(37) at 1.204s`. Every `-check` failure is a `nondeterminism` failure.
+
+If the extra runs do not reproduce the difference, the report names the window instead. If the host calls agree but the traces do not, it falls back to the first differing trace line.
+
+The final hash is printed at the end of `seedfall replay` (`determinism hash 4c9ab008f72df649 over 9126 host calls`) and is the `determinism_hash` field of every `-json` seed line and of `seedfall_replay`. The hash covers only simulated values, so two machines that build the same guest binary should get the same hash for the same seed; comparing the field from CI runs on different machines checks that. A different Go toolchain or source tree produces a different binary and may change the hash.
 
 
 <!-- docs/reports.md -->
@@ -1754,7 +1814,8 @@ The full reference is the MCP resource `seedfall://docs/properties` (docs/proper
 | Promise | Check |
 |---|---|
 | Acknowledged writes survive | The workload records each acknowledged write, then reads it back after the faults: `sim.Assert(got == want, "acknowledged write lost: "+key)` |
-| State never goes backwards | In the node: `sim.Always(len(log) >= committed, "log never shrinks below the commit index", len(log), committed)` |
+| State never goes backwards | In the node: `sim.AlwaysGreaterThanOrEqualTo(len(log), committed, "log never shrinks below the commit index")`. The numeric forms (`AlwaysGreaterThan`, `AlwaysLessThan`, `SometimesGreaterThan`, ... and their `OrEqualTo` variants) put `left` and `right` in the failure and report a margin: the smallest one shows how close an `always` came to failing |
+| One of several things holds | `sim.AlwaysSome(map[string]bool{"primary": p >= 0, "backup": b >= 0}, "some replica answers")`; `sim.SometimesAll(...)` for a combination that must happen at least once |
 | Something must never happen | `sim.Unreachable("two leaders in the same term", term)` |
 | A dangerous path actually ran | `sim.Sometimes(tornTail, "recovery found a torn tail")`, `sim.Reachable("a node restored from a snapshot")` |
 | Concurrent clients see a linearizable history | Wrap each call: `op := sim.Put(client, key, value)`, then `op.Ok("")`, `op.Unknown()` on a timeout, or `op.Failed()` when it definitely did not apply. Use `sim.Get` for reads |
@@ -1767,6 +1828,7 @@ The full reference is the MCP resource `seedfall://docs/properties` (docs/proper
 Rules:
 - Keep messages constant string literals and pass changing values as extra arguments. seedfall catalogs literal messages before the sweep, and an `Always` or `Reachable` that no seed reaches fails the sweep.
 - Add a `Sometimes` for each fault-dependent path you care about. The coverage table then proves the faults reached it.
+- Use `sim.Event("name", details)` to mark a moment (a recovery finishing, a leader change) in the trace without asserting anything; triage then reads it next to the faults.
 - Properties can live in nodes. Outside the simulator, `Always`, `Unreachable` and `Eventually` panic on violation and the others do nothing, so only put invariants in node code that must hold in production too.
 
 ## 3. Sweep and read the coverage table
@@ -1775,7 +1837,9 @@ Rules:
 seedfall run -c seedfall.json -seeds 1-100
 ```
 
-Over MCP: `seedfall_run`, which returns `properties` with `seeds_reached`, `seeds_true` and a `problem` for each one.
+Over MCP: `seedfall_run`, which returns `properties` with `seeds_reached`, `seeds_true`, a `problem` for each one and a `margin` for numeric ones.
+
+- An `always` numeric property whose smallest margin stays far from 0 never got near failing: the faults may not be stressing it. A margin of exactly 0 on an `OrEqualTo` means the boundary was reached.
 
 - A `Sometimes` that is never true means the faults never reached that path. Raise `crash_on_io` (around 0.005 to 0.02), set `torn_writes`, lengthen `duration`, or make the workload write more.
 - If no outside fault can reach a path (a lost reply after a successful apply, an error return, a minimal quorum), mark it in the service with `if sim.Buggify("site") { ... }` and set `"buggify": true` in `faults`. The sweep then lists each site as reached, enabled and fired; see the MCP resource `seedfall://docs/buggify` (docs/buggify.md).

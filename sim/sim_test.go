@@ -1,6 +1,7 @@
 package sim
 
 import (
+	"fmt"
 	"testing"
 	"time"
 )
@@ -45,5 +46,39 @@ func TestBudgetIsTheFullCountOutsideTheSimulator(t *testing.T) {
 		if got := Budget(n); got != n {
 			t.Fatalf("Budget(%d) = %d outside the simulator", n, got)
 		}
+	}
+}
+
+func panics(f func()) (msg string) {
+	defer func() {
+		if r := recover(); r != nil {
+			msg = fmt.Sprint(r)
+		}
+	}()
+	f()
+	return ""
+}
+
+func TestNumericAndGroupedAssertionsOutsideTheSimulator(t *testing.T) {
+	passing := []func(){
+		func() { AlwaysGreaterThan(2, 1, "gt") },
+		func() { AlwaysGreaterThanOrEqualTo(uint8(1), 1, "gte") },
+		func() { AlwaysLessThan(1.5, 2, "lt") },
+		func() { AlwaysLessThanOrEqualTo(int64(-3), -3, "lte") },
+		func() { SometimesGreaterThan(0, 1, "sometimes never fails") },
+		func() { AlwaysSome(map[string]bool{"a": false, "b": true}, "some") },
+		func() { SometimesAll(map[string]bool{"a": false}, "all") },
+		func() { Event("done", map[string]int{"n": 1}) },
+	}
+	for i, f := range passing {
+		if msg := panics(f); msg != "" {
+			t.Fatalf("case %d panicked: %s", i, msg)
+		}
+	}
+	if msg := panics(func() { AlwaysGreaterThan(1, 2, "balance positive", "after crash") }); msg != `seedfall: balance positive: {"details":"after crash","left":1,"right":2}` {
+		t.Fatalf("numeric failure %q", msg)
+	}
+	if msg := panics(func() { AlwaysSome(map[string]bool{"a": false, "b": false}, "one replica answers") }); msg != `seedfall: one replica answers: {"a":false,"b":false}` {
+		t.Fatalf("grouped failure %q", msg)
 	}
 }

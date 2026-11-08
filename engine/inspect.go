@@ -116,7 +116,7 @@ func (r *Runner) Inspect(seed uint64, s Schedule, opts InspectOptions) (Inspecti
 		p.at = never
 	}
 	s, explicit := r.schedule(seed, s)
-	res := r.run(seed, s, explicit, nil, p)
+	res := r.run(seed, s, explicit, nil, p, 0)
 	return Inspection{Result: res, At: time.Duration(p.when), Disks: p.disks}, nil
 }
 

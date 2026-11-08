@@ -59,6 +59,7 @@ func wasiModule(ctx context.Context, rt wazero.Runtime) error {
 func (w *world) pollOneoff(ctx context.Context, m api.Module, stack []uint64) {
 	in, out, count, resultPtr := uint32(stack[0]), uint32(stack[1]), uint32(stack[2]), uint32(stack[3])
 	inst := w.instance(ctx)
+	w.hostCall(inst, "poll_oneoff", "", int64(count))
 	subs, ok := w.readSubscriptions(m, in, count, inst.node)
 	if !ok {
 		stack[0] = errnoFault
@@ -226,9 +227,14 @@ func (f *netFile) SetNonblock(enable bool) fsapi.Errno {
 
 func (f *netFile) Poll(fsapi.Pflag, int32) (bool, fsapi.Errno) { return false, fsapi.ENOSYS }
 
+func (f *netFile) call(name string, result int32) int32 {
+	f.w.hostCall(f.inst, name, strconv.Itoa(int(f.id)), int64(result))
+	return result
+}
+
 func (f *netFile) Read(buf []byte) (int, fsapi.Errno) {
 	if _, ok := f.w.net.handles[f.id].(*listener); ok {
-		if !f.w.net.readable(f.id) {
+		if f.call("net_ready", boolInt(f.w.net.readable(f.id))) == 0 {
 			return 0, fsapi.EAGAIN
 		}
 		if len(buf) > 0 {
@@ -236,7 +242,7 @@ func (f *netFile) Read(buf []byte) (int, fsapi.Errno) {
 		}
 		return min(len(buf), 1), 0
 	}
-	switch n := f.w.net.read(f.inst, f.id, buf); n {
+	switch n := f.call("net_read", f.w.net.read(f.inst, f.id, buf)); n {
 	case codeAgain:
 		return 0, fsapi.EAGAIN
 	case codeEOF:
@@ -251,7 +257,7 @@ func (f *netFile) Read(buf []byte) (int, fsapi.Errno) {
 }
 
 func (f *netFile) Write(buf []byte) (int, fsapi.Errno) {
-	switch n := f.w.net.write(f.inst, f.id, append([]byte(nil), buf...)); n {
+	switch n := f.call("net_write", f.w.net.write(f.inst, f.id, append([]byte(nil), buf...))); n {
 	case codeReset:
 		return 0, fsapi.EIO
 	case codeBadFD:
@@ -267,6 +273,7 @@ func (f *netFile) Close() fsapi.Errno {
 			delete(f.inst.fds, fd)
 		}
 	}
+	f.call("net_close", 0)
 	f.w.net.close(f.inst, f.id)
 	return 0
 }

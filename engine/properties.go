@@ -5,6 +5,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"time"
 )
 
 type PropertyKind int32
@@ -37,31 +38,56 @@ func (k PropertyKind) needsWitness() bool { return k == Sometimes || k == Reacha
 
 func (k PropertyKind) mustBeReached() bool { return k != Unreachable && k != AlwaysOrUnreachable }
 
-func (k PropertyKind) messageArg() int {
-	if k == Reachable || k == Unreachable {
-		return 0
+func (k PropertyKind) closer(margin *float64, m float64) *float64 {
+	switch {
+	case margin == nil:
+	case k.needsWitness():
+		m = max(*margin, m)
+	default:
+		m = min(*margin, m)
 	}
-	return 1
+	return &m
+}
+
+func (k PropertyKind) MarginNote(margin *float64) string {
+	switch {
+	case margin == nil:
+		return ""
+	case k.needsWitness():
+		return fmt.Sprintf("largest margin %g", *margin)
+	}
+	return fmt.Sprintf("smallest margin %g", *margin)
 }
 
 type Property struct {
-	Kind PropertyKind
-	Hits int
-	True int
+	Kind   PropertyKind
+	Hits   int
+	True   int
+	Margin *float64
 }
 
 type properties map[string]*Property
 
-func (p properties) observe(kind PropertyKind, cond bool, msg string) {
+func (p properties) entry(kind PropertyKind, msg string) *Property {
 	prop, ok := p[msg]
 	if !ok {
 		prop = &Property{Kind: kind}
 		p[msg] = prop
 	}
+	return prop
+}
+
+func (p properties) observe(kind PropertyKind, cond bool, msg string) {
+	prop := p.entry(kind, msg)
 	prop.Hits++
 	if cond {
 		prop.True++
 	}
+}
+
+func (p properties) margin(kind PropertyKind, msg string, m float64) {
+	prop := p.entry(kind, msg)
+	prop.Margin = prop.Kind.closer(prop.Margin, m)
 }
 
 type PropertyCoverage struct {
@@ -69,6 +95,7 @@ type PropertyCoverage struct {
 	Location     string
 	SeedsReached int
 	SeedsTrue    int
+	Margin       *float64
 }
 
 func (c PropertyCoverage) Problem() string {
@@ -106,6 +133,9 @@ func (c Coverage) add(props properties) {
 		if p.True > 0 {
 			cov.SeedsTrue++
 		}
+		if p.Margin != nil {
+			cov.Margin = cov.Kind.closer(cov.Margin, *p.Margin)
+		}
 	}
 }
 
@@ -121,14 +151,36 @@ func (c Coverage) Unmet() []string {
 	return out
 }
 
-func (w *world) observeProperty(inst *instance, kind PropertyKind, cond bool, msg, detail string) {
+func (w *world) knownKind(inst *instance, kind PropertyKind) {
 	if kind < Always || kind > Eventually {
 		w.fail(Failure{Class: FailAssert, Node: inst.node.name()}, fmt.Sprintf("%s: unknown property kind %d", inst.label, kind))
 		panic(errFailed)
 	}
+}
+
+func (w *world) observeNumeric(inst *instance, kind PropertyKind, cond bool, margin float64, msg, detail string) {
+	w.knownKind(inst, kind)
+	w.props.margin(kind, msg, margin)
+	w.observeProperty(inst, kind, cond, msg, detail)
+}
+
+func (w *world) observeProperty(inst *instance, kind PropertyKind, cond bool, msg, detail string) {
+	w.knownKind(inst, kind)
 	w.props.observe(kind, cond, msg)
 	if kind.violatedBy(cond) {
 		w.fail(Failure{Class: kind.failureClass(), Node: inst.node.name(), Property: msg}, strings.TrimSuffix(fmt.Sprintf("%s: %s: %s", inst.label, msg, detail), ": "))
 		panic(errFailed)
 	}
+}
+
+type Event struct {
+	At       time.Duration
+	Instance string
+	Name     string
+	Details  string
+}
+
+func (w *world) event(inst *instance, name, details string) {
+	w.sent = append(w.sent, Event{At: time.Duration(w.now), Instance: inst.label, Name: name, Details: details})
+	w.trace.add(w.now, "event %s from %s: %s", name, inst.label, details)
 }

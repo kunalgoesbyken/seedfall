@@ -37,13 +37,14 @@ func (w *world) takeBranch(nextStep int64) bool {
 
 type guestRandom struct {
 	w        *world
+	inst     *instance
 	name     string
 	current  io.Reader
 	branched bool
 }
 
-func (w *world) guestRandom(name string) *guestRandom {
-	return &guestRandom{w: w, name: name, current: w.chacha(name)}
+func (w *world) guestRandom(inst *instance, name string) *guestRandom {
+	return &guestRandom{w: w, inst: inst, name: name, current: w.chacha(name)}
 }
 
 func (w *world) chacha(name string) io.Reader {
@@ -56,6 +57,7 @@ func (w *world) chacha(name string) io.Reader {
 }
 
 func (g *guestRandom) Read(p []byte) (int, error) {
+	g.w.hostCall(g.inst, "random_get", "", int64(len(p)))
 	if !g.branched && g.w.branch != nil && g.w.branch.taken {
 		g.current, g.branched = g.w.chacha(g.name), true
 	}
@@ -64,7 +66,7 @@ func (g *guestRandom) Read(p []byte) (int, error) {
 
 func (r *Runner) Branch(seed uint64, at time.Duration, key uint64) Result {
 	started := time.Now()
-	res := r.run(seed, Schedule{Faults: r.Faults(seed)}, false, &branch{at: int64(at), key: key}, nil)
+	res := r.run(seed, Schedule{Faults: r.Faults(seed)}, false, &branch{at: int64(at), key: key}, nil, 0)
 	res.Elapsed = time.Since(started)
 	return res
 }
