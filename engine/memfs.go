@@ -44,24 +44,25 @@ type inode struct {
 
 type memFS struct {
 	fsapi.UnimplementedFS
-	clock      func() int64
-	mutated    func()
-	syncFails  func() bool
-	writeFails func(path string) fsapi.Errno
-	readFault  func(path string, off int64, n int) (fsapi.Errno, int, byte)
-	syncDamage func(path string, dirty []int64, pages int64) (Damage, bool)
-	syncWait   func()
-	diskFull   func(path string, kept, size int)
-	capacity   int64
-	noSpace    bool
-	weaken     Mutation
-	onWeakened func()
-	special    func(string) (fsapi.File, fsapi.Errno, bool)
-	observe    func(op, path string, arg int64)
-	nextIno    uint64
-	files      map[string]*inode
-	dirs       map[string]uint64
-	ns         *namespace
+	clock         func() int64
+	mutated       func()
+	syncFails     func() bool
+	writeFails    func(path string) fsapi.Errno
+	readFault     func(path string, off int64, n int) (fsapi.Errno, int, byte)
+	syncDamage    func(path string, dirty []int64, pages int64) (Damage, bool)
+	syncWait      func()
+	diskFull      func(path string, kept, size int)
+	capacity      int64
+	noSpace       bool
+	weaken        Mutation
+	onWeakened    func()
+	special       func(string) (fsapi.File, fsapi.Errno, bool)
+	observe       func(op, path string, arg int64)
+	unsafeRenames []string
+	nextIno       uint64
+	files         map[string]*inode
+	dirs          map[string]uint64
+	ns            *namespace
 }
 
 func newMemFS(clock func() int64) *memFS {
@@ -229,6 +230,7 @@ func (m *memFS) Rename(from, to string) fsapi.Errno {
 		return fsapi.ENOENT
 	}
 	if in, ok := m.files[from]; ok {
+		m.renameNotDurable(from, to)
 		delete(m.files, from)
 		m.files[to] = in
 		m.logNS(nsOp{kind: nsRename, path: from, to: to, in: in})
@@ -267,6 +269,7 @@ func (m *memFS) crash(r *rand.Rand, c crashModel) []fileDamage {
 	} else {
 		m.crashLoose(r, c, hit)
 	}
+	m.loseUnsafeRenames()
 	var damaged []fileDamage
 	for _, p := range sortedKeys(m.files) {
 		if d, ok := hit[m.files[p]]; ok {
@@ -667,12 +670,14 @@ func (f *memFile) Sync() fsapi.Errno {
 		if f.fs.ns != nil && !f.weakenedTo(DirsyncNoop) {
 			f.fs.ns.commit(f.path)
 		}
+		f.fs.unsafeRenames = nil
 		return 0
 	}
 	if f.fs.syncFails != nil && f.fs.syncFails() {
 		f.in.pending = nil
 		return fsapi.EIO
 	}
+	f.fs.unsafeRenames = nil
 	if f.weakenedTo(FsyncNoop) {
 		return 0
 	}
@@ -682,18 +687,19 @@ func (f *memFile) Sync() fsapi.Errno {
 
 func (f *memFile) persist() {
 	in := f.in
-	size := syncedSize(int64(len(in.durable)), in.pending)
-	dirty := dirtyPages(in.pending, size)
+	pending := f.durablePending()
+	size := syncedSize(int64(len(in.durable)), pending)
+	dirty := dirtyPages(pending, size)
 	d, damaged := f.damage(dirty, size)
 	var old []byte
 	if damaged {
 		old = pageBytes(in.durable, d.Offset)
 	}
-	for _, w := range in.pending {
+	for _, w := range pending {
 		in.durable = w.apply(in.durable)
 	}
 	in.rewrite(dirty)
-	if w, ok := lastWrite(in.pending, int64(len(in.durable))); ok && f.weakenedTo(FsyncCorrupts) {
+	if w, ok := lastWrite(pending, int64(len(in.durable))); ok && f.weakenedTo(FsyncCorrupts) {
 		in.durable[w.off] ^= 1
 	}
 	if damaged {

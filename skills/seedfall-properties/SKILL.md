@@ -1,6 +1,6 @@
 ---
 name: seedfall-properties
-description: Read a Go service's storage and replication code, turn its durability and consistency promises into seedfall properties (sim.Assert, sim.Always, sim.Sometimes, sim.Reachable, sim.Unreachable, sim.Eventually, linearizability through sim.Put, sim.Get and sim.Invoke, and transactional isolation through sim.Txn), and grade them with seedfall mutate until every exercised durability mutant is killed. Use after seedfall-setup, when asked what to check, to strengthen a workload, or when a green sweep might be proving nothing.
+description: Read a Go service's storage and replication code, turn its durability and consistency promises into seedfall properties (sim.Assert, sim.Always, sim.Sometimes, sim.Reachable, sim.Unreachable, sim.Eventually, linearizability through sim.Put, sim.Get and sim.Invoke, and transactional isolation through sim.Txn), and grade them with seedfall mutate until every exercised mutant is killed. Use after seedfall-setup, when asked what to check, to strengthen a workload, or when a green sweep might be proving nothing.
 compatibility: Requires Go 1.25 or newer, the seedfall CLI, and a seedfall.json that already runs (see seedfall-setup).
 ---
 
@@ -64,7 +64,7 @@ Over MCP: `seedfall_run`, which returns `properties` with `seeds_reached`, `seed
 seedfall mutate -c seedfall.json -seeds 1-30
 ```
 
-The baseline must pass first. Then each mutant weakens one disk guarantee under the nodes:
+The baseline must pass first. Then each mutant weakens one disk, network or clock guarantee under the nodes. Run a subset with `-only rename_not_atomic,net_dup_chunk`, or over MCP with `seedfall_mutate`:
 
 | Mutant survived | Meaning | Fix |
 |---|---|---|
@@ -72,8 +72,13 @@ The baseline must pass first. Then each mutant weakens one disk guarantee under 
 | `dirsync_noop` | Directory fsyncs are untested | Add `"strict_dirs": true` to `faults`, then check data that depends on a create or rename |
 | `osync_ignored` | Writes to `O_SYNC` files are untested | Check the data written through those files |
 | `fsync_corrupts` | Nothing compares the data read back after a crash with what was acknowledged | Read back every acknowledged value after crashes and compare it byte for byte, not only its presence |
+| `rename_not_atomic` | Nothing checks a file replaced by rename (state, manifest, snapshot) after a crash | Read back the replaced file after crashes and assert it holds either the old or the new version. Raise `crash_on_io` so crashes land right after a rename |
+| `truncate_not_durable` | Nothing checks a file's length after a crash that followed a truncation | Read back truncated or `O_TRUNC`-rewritten files after crashes and compare their whole content |
+| `net_drop_after_close` | A response or final message cut off by a close goes unnoticed | Check that every request the client counts as done really got its full answer, and that the server applied every message sent before a close |
+| `net_dup_chunk` | A duplicated request or message is not caught | Assert upper bounds too (nothing applied twice, `sim.AlwaysLessThanOrEqualTo(total, sent, ...)`), not only that acknowledged data survived |
+| `monotonic_jump` | Timeouts and leases never meet a clock that runs backwards, or nothing checks what they protect | Turn on `clock_jump_per_sec`, then check lease-protected reads with a linearizability checker |
 
-`not exercised` means the operation never ran, or had no effect in this config. That is fine when the service never uses it, such as `dirsync_noop` without `strict_dirs`.
+`not exercised` means the operation never ran, or had no effect in this config. That is fine when the service never uses it, such as `dirsync_noop` without `strict_dirs`, or `monotonic_jump` without `clock_jump_per_sec`.
 
 Repeat steps 2 to 4 until every exercised mutant is killed, or until you can state why a survivor is equivalent, for example data the service never promises to keep. `seedfall mutate` exits 1 while any mutant survives.
 

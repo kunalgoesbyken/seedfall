@@ -18,7 +18,7 @@ var tmpl = template.Must(template.New("report").Funcs(template.FuncMap{
 }).Parse(page))
 
 func Generate(in Input, htmlPath, historyPath string) (Report, error) {
-	entries, err := readHistory(historyPath, in.Config)
+	entries, err := ReadHistory(historyPath, in.Config)
 	if err != nil {
 		return Report{}, err
 	}

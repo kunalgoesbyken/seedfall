@@ -25,9 +25,9 @@ func (m MutantResult) Outcome() MutantOutcome {
 	return MutantSurvived
 }
 
-func SweepMutants(r *Runner, lo, hi uint64, opts SweepOptions) []MutantResult {
-	out := make([]MutantResult, 0, len(Mutations))
-	for _, m := range Mutations {
+func SweepMutants(r *Runner, mutations []Mutation, lo, hi uint64, opts SweepOptions) []MutantResult {
+	out := make([]MutantResult, 0, len(mutations))
+	for _, m := range mutations {
 		out = append(out, sweepMutant(r, m, lo, hi, opts))
 	}
 	return out

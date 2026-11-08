@@ -47,7 +47,7 @@ func knownFindings(entries []Entry) map[string]known {
 	return out
 }
 
-func readHistory(path, config string) ([]Entry, error) {
+func ReadHistory(path, config string) ([]Entry, error) {
 	f, err := os.Open(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil

@@ -26,7 +26,7 @@ type verifyArgs struct {
 	Report     string  `json:"report,omitempty" jsonschema:"triage report from seedfall run -report; every finding in it is replayed"`
 	Seeds      string  `json:"seeds,omitempty" jsonschema:"fresh seed range to sweep; default is enough seeds for 95% confidence at the historical failure rate"`
 	CheckSeeds int     `json:"check_seeds,omitempty" jsonschema:"fresh seeds to run twice for the determinism check, default 10"`
-	Mutate     bool    `json:"mutate,omitempty" jsonschema:"also require every exercised durability mutant to be killed"`
+	Mutate     bool    `json:"mutate,omitempty" jsonschema:"also require every exercised mutant to be killed"`
 	Markdown   string  `json:"-"`
 	jobs       int
 }
@@ -74,7 +74,7 @@ func parseVerify(args []string) (verifyArgs, error) {
 	fs.StringVar(&a.Report, "report", "", "triage report from run -report; replay every finding in it")
 	fs.StringVar(&a.Seeds, "seeds", "", "fresh seed range to sweep (default: enough for 95% confidence at the historical failure rate)")
 	fs.IntVar(&a.CheckSeeds, "check", defaultCheckSeeds, "fresh seeds to run twice for the determinism check")
-	fs.BoolVar(&a.Mutate, "mutate", false, "also require every exercised durability mutant to be killed")
+	fs.BoolVar(&a.Mutate, "mutate", false, "also require every exercised mutant to be killed")
 	fs.StringVar(&a.Markdown, "md", "", "write a Markdown proof block for the pull request to this file")
 	fs.IntVar(&a.jobs, "j", runtime.NumCPU(), "parallel runs")
 	fs.Parse(args)

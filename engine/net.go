@@ -165,6 +165,9 @@ func (n *network) send(from *endpoint, kind chunkKind, data []byte) {
 	at = max(at, from.lastSent)
 	from.lastSent = at
 	to.inbox = append(to.inbox, chunk{at: at, kind: kind, data: data})
+	if n.w.duplicates(to.owner.node, kind) {
+		to.inbox = append(to.inbox, chunk{at: at, kind: kind, data: data})
+	}
 	to.owner.wakeAt = min(to.owner.wakeAt, at)
 }
 
@@ -226,6 +229,9 @@ func (n *network) closeListener(l *listener) {
 
 func (n *network) closeEndpoint(ep *endpoint, kind chunkKind) {
 	if !ep.gone && !ep.peer.gone {
+		if kind == chunkEOF {
+			n.dropLastChunk(ep)
+		}
 		n.send(ep, kind, nil)
 	}
 	ep.gone = true

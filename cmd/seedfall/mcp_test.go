@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/kunalgoesbyken/seedfall/engine"
+	"github.com/kunalgoesbyken/seedfall/report"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -199,5 +200,51 @@ func TestMCPChecksAStoredHistory(t *testing.T) {
 	res, err = cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "seedfall_check", Arguments: map[string]any{"history": file, "model": "queue"}})
 	if err != nil || !res.IsError {
 		t.Fatalf("a kv history checked as a queue: %v %v", err, res.Content)
+	}
+}
+
+func TestMCPReadsFindingsAndRunHistory(t *testing.T) {
+	cs := connect(t)
+	dir := t.TempDir()
+	config := filepath.Join(dir, "seedfall.json")
+	rep := map[string]any{
+		"config": config, "seeds": "1-50", "seeds_run": 50, "seeds_failed": 2,
+		"findings":   []map[string]any{{"key": "assert · client", "status": "new", "failing_seeds": 2, "rate": 0.04, "example_seeds": []uint64{3, 9}}},
+		"properties": []map[string]any{{"kind": "sometimes", "message": "torn tail", "problem": "never true"}, {"kind": "always", "message": "fine"}},
+	}
+	b, _ := json.Marshal(rep)
+	if err := os.WriteFile(filepath.Join(dir, "report.json"), b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var history []byte
+	for _, e := range []report.Entry{{Config: config, Seeds: 50, Findings: map[string]int{"assert · client": 2}}, {Config: "other.json", Seeds: 10}} {
+		line, _ := json.Marshal(e)
+		history = append(append(history, line...), '\n')
+	}
+	if err := os.MkdirAll(filepath.Join(dir, ".seedfall"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".seedfall", "history.jsonl"), history, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "seedfall_findings", Arguments: map[string]any{"report": filepath.Join(dir, "report.html")}})
+	if err != nil || res.IsError {
+		t.Fatalf("seedfall_findings: %v %v", err, res.Content)
+	}
+	b, _ = json.Marshal(res.StructuredContent)
+	var v findingsView
+	if err := json.Unmarshal(b, &v); err != nil {
+		t.Fatal(err)
+	}
+	if len(v.Findings) != 1 || v.Findings[0].Count != 2 || len(v.Properties) != 1 || v.Properties[0].Message != "torn tail" || len(v.Runs) != 1 || v.Runs[0].Seeds != 50 {
+		t.Fatalf("findings view %+v", v)
+	}
+}
+
+func TestMCPMutateRejectsAnUnknownMutant(t *testing.T) {
+	cs := connect(t)
+	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "seedfall_mutate", Arguments: map[string]any{"config": "seedfall.json", "only": "fsync_noop,typo"}})
+	if err != nil || !res.IsError {
+		t.Fatalf("an unknown mutant was accepted: %v %v", err, res.Content)
 	}
 }

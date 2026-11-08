@@ -182,7 +182,7 @@ func newMCPServer() (*mcp.Server, error) {
 	}, toolCause)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "seedfall_verify",
-		Description: "Prove a fix: replay the failing seeds and schedules (given directly or taken from a triage report), sweep enough fresh seeds for 95% confidence, check determinism and optionally re-run the durability mutants. Returns the verdict and a Markdown proof block for the pull request.",
+		Description: "Prove a fix: replay the failing seeds and schedules (given directly or taken from a triage report), sweep enough fresh seeds for 95% confidence, check determinism and optionally re-run the mutants. Returns the verdict and a Markdown proof block for the pull request.",
 	}, toolVerify)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "seedfall_check",
@@ -192,6 +192,14 @@ func newMCPServer() (*mcp.Server, error) {
 		Name:        "seedfall_inspect",
 		Description: "Replay a seed and snapshot every node's simulated disk at the failure or at a virtual time. Returns each file's size, durable size, the byte ranges a crash would lose, directory entries that are not durable yet, removed entries a crash would bring back, the last torn write, under reorder_writes which pending writes the last crash kept, the ranges disk faults corrupted, and with disk_bytes how full each disk is. Optionally returns one file's durable content.",
 	}, toolInspect)
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "seedfall_mutate",
+		Description: "Grade the checks: sweep the seed range once unmutated (it must pass), then once per mutant, each of which silently breaks one guarantee under the nodes: fsync, directory fsync, O_SYNC, fsync data integrity, rename atomicity, durable truncation, data before a close, no duplicated TCP writes, and a monotonic clock. Returns each mutant as killed (with the seed and reason), survived (a blind spot in the checks) or not exercised.",
+	}, toolMutate)
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "seedfall_findings",
+		Description: "Read a triage report written by seedfall run -report without running anything: every finding with its status (new, ongoing, regressed), failing seed count, rate, classification and an example failure with replay and shrink commands, findings not seen this time, properties that were never reached or never true, and the run history of the same config.",
+	}, toolFindings)
 	if err := addResources(server); err != nil {
 		return nil, err
 	}

@@ -16,10 +16,10 @@ seedfall run -c C -seeds N
 
 The output ends with `class:`.
 - `bug`: the replay fails with the same trace. Continue.
-- `nondeterministic`: something leaks host nondeterminism, such as real time, unseeded randomness or map iteration feeding I/O. The first diverging trace line is shown. Fix the leak first: it is a harness problem, not the bug.
+- `nondeterministic`: something leaks host nondeterminism, such as real time, unseeded randomness or map iteration feeding I/O. The first diverging trace line is shown; `seedfall run -seeds N -check` goes further and names the first host call that differs (a clock read, a `random_get`, a file or network call) with its node and virtual time. Fix the leak first: it is a harness problem, not the bug.
 - `timeout`: the real-time watchdog fired. A busy loop that never yields, or a host that is too slow. Rerun on an idle machine, or raise `watchdog`, before treating it as a bug.
 
-Many failing seeds? `seedfall run -c C -seeds 1-500 -report .seedfall/report.html` groups them into findings, each with an example seed. Triage one example seed per finding.
+Many failing seeds? `seedfall run -c C -seeds 1-500 -report .seedfall/report.html` groups them into findings, each with an example seed. Triage one example seed per finding. Over MCP, `seedfall_findings` reads that report back (findings, their status across runs, unmet properties) without running anything.
 
 ## 2. Shrink
 

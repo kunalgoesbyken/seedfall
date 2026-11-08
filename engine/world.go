@@ -43,6 +43,7 @@ type node struct {
 	pausedTo   int64
 	slowUntil  int64
 	slowFactor float64
+	monoShift  int64
 }
 
 func (n *node) name() string { return n.spec.Name }
@@ -75,6 +76,7 @@ type world struct {
 	netRand     *rand.Rand
 	diskRand    *rand.Rand
 	latRand     *rand.Rand
+	mutantRand  *rand.Rand
 	nodes       []*node
 	finally     *node
 	shielded    map[string]bool
@@ -256,7 +258,7 @@ func (w *world) moduleConfig(inst *instance) wazero.ModuleConfig {
 			return t / int64(time.Second), int32(t % int64(time.Second))
 		}, 1).
 		WithNanotime(func() int64 {
-			t := epochNanos + w.tick()
+			t := epochNanos + w.tick() + n.monoShift
 			w.hostCall(inst, "clock_nanotime", "", t)
 			return t
 		}, 1).
@@ -397,6 +399,9 @@ func (w *world) applyFault(f *Fault) {
 			return
 		}
 		n.skew += int64(f.Shift)
+		if w.weakenedTo(MonotonicJump) {
+			n.monoShift += int64(f.Shift)
+		}
 		w.trace.add(w.now, "fault %s's wall clock jumps %s", f.Node, fmtSigned(int64(f.Shift)))
 	case FaultPartition:
 		w.applyNetFault(*f)

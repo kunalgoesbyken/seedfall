@@ -39,8 +39,8 @@ If the failures came from a triage report, use `-report .seedfall/report.html` i
 
 1. **Replay.** Each named schedule passes, twice, with identical traces.
 2. **Fresh sweep.** Enough new seeds for 95% confidence at the failure's historical rate. Without a rate, verify assumes 1% and runs 299 seeds. `-seeds` overrides the range.
-3. **Determinism.** `-check` fresh seeds (default 10) run twice with identical traces.
-4. **Mutants** (`-mutate`). Every exercised durability mutant is still killed, so the fix did not pass by making the checks blind.
+3. **Determinism.** `-check` fresh seeds (default 10) run twice with identical host calls and traces.
+4. **Mutants** (`-mutate`). Every exercised mutant is still killed, so the fix did not pass by making the checks blind.
 
 It prints `PASS` or `FAIL` and exits 0 or 1. Over MCP, `seedfall_verify` with `{"config": "C", "seed": N, "faults": "S", "mutate": true}` returns the same verdict, and its `markdown` field holds the proof block.
 

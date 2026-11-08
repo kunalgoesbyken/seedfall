@@ -42,6 +42,15 @@ expect_shrink() {
   printf '%s  %-8s %-24s shrink seed %s: want %s, got %s\n' "$verdict" "$dir" "$config" "$seed" "$want" "$got"
 }
 
+expect_mutant() {
+  local dir="$1" config="$2" seeds="$3" mutant="$4" want="$5"
+  local got
+  got="$(cd "$root/examples/$dir" && "$bin" mutate -c "$config" -seeds "$seeds" -only "$mutant" 2>&1 | awk -v m="$mutant" '$1 == m {print $2}')"
+  local verdict="PASS"
+  [ "$got" != "$want" ] && verdict="FAIL" && failures=$((failures + 1))
+  printf '%s  %-8s %-24s mutant %s on seeds %s: want %s, got %s\n' "$verdict" "$dir" "$config" "$mutant" "$seeds" "$want" "$got"
+}
+
 deterministic() {
   local dir="$1" config="$2" seed="$3"
   local a b
@@ -85,6 +94,8 @@ expect raftkv netfaults.localreads.lin.json 20 fail
 expect_replay raftkv netfaults.localreads.lin.json 20 slowleader.faults.json fail
 expect ledger seedfall.json          1-60   pass
 expect ledger seedfall.nofsync.json  1-20   fail
+expect_mutant ledger seedfall.json 1-20 net_dup_chunk killed
+expect_mutant ledger seedfall.json 1-20 truncate_not_durable SURVIVED
 expect httpkv seedfall.json          1-40   pass
 expect httpkv seedfall.nofsync.json  1-20   fail
 expect wals   tidwall.json           1-50   fail

@@ -64,6 +64,8 @@ Config paths in tool calls are resolved against the server's working directory, 
 | `seedfall_inspect` | `config`, `seed`, optional `faults`, `at`, `node`, `path` | Every node's disk at the failure or at virtual time `at`: per file the live and durable sizes, the byte ranges a crash would lose, whether its directory entry is durable, the last torn write, and removed entries a crash would bring back. With `path`, one file's durable content as text or a hex dump ([inspect.md](inspect.md)) |
 | `seedfall_check` | `history`, optional `model` | Re-checks a recorded history file against a model: the verdict, each anomaly with its cycle, and on a linearizability violation the HTML timeline file ([properties.md](properties.md#history-files)) |
 | `seedfall_verify` | `config`, `seed` and optional `faults`, and/or `report`; optional `seeds`, `check_seeds`, `mutate` | Whether the fix holds: each replayed schedule, the fresh sweep with its confidence, the determinism check and the mutants, plus a Markdown proof block for the PR ([verify.md](verify.md)) |
+| `seedfall_mutate` | `config`, optional `seeds` (default `1-100`), `only` | Sweeps the seeds unmutated, then once per [mutant](mutate.md) (disk, rename, truncate, network and clock guarantees): each mutant's `outcome` (`killed`, `survived` or `not exercised`), the seed and reason that killed it, and how often the operation was weakened |
+| `seedfall_findings` | `report`, optional `history` | Reads a triage report from `seedfall run -report` without running anything: each finding with its status, failing seeds, rate, classification and example failure with replay and shrink commands, findings not seen this time, unmet properties, and the run history of that config from `.seedfall/history.jsonl` ([reports.md](reports.md)) |
 | `seedfall_cause` | `config`, `seed`, optional `points`, `branches` | The probability of failing from each moment of the run, with the faults between moments, so the agent can see which event made the failure inevitable ([cause.md](cause.md)) |
 
 Every result is structured JSON, so the agent can read the seed, the faults and the trace directly.
@@ -1072,9 +1074,9 @@ The MCP server exposes the same snapshot as `seedfall_inspect`, with the per-fil
 
 <!-- docs/mutate.md -->
 
-# Mutation testing your durability checks
+# Mutation testing your checks
 
-A sweep that passes is only meaningful if your workload would notice when durability breaks. `seedfall mutate` tests that directly: it weakens the simulated disk under your nodes, one guarantee at a time, and checks whether your sweep catches it.
+A sweep that passes is only meaningful if your workload would notice when a guarantee breaks. `seedfall mutate` tests that directly: it weakens the simulated disk, network or clock under your nodes, one guarantee at a time, and checks whether your sweep catches it.
 
 ```sh
 seedfall mutate -c seedfall.always.json -seeds 1-30
@@ -1105,13 +1107,45 @@ That run is NATS JetStream (`examples/natsjs`). Both guarantees NATS relies on a
 | `dirsync_noop` | Directory `fsync` does nothing. Only observable with `strict_dirs`, where directory entries need it to survive a crash |
 | `osync_ignored` | Writes to files opened with `O_SYNC` or `O_DSYNC` stop being synchronous |
 | `fsync_corrupts` | File `fsync` makes the data durable with one bit flipped: the first byte of the last write it covers. Reads see the right data until a crash, then the flipped one |
+| `rename_not_atomic` | A rename over an existing file is not durable until the next successful fsync of any file or directory on that disk. A crash before then loses both names, so neither the old nor the new version exists after the restart. A rename to a new name is unchanged |
+| `truncate_not_durable` | `fsync` makes writes durable but skips truncations, including `O_TRUNC`. Reads see the shorter file until a crash, then the old length comes back with the old bytes past the new data |
+| `net_drop_after_close` | When a connection is closed, the last chunk written to it that the peer has not read yet is dropped, so the peer sees end of file without it |
+| `net_dup_chunk` | 5% of connection writes, chosen from the seed, arrive twice in a row |
+| `monotonic_jump` | `clock_jump` faults move the monotonic clock along with the wall clock, so `time.Since` and timers see time run backwards or leap ahead. Needs `clock_jump_per_sec` |
 
-Mutants apply to nodes only, never to the workload, and need no changes to your code.
+Mutants need no changes to your code. Each one weakens only the nodes that take faults: the disk mutants their disks, the network mutants the data they receive, and `monotonic_jump` their clocks. The workload is affected only with `include_workload`, and the `finally` check never. A run with a mutant replays exactly like any other: the duplicated writes come from their own seeded stream.
+
+Run some of them with `-only`:
+
+```sh
+seedfall mutate -c seedfall.json -seeds 1-20 -only net_dup_chunk,truncate_not_durable
+```
+
+Over MCP the tool is `seedfall_mutate`, with `config`, optional `seeds` (default `1-100`) and `only`. It returns each mutant's `outcome`, the `killed_by_seed` and `reason` when killed, the `seeds_passed` and how many times the operation was `weakened`.
+
+### The new mutants on `examples/ledger`
+
+```
+$ seedfall mutate -c seedfall.json -seeds 1-20
+baseline: seeds 1-20 pass
+
+  fsync_noop            killed     seed 1: client#1: ledger total covers every acknowledged deposit: {"left":4660,"right":5506,"unacked":1831}
+  ...
+  truncate_not_durable  SURVIVED   20 seeds passed although the operation was weakened 5 times
+                        fsync makes writes durable but not truncations, so a crash brings back the old length and the bytes past it
+
+  net_dup_chunk         killed     seed 18: client#1: ledger total holds no deposit that was never sent: {"left":8387,"right":8119}
+                        a seeded 5% of connection writes are delivered twice, which TCP never does
+  ...
+1 mutants survived: your workload does not notice those guarantees disappearing
+```
+
+A duplicated `ADD` is applied twice and the upper bound on the total catches it. `truncate_not_durable` survives because the ledger cuts off a torn final entry with `Truncate` at every start, so a truncation that does not persist only brings back bytes that the next recovery drops again: a survivor you can explain as equivalent. In `examples/liveness`, `rename_not_atomic` survives 991 weakenings for a similar reason: when a crash loses the client's progress file, the client resends adds the servers have already deduplicated.
 
 ## Verdicts
 
 - **killed**: some seed failed, so your workload notices this guarantee disappearing. That is the goal.
-- **SURVIVED**: every seed passed even though the operation was weakened. Either your checks miss acknowledged data loss, or your faults never hit the window where it matters. Raise `crash_per_sec` or `crash_on_io`, lengthen the run, or strengthen the invariant. `seedfall mutate` exits non-zero when any mutant survives.
+- **SURVIVED**: every seed passed even though the operation was weakened. Either your checks miss the broken guarantee (acknowledged data loss, a duplicated request, a timeout computed from a clock that ran backwards), or your faults never hit the window where it matters. Raise `crash_per_sec` or `crash_on_io`, lengthen the run, or strengthen the invariant. `seedfall mutate` exits non-zero when any mutant survives.
 - **not exercised**: the weakened operation never ran, or had no effect in this configuration. For example, `dirsync_noop` without `strict_dirs`.
 
 The baseline must pass first; otherwise mutants would be killed by the existing bug.
@@ -1599,6 +1633,9 @@ seedfall is only useful if its own model of crashes, faults and replay is right,
 | Transactional anomalies | `engine/elle_test.go` | The list-append checker finds `G0`, `G1a`, `G1b`, `G1c`, `G-single`, `G2`, internal inconsistency, incompatible orders, duplicate elements and appends, and garbage reads in minimal histories, passes serializable ones and reads of unknown transactions, explains the cycle, and rejects malformed transactions |
 | End to end | `engine/guest_test.go` | A small guest in `engine/testdata/guest` runs under crashes, partitions, torn writes, out-of-order writeback, crashes during disk operations and pauses: two runs of a seed give byte-identical traces, `-check` passes, a sweep finds the same failing seeds with 1 or 4 jobs, a failure replays exactly from its saved fault schedule, and a shrunk schedule keeps the failure, replays exactly and is 1-minimal. `sim.Budget` caps the client's writes when a schedule sets `ops`, the trace shows the cap, the run is shorter and replays exactly. Under clogs, swizzles, resets, slow nodes and partition topologies, two runs of a seed and a replay of its fault schedule give byte-identical traces. Under every disk fault the same holds, a full disk and `write_enospc` reach the guest as `syscall.ENOSPC`, and a failure caused by a lost write shrinks to a schedule that keeps the lost write and replays exactly |
 | Liveness and workload faults | `engine/liveness_test.go` | Against the guest: with `liveness`, a workload that never finishes fails as `liveness` at `duration + within` and without it only hits the horizon; the recovery phase restarts a node that would stay down and heals a partition, so the workload finishes; a `finally` check starts only after the workload, with no fault after it, and its `sim.Eventually` counts as a property; an `Eventually` that never holds fails as `liveness` with its message; `include_workload` crashes and pauses the client, open operations are reported and stay sound for linearizability, and a replay of the recorded faults is byte-identical; every one of several workloads must finish. Without the guest: `supervise` never restarts a workload that exits with an error, `"faults": false` keeps a node out of every planned fault and every partition, the workload is a fault target only when asked, configs with `workloads[]`, `finally` and `liveness` are validated, and `sim.Eventually` is cataloged |
+| Assertions and events | `engine/assertions_test.go`, `sim/sim_test.go` | The catalog finds numeric and grouped assertions with their message at the right argument; Antithesis guidance records keep the smallest margin for `always` and the largest for `sometimes`, and guidance without an assertion creates nothing; `lifecycle.SendEvent` becomes a trace event; margins aggregate across seeds; outside the simulator the numeric and grouped forms fail with JSON details and `sim.Event` does nothing |
+| Determinism hash | `engine/hostcalls_test.go` | The host-call hash is stable, checkpointed every 4,096 calls and sensitive to field boundaries, and a divergence report names the first differing call with the call before it, including a run that ends early |
+| Mutants | `engine/mutation_test.go` | `rename_not_atomic` loses both names in a crash before the next fsync in loose and strict mode, but not a rename to a new name or one a later fsync closed; `truncate_not_durable` brings back the old tail; `net_drop_after_close` drops only an unread last chunk; `net_dup_chunk` duplicates a seeded share of writes and replays them identically; network mutants skip nodes that take no faults; `monotonic_jump` moves the monotonic clock only when active; `-only` parses and rejects typos |
 | Confidence math | `report/report_test.go` | `SeedsToConfirm` and the detectable failure rate against known values, findings moving through new, ongoing, not seen, resolved and regressed across runs, and the JSON report against a golden file |
 | Proof rendering | `verify/verify_test.go` | How many seeds a proof needs, and the text and Markdown proof blocks against golden files |
 
@@ -1668,7 +1705,7 @@ In order, stopping at the first stage that fails:
 1. **Replay.** Every failing schedule you name is replayed and must pass now. Each replay runs twice and must produce identical traces, so a pass cannot be luck.
 2. **Fresh sweep.** New seeds, starting after the highest seed already known, must all pass. By default verify runs as many as needed for 95% confidence that a failure with the historical rate would have shown up: *n = ⌈ln(0.05) / ln(1 − p)⌉*, the same rule the [triage report](reports.md) uses to call a finding resolved. A finding that failed 27.5% of seeds needs 10 clean seeds; when no rate is known, verify assumes a rare failure (1%) and runs 299. `-seeds` overrides the range.
 3. **Determinism.** The first `-check` fresh seeds (default 10) run twice and must produce identical traces, as with `run -check`.
-4. **Mutants** (with `-mutate`). The [durability mutants](mutate.md) run over the fresh seeds, and every exercised mutant must still be killed. This catches a "fix" that passes by weakening the checks.
+4. **Mutants** (with `-mutate`). The [mutants](mutate.md) run over the fresh seeds, and every exercised mutant must still be killed. This catches a "fix" that passes by weakening the checks.
 
 Any failure is printed with its [classification](reports.md#classification), so a determinism leak is not mistaken for the bug coming back.
 
@@ -1724,7 +1761,7 @@ Config `seedfall.fixed.json`, reproduce with `seedfall verify -c seedfall.fixed.
 | `-report` | | Triage report (`.html` or `.json`) whose findings to replay |
 | `-seeds` | enough for 95% confidence | Fresh seed range to sweep |
 | `-check` | `10` | Fresh seeds to run twice for the determinism check |
-| `-mutate` | off | Also require every exercised durability mutant to be killed |
+| `-mutate` | off | Also require every exercised mutant to be killed |
 | `-md` | | Write the Markdown proof block to this file |
 | `-j` | all CPUs | Parallel runs |
 
@@ -1773,8 +1810,8 @@ If the failures came from a triage report, use `-report .seedfall/report.html` i
 
 1. **Replay.** Each named schedule passes, twice, with identical traces.
 2. **Fresh sweep.** Enough new seeds for 95% confidence at the failure's historical rate. Without a rate, verify assumes 1% and runs 299 seeds. `-seeds` overrides the range.
-3. **Determinism.** `-check` fresh seeds (default 10) run twice with identical traces.
-4. **Mutants** (`-mutate`). Every exercised durability mutant is still killed, so the fix did not pass by making the checks blind.
+3. **Determinism.** `-check` fresh seeds (default 10) run twice with identical host calls and traces.
+4. **Mutants** (`-mutate`). Every exercised mutant is still killed, so the fix did not pass by making the checks blind.
 
 It prints `PASS` or `FAIL` and exits 0 or 1. Over MCP, `seedfall_verify` with `{"config": "C", "seed": N, "faults": "S", "mutate": true}` returns the same verdict, and its `markdown` field holds the proof block.
 
@@ -1851,7 +1888,7 @@ Over MCP: `seedfall_run`, which returns `properties` with `seeds_reached`, `seed
 seedfall mutate -c seedfall.json -seeds 1-30
 ```
 
-The baseline must pass first. Then each mutant weakens one disk guarantee under the nodes:
+The baseline must pass first. Then each mutant weakens one disk, network or clock guarantee under the nodes. Run a subset with `-only rename_not_atomic,net_dup_chunk`, or over MCP with `seedfall_mutate`:
 
 | Mutant survived | Meaning | Fix |
 |---|---|---|
@@ -1859,8 +1896,13 @@ The baseline must pass first. Then each mutant weakens one disk guarantee under 
 | `dirsync_noop` | Directory fsyncs are untested | Add `"strict_dirs": true` to `faults`, then check data that depends on a create or rename |
 | `osync_ignored` | Writes to `O_SYNC` files are untested | Check the data written through those files |
 | `fsync_corrupts` | Nothing compares the data read back after a crash with what was acknowledged | Read back every acknowledged value after crashes and compare it byte for byte, not only its presence |
+| `rename_not_atomic` | Nothing checks a file replaced by rename (state, manifest, snapshot) after a crash | Read back the replaced file after crashes and assert it holds either the old or the new version. Raise `crash_on_io` so crashes land right after a rename |
+| `truncate_not_durable` | Nothing checks a file's length after a crash that followed a truncation | Read back truncated or `O_TRUNC`-rewritten files after crashes and compare their whole content |
+| `net_drop_after_close` | A response or final message cut off by a close goes unnoticed | Check that every request the client counts as done really got its full answer, and that the server applied every message sent before a close |
+| `net_dup_chunk` | A duplicated request or message is not caught | Assert upper bounds too (nothing applied twice, `sim.AlwaysLessThanOrEqualTo(total, sent, ...)`), not only that acknowledged data survived |
+| `monotonic_jump` | Timeouts and leases never meet a clock that runs backwards, or nothing checks what they protect | Turn on `clock_jump_per_sec`, then check lease-protected reads with a linearizability checker |
 
-`not exercised` means the operation never ran, or had no effect in this config. That is fine when the service never uses it, such as `dirsync_noop` without `strict_dirs`.
+`not exercised` means the operation never ran, or had no effect in this config. That is fine when the service never uses it, such as `dirsync_noop` without `strict_dirs`, or `monotonic_jump` without `clock_jump_per_sec`.
 
 Repeat steps 2 to 4 until every exercised mutant is killed, or until you can state why a survivor is equivalent, for example data the service never promises to keep. `seedfall mutate` exits 1 while any mutant survives.
 
@@ -1957,10 +1999,10 @@ seedfall run -c C -seeds N
 
 The output ends with `class:`.
 - `bug`: the replay fails with the same trace. Continue.
-- `nondeterministic`: something leaks host nondeterminism, such as real time, unseeded randomness or map iteration feeding I/O. The first diverging trace line is shown. Fix the leak first: it is a harness problem, not the bug.
+- `nondeterministic`: something leaks host nondeterminism, such as real time, unseeded randomness or map iteration feeding I/O. The first diverging trace line is shown; `seedfall run -seeds N -check` goes further and names the first host call that differs (a clock read, a `random_get`, a file or network call) with its node and virtual time. Fix the leak first: it is a harness problem, not the bug.
 - `timeout`: the real-time watchdog fired. A busy loop that never yields, or a host that is too slow. Rerun on an idle machine, or raise `watchdog`, before treating it as a bug.
 
-Many failing seeds? `seedfall run -c C -seeds 1-500 -report .seedfall/report.html` groups them into findings, each with an example seed. Triage one example seed per finding.
+Many failing seeds? `seedfall run -c C -seeds 1-500 -report .seedfall/report.html` groups them into findings, each with an example seed. Triage one example seed per finding. Over MCP, `seedfall_findings` reads that report back (findings, their status across runs, unmet properties) without running anything.
 
 ## 2. Shrink
 

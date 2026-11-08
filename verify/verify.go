@@ -130,7 +130,7 @@ func doublecheck(r *engine.Runner, lo, hi uint64, opts engine.SweepOptions) *Swe
 
 func mutants(r *engine.Runner, lo, hi uint64, opts engine.SweepOptions) []Mutant {
 	var out []Mutant
-	for _, m := range engine.SweepMutants(r, lo, hi, opts) {
+	for _, m := range engine.SweepMutants(r, engine.Mutations, lo, hi, opts) {
 		v := Mutant{Mutation: m.Mutation, Outcome: m.Outcome()}
 		if m.KilledBy != nil {
 			v.Seed, v.Reason = m.KilledBy.Seed, m.KilledBy.Reason

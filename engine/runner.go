@@ -187,7 +187,7 @@ func (r *Runner) run(seed uint64, s Schedule, explicit bool, b *branch, p *probe
 	defer cancel()
 	w := &world{
 		cfg: r.cfg, seed: seed, ctx: ctx, cancel: cancel, rt: r.rt,
-		sched: streams(seed, "sched"), netRand: streams(seed, "net"), diskRand: streams(seed, "disk"), latRand: streams(seed, "disklatency"),
+		sched: streams(seed, "sched"), netRand: streams(seed, "net"), diskRand: streams(seed, "disk"), latRand: streams(seed, "disklatency"), mutantRand: streams(seed, "mutant"),
 		events: make(chan event), faults: slices.Clone(s.Faults), horizon: int64(cmp.Or(s.Duration, r.cfg.Duration)), opsLimit: s.Ops, trace: &tracer{}, compiled: r.compiled,
 		explicit: explicit, ioRand: streams(seed, "io"), props: properties{}, spec: r.cfg.Faults.forSeed(seed), branch: b, probe: p,
 		mutation: r.Mutation, weakened: func() { r.weakened.Add(1) }, shielded: map[string]bool{}, deadline: never,

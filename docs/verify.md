@@ -35,7 +35,7 @@ In order, stopping at the first stage that fails:
 1. **Replay.** Every failing schedule you name is replayed and must pass now. Each replay runs twice and must produce identical traces, so a pass cannot be luck.
 2. **Fresh sweep.** New seeds, starting after the highest seed already known, must all pass. By default verify runs as many as needed for 95% confidence that a failure with the historical rate would have shown up: *n = ⌈ln(0.05) / ln(1 − p)⌉*, the same rule the [triage report](reports.md) uses to call a finding resolved. A finding that failed 27.5% of seeds needs 10 clean seeds; when no rate is known, verify assumes a rare failure (1%) and runs 299. `-seeds` overrides the range.
 3. **Determinism.** The first `-check` fresh seeds (default 10) run twice and must produce identical traces, as with `run -check`.
-4. **Mutants** (with `-mutate`). The [durability mutants](mutate.md) run over the fresh seeds, and every exercised mutant must still be killed. This catches a "fix" that passes by weakening the checks.
+4. **Mutants** (with `-mutate`). The [mutants](mutate.md) run over the fresh seeds, and every exercised mutant must still be killed. This catches a "fix" that passes by weakening the checks.
 
 Any failure is printed with its [classification](reports.md#classification), so a determinism leak is not mistaken for the bug coming back.
 
@@ -91,7 +91,7 @@ Config `seedfall.fixed.json`, reproduce with `seedfall verify -c seedfall.fixed.
 | `-report` | | Triage report (`.html` or `.json`) whose findings to replay |
 | `-seeds` | enough for 95% confidence | Fresh seed range to sweep |
 | `-check` | `10` | Fresh seeds to run twice for the determinism check |
-| `-mutate` | off | Also require every exercised durability mutant to be killed |
+| `-mutate` | off | Also require every exercised mutant to be killed |
 | `-md` | | Write the Markdown proof block to this file |
 | `-j` | all CPUs | Parallel runs |
 
