@@ -11,7 +11,7 @@ import (
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 )
 
-var fileWrites = []string{"fd_write", "fd_pwrite"}
+var fileCalls = []string{"fd_write", "fd_pwrite", "fd_read"}
 
 func reportNoSpace(ctx context.Context, rt wazero.Runtime, b wazero.HostModuleBuilder) error {
 	plain := rt.NewHostModuleBuilder(wasi_snapshot_preview1.ModuleName)
@@ -21,7 +21,7 @@ func reportNoSpace(ctx context.Context, rt wazero.Runtime, b wazero.HostModuleBu
 		return err
 	}
 	defer compiled.Close(ctx)
-	for _, name := range fileWrites {
+	for _, name := range fileCalls {
 		def := compiled.ExportedFunctions()[name]
 		write, ok := def.GoFunction().(api.GoModuleFunction)
 		if !ok {
@@ -30,14 +30,14 @@ func reportNoSpace(ctx context.Context, rt wazero.Runtime, b wazero.HostModuleBu
 		b.NewFunctionBuilder().WithGoModuleFunction(api.GoModuleFunc(func(ctx context.Context, m api.Module, stack []uint64) {
 			w := worldOf(ctx)
 			fs := w.instance(ctx).node.fs
-			fs.noSpace, w.net.brokenPipe = false, false
+			fs.noSpace, w.net.errno = false, 0
 			write.Call(ctx, m, stack)
 			switch {
 			case stack[0] != errnoIO:
 			case fs.noSpace:
 				stack[0] = errnoNoSpace
-			case w.net.brokenPipe:
-				stack[0] = errnoPipe
+			case w.net.errno != 0:
+				stack[0] = w.net.errno
 			}
 		}), def.ParamTypes(), def.ResultTypes()).Export(name)
 	}

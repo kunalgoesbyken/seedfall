@@ -35,7 +35,7 @@ Every run already traces node starts, crashes, faults and checks, plus every lin
     1.132s  net server#2 -> client#1 conn 57: 3 bytes, arrives 1.137s
 ```
 
-A message sent while a partition or a clog holds the link says `held by a partition or clog`, and a duplicate from the `net_dup_chunk` mutant says `a duplicate`. UDP datagrams appear as `udp <socket>` lines, and one that never arrived says `lost` and why: a partition or clog, no socket bound to the address, or a `udp_drop` fault. `-net-trace` adds lines to the trace only: it does not change the schedule, the determinism hash or the result, so a seed fails the same way with and without it. A failure replayed with `-net-trace` writes those lines into its artifact `trace.txt` as well.
+A message sent while a partition or a clog holds the link says `held by a partition or clog`, and a duplicate from the `net_dup_chunk` mutant says `a duplicate`. UDP datagrams appear as `udp <socket>` lines, and one that never arrived says `lost` and why: a partition or clog, no socket bound to the address, a socket connected to another address, or a `udp_drop` fault. `-net-trace` adds lines to the trace only: it does not change the schedule, the determinism hash or the result, so a seed fails the same way with and without it. A failure replayed with `-net-trace` writes those lines into its artifact `trace.txt` as well.
 
 ## Timeline
 

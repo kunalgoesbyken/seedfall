@@ -254,7 +254,7 @@ On kvlog's `seedfall.always.json`, seed 1 fails with `torntail.faults.json`, sti
 |---|---|
 | `-faults` | The schedule to start from. Without it, `.seedfall/seed-N.faults.json` next to the config, or, when that file does not exist, the faults seed N draws on its own, which takes one run |
 | `-remove N` | Remove the fault at position N, counting from 1 as listed. Repeatable |
-| `-shift N=AMOUNT` | Move fault N. A timed fault moves by a signed duration (`2=-50ms`), together with its `until`. A fault that fires at a disk operation, read, buggify hit or counted call (`crash_io`, `fsync_eio`, `write_eio`, `write_enospc`, `read_eio`, `read_corrupt`, `lost_write`, `misdirected_write`, `buggify`, `preempt`) moves by a signed count of those (`1=+2`), because its `at` only records when it happened. Repeatable |
+| `-shift N=AMOUNT` | Move fault N. A timed fault moves by a signed duration (`2=-50ms`), together with its `until`. A fault that fires at a disk operation, read, buggify hit, counted call or udp datagram (`crash_io`, `fsync_eio`, `write_eio`, `write_enospc`, `read_eio`, `read_corrupt`, `lost_write`, `misdirected_write`, `buggify`, `preempt`, `udp_drop`, `udp_dup`) moves by a signed count of those (`1=+2`), because its `at` only records when it happened. Repeatable |
 | `-add JSON` | Add a fault in the format shown in this page, for example `{"at":"1s","kind":"pause","node":"server","until":"1.5s"}`. Repeatable |
 | `-out` | Write the result here. Without it, the schedule is written back to the file it came from |
 
@@ -265,13 +265,13 @@ Positions in `-remove` and `-shift` always refer to the schedule as it was befor
 | `kind` is a fault kind seedfall knows | every fault |
 | `node`, `from`, `to`, `side` and `groups` name nodes of the config | every fault |
 | `at` is not negative | every fault |
-| `at` is not after the end of the run: the schedule's `duration`, else the config's | every fault except those that fire at a disk operation, read, buggify hit or counted call, whose `at` only records when it happened |
+| `at` is not after the end of the run: the schedule's `duration`, else the config's | every fault except those that fire at a disk operation, read, buggify hit, counted call or udp datagram, whose `at` only records when it happened |
 | `until` is not before `at` | `crash`, `crash_io`, `partition`, `pause`, `clog`, `slow` |
 | `side` or `groups`, not both | `partition` |
 | `mode` is `stop`, `slow` or `jam`; `dir` is `in`, `out` or `both` with a `node`, or empty with two different nodes in `from` and `to` | `clog` |
 | `node` is set | every kind except `partition` and `clog` |
 | `factor` is at least 1 | `slow` |
-| `op` is at least 1, a `buggify` fault names its `site`, and a `preempt` fault needs `preempt.strategy` `pct` in the config | faults that fire at a disk operation, read, buggify hit or counted call |
+| `op` is at least 1, a `buggify` fault names its `site`, and a `preempt` fault needs `preempt.strategy` `pct` in the config | faults that fire at a disk operation, read, buggify hit, counted call or udp datagram |
 
 Without any edit, `seedfall faults` only lists and checks the schedule, and writes it only when it came from the seed's own faults, so that there is a file to edit. Over MCP, `seedfall_faults_edit` takes the same edits as JSON ([agents.md](agents.md#tools)).
 

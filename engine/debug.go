@@ -261,7 +261,7 @@ func (n *network) inflight() []InFlight {
 			out = h.inflight(out)
 		case *udpSocket:
 			for _, d := range h.inbox {
-				out = append(out, InFlight{Conn: h.id, Kind: MessageDatagram, From: d.fromInst, To: h.owner.label, Bytes: len(d.data), Sent: time.Duration(d.sent), Arrives: time.Duration(d.at)})
+				out = append(out, InFlight{Conn: d.sock, Kind: MessageDatagram, From: d.fromInst, To: h.owner.label, Bytes: len(d.data), Sent: time.Duration(d.sent), Arrives: time.Duration(d.at)})
 			}
 		}
 	}

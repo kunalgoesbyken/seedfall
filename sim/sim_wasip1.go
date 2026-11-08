@@ -299,6 +299,9 @@ func (c *packetConn) ReadFrom(p []byte) (int, net.Addr, error) {
 }
 
 func (c *packetConn) WriteTo(p []byte, to net.Addr) (int, error) {
+	if to == nil {
+		return 0, &net.OpError{Op: "write", Net: "udp", Err: syscall.EINVAL}
+	}
 	raw, err := c.f.SyscallConn()
 	if err != nil {
 		return 0, err

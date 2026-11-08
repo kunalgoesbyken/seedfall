@@ -7,9 +7,10 @@ import (
 )
 
 const (
-	lostNoSocket = "no socket bound to the address"
-	lostLink     = "held by a partition or clog"
-	lostFault    = "dropped by a udp_drop fault"
+	lostNoSocket  = "no socket bound to the address"
+	lostConnected = "the socket is connected to another address"
+	lostLink      = "held by a partition or clog"
+	lostFault     = "dropped by a udp_drop fault"
 )
 
 type datagram struct {
@@ -19,14 +20,16 @@ type datagram struct {
 	data     []byte
 	sent     int64
 	msg      int
+	sock     int32
 }
 
 type udpSocket struct {
-	id     int32
-	owner  *instance
-	key    string
-	remote string
-	inbox  []datagram
+	id      int32
+	owner   *instance
+	key     string
+	remote  string
+	inbox   []datagram
+	refused int64
 }
 
 func (n *network) udpTaken(key string) bool {
@@ -39,7 +42,7 @@ func (n *network) bindUDP(inst *instance, addr string) int32 {
 	if code < 0 {
 		return code
 	}
-	s := &udpSocket{id: n.alloc(), owner: inst, key: key}
+	s := &udpSocket{id: n.alloc(), owner: inst, key: key, refused: never}
 	n.udp[key] = s
 	n.handles[s.id] = s
 	n.w.netLine(inst, "net %s binds udp %s", inst.label, key)
@@ -68,6 +71,9 @@ func (n *network) sendto(inst *instance, id int32, addr string, data []byte) int
 	if s == nil {
 		return codeBadFD
 	}
+	if n.takeRefused(s) {
+		return codeRefused
+	}
 	to := s.remote
 	if addr != "" {
 		to = n.target(inst, addr)
@@ -91,16 +97,21 @@ func (n *network) datagram(s *udpSocket, to string, data []byte) {
 	}
 	link := n.w.link(src.name(), dst)
 	switch {
-	case peer == nil || (peer.remote != "" && peer.remote != s.key):
-		m.Lost = lostNoSocket
 	case link.held > 0:
 		m.Lost = lostLink
+	case peer == nil:
+		m.Lost = lostNoSocket
+	case peer.remote != "" && peer.remote != s.key:
+		m.Lost = lostConnected
 	case n.w.udpFault(src, FaultUDPDrop, n.w.spec.UDPLoss, op, dst):
 		m.Lost = lostFault
 	}
 	if m.Lost != "" {
 		n.w.rec.message(m)
 		n.w.netLine(s.owner, "net %s -> %s udp %d: %d bytes, lost, %s", s.owner.label, to, s.id, len(data), m.Lost)
+		if m.Lost == lostNoSocket || m.Lost == lostConnected {
+			n.portUnreachable(s, dst, link)
+		}
 		return
 	}
 	copies := 1
@@ -110,19 +121,38 @@ func (n *network) datagram(s *udpSocket, to string, data []byte) {
 	for i := range copies {
 		at := n.w.now + n.w.latency(src.name(), dst) + link.delay
 		m.Arrives, m.Duplicate = time.Duration(at), i > 0
-		n.enqueue(peer, datagram{at: at, from: s.key, fromInst: s.owner.label, data: data, sent: n.w.now}, m)
+		n.enqueue(s, peer, datagram{at: at, from: s.key, fromInst: s.owner.label, data: data, sent: n.w.now, sock: s.id}, m)
 	}
 }
 
-func (n *network) enqueue(s *udpSocket, d datagram, m Message) {
+func (n *network) enqueue(from, to *udpSocket, d datagram, m Message) {
 	d.msg = n.w.rec.message(m)
-	i := slices.IndexFunc(s.inbox, func(o datagram) bool { return o.at > d.at })
+	i := slices.IndexFunc(to.inbox, func(o datagram) bool { return o.at > d.at })
 	if i < 0 {
-		i = len(s.inbox)
+		i = len(to.inbox)
 	}
-	s.inbox = slices.Insert(s.inbox, i, d)
-	s.owner.wakeAt = min(s.owner.wakeAt, d.at)
-	n.w.netLine(s.owner, "net %s -> %s udp %d: %d bytes, arrives %s%s", d.fromInst, s.owner.label, m.Conn, len(d.data), fmtTime(d.at), deliveryNote(m))
+	to.inbox = slices.Insert(to.inbox, i, d)
+	to.owner.wakeAt = min(to.owner.wakeAt, d.at)
+	n.w.netLine(from.owner, "net %s -> %s udp %d: %d bytes, arrives %s%s", d.fromInst, to.owner.label, d.sock, len(d.data), fmtTime(d.at), deliveryNote(m))
+}
+
+func (n *network) portUnreachable(s *udpSocket, dst string, there linkState) {
+	src := s.owner.node.name()
+	back := n.w.link(dst, src)
+	if s.remote == "" || back.held > 0 {
+		return
+	}
+	s.refused = min(s.refused, n.w.now+there.delay+n.w.latency(src, dst)+back.delay+n.w.latency(dst, src))
+	s.owner.wakeAt = min(s.owner.wakeAt, s.refused)
+	n.w.netLine(s.owner, "net %s udp %d: port unreachable arrives %s", s.owner.label, s.id, fmtTime(s.refused))
+}
+
+func (n *network) takeRefused(s *udpSocket) bool {
+	if s.refused > n.w.now {
+		return false
+	}
+	s.refused = never
+	return true
 }
 
 func (n *network) recvfrom(inst *instance, id int32, buf []byte) (int32, string) {
@@ -130,13 +160,16 @@ func (n *network) recvfrom(inst *instance, id int32, buf []byte) (int32, string)
 	if s == nil {
 		return codeBadFD, ""
 	}
+	if n.takeRefused(s) {
+		return codeRefused, ""
+	}
 	if len(s.inbox) == 0 || s.inbox[0].at > n.w.now {
 		return codeAgain, ""
 	}
 	d := s.inbox[0]
 	s.inbox = s.inbox[1:]
 	n.w.rec.read(d.msg, n.w.now)
-	n.w.netLine(inst, "net %s <- %s udp %d: %d bytes sent at %s", inst.label, d.fromInst, s.id, len(d.data), fmtTime(d.sent))
+	n.w.netLine(inst, "net %s <- %s udp %d: %d bytes sent at %s", inst.label, d.fromInst, d.sock, len(d.data), fmtTime(d.sent))
 	return int32(copy(buf, d.data)), d.from
 }
 

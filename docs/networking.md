@@ -49,7 +49,7 @@ A UDP socket on one node talks to any other through the same link table as TCP, 
 | Partition, or clog `stop` or `jam`, in the sending direction | Dropped. Nothing holds it for the heal |
 | Clog `slow` | Arrives `clog_delay` later |
 | Slow node | Latency is stretched, as for TCP |
-| No socket bound to the address, or a connected socket that is not listening to this sender | Dropped silently. No ICMP port unreachable is simulated, so a connected socket never sees `ECONNREFUSED` |
+| No socket bound to the address when it is sent, or one connected to a different address | Dropped. A connected sender gets the equivalent of ICMP port unreachable: unless a partition or clog cuts the path back, its next read or send after a round trip fails with `ECONNREFUSED`, once. An unconnected sender hears nothing |
 | `udp_loss` | Dropped, recorded as a `udp_drop` fault |
 | `udp_dup` | Delivered twice with independent latencies, recorded as a `udp_dup` fault |
 

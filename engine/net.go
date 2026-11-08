@@ -66,15 +66,15 @@ type listener struct {
 }
 
 type network struct {
-	w          *world
-	nextID     int32
-	listeners  map[string]*listener
-	udp        map[string]*udpSocket
-	handles    map[int32]any
-	names      map[string]string
-	ports      map[string]int
-	hosts      []byte
-	brokenPipe bool
+	w         *world
+	nextID    int32
+	listeners map[string]*listener
+	udp       map[string]*udpSocket
+	handles   map[int32]any
+	names     map[string]string
+	ports     map[string]int
+	hosts     []byte
+	errno     uint64
 }
 
 func newNetwork(w *world) *network {
@@ -302,7 +302,6 @@ func (n *network) write(inst *instance, id int32, data []byte) int32 {
 		return codeBadFD
 	}
 	if ep.wrShut {
-		n.brokenPipe = true
 		return codePipe
 	}
 	if ep.peer.gone {

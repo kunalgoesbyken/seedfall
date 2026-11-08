@@ -208,3 +208,76 @@ func TestCrashClosesTheNodesUDPSockets(t *testing.T) {
 		t.Fatalf("rebind after crash: %d", got)
 	}
 }
+
+func TestConnectedSenderIsRefusedOnceAfterARoundTrip(t *testing.T) {
+	f := udpPair(t, Range{ms(1), ms(1)})
+	f.w.net.connectUDP(f.a, f.sa, "b:9999")
+	f.w.net.sendto(f.a, f.sa, "", []byte("x"))
+	if n, _ := f.w.net.recvfrom(f.a, f.sa, make([]byte, 8)); n != codeAgain || f.w.net.readable(f.sa) {
+		t.Fatalf("refused before the round trip: recv = %d", n)
+	}
+	if f.a.wakeAt != int64(ms(2)) || f.w.net.nextArrival(f.sa) != int64(ms(2)) {
+		t.Fatalf("sender wakes at %d and next arrival is %d, want %d", f.a.wakeAt, f.w.net.nextArrival(f.sa), int64(ms(2)))
+	}
+	f.w.now = int64(ms(2))
+	if !f.w.net.readable(f.sa) {
+		t.Fatal("a refusal should make the socket readable")
+	}
+	if n, _ := f.w.net.recvfrom(f.a, f.sa, make([]byte, 8)); n != codeRefused {
+		t.Fatalf("recv = %d, want codeRefused", n)
+	}
+	if n, _ := f.w.net.recvfrom(f.a, f.sa, make([]byte, 8)); n != codeAgain {
+		t.Fatalf("second recv = %d, want the refusal reported once", n)
+	}
+	f.w.net.sendto(f.a, f.sa, "", []byte("x"))
+	f.w.now += int64(ms(2))
+	if got := f.w.net.sendto(f.a, f.sa, "", []byte("x")); got != codeRefused {
+		t.Fatalf("sendto after a refusal = %d, want codeRefused", got)
+	}
+}
+
+func TestPortUnreachableNeedsAConnectedSenderAndAPathBack(t *testing.T) {
+	f := udpPair(t, Range{ms(1), ms(1)})
+	f.w.net.sendto(f.a, f.sa, "b:9999", []byte("x"))
+	f.w.now = int64(ms(10))
+	if f.w.net.readable(f.sa) {
+		t.Fatal("an unconnected sender heard about an unbound port")
+	}
+	f.w.net.connectUDP(f.a, f.sa, "b:9999")
+	f.w.applyNetFault(Fault{Kind: FaultClog, From: "b", To: "a", Mode: ClogStop, Until: Duration(time.Hour)})
+	f.w.net.sendto(f.a, f.sa, "", []byte("x"))
+	f.w.now += int64(ms(10))
+	if f.w.net.readable(f.sa) {
+		t.Fatal("a refusal crossed a stopped return path")
+	}
+}
+
+func TestSenderKeepsItsSocketIDAcrossTheDatagramsLife(t *testing.T) {
+	f := udpPair(t, Range{ms(1), ms(1)})
+	f.w.net.sendto(f.a, f.sa, "b:9000", []byte("x"))
+	flight := f.w.net.inflight()
+	if len(flight) != 1 || flight[0].Conn != f.sa {
+		t.Fatalf("in flight %+v, want the sender's socket %d", flight, f.sa)
+	}
+}
+
+func TestDatagramLostToAConnectedSocketSaysSo(t *testing.T) {
+	f := udpPair(t, Range{ms(1), ms(1)})
+	f.w.rec = &recorder{}
+	f.w.net.connectUDP(f.b, f.sb, "a:1234")
+	f.w.net.sendto(f.a, f.sa, "b:9000", []byte("x"))
+	if got := f.w.rec.messages; len(got) != 1 || got[0].Lost != lostConnected {
+		t.Fatalf("messages %+v, want one lost with %q", got, lostConnected)
+	}
+}
+
+func TestBranchRerandomizesUDPLoss(t *testing.T) {
+	w, _ := buggifyWorld(13)
+	w.branch, w.udpRand = &branch{key: 1}, streams(13, "udp")
+	if !w.takeBranch(0) {
+		t.Fatal("branch not taken")
+	}
+	if got, want := w.udpRand.Uint64(), streams(w.streamSeed(), "udp").Uint64(); got != want {
+		t.Fatalf("udp stream after a branch drew %d, want the branch's %d", got, want)
+	}
+}

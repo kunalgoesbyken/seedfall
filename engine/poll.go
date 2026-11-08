@@ -26,6 +26,7 @@ const (
 	subscriptionSize = 48
 	eventSize        = 32
 	errnoSuccess     = 0
+	errnoConnRefused = 14
 	errnoFault       = 21
 	errnoIO          = 29
 	errnoNoSpace     = 51
@@ -173,7 +174,7 @@ func (n *network) readable(id int32) bool {
 	case *endpoint:
 		return h.rdShut || (len(h.inbox) > 0 && h.inbox[0].at <= n.w.now)
 	case *udpSocket:
-		return len(h.inbox) > 0 && h.inbox[0].at <= n.w.now
+		return h.refused <= n.w.now || (len(h.inbox) > 0 && h.inbox[0].at <= n.w.now)
 	case *listener:
 		for _, ep := range h.backlog {
 			if ep.acceptAt <= n.w.now {
@@ -193,8 +194,9 @@ func (n *network) nextArrival(id int32) int64 {
 		}
 	case *udpSocket:
 		if len(h.inbox) > 0 {
-			return h.inbox[0].at
+			return min(h.refused, h.inbox[0].at)
 		}
+		return h.refused
 	case *listener:
 		at := never
 		for _, ep := range h.backlog {
@@ -287,11 +289,18 @@ func (f *netFile) readResult(n int32) (int, fsapi.Errno) {
 		return 0, 0
 	case codeReset:
 		return 0, fsapi.EIO
+	case codeRefused:
+		return f.sockErr(errnoConnRefused)
 	case codeBadFD:
 		return 0, fsapi.EBADF
 	default:
 		return int(n), 0
 	}
+}
+
+func (f *netFile) sockErr(errno uint64) (int, fsapi.Errno) {
+	f.w.net.errno = errno
+	return 0, fsapi.EIO
 }
 
 func (f *netFile) Write(buf []byte) (int, fsapi.Errno) {
@@ -302,13 +311,17 @@ func (f *netFile) Write(buf []byte) (int, fsapi.Errno) {
 	} else {
 		code = f.call("net_write", f.w.net.write(f.inst, f.id, data))
 	}
-	switch n := code; n {
-	case codeReset, codePipe, codeNoDest:
+	switch code {
+	case codeReset, codeNoDest:
 		return 0, fsapi.EIO
+	case codePipe:
+		return f.sockErr(errnoPipe)
+	case codeRefused:
+		return f.sockErr(errnoConnRefused)
 	case codeBadFD:
 		return 0, fsapi.EBADF
 	default:
-		return int(n), 0
+		return int(code), 0
 	}
 }
 

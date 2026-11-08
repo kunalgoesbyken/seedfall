@@ -2,11 +2,14 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/kunalgoesbyken/seedfall/sim"
@@ -17,6 +20,7 @@ const (
 	retry       = 100 * time.Millisecond
 	readTimeout = 200 * time.Millisecond
 	maxDatagram = 1500
+	unboundAddr = "server:7199"
 )
 
 var (
@@ -38,6 +42,9 @@ func main() {
 	for round := range rounds {
 		exchangeStream(round)
 		exchangePackets(round)
+		if *api == "net" {
+			refusedOnUnboundPort()
+		}
 	}
 	fmt.Println("every half-close and datagram exchange succeeded")
 }
@@ -83,7 +90,7 @@ func streamOnce(round int) bool {
 	want := fmt.Sprintf("%s %s", conn.LocalAddr(), strings.ToUpper(request))
 	sim.Always(string(reply) == want, "the server sees the dialer's real address and reads to EOF after CloseWrite", "got ", string(reply), " want ", want)
 	_, err = conn.Write([]byte("late"))
-	sim.Always(err != nil, "writing after CloseWrite fails")
+	sim.Always(errors.Is(err, syscall.EPIPE), "writing after CloseWrite fails with EPIPE", "got ", err)
 	return true
 }
 
@@ -109,6 +116,27 @@ func exchangePackets(round int) {
 		}
 		sim.Always(portOf(from.String()) == "7100", "a reply carries the server's address", "from ", from.String())
 		return
+	}
+}
+
+func refusedOnUnboundPort() {
+	conn, err := net.Dial("udp", unboundAddr)
+	if err != nil {
+		panic(err)
+	}
+	defer conn.Close()
+	buf := make([]byte, maxDatagram)
+	for {
+		conn.SetDeadline(time.Now().Add(readTimeout))
+		if _, err = conn.Write([]byte("anyone there")); err == nil {
+			_, err = conn.Read(buf)
+		}
+		if errors.Is(err, syscall.ECONNREFUSED) {
+			return
+		}
+		if !errors.Is(err, os.ErrDeadlineExceeded) {
+			sim.Fail(fmt.Sprint("a connected socket to an unbound port got ", err))
+		}
 	}
 }
 

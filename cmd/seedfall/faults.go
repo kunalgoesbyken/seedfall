@@ -17,7 +17,7 @@ import (
 
 type faultShift struct {
 	Fault int    `json:"fault" jsonschema:"position of the fault in the schedule, counting from 1"`
-	By    string `json:"by" jsonschema:"how far to move it: a signed duration such as -50ms for a timed fault, or a signed count such as +2 for a fault that fires at a disk operation, read, buggify hit or counted call"`
+	By    string `json:"by" jsonschema:"how far to move it: a signed duration such as -50ms for a timed fault, or a signed count such as +2 for a fault that fires at a disk operation, read, buggify hit, counted call or udp datagram"`
 }
 
 type faultsEditArgs struct {
@@ -186,7 +186,7 @@ func shiftFault(f engine.Fault, by string) (engine.Fault, error) {
 	if f.FiresAtOp() {
 		n, err := strconv.ParseInt(by, 10, 64)
 		if err != nil {
-			return f, fmt.Errorf("a %s fault fires at a disk operation, read, buggify hit or counted call, so shift it by a count such as +2, not %q", f.Kind, by)
+			return f, fmt.Errorf("a %s fault fires at a disk operation, read, buggify hit, counted call or udp datagram, so shift it by a count such as +2, not %q", f.Kind, by)
 		}
 		f.Op += n
 		return f, nil

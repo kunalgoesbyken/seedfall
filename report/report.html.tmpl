@@ -116,6 +116,7 @@ textarea.issue { width: 100%; height: 220px; margin-top: 8px; background: #0d080
     <tr><td>partition topologies</td><td class="num">{{range $i, $t := .Faults.PartitionTopologies}}{{if $i}} · {{end}}{{$t}}{{end}}</td></tr>
     <tr><td>clogs · swizzles per second</td><td class="num">{{.Faults.ClogPerSec}} · {{.Faults.SwizzlePerSec}}</td></tr>
     <tr><td>connection resets · slowdowns per second per node</td><td class="num">{{.Faults.ResetPerSec}} · {{.Faults.SlowPerSec}}</td></tr>
+    <tr><td>UDP loss · duplication probability per datagram</td><td class="num">{{.Faults.UDPLoss}} · {{.Faults.UDPDup}}</td></tr>
     <tr><td>crash probability per disk operation</td><td class="num">{{.Faults.CrashOnIO}}</td></tr>
     <tr><td>fsync EIO probability</td><td class="num">{{.Faults.FsyncEIO}}</td></tr>
     <tr><td>write EIO · write ENOSPC · read EIO · corrupted read probability</td><td class="num">{{.Faults.WriteEIO}} · {{.Faults.WriteENOSPC}} · {{.Faults.ReadEIO}} · {{.Faults.ReadCorrupt}}</td></tr>
