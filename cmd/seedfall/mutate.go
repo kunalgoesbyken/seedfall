@@ -3,6 +3,7 @@ package main
 import (
 	"cmp"
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -96,6 +97,9 @@ func runMutate(a mutateArgs) (mutateView, error) {
 	lo, hi, err := engine.ParseSeeds(a.Seeds)
 	if err != nil {
 		return mutateView{}, err
+	}
+	if a.App && a.Only != "" {
+		return mutateView{}, errors.New("-only picks runtime mutants and cannot be combined with -app")
 	}
 	mutations, err := engine.ParseMutations(a.Only)
 	if err != nil {

@@ -3,6 +3,7 @@ package engine
 import (
 	"go/parser"
 	"go/token"
+	"math"
 	"reflect"
 	"strings"
 	"testing"
@@ -103,5 +104,18 @@ func TestNumericMarginsAggregateAcrossSeeds(t *testing.T) {
 	}
 	if c["backlog exceeds 100"].SeedsReached != 2 || c["backlog exceeds 100"].SeedsTrue != 0 {
 		t.Fatalf("coverage %+v", *c["backlog exceeds 100"])
+	}
+}
+
+func TestNonFiniteMarginsAreNotKept(t *testing.T) {
+	w, n := antithesisWorld()
+	w.observeNumeric(n.live, Always, true, math.NaN(), "ratio stays positive", "")
+	w.observeNumeric(n.live, Always, true, math.Inf(1), "ratio stays positive", "")
+	if p := w.props["ratio stays positive"]; p == nil || p.Hits != 2 || p.Margin != nil {
+		t.Fatalf("property %+v", p)
+	}
+	w.observeNumeric(n.live, Always, true, 3, "ratio stays positive", "")
+	if m := w.props["ratio stays positive"].Margin; m == nil || *m != 3 {
+		t.Fatalf("margin %v", m)
 	}
 }

@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"maps"
+	"math"
 	"slices"
 	"strings"
 	"time"
@@ -87,7 +88,9 @@ func (p properties) observe(kind PropertyKind, cond bool, msg string) {
 
 func (p properties) margin(kind PropertyKind, msg string, m float64) {
 	prop := p.entry(kind, msg)
-	prop.Margin = prop.Kind.closer(prop.Margin, m)
+	if !math.IsNaN(m) && !math.IsInf(m, 0) {
+		prop.Margin = prop.Kind.closer(prop.Margin, m)
+	}
 }
 
 type PropertyCoverage struct {

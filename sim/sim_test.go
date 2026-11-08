@@ -2,6 +2,8 @@ package sim
 
 import (
 	"fmt"
+	"math"
+	"strings"
 	"testing"
 	"time"
 )
@@ -80,5 +82,11 @@ func TestNumericAndGroupedAssertionsOutsideTheSimulator(t *testing.T) {
 	}
 	if msg := panics(func() { AlwaysSome(map[string]bool{"a": false, "b": false}, "one replica answers") }); msg != `seedfall: one replica answers: {"a":false,"b":false}` {
 		t.Fatalf("grouped failure %q", msg)
+	}
+}
+
+func TestNumericDetailsSurviveValuesJSONCannotEncode(t *testing.T) {
+	if msg := panics(func() { AlwaysGreaterThan(math.NaN(), 0, "ratio is positive") }); !strings.Contains(msg, "left:NaN") {
+		t.Fatalf("numeric failure %q", msg)
 	}
 }

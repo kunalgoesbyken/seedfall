@@ -1121,7 +1121,7 @@ Run some of them with `-only`:
 seedfall mutate -c seedfall.json -seeds 1-20 -only net_dup_chunk,truncate_not_durable
 ```
 
-Over MCP the tool is `seedfall_mutate`, with `config`, optional `seeds` (default `1-100`) and `only`. It returns each mutant's `outcome`, the `killed_by_seed` and `reason` when killed, the `seeds_passed` and how many times the operation was `weakened`.
+`-only` picks among these runtime mutants and cannot be combined with `-app`. Over MCP the tool is `seedfall_mutate`, with `config`, optional `seeds` (default `1-100`) and `only`. It returns each mutant's `outcome`, the `killed_by_seed` and `reason` when killed, the `seeds_passed` and how many times the operation was `weakened`.
 
 ### The new mutants on `examples/ledger`
 
@@ -1561,7 +1561,7 @@ seedfall run -seeds 1-200 -check
 
 Every seed runs twice, and the sweep fails if the two runs diverge. Run it in CI to make sure nothing in your program escapes the simulator.
 
-The comparison does not wait for a difference to reach the trace. Every run keeps a running hash over its host calls: clock reads, `random_get` lengths, sleeps and `poll_oneoff`, file opens, stats, reads, writes, truncates, syncs, renames and directory changes, network listens, dials, accepts, reads, writes and closes, and every `sim` call that reaches the host, each with its node instance, arguments and virtual time. The hash is saved every 4,096 calls. When the two runs differ, seedfall finds the first window of 4,096 calls where they differ, runs the seed twice more recording that window, and reports the first call that differs, in the form `host call N: <call in one run> vs <call in the other>, after <last common call>; host calls <window> (...)`. Each call reads as instance, call, target, argument and virtual time, for example `server#1 random_get(8) at 1.204s` or `server#1 fd_write data/log(37) at 1.204s`. Every `-check` failure is a `nondeterminism` failure.
+The comparison does not wait for a difference to reach the trace. Every run keeps a running hash over its host calls: clock reads, `random_get` lengths, sleeps and `poll_oneoff`, file opens, stats, reads, writes, truncates, syncs, renames and directory changes, network listens, dials, accepts, reads, writes and closes, and the `sim` property, event, history, `Buggify`, `SetupComplete`, `QuietFor` and `Budget` calls, each with its node instance, arguments and virtual time. The hash is saved every 4,096 calls. When the two runs differ, seedfall finds the first window of 4,096 calls where they differ, runs the seed twice more recording that window, and reports the first call that differs, in the form `host call N: <call in one run> vs <call in the other>, after <last common call>; host calls <window> (...)`. Each call reads as instance, call, target, argument and virtual time, for example `server#1 random_get(8) at 1.204s` or `server#1 fd_write data/log(37) at 1.204s`. Every `-check` failure is a `nondeterminism` failure.
 
 If the extra runs do not reproduce the difference, the report names the window instead. If the host calls agree but the traces do not, it falls back to the first differing trace line.
 
@@ -1738,7 +1738,7 @@ In order, stopping at the first stage that fails:
 1. **Replay.** Every failing schedule you name is replayed and must pass now. Each replay runs twice and must produce identical host calls and traces, so a pass cannot be luck.
 2. **Fresh sweep.** New seeds, starting after the highest seed already known, must all pass. By default verify runs as many as needed for 95% confidence that a failure with the historical rate would have shown up: *n = ⌈ln(0.05) / ln(1 − p)⌉*, the same rule the [triage report](reports.md) uses to call a finding resolved. A finding that failed 27.5% of seeds needs 10 clean seeds; when no rate is known, verify assumes a rare failure (1%) and runs 299. `-seeds` overrides the range.
 3. **Determinism.** The first `-check` fresh seeds (default 10) run twice and must produce identical host calls and traces, as with `run -check`.
-4. **Mutants** (with `-mutate`). The [mutants](mutate.md) run over the fresh seeds, and every exercised mutant must still be killed. This catches a "fix" that passes by weakening the checks. With `-app-mutants N`, N [source mutants](mutate.md#source-mutants) of the node packages run too, each as a row naming its line and change, and each one that builds must be killed.
+4. **Mutants** (with `-mutate`). The [mutants](mutate.md) run over the fresh seeds, and every exercised mutant must still be killed. This catches a "fix" that passes by weakening the checks. With `-app-mutants N`, N [source mutants](mutate.md#source-mutants) of the node packages run too, each as a row naming its line and change, and each one that builds must be killed. If the node packages cannot be read to list the source mutants, a `source mutants` row fails the proof.
 
 Any failure is printed with its [classification](reports.md#classification), so a determinism leak is not mistaken for the bug coming back.
 

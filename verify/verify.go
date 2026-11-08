@@ -64,6 +64,7 @@ type Proof struct {
 	Sweep       *Sweep   `json:"sweep,omitempty"`
 	Determinism *Sweep   `json:"determinism,omitempty"`
 	Mutants     []Mutant `json:"mutants,omitempty"`
+	MutantError string   `json:"mutant_error,omitempty"`
 }
 
 func SeedsNeeded(targets []Target) (int, float64) {
@@ -92,9 +93,13 @@ func Run(r *engine.Runner, p Plan) Proof {
 		proof.Mutants = mutants(r, p.Lo, p.Hi, opts)
 	}
 	if proof.Determinism.Failure == nil && p.AppMutants > 0 {
-		proof.Mutants = append(proof.Mutants, appMutants(r, p.AppMutants, p.Lo, p.Hi, opts)...)
+		found, err := appMutants(r, p.AppMutants, p.Lo, p.Hi, opts)
+		proof.Mutants = append(proof.Mutants, found...)
+		if err != nil {
+			proof.MutantError = err.Error()
+		}
 	}
-	proof.Passed = proof.Determinism.Failure == nil && !survived(proof.Mutants)
+	proof.Passed = proof.Determinism.Failure == nil && !survived(proof.Mutants) && proof.MutantError == ""
 	return proof
 }
 
@@ -146,10 +151,10 @@ func mutants(r *engine.Runner, lo, hi uint64, opts engine.SweepOptions) []Mutant
 	return out
 }
 
-func appMutants(r *engine.Runner, n int, lo, hi uint64, opts engine.SweepOptions) []Mutant {
+func appMutants(r *engine.Runner, n int, lo, hi uint64, opts engine.SweepOptions) ([]Mutant, error) {
 	all, err := engine.AppMutants(r)
 	if err != nil {
-		return []Mutant{{Change: err.Error(), Outcome: engine.MutantUnbuilt}}
+		return nil, err
 	}
 	var out []Mutant
 	for _, m := range engine.SweepAppMutants(r, engine.SelectAppMutants(all, n, lo), lo, hi, opts) {
@@ -159,7 +164,7 @@ func appMutants(r *engine.Runner, n int, lo, hi uint64, opts engine.SweepOptions
 		}
 		out = append(out, v)
 	}
-	return out
+	return out, nil
 }
 
 func failure(r *engine.Runner, res engine.Result, s engine.Schedule) *Failure {

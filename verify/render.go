@@ -54,6 +54,9 @@ func (p Proof) rows() []row {
 	for _, m := range p.Mutants {
 		out = append(out, row{mark(m.Outcome != engine.MutantSurvived), "mutant " + cmp.Or(string(m.Mutation), m.Location), mutantResult(m)})
 	}
+	if p.MutantError != "" {
+		out = append(out, row{mark(false), "source mutants", p.MutantError})
+	}
 	return out
 }
 

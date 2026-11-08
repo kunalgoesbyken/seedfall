@@ -12,7 +12,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 )
 
@@ -161,14 +160,19 @@ func SelectAppMutants(all []AppMutant, n int, seed uint64) []AppMutant {
 
 func SweepAppMutants(r *Runner, mutants []AppMutant, lo, hi uint64, opts SweepOptions) []AppMutantResult {
 	out := make([]AppMutantResult, 0, len(mutants))
-	for i, m := range mutants {
-		out = append(out, sweepAppMutant(r, i, m, lo, hi, opts))
+	for _, m := range mutants {
+		out = append(out, sweepAppMutant(r, m, lo, hi, opts))
 	}
 	return out
 }
 
-func sweepAppMutant(r *Runner, i int, m AppMutant, lo, hi uint64, opts SweepOptions) AppMutantResult {
-	cfg, err := buildAppMutant(r.cfg, i, m)
+func sweepAppMutant(r *Runner, m AppMutant, lo, hi uint64, opts SweepOptions) AppMutantResult {
+	dir, err := mutantDir(r.cfg)
+	if err != nil {
+		return AppMutantResult{Mutant: m, BuildError: err.Error()}
+	}
+	defer os.RemoveAll(dir)
+	cfg, err := buildAppMutant(r.cfg, dir, m)
 	if err != nil {
 		return AppMutantResult{Mutant: m, BuildError: err.Error()}
 	}
@@ -181,16 +185,20 @@ func sweepAppMutant(r *Runner, i int, m AppMutant, lo, hi uint64, opts SweepOpti
 	return AppMutantResult{Mutant: m, KilledBy: sum.First, Passed: sum.Passed}
 }
 
-func buildAppMutant(base *Config, i int, m AppMutant) (*Config, error) {
+func mutantDir(cfg *Config) (string, error) {
+	root, err := filepath.Abs(filepath.Join(cfg.Dir, ".seedfall"))
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		return "", err
+	}
+	return os.MkdirTemp(root, "mutant-")
+}
+
+func buildAppMutant(base *Config, dir string, m AppMutant) (*Config, error) {
 	src, err := os.ReadFile(m.file)
 	if err != nil {
-		return nil, err
-	}
-	dir, err := filepath.Abs(filepath.Join(base.Dir, ".seedfall", "mutants", strconv.Itoa(i)))
-	if err != nil {
-		return nil, err
-	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
 	}
 	mutated, err := writeFile(filepath.Join(dir, filepath.Base(m.file)), string(src[:m.start])+m.with+string(src[m.end:]))

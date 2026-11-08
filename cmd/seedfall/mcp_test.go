@@ -7,6 +7,7 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/kunalgoesbyken/seedfall/engine"
@@ -246,5 +247,13 @@ func TestMCPMutateRejectsAnUnknownMutant(t *testing.T) {
 	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "seedfall_mutate", Arguments: map[string]any{"config": "seedfall.json", "only": "fsync_noop,typo"}})
 	if err != nil || !res.IsError {
 		t.Fatalf("an unknown mutant was accepted: %v %v", err, res.Content)
+	}
+}
+
+func TestMCPMutateRejectsOnlyWithApp(t *testing.T) {
+	cs := connect(t)
+	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "seedfall_mutate", Arguments: map[string]any{"config": "seedfall.json", "only": "fsync_noop", "app": true}})
+	if err != nil || !res.IsError || !strings.Contains(res.Content[0].(*mcp.TextContent).Text, "-app") {
+		t.Fatalf("only was accepted with app: %v %v", err, res.Content)
 	}
 }

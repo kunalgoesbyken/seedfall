@@ -60,6 +60,13 @@ func TestProofRendering(t *testing.T) {
 				{Location: "server/main.go:157", Change: "err != nil -> err == nil", Outcome: engine.MutantKilled, Seed: 1},
 			},
 		},
+		"mutant-error": {
+			Config: "seedfall.json", Command: "seedfall verify -seed 9 -app-mutants 3",
+			Replays:     []Replay{{Target: "seed 9", Seed: 9}},
+			Sweep:       sweep,
+			Determinism: &Sweep{Seeds: "1-20", Count: 20, Passed: 20},
+			MutantError: "go list ./server: exit status 1",
+		},
 		"replay-fails": {
 			Config: "seedfall.json", Command: "seedfall verify -seed 9",
 			Replays: []Replay{{Target: "seed 9", Seed: 9, Failure: bug(9, "client#1: acknowledged write lost | k3")}},

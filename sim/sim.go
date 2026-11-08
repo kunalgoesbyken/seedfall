@@ -122,7 +122,10 @@ func detailJSON(fields map[string]any, details []any) string {
 	if len(details) > 0 {
 		fields["details"] = describe(details)
 	}
-	b, _ := json.Marshal(fields)
+	b, err := json.Marshal(fields)
+	if err != nil {
+		return fmt.Sprint(fields)
+	}
 	return string(b)
 }
 
