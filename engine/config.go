@@ -55,18 +55,23 @@ type FaultSpec struct {
 	ClockJumpMax    Duration `json:"clock_jump_max"`
 }
 
+type PreemptSpec struct {
+	Interleave bool `json:"interleave"`
+}
+
 type Config struct {
-	Nodes            []NodeSpec `json:"nodes"`
-	Workload         NodeSpec   `json:"workload"`
-	Duration         Duration   `json:"duration"`
-	Latency          Range      `json:"latency"`
-	Faults           FaultSpec  `json:"faults"`
-	Watchdog         Duration   `json:"watchdog"`
-	NetOverlay       bool       `json:"net_overlay"`
-	CompatOverlay    bool       `json:"compat_overlay"`
-	Supervise        bool       `json:"supervise"`
-	FaultsAfterSetup bool       `json:"faults_after_setup"`
-	Dir              string     `json:"-"`
+	Nodes            []NodeSpec  `json:"nodes"`
+	Workload         NodeSpec    `json:"workload"`
+	Duration         Duration    `json:"duration"`
+	Latency          Range       `json:"latency"`
+	Faults           FaultSpec   `json:"faults"`
+	Watchdog         Duration    `json:"watchdog"`
+	NetOverlay       bool        `json:"net_overlay"`
+	CompatOverlay    bool        `json:"compat_overlay"`
+	Supervise        bool        `json:"supervise"`
+	FaultsAfterSetup bool        `json:"faults_after_setup"`
+	Preempt          PreemptSpec `json:"preempt"`
+	Dir              string      `json:"-"`
 }
 
 func defaultConfig() Config {

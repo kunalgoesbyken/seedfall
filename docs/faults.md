@@ -42,6 +42,7 @@ A world is described in a JSON file, `seedfall.json` by default. Paths inside it
 | `net_overlay` | `false` | Route plain `net.Listen` / `net.Dial` through the simulated network. See [networking.md](networking.md) |
 | `compat_overlay` | `false` | Build dependencies that need `mmap` or `flock` (bbolt, pebble, badger) with `wasip1` shims. See [compat.md](compat.md) |
 | `watchdog` | `30s` | Real-time limit for one node to run without yielding. Catches busy loops and livelocks |
+| `preempt.interleave` | `false` | Preempt the running goroutine after a seeded random number of function calls, so goroutines inside a node interleave at seeded points. See [how-it-works.md](how-it-works.md#preemption) |
 
 Every node sees the environment variables `SEEDFALL=1` and `SEEDFALL_NODE=<name>`, so `sim.Enabled()` and `sim.Node()` work.
 

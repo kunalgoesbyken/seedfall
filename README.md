@@ -170,6 +170,7 @@ The [getting started guide](docs/getting-started.md) walks through finding, shri
 | [`examples/bboltkv`](examples/bboltkv) | Unmodified bbolt through `compat_overlay`, including the directory-fsync finding |
 | [`examples/pebblekv`](examples/pebblekv) | Unmodified pebble v2 through `compat_overlay`, with `Sync` and `NoSync` writes |
 | [`examples/badgerkv`](examples/badgerkv) | Unmodified badger v4 through `compat_overlay`, its writable `mmap` emulated |
+| [`examples/interleave`](examples/interleave) | A check-then-act race between goroutines in one process, found only with seeded preemption (`preempt.interleave`) |
 | [`examples/gostman`](examples/gostman) | A [Gostman](https://github.com/kunalgoesbyken/gostman) collection as the workload: its checks must pass after every fault window |
 
 `bash scripts/regress.sh` runs every example against its expected result.
@@ -177,9 +178,8 @@ The [getting started guide](docs/getting-started.md) walks through finding, shri
 ## Limitations
 
 - Code must build for `GOOS=wasip1`, so no cgo. Dependencies that need `mmap` or `flock` work only if seedfall ships a shim for them: bbolt, pebble and badger do, through `compat_overlay` ([compat](docs/compat.md)).
-- Goroutine interleavings inside a node come from the Go scheduler under a seeded random source. There is no systematic preemption, so use `go test -race` for shared-memory races. seedfall targets distributed and storage bugs.
-- There is no asynchronous preemption, so a goroutine that spins without making a syscall starves the others in its node. gRPC's transparent retry does this after a peer crashes, which shows up as a false watchdog livelock; [`examples/jmsraft`](examples/jmsraft) uses a plain TCP transport for this reason.
-- The guest's wall clock does not advance while it runs between scheduling points, so two `time.Now()` calls in a row can return the same value. Code that names files by timestamp can collide in a way it would not on real hardware.
+- Preemption is counted in function calls, not time: a goroutine that spins is preempted after about four million calls, and a loop that makes no function call at all is never preempted.
+- Goroutine interleavings inside a node come from the Go scheduler under a seeded random source. `"preempt": {"interleave": true}` adds seeded preemption points between function calls, which finds check-then-act races between goroutines ([`examples/interleave`](examples/interleave)), but it samples interleavings rather than enumerating them and does not detect data races the way `go test -race` does.
 - `reorder_writes` models the page cache as independent 4 KiB pages, which is weaker than ext4 `data=ordered` for appends: it can persist a later appended page before an earlier one, which ext4 does not. Directory operations under `strict_dirs` still persist as an in-order prefix, as on journaling file systems; ext2 and btrfs can reorder them, which is not modeled.
 - Real time is spent on guest CPU and node boots, never on idle virtual time. A busy 3-node NATS JetStream cluster under faults simulates about 2.5-3x faster than real time and a mostly idle JetStream node about 7x, but short seeds of large guests are dominated by booting each node (0.1-0.3s per start for nats-server). Sweeps add one core per seed. See [how it works](docs/how-it-works.md#speed).
 

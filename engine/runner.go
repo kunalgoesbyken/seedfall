@@ -70,7 +70,7 @@ func (r *Runner) compile(ctx context.Context) error {
 			if err != nil {
 				return fmt.Errorf("node %s: %w", s.Name, err)
 			}
-			if byPath[path], err = r.rt.CompileModule(ctx, b); err != nil {
+			if byPath[path], err = r.rt.CompileModule(ctx, instrument(b)); err != nil {
 				return fmt.Errorf("compile %s: %w", s.Name, err)
 			}
 		}

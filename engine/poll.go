@@ -44,6 +44,9 @@ func wasiModule(ctx context.Context, rt wazero.Runtime) error {
 	b.NewFunctionBuilder().
 		WithGoModuleFunction(api.GoModuleFunc(func(ctx context.Context, m api.Module, stack []uint64) { worldOf(ctx).pollOneoff(ctx, m, stack) }), []api.ValueType{i32, i32, i32, i32}, []api.ValueType{i32}).
 		Export("poll_oneoff")
+	b.NewFunctionBuilder().
+		WithGoModuleFunction(api.GoModuleFunc(func(ctx context.Context, m api.Module, stack []uint64) { worldOf(ctx).schedYield(ctx, m, stack) }), nil, []api.ValueType{i32}).
+		Export("sched_yield")
 	_, err := b.Instantiate(ctx)
 	return err
 }
