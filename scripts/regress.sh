@@ -36,8 +36,8 @@ expect_replay() {
 deterministic() {
   local dir="$1" config="$2" seed="$3"
   local a b
-  a="$(cd "$root/examples/$dir" && "$bin" replay -c "$config" -seed "$seed" 2>&1 | sed -E 's/[0-9.]+(ms|s) real//')"
-  b="$(cd "$root/examples/$dir" && "$bin" replay -c "$config" -seed "$seed" 2>&1 | sed -E 's/[0-9.]+(ms|s) real//')"
+  a="$(cd "$root/examples/$dir" && "$bin" replay -c "$config" -seed "$seed" 2>&1 | sed -E 's/[0-9hmsµ.]+ real//')"
+  b="$(cd "$root/examples/$dir" && "$bin" replay -c "$config" -seed "$seed" 2>&1 | sed -E 's/[0-9hmsµ.]+ real//')"
   if [ "$a" = "$b" ]; then
     printf 'PASS  %-8s %-24s replay of seed %s is identical (%d lines)\n' "$dir" "$config" "$seed" "$(printf '%s\n' "$a" | wc -l)"
   else
