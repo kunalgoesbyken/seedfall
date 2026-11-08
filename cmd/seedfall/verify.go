@@ -156,11 +156,11 @@ func verifyTargets(a verifyArgs) ([]verify.Target, uint64, error) {
 	var targets []verify.Target
 	var last uint64
 	if a.Seed != nil {
-		faults, err := readFaults(a.Faults)
+		sched, err := readSchedule(a.Faults)
 		if err != nil {
 			return nil, 0, err
 		}
-		targets = append(targets, verify.Target{Label: scheduleLabel(*a.Seed, a.Faults), Seed: *a.Seed, Faults: faults})
+		targets = append(targets, verify.Target{Label: scheduleLabel(*a.Seed, a.Faults), Seed: *a.Seed, Schedule: sched})
 		last = *a.Seed
 	}
 	if a.Report == "" {
@@ -198,11 +198,11 @@ func savedSchedule(config string, seed uint64, f report.Finding) ([]verify.Targe
 	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
-	faults, err := readFaults(path)
+	sched, err := readSchedule(path)
 	if err != nil {
 		return nil, err
 	}
-	return []verify.Target{{Label: fmt.Sprintf("%s %s", f.Key, scheduleLabel(seed, path)), Seed: seed, Faults: faults, Rate: f.Rate}}, nil
+	return []verify.Target{{Label: fmt.Sprintf("%s %s", f.Key, scheduleLabel(seed, path)), Seed: seed, Schedule: sched, Rate: f.Rate}}, nil
 }
 
 func scheduleLabel(seed uint64, faultsFile string) string {

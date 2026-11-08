@@ -39,3 +39,11 @@ func TestEventuallyOutsideTheSimulator(t *testing.T) {
 	}()
 	Eventually(func() bool { return false }, "never", 10*time.Millisecond)
 }
+
+func TestBudgetIsTheFullCountOutsideTheSimulator(t *testing.T) {
+	for _, n := range []int{0, 1, 200} {
+		if got := Budget(n); got != n {
+			t.Fatalf("Budget(%d) = %d outside the simulator", n, got)
+		}
+	}
+}

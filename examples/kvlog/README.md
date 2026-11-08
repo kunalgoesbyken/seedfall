@@ -5,7 +5,7 @@ A log-structured key-value server that appends `key=value` lines to `data/kv.log
 | Config | Server flags | Result |
 |---|---|---|
 | `seedfall.json` | `-sync batch` (acknowledges before fsync) | fails on seed 1 |
-| `seedfall.always.json` | `-sync always` | **still fails** on seed 1. A crash mid-append leaves a torn tail; recovery doesn't truncate it, so the next record is glued onto garbage. Shrinks from 33 faults to 2 |
+| `seedfall.always.json` | `-sync always` | **still fails** on seed 1. A crash mid-append leaves a torn tail; recovery doesn't truncate it, so the next record is glued onto garbage. Shrinks from 33 faults to 2, with the run cut from 60s to 991ms and the workload from 200 writes to 63, saved in `torntail.faults.json` |
 | `seedfall.fixed.json` | `-sync always -repair` | passes (3,000 seeds tested) |
 | `seedfall.strict.json` | as fixed, plus `strict_dirs` | passes |
 | `seedfall.fsyncgate.json` | as fixed, plus `fsync_eio` | **fails again** on seed 1. A failed fsync leaves the record in the page cache but not on disk, later fsyncs succeed, and recovery truncates at the hole, dropping every later acknowledged write. Shrinks from 37 faults to 2 |
@@ -23,5 +23,7 @@ seedfall shrink -c seedfall.always.json -seed 1
 seedfall inspect -c seedfall.misdirected.json -seed 4 -node server   # the corrupted ranges
 go test ./...    # seedfall_test.go sweeps the fixed config from go test
 ```
+
+The client wraps its write count in `sim.Budget`, so `seedfall shrink` can lower it ([workload size](../../docs/properties.md#workload-size)).
 
 See the [getting started guide](../../docs/getting-started.md) for a walkthrough.

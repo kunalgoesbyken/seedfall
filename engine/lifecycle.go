@@ -73,8 +73,8 @@ func (w *world) livenessDue(next int64) bool {
 	switch {
 	case within <= 0:
 		return false
-	case !w.recovering && next > int64(w.cfg.Duration):
-		w.now = max(w.now, int64(w.cfg.Duration))
+	case !w.recovering && next > w.horizon:
+		w.now = max(w.now, w.horizon)
 		w.recover("the fault period ended")
 		return true
 	case next > w.deadline:

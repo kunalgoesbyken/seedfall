@@ -33,6 +33,15 @@ expect_replay() {
   printf '%s  %-8s %-24s want=%-4s  replay seed %s with %s: %s\n' "$verdict" "$dir" "$config" "$want" "$seed" "$faults" "$got"
 }
 
+expect_shrink() {
+  local dir="$1" config="$2" seed="$3" want="$4"
+  local got
+  got="$(cd "$root/examples/$dir" && "$bin" shrink -c "$config" -seed "$seed" 2>&1 | sed -n -E 's/^ +to (.*)$/\1/p')"
+  local verdict="PASS"
+  [ "$got" != "$want" ] && verdict="FAIL" && failures=$((failures + 1))
+  printf '%s  %-8s %-24s shrink seed %s: want %s, got %s\n' "$verdict" "$dir" "$config" "$seed" "$want" "$got"
+}
+
 deterministic() {
   local dir="$1" config="$2" seed="$3"
   local a b
@@ -60,6 +69,8 @@ expect kvlog  seedfall.misdirected.json 1-20 fail
 expect kvlog  seedfall.bitrot.json   1-20   fail
 expect_replay kvlog seedfall.readcorrupt.json 1 readcorrupt.faults.json fail
 expect_replay kvlog seedfall.checksum.json    1 readcorrupt.faults.json pass
+expect_replay kvlog seedfall.always.json      1 torntail.faults.json fail
+expect_shrink kvlog seedfall.always.json      1 "2 faults, 991ms, 63 workload ops"
 expect raftkv seedfall.json          1-40   pass
 expect raftkv seedfall.nofsync.json  1-120  fail
 expect raftkv seedfall.lin.json      1-30   pass

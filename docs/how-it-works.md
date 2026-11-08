@@ -66,7 +66,46 @@ See [properties.md](properties.md).
 
 ## Shrinking
 
-`seedfall shrink` removes faults one at a time for as long as the run still fails the same way (same class, node, property and message, ignoring numbers), so it never trades the bug for a different one. It then writes the minimal schedule to `.seedfall/seed-N.faults.json`. Faults that happen at run time, such as a crash during the N-th disk operation or an fsync EIO, are recorded with their operation index so the schedule replays exactly.
+`seedfall shrink` replays a failing seed under smaller and smaller variations and keeps a change only while the run still fails the same way: same class, node, property and message, ignoring numbers. It never trades the bug for a different one, and every schedule it keeps is one it actually ran. It works in passes:
+
+1. **Remove faults by delta debugging** (ddmin). Try half the schedule, then each half on its own, then quarters, eighths and so on down to removing single faults. In `examples/kvlog`, seed 1 goes from 33 faults to the 2 it needs in 16 runs. The last round removes one fault at a time, so the result is 1-minimal: removing any fault left makes the failure go away or change.
+2. **Cap the workload** if it sizes itself with [`sim.Budget`](properties.md#workload-size), by bisecting the operation count.
+3. **Trim the duration** by bisecting the run's horizon down toward the failure.
+4. **Simplify each fault**: shorten crash downtimes, partitions, pauses, clogs and slowdowns (`until` moves toward `at`), shrink clock jumps toward zero, take nodes off the cut side of a partition (a partition into groups keeps its groups), and move planned faults earlier. Faults recorded at run time, such as a crash during a disk operation, keep their operation index; only their downtime shrinks.
+
+Passes 2 to 4 repeat, with another removal round after each, until nothing changes. Times are bisected to the millisecond. The shrinker makes no random choices of its own, so a seed always shrinks to the same schedule.
+
+Candidates of one round run at once on `-j` workers (all cores by default), and the shrinker takes the first one that fails, in the order it would have tried them one by one. The schedule and run count are the same for any `-j`. `-budget` stops early: a number (`-budget 300`) counts those runs, so the result is still reproducible, while a duration (`-budget 10m`) is wall-clock time and depends on the machine. With more than one job, a round can also start runs whose results are thrown away. When the budget runs out, shrink saves the smallest failing schedule so far and says it may not be minimal.
+
+The output shows each improvement with the runs used so far and the faults left, then the sizes before and after:
+
+```
+  run   16    2 faults  removed 1 of 3 faults
+  run   26    2 faults  sim.Budget capped at 107 of 200 operations
+  run   43    2 faults  duration 1.965s instead of 1m0s
+  ...
+shrunk from 33 faults, 1m0s, 200 workload ops
+         to 2 faults, 991ms, 63 workload ops
+in 191 runs, 14.296s
+```
+
+The schedule is saved to `.seedfall/seed-N.faults.json`:
+
+```json
+{
+  "seed": 1,
+  "faults": [
+    { "at": "427.268419ms", "kind": "crash_io", "node": "server", "until": "761.268419ms", "op": 56 },
+    { "at": "802ms", "kind": "crash", "node": "server", "until": "802ms" }
+  ],
+  "duration": "991ms",
+  "ops": 63,
+  "shrunk_from": { "faults": 33, "duration": "1m0s", "ops": 200 },
+  "shrink_runs": 191
+}
+```
+
+`replay`, `inspect` and `verify` take it with `-faults`. `duration` replaces the config's `duration` and `ops` caps `sim.Budget`; leave either out to use the config. A bare JSON array of faults, the format older versions wrote, still works. A replay that passes only because the shortened `duration` ended it before the workload finished prints a note saying so, and `verify` replays schedules for the config's full duration, so a cut-short run never counts as proof of a fix.
 
 ## Speed
 

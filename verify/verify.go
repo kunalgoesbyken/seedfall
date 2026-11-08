@@ -10,10 +10,10 @@ import (
 )
 
 type Target struct {
-	Label  string
-	Seed   uint64
-	Faults []engine.Fault
-	Rate   float64
+	Label    string
+	Seed     uint64
+	Schedule engine.Schedule
+	Rate     float64
 }
 
 type Plan struct {
@@ -102,8 +102,10 @@ func replay(r *engine.Runner, targets []Target, jobs int) []Replay {
 		slots <- struct{}{}
 		wg.Go(func() {
 			defer func() { <-slots }()
-			res := r.Run(t.Seed, t.Faults)
-			out[i] = Replay{Target: t.Label, Seed: t.Seed, Failure: failure(r, res, t.Faults)}
+			s := t.Schedule
+			s.Duration = 0
+			res := r.Replay(t.Seed, s)
+			out[i] = Replay{Target: t.Label, Seed: t.Seed, Failure: failure(r, res, s)}
 		})
 	}
 	wg.Wait()
@@ -115,7 +117,7 @@ func sweep(r *engine.Runner, lo, hi uint64, opts engine.SweepOptions) *Sweep {
 	out := &Sweep{Seeds: seedRange(lo, hi), Count: int(hi - lo + 1), Passed: sum.Passed}
 	out.Detectable = report.DetectableRate(out.Count)
 	if sum.First != nil {
-		out.Failure = failure(r, *sum.First, nil)
+		out.Failure = failure(r, *sum.First, engine.Schedule{})
 	}
 	return out
 }
@@ -138,11 +140,11 @@ func mutants(r *engine.Runner, lo, hi uint64, opts engine.SweepOptions) []Mutant
 	return out
 }
 
-func failure(r *engine.Runner, res engine.Result, faults []engine.Fault) *Failure {
+func failure(r *engine.Runner, res engine.Result, s engine.Schedule) *Failure {
 	if !res.Failed {
 		return nil
 	}
-	return &Failure{Seed: res.Seed, Reason: res.Reason, Classification: r.Classify(res, faults)}
+	return &Failure{Seed: res.Seed, Reason: res.Reason, Classification: r.Classify(res, s)}
 }
 
 func failed(replays []Replay) bool {

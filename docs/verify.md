@@ -44,7 +44,7 @@ Any failure is printed with its [classification](reports.md#classification), so 
 | Flags | Replays |
 |---|---|
 | `-seed N` | seed N with its generated faults |
-| `-seed N -faults file.json` | seed N under a saved schedule, for example one written by `seedfall shrink` |
+| `-seed N -faults file.json` | seed N under a saved schedule, for example one written by `seedfall shrink`. Its faults and `ops` cap are kept, but it runs for the config's full `duration`: a shrunk schedule's shorter duration could end the run before the workload checks anything |
 | `-report .seedfall/report.html` | every example seed of every finding in a [triage report](reports.md), plus any schedule `shrink` saved for those seeds in `.seedfall/`. The findings' failure rates set the sweep size |
 
 `-seed` and `-report` can be combined. Point `-c` at the config of the code you changed; the report can come from an earlier run of the same or another config.

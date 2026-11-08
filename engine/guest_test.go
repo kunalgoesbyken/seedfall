@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -127,6 +128,27 @@ func TestGuestDoublecheckPasses(t *testing.T) {
 	}
 }
 
+func TestGuestBudgetCapsTheWorkloadAndShortensTheRun(t *testing.T) {
+	r := guestRunner(t, true)
+	full := r.Run(3, nil)
+	if full.Ops != 60 {
+		t.Fatalf("the client asked sim.Budget for %d operations, want 60", full.Ops)
+	}
+	capped := r.Replay(3, Schedule{Faults: []Fault{}, Ops: 5, Duration: Duration(time.Second)})
+	if capped.Ops != 60 || capped.Horizon != time.Second {
+		t.Fatalf("capped run reports %d ops wanted and a %s horizon", capped.Ops, capped.Horizon)
+	}
+	if !slices.ContainsFunc(capped.Trace, func(l string) bool { return strings.Contains(l, "sim.Budget capped at 5 of 60 operations") }) {
+		t.Fatalf("the trace does not show the cap:\n%s", strings.Join(capped.Trace, "\n"))
+	}
+	if again := r.Replay(3, Schedule{Faults: []Fault{}, Ops: 5, Duration: Duration(time.Second)}); !reflect.DeepEqual(again.Trace, capped.Trace) {
+		t.Fatal("a capped schedule does not replay exactly")
+	}
+	if !capped.Finished || capped.Steps >= full.Steps {
+		t.Fatalf("5 of 60 writes took %d steps (finished %v), the full run %d", capped.Steps, capped.Finished, full.Steps)
+	}
+}
+
 func TestGuestSweepDoesNotDependOnParallelism(t *testing.T) {
 	r := guestRunner(t, false)
 	failing := func(jobs int) []uint64 {
@@ -172,17 +194,19 @@ func TestGuestFailureReplaysFromItsSchedule(t *testing.T) {
 func TestGuestShrinkKeepsTheFailureAndIsMinimal(t *testing.T) {
 	r := guestRunner(t, false)
 	failed := firstFailure(t, r)
-	best := Shrink(r, failed, func(int) {})
+	shrunk := Shrink(r, failed, ShrinkOptions{Jobs: 2})
+	best := shrunk.Result
 	if !best.sameFailure(failed) || len(best.Faults) > len(failed.Faults) {
 		t.Fatalf("shrunk to %d faults failing with %q, from %d failing with %q", len(best.Faults), best.Reason, len(failed.Faults), failed.Reason)
 	}
-	if again := r.Run(best.Seed, best.Faults); !reflect.DeepEqual(again.Trace, best.Trace) {
+	if again := r.Replay(best.Seed, shrunk.Schedule); !reflect.DeepEqual(again.Trace, best.Trace) {
 		t.Fatal("the shrunk schedule does not replay exactly")
 	}
-	for i := range best.Faults {
-		without := slices.Delete(slices.Clone(best.Faults), i, i+1)
-		if r.Run(best.Seed, without).sameFailure(failed) {
-			t.Fatalf("removing %s still fails the same way", best.Faults[i].Describe())
+	for i := range shrunk.Schedule.Faults {
+		without := shrunk.Schedule
+		without.Faults = slices.Delete(slices.Clone(without.Faults), i, i+1)
+		if r.Replay(best.Seed, without).sameFailure(failed) {
+			t.Fatalf("removing %s still fails the same way", shrunk.Schedule.Faults[i].Describe())
 		}
 	}
 }
@@ -300,11 +324,12 @@ func TestGuestLostWriteShrinksToTheLostWrite(t *testing.T) {
 	r := guestRunner(t, true)
 	r.cfg.Faults.LostWrite = 0.2
 	failed := firstFailure(t, r)
-	best := Shrink(r, failed, func(int) {})
+	shrunk := Shrink(r, failed, ShrinkOptions{Jobs: 2})
+	best := shrunk.Result
 	if !best.sameFailure(failed) || !diskKinds(best)[FaultLostWrite] {
 		t.Fatalf("shrunk to %v failing with %q", best.Faults, best.Reason)
 	}
-	if again := r.Run(best.Seed, best.Faults); !reflect.DeepEqual(again.Trace, best.Trace) {
+	if again := r.Replay(best.Seed, shrunk.Schedule); !reflect.DeepEqual(again.Trace, best.Trace) {
 		t.Fatal("the shrunk schedule does not replay exactly")
 	}
 }

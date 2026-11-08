@@ -30,11 +30,14 @@ seedfall shrink -c C -seed N
 This writes the minimal schedule to `.seedfall/seed-N.faults.json` and prints it, for example:
 
 ```
-  427.268ms  crash server during disk op #56, restart at 791.388ms
-   1.7052s  crash server, restart at 1.942589s
+  427.268ms  crash server during disk op #56, restart at 761.268ms
+     802ms  crash server, restart at 802ms
+...
+shrunk from 33 faults, 1m0s, 200 workload ops
+         to 2 faults, 991ms, 63 workload ops
 ```
 
-Every fault left is needed for the failure. `crash ... during disk op #k` means the node died in the middle of its k-th disk operation, usually between a write and its fsync, or between a rename and the directory fsync.
+Every fault left is needed for the failure. Shrink also shortens downtimes, partitions and pauses, shrinks clock jumps, narrows partition sides and moves faults earlier, so the times that are left matter too. It trims the run's duration and, if the workload sizes itself with `sim.Budget`, its operation count. On a long run, add `-budget 300` (runs) or `-budget 10m` (time); if the output says the budget ran out, the schedule still fails the same way but may not be minimal. `crash ... during disk op #k` means the node died in the middle of its k-th disk operation, usually between a write and its fsync, or between a rename and the directory fsync.
 
 A failure with class `liveness` (the workload or the `finally` check did not finish within `liveness.within`, or a `sim.Eventually` never held) shrinks the same way. The faults left are the ones that leave the system stuck even after the `recovery:` line in the trace, where every fault stops and crashed nodes restart. Read the node output after that line to see which node stopped making progress.
 
@@ -62,7 +65,7 @@ A `linearizability` or `isolation` failure is about the recorded history, not th
 
 Write the explanation down as one sentence, for example "the crash in op #56 leaves a torn record, and recovery appends after it instead of truncating". Then test it by changing one thing and replaying.
 
-- **Drop a fault.** Copy `.seedfall/seed-N.faults.json` to `hypothesis.json` and delete one entry. The schedule is a JSON array of `{"at", "kind", "node", "until", "op", ...}`. Then run `seedfall replay -c C -seed N -faults hypothesis.json`. If it now passes, that fault is necessary. If it still fails, compare the failure message with the original: a different message means you uncovered a second bug, so note it and triage it separately.
+- **Drop a fault.** Copy `.seedfall/seed-N.faults.json` to `hypothesis.json` and delete one entry. The schedule is a JSON object whose `faults` array holds `{"at", "kind", "node", "until", "op", ...}`, plus `duration` and `ops` when shrink trimmed them (older files are a bare array of faults). Then run `seedfall replay -c C -seed N -faults hypothesis.json`. If it now passes, that fault is necessary. If it still fails, compare the failure message with the original: a different message means you uncovered a second bug, so note it and triage it separately.
 - **Move a fault.** Change `op` on a `crash_io` entry, or `at` on a `crash`, to put the crash just before or after the suspect operation, then replay again. On a `buggify` entry, `op` is which hit of that site on that node fires.
 - **Change the world.** In a copy of `C`, turn off `torn_writes`, or turn `strict_dirs` on or off, and replay the same seed. If the failure needs torn writes, the bug is in recovery parsing. If it needs `strict_dirs`, a directory fsync is missing.
 

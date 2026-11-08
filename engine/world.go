@@ -83,6 +83,9 @@ type world struct {
 	net         *network
 	events      chan event
 	faults      []Fault
+	horizon     int64
+	opsLimit    int64
+	opsWanted   int64
 	nextFault   int
 	netFaults   []Fault
 	trace       *tracer
@@ -182,6 +185,10 @@ func hostModule(ctx context.Context, rt wazero.Runtime) error {
 	export("quiet", func(ctx context.Context, ns int64) {
 		w := worldOf(ctx)
 		w.quietFor(w.instance(ctx), time.Duration(ns))
+	})
+	export("budget", func(ctx context.Context, n int64) int64 {
+		w := worldOf(ctx)
+		return w.budget(w.instance(ctx), n)
 	})
 	export("fail", func(ctx context.Context, m api.Module, p, n uint32) {
 		w := worldOf(ctx)
@@ -473,7 +480,7 @@ func compareStep(a, b step) int {
 }
 
 func (w *world) loop() {
-	horizon := int64(w.cfg.Duration)
+	horizon := w.horizon
 	for w.failure == "" && !w.finished {
 		candidates := w.nextSteps()
 		if len(candidates) == 0 {

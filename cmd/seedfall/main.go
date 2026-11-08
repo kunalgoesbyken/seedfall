@@ -19,7 +19,7 @@ usage:
   seedfall init   [-dir .] [-c seedfall.json] [-node ./cmd/server]... [-workload seedfall/workload] [-n] [-json]
   seedfall run    [-c seedfall.json] [-seeds 1-1000] [-j N] [-v] [-check] [-report report.html | -json]
   seedfall replay [-c seedfall.json] -seed N [-faults file.json]
-  seedfall shrink [-c seedfall.json] -seed N
+  seedfall shrink [-c seedfall.json] -seed N [-j N] [-budget 500 | -budget 10m]
   seedfall cause  [-c seedfall.json] -seed N [-points 16] [-branches 20]
   seedfall inspect [-c seedfall.json] -seed N [-faults file.json] [-at DURATION] [-node name] [-cat path | -out dir]
   seedfall mutate [-c seedfall.json] [-seeds 1-100]
@@ -95,7 +95,7 @@ func cmdRun(args []string) error {
 	}
 	if sum.First != nil {
 		printFailure(*sum.First, 25)
-		fmt.Printf("\nclass: %s\n", r.Classify(*sum.First, nil))
+		fmt.Printf("\nclass: %s\n", r.Classify(*sum.First, engine.Schedule{}))
 		fmt.Printf("\n%d seeds passed before the failure, %s\n", sum.Passed, took)
 		fmt.Printf("replay: seedfall replay -c %s -seed %d\nshrink: seedfall shrink -c %s -seed %d\n", *conf, sum.First.Seed, *conf, sum.First.Seed)
 		os.Exit(1)
@@ -149,7 +149,7 @@ func printBuggify(c engine.BuggifySites) {
 
 func writeReport(r *engine.Runner, cfg *engine.Config, conf, seeds, path string, sum engine.Summary, took time.Duration) error {
 	in := report.Input{Config: conf, Seeds: seeds, Faults: cfg.Faults, Summary: sum, Elapsed: took, Replay: func(seed uint64) engine.Result { return r.Run(seed, nil) }}
-	in.Classify = func(res engine.Result) engine.Classification { return r.Classify(res, nil) }
+	in.Classify = func(res engine.Result) engine.Classification { return r.Classify(res, engine.Schedule{}) }
 	rep, err := report.Generate(in, path, filepath.Join(cfg.Dir, ".seedfall", "history.jsonl"))
 	if err != nil {
 		return err
@@ -208,49 +208,27 @@ func cmdReplay(args []string) error {
 	seed := seedFlag(fs)
 	faultsFile := fs.String("faults", "", "fault schedule from seedfall shrink")
 	fs.Parse(args)
-	r, _, err := load(*conf)
+	r, cfg, err := load(*conf)
 	if err != nil {
 		return err
 	}
-	faults, err := readFaults(*faultsFile)
+	sched, err := readSchedule(*faultsFile)
 	if err != nil {
 		return err
 	}
-	res := r.Run(*seed, faults)
+	res := r.Replay(*seed, sched)
 	if !res.Failed {
 		for _, l := range res.Trace {
 			fmt.Println(l)
 		}
 		fmt.Printf("\nseed %d: %s, %d steps, %s real\n", *seed, status(res), res.Steps, res.Elapsed.Round(time.Millisecond))
+		if note := cutShort(res, cfg); note != "" {
+			fmt.Println("note:", note)
+		}
 		saveHistory(res).print()
 		return nil
 	}
 	printFailure(res, 0)
 	os.Exit(1)
-	return nil
-}
-
-func cmdShrink(args []string) error {
-	fs := flag.NewFlagSet("shrink", flag.ExitOnError)
-	conf := fs.String("c", "seedfall.json", "config file")
-	seed := seedFlag(fs)
-	fs.Parse(args)
-	r, _, err := load(*conf)
-	if err != nil {
-		return err
-	}
-	original := r.Run(*seed, nil)
-	if !original.Failed {
-		return errors.New("seed does not fail, nothing to shrink")
-	}
-	fmt.Printf("seed %d fails with %d faults: %s\nshrinking...\n", *seed, len(original.Faults), original.Reason)
-	best := engine.Shrink(r, original, func(n int) { fmt.Printf("  %d faults still fail\n", n) })
-	out, err := saveSchedule(*conf, *seed, best.Faults)
-	if err != nil {
-		return err
-	}
-	fmt.Println()
-	printFailure(best, 40)
-	fmt.Printf("\nminimal schedule: %s\nreplay: seedfall replay -c %s -seed %d -faults %s\n", out, *conf, *seed, out)
 	return nil
 }

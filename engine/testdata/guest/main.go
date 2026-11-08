@@ -30,7 +30,7 @@ func main() {
 	flag.Parse()
 	switch *role {
 	case "client":
-		client(*writes, *record, *forever)
+		client(sim.Budget(*writes), *record, *forever)
 	case "finally":
 		sim.Eventually(func() bool {
 			stored, err := call("COUNT")

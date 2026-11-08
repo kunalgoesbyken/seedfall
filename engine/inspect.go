@@ -104,7 +104,7 @@ type probe struct {
 	disks []Disk
 }
 
-func (r *Runner) Inspect(seed uint64, faults []Fault, opts InspectOptions) (Inspection, error) {
+func (r *Runner) Inspect(seed uint64, s Schedule, opts InspectOptions) (Inspection, error) {
 	if opts.At < 0 {
 		return Inspection{}, fmt.Errorf("inspect time %s is negative", opts.At)
 	}
@@ -115,8 +115,8 @@ func (r *Runner) Inspect(seed uint64, faults []Fault, opts InspectOptions) (Insp
 	if opts.At == 0 {
 		p.at = never
 	}
-	faults, explicit := r.schedule(seed, faults)
-	res := r.run(seed, faults, explicit, nil, p)
+	s, explicit := r.schedule(seed, s)
+	res := r.run(seed, s, explicit, nil, p)
 	return Inspection{Result: res, At: time.Duration(p.when), Disks: p.disks}, nil
 }
 

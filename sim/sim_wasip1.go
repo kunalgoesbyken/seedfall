@@ -54,6 +54,11 @@ func hostQuiet(ns int64)
 
 func quietFor(d time.Duration) { hostQuiet(int64(d)) }
 
+//go:wasmimport seedfall budget
+func hostBudget(n int64) int64
+
+func budget(n int) int { return int(hostBudget(int64(n))) }
+
 //go:wasmimport seedfall buggify
 func hostBuggify(site unsafe.Pointer, n uint32, p float64) int32
 

@@ -46,10 +46,15 @@ seedfall shrink -c seedfall.always.json -seed 1
 ```
 
 ```
-faults before the failure (2):        # shrunk from 33
-  427.268ms  crash server during disk op #56, restart at 791.388ms
-   1.7052s  crash server, restart at 1.942589s
+faults before the failure (2):
+  427.268ms  crash server during disk op #56, restart at 761.268ms
+     802ms  crash server, restart at 802ms
+...
+shrunk from 33 faults, 1m0s, 200 workload ops
+         to 2 faults, 991ms, 63 workload ops
 ```
+
+Shrink removed 31 faults, then made what was left simpler: the first crash restarts 30ms sooner, the second moved from 1.7s to 0.8s with no downtime, the run ends at 991ms instead of 60s, and the client, which sizes itself with [`sim.Budget`](properties.md#workload-size), sends 63 writes instead of 200.
 
 The first crash lands in the middle of an append and leaves a torn, half-written line. On restart, recovery skips the bad line but keeps appending after it, so the next record is glued onto the garbage. The second crash forces another recovery, which can no longer parse that record.
 

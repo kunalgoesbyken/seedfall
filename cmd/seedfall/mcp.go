@@ -3,11 +3,7 @@ package main
 import (
 	"cmp"
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -85,6 +81,7 @@ type seedView struct {
 	Steps   int          `json:"steps"`
 	Failure *failureView `json:"failure,omitempty"`
 	Trace   []string     `json:"trace_tail,omitempty"`
+	Note    string       `json:"note,omitempty"`
 }
 
 type causeArgs struct {
@@ -130,13 +127,6 @@ type inspectView struct {
 	File    *fileView     `json:"file,omitempty"`
 }
 
-type shrinkView struct {
-	OriginalFaults int          `json:"original_faults"`
-	MinimalFaults  int          `json:"minimal_faults"`
-	ScheduleFile   string       `json:"schedule_file"`
-	Failure        *failureView `json:"failure"`
-}
-
 func cmdMCP([]string) error {
 	server, err := newMCPServer()
 	if err != nil {
@@ -166,7 +156,7 @@ func newMCPServer() (*mcp.Server, error) {
 	}, toolReplay)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "seedfall_shrink",
-		Description: "Minimize the fault schedule of a failing seed to the faults that still cause the failure, and save it for replay.",
+		Description: "Minimize a failing seed while it keeps failing the same way: remove faults by delta debugging, then shorten crash downtimes, partitions, pauses, clogs and slowdowns, shrink clock jumps, narrow partition sides, move faults earlier, trim the run duration and, for workloads sized with sim.Budget, the operation count. Saves the schedule for replay and returns the sizes before and after, the runs used and whether the optional budget ran out.",
 	}, toolShrink)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "seedfall_cause",
@@ -205,48 +195,32 @@ func toolRun(_ context.Context, _ *mcp.CallToolRequest, a runArgs) (*mcp.CallToo
 	out := runView{Passed: sum.Passed, Unfinished: sum.Unfinished, Properties: properties(sum.Coverage), Buggify: buggifySites(sum.Buggify), Elapsed: time.Since(started).Round(time.Millisecond).String()}
 	if sum.First != nil {
 		out.Failure = viewFailure(a.Config, *sum.First)
-		class := r.Classify(*sum.First, nil)
+		class := r.Classify(*sum.First, engine.Schedule{})
 		out.Failure.Class = &class
 	}
 	return nil, out, nil
 }
 
 func toolReplay(_ context.Context, _ *mcp.CallToolRequest, a seedArgs) (*mcp.CallToolResult, seedView, error) {
-	r, _, err := load(a.Config)
+	r, cfg, err := load(a.Config)
 	if err != nil {
 		return nil, seedView{}, err
 	}
-	faults, err := readFaults(a.Faults)
+	sched, err := readSchedule(a.Faults)
 	if err != nil {
 		return nil, seedView{}, err
 	}
-	res := r.Run(a.Seed, faults)
+	res := r.Replay(a.Seed, sched)
 	out := seedView{Seed: a.Seed, Passed: !res.Failed, Steps: res.Steps}
 	if res.Failed {
 		out.Failure = viewFailure(a.Config, res)
-		class := r.Classify(res, faults)
+		class := r.Classify(res, sched)
 		out.Failure.Class = &class
 		return nil, out, nil
 	}
 	out.Trace = tail(res.Trace, mcpTraceTail)
+	out.Note = cutShort(res, cfg)
 	return nil, out, nil
-}
-
-func toolShrink(_ context.Context, _ *mcp.CallToolRequest, a seedArgs) (*mcp.CallToolResult, shrinkView, error) {
-	r, _, err := load(a.Config)
-	if err != nil {
-		return nil, shrinkView{}, err
-	}
-	original := r.Run(a.Seed, nil)
-	if !original.Failed {
-		return nil, shrinkView{}, errors.New("seed does not fail, nothing to shrink")
-	}
-	best := engine.Shrink(r, original, func(int) {})
-	path, err := saveSchedule(a.Config, a.Seed, best.Faults)
-	if err != nil {
-		return nil, shrinkView{}, err
-	}
-	return nil, shrinkView{OriginalFaults: len(original.Faults), MinimalFaults: len(best.Faults), ScheduleFile: path, Failure: viewFailure(a.Config, best)}, nil
 }
 
 func toolCause(_ context.Context, _ *mcp.CallToolRequest, a causeArgs) (*mcp.CallToolResult, causeView, error) {
@@ -279,11 +253,11 @@ func toolInspect(_ context.Context, _ *mcp.CallToolRequest, a inspectArgs) (*mcp
 	if err != nil {
 		return nil, inspectView{}, err
 	}
-	faults, err := readFaults(a.Faults)
+	sched, err := readSchedule(a.Faults)
 	if err != nil {
 		return nil, inspectView{}, err
 	}
-	in, err := r.Inspect(a.Seed, faults, engine.InspectOptions{At: at, Node: a.Node})
+	in, err := r.Inspect(a.Seed, sched, engine.InspectOptions{At: at, Node: a.Node})
 	if err != nil {
 		return nil, inspectView{}, err
 	}
@@ -313,34 +287,6 @@ func parseAt(s string) (time.Duration, error) {
 		return 0, nil
 	}
 	return time.ParseDuration(s)
-}
-
-func readFaults(path string) ([]engine.Fault, error) {
-	if path == "" {
-		return nil, nil
-	}
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	faults := []engine.Fault{}
-	return faults, json.Unmarshal(b, &faults)
-}
-
-func schedulePath(config string, seed uint64) string {
-	return filepath.Join(filepath.Dir(config), ".seedfall", fmt.Sprintf("seed-%d.faults.json", seed))
-}
-
-func saveSchedule(config string, seed uint64, faults []engine.Fault) (string, error) {
-	path := schedulePath(config, seed)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return "", err
-	}
-	b, err := json.MarshalIndent(faults, "", "  ")
-	if err != nil {
-		return "", err
-	}
-	return path, os.WriteFile(path, b, 0o644)
 }
 
 func viewFailure(config string, res engine.Result) *failureView {

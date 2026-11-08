@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"os"
@@ -22,6 +23,8 @@ type Result struct {
 	Duration   time.Duration
 	Finished   bool
 	Steps      int
+	Horizon    time.Duration
+	Ops        int64
 	Faults     []Fault
 	Trace      []string
 	Elapsed    time.Duration
@@ -102,29 +105,40 @@ func (r *Runner) Faults(seed uint64) []Fault {
 	return generateFaults(r.cfg, r.cfg.Faults.forSeed(seed), streams(seed, "faults"))
 }
 
-func (r *Runner) schedule(seed uint64, faults []Fault) ([]Fault, bool) {
-	if faults != nil {
-		return faults, true
+type Schedule struct {
+	Faults   []Fault  `json:"faults"`
+	Duration Duration `json:"duration,omitempty"`
+	Ops      int64    `json:"ops,omitempty"`
+}
+
+func (r *Runner) schedule(seed uint64, s Schedule) (Schedule, bool) {
+	if s.Faults != nil {
+		return s, true
 	}
-	return r.Faults(seed), false
+	s.Faults = r.Faults(seed)
+	return s, false
 }
 
 func (r *Runner) Run(seed uint64, faults []Fault) Result {
-	res := r.once(seed, faults)
+	return r.Replay(seed, Schedule{Faults: faults})
+}
+
+func (r *Runner) Replay(seed uint64, s Schedule) Result {
+	res := r.once(seed, s)
 	if !r.Doublecheck {
 		return res
 	}
-	if diff, diverged := divergence(res.Trace, r.once(seed, faults).Trace); diverged {
+	if diff, diverged := divergence(res.Trace, r.once(seed, s).Trace); diverged {
 		res.Failed, res.At, res.Failure = true, 0, Failure{Class: FailNondeterminism}
 		res.Reason = fmt.Sprintf("nondeterminism: two runs of seed %d diverge at %s", seed, diff)
 	}
 	return res
 }
 
-func (r *Runner) once(seed uint64, faults []Fault) Result {
-	faults, explicit := r.schedule(seed, faults)
+func (r *Runner) once(seed uint64, s Schedule) Result {
+	s, explicit := r.schedule(seed, s)
 	started := time.Now()
-	res := r.run(seed, faults, explicit, nil, nil)
+	res := r.run(seed, s, explicit, nil, nil)
 	res.Elapsed = time.Since(started)
 	return res
 }
@@ -150,19 +164,19 @@ func lineAt(lines []string, i int) string {
 	return "<end of trace>"
 }
 
-func (r *Runner) run(seed uint64, faults []Fault, explicit bool, b *branch, p *probe) Result {
+func (r *Runner) run(seed uint64, s Schedule, explicit bool, b *branch, p *probe) Result {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	w := &world{
 		cfg: r.cfg, seed: seed, ctx: ctx, cancel: cancel, rt: r.rt,
 		sched: streams(seed, "sched"), netRand: streams(seed, "net"), diskRand: streams(seed, "disk"), latRand: streams(seed, "disklatency"),
-		events: make(chan event), faults: slices.Clone(faults), trace: &tracer{}, compiled: r.compiled,
+		events: make(chan event), faults: slices.Clone(s.Faults), horizon: int64(cmp.Or(s.Duration, r.cfg.Duration)), opsLimit: s.Ops, trace: &tracer{}, compiled: r.compiled,
 		explicit: explicit, ioRand: streams(seed, "io"), props: properties{}, spec: r.cfg.Faults.forSeed(seed), branch: b, probe: p,
 		mutation: r.Mutation, weakened: func() { r.weakened.Add(1) }, shielded: map[string]bool{}, deadline: never,
 		history: history{model: r.cfg.Checker.Model},
 	}
 	w.net = newNetwork(w)
-	res := Result{Seed: seed, Faults: faults}
+	res := Result{Seed: seed, Faults: s.Faults, Horizon: time.Duration(w.horizon)}
 	w.setup()
 	w.loop()
 	w.capture()
@@ -178,6 +192,7 @@ func (r *Runner) run(seed uint64, faults []Fault, explicit bool, b *branch, p *p
 	res.Duration = time.Duration(w.now)
 	res.Finished = w.finished
 	res.Steps = w.steps
+	res.Ops = w.opsWanted
 	res.Trace = w.trace.lines
 	res.Faults = mergeFaults(w.faults, w.ioFaults)
 	return res

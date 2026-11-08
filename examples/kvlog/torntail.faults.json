@@ -1,0 +1,26 @@
+{
+  "seed": 1,
+  "faults": [
+    {
+      "at": "427.268419ms",
+      "kind": "crash_io",
+      "node": "server",
+      "until": "761.268419ms",
+      "op": 56
+    },
+    {
+      "at": "802ms",
+      "kind": "crash",
+      "node": "server",
+      "until": "802ms"
+    }
+  ],
+  "duration": "991ms",
+  "ops": 63,
+  "shrunk_from": {
+    "faults": 33,
+    "duration": "1m0s",
+    "ops": 200
+  },
+  "shrink_runs": 191
+}

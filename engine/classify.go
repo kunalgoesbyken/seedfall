@@ -22,14 +22,14 @@ func (c Classification) String() string {
 	return fmt.Sprintf("%s (replay diverges at %s)", c.Verdict, c.Divergence)
 }
 
-func (r *Runner) Classify(failed Result, faults []Fault) Classification {
+func (r *Runner) Classify(failed Result, s Schedule) Classification {
 	switch failed.Failure.Class {
 	case FailWatchdog:
 		return Classification{Verdict: VerdictTimeout}
 	case FailNondeterminism:
 		return Classification{Verdict: VerdictNondeterministic}
 	}
-	replay := r.once(failed.Seed, faults)
+	replay := r.once(failed.Seed, s)
 	if diff, diverged := divergence(failed.Trace, replay.Trace); diverged {
 		return Classification{Verdict: VerdictNondeterministic, Divergence: diff}
 	}

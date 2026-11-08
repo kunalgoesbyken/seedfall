@@ -25,6 +25,8 @@ func buggify(string, float64) bool { return false }
 
 func quietFor(time.Duration) {}
 
+func budget(n int) int { return n }
+
 type Op struct{}
 
 func call(int, string, string, any) Op { return Op{} }

@@ -131,6 +131,21 @@ sim.Always(time.Since(started) < 10*time.Second, "cluster serves reads again wit
 
 With `"faults_after_setup": true`, no faults fire until some node calls `sim.SetupComplete()`. Use it when bootstrapping, such as electing the first leader or creating a stream, is not what you want to test.
 
+## Workload size
+
+Wrap the number of operations your workload performs in `sim.Budget` so that `seedfall shrink` can make it smaller:
+
+```go
+writes := flag.Int("writes", 200, "number of writes")
+flag.Parse()
+n := sim.Budget(*writes)
+for i := range n {
+	// one operation
+}
+```
+
+`sim.Budget(n)` returns `n` in normal runs and outside the simulator. When a shrunk schedule sets `ops`, it returns at most that many, and the trace says so: `client#1: sim.Budget capped at 63 of 200 operations`. Shrink only tries this when a node called `sim.Budget` in the failing run, and bisects the cap down to the fewest operations that still fail the same way. Use the returned value everywhere the count matters, including messages and checks such as "all `n` writes were acknowledged". `examples/kvlog/client` does this.
+
 ## Linearizability
 
 Workloads can record operations from any number of concurrent clients. When the workload finishes, seedfall checks the history with [Porcupine](https://github.com/anishathalye/porcupine) against the model named in `seedfall.json` (`kv` when there is no `checker`).

@@ -40,11 +40,11 @@ func cmdInspect(args []string) error {
 	if err != nil {
 		return err
 	}
-	faults, err := readFaults(*faultsFile)
+	sched, err := readSchedule(*faultsFile)
 	if err != nil {
 		return err
 	}
-	in, err := r.Inspect(*seed, faults, engine.InspectOptions{At: *at, Node: *node})
+	in, err := r.Inspect(*seed, sched, engine.InspectOptions{At: *at, Node: *node})
 	if err != nil {
 		return err
 	}

@@ -62,6 +62,8 @@ func SetupComplete() { setupComplete() }
 
 func QuietFor(d time.Duration) { quietFor(d) }
 
+func Budget(n int) int { return budget(n) }
+
 const BuggifyProb = 0.25
 
 func Buggify(site string) bool { return buggify(site, BuggifyProb) }

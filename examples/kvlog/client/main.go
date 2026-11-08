@@ -18,16 +18,17 @@ func main() {
 	gap := flag.Duration("gap", 10*time.Millisecond, "pause between writes")
 	flag.Parse()
 
+	n := sim.Budget(*writes)
 	var acked []entry
-	for i := range *writes {
+	for i := range n {
 		e := entry{fmt.Sprintf("k%d", i), fmt.Sprintf("v%d", i)}
 		if reply, err := call(*addr, "PUT "+e.key+" "+e.value); err == nil && reply == "OK" {
 			acked = append(acked, e)
 		}
 		time.Sleep(*gap)
 	}
-	fmt.Printf("%d of %d writes acknowledged, verifying\n", len(acked), *writes)
-	sim.Sometimes(len(acked) < *writes, "a crash interrupted the workload")
+	fmt.Printf("%d of %d writes acknowledged, verifying\n", len(acked), n)
+	sim.Sometimes(len(acked) < n, "a crash interrupted the workload")
 	for _, e := range acked {
 		reply := callUntilServed(*addr, "GET "+e.key)
 		sim.Assert(reply == "VAL "+e.value, fmt.Sprintf("acknowledged write lost: %s=%s, server now answers %q", e.key, e.value, reply))
