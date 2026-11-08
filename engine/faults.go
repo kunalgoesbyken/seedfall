@@ -31,6 +31,7 @@ const (
 	FaultPreempt     = "preempt"
 	FaultUDPDrop     = "udp_drop"
 	FaultUDPDup      = "udp_dup"
+	FaultMmapEarly   = "mmap_early_writeback"
 	DamageCrash      = "corrupt_on_crash"
 	FSModelExt4      = "ext4_ordered"
 	FSModelPages     = "page_independent"
@@ -65,8 +66,8 @@ type FaultPreset struct {
 
 var FaultPresets = []FaultPreset{
 	{"none", "no faults", func(*FaultSpec) {}},
-	{"durability", "crashes with restarts, crashes in the middle of disk operations, torn and reordered writes, strict directory durability", func(s *FaultSpec) {
-		s.CrashPerSec, s.CrashOnIO, s.TornWrites, s.ReorderWrites, s.StrictDirs = 0.5, 0.002, true, true, true
+	{"durability", "crashes with restarts, crashes in the middle of disk operations, torn and reordered writes, strict directory durability, early writeback of mapped pages", func(s *FaultSpec) {
+		s.CrashPerSec, s.CrashOnIO, s.TornWrites, s.ReorderWrites, s.StrictDirs, s.MmapEarlyWriteback = 0.5, 0.002, true, true, true, 0.1
 	}},
 	{"resilient", "process pauses, slow nodes, connection resets and wall clock jumps", func(s *FaultSpec) {
 		s.PausePerSec, s.SlowPerSec, s.ResetPerSec, s.ClockJumpPerSec = 0.1, 0.1, 0.1, 0.05
@@ -100,7 +101,7 @@ func PresetNames() []string {
 	return names
 }
 
-var runtimeKinds = []string{FaultCrashIO, FaultFsyncEIO, FaultBuggify, FaultWriteEIO, FaultENOSPC, FaultReadEIO, FaultReadCorrupt, FaultLostWrite, FaultMisdirected, FaultPreempt, FaultUDPDrop, FaultUDPDup}
+var runtimeKinds = []string{FaultCrashIO, FaultFsyncEIO, FaultBuggify, FaultWriteEIO, FaultENOSPC, FaultReadEIO, FaultReadCorrupt, FaultLostWrite, FaultMisdirected, FaultPreempt, FaultUDPDrop, FaultUDPDup, FaultMmapEarly}
 
 func observedAtRuntime(kind string) bool {
 	return slices.Contains(runtimeKinds, kind)
@@ -167,6 +168,7 @@ func (s FaultSpec) forSeed(seed uint64) FaultSpec {
 	s.BitrotPerSec = swarmRate(r, s.BitrotPerSec)
 	s.UDPLoss = swarmRate(r, s.UDPLoss)
 	s.UDPDup = swarmRate(r, s.UDPDup)
+	s.MmapEarlyWriteback = swarmRate(r, s.MmapEarlyWriteback)
 	return s
 }
 

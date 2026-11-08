@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"go/ast"
+	"go/build"
+	"go/build/constraint"
 	"go/parser"
 	"go/token"
 	"io"
@@ -14,6 +16,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -38,30 +41,46 @@ func writeCompatModule(cfg *Config) (string, error) {
 		return "", err
 	}
 	copies := map[string]string{}
+	needsUnix := false
 	for _, p := range pkgs {
 		shims, err := loadShims(p.ImportPath)
 		if err != nil {
 			return "", err
 		}
-		if shims == nil {
+		widened, err := widen(p, shims)
+		if err != nil {
+			return "", err
+		}
+		if shims == nil && len(widened) == 0 {
 			continue
 		}
 		if p.Module == nil {
 			return "", fmt.Errorf("compat overlay: %s is not part of a module", p.ImportPath)
 		}
-		root, ok := copies[p.Module.Path]
-		if !ok {
-			root = filepath.Join(out, filepath.FromSlash(p.Module.Path))
-			if err := copyModule(p.Module.Dir, root); err != nil {
-				return "", fmt.Errorf("compat overlay: %w", err)
-			}
-			copies[p.Module.Path] = root
+		root, err := moduleCopy(copies, out, *p.Module)
+		if err != nil {
+			return "", err
 		}
 		rel, err := filepath.Rel(p.Module.Dir, p.Dir)
 		if err != nil {
 			return "", err
 		}
-		if err := applyShims(p, shims, filepath.Join(root, rel)); err != nil {
+		dir := filepath.Join(root, rel)
+		if shims != nil {
+			if err := applyShims(p, shims, dir); err != nil {
+				return "", err
+			}
+			continue
+		}
+		for _, f := range widened {
+			if err := f.write(dir); err != nil {
+				return "", err
+			}
+			needsUnix = needsUnix || f.unix
+		}
+	}
+	if needsUnix {
+		if err := addUnixShim(cfg, copies, out); err != nil {
 			return "", err
 		}
 	}
@@ -69,6 +88,192 @@ func writeCompatModule(cfg *Config) (string, error) {
 		return "", nil
 	}
 	return writeCompatModfile(cfg, out, copies)
+}
+
+type CompatDep struct {
+	ImportPath string
+	Dir        string
+	GoFiles    []string
+	Ignored    []string
+	Module     string
+	MainModule bool
+}
+
+func CompatCoverage(d CompatDep) (string, error) {
+	shims, err := loadShims(d.ImportPath)
+	if err != nil {
+		return "", err
+	}
+	if shims != nil {
+		return "shim for " + d.ImportPath, nil
+	}
+	p := goPackage{ImportPath: d.ImportPath, Dir: d.Dir, GoFiles: d.GoFiles, Ignored: d.Ignored, Module: &goModule{Path: d.Module, Main: d.MainModule}}
+	widened, err := widen(p, nil)
+	if err != nil || len(widened) == 0 {
+		return "", err
+	}
+	return "generic mmap and flock shim", nil
+}
+
+func moduleCopy(copies map[string]string, out string, mod goModule) (string, error) {
+	root, ok := copies[mod.Path]
+	if ok {
+		return root, nil
+	}
+	root = filepath.Join(out, filepath.FromSlash(mod.Path))
+	if err := copyModule(mod.Dir, root); err != nil {
+		return "", fmt.Errorf("compat overlay: %w", err)
+	}
+	copies[mod.Path] = root
+	return root, nil
+}
+
+const unixModule, unixPackage = "golang.org/x/sys", "golang.org/x/sys/unix"
+
+func addUnixShim(cfg *Config, copies map[string]string, out string) error {
+	cmd := exec.Command("go", "list", "-m", "-json", unixModule)
+	cmd.Dir = cfg.Dir
+	b, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("compat overlay: finding %s: %w", unixModule, err)
+	}
+	var mod goModule
+	if err := json.Unmarshal(b, &mod); err != nil {
+		return fmt.Errorf("compat overlay: %s: %w", unixModule, err)
+	}
+	if mod.Dir == "" {
+		return fmt.Errorf("compat overlay: %s is not downloaded; run go mod download %s", unixModule, unixModule)
+	}
+	root, err := moduleCopy(copies, out, mod)
+	if err != nil {
+		return err
+	}
+	shims, err := loadShims(unixPackage)
+	if err != nil {
+		return err
+	}
+	return applyShims(goPackage{ImportPath: unixPackage}, shims, filepath.Join(root, "unix"))
+}
+
+type widenedFile struct {
+	name    string
+	source  []byte
+	removes []string
+	unix    bool
+}
+
+func (f widenedFile) write(dir string) error {
+	for _, name := range f.removes {
+		if err := os.Remove(filepath.Join(dir, name)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
+	}
+	return os.WriteFile(filepath.Join(dir, f.name), f.source, 0o644)
+}
+
+func widen(p goPackage, shims *shimSet) ([]widenedFile, error) {
+	if shims != nil || p.Module == nil || p.Module.Main {
+		return nil, nil
+	}
+	var out []widenedFile
+	active := p.GoFiles
+	for _, name := range p.Ignored {
+		if strings.HasSuffix(name, "_test.go") || !matchesLinuxOnly(p.Dir, name) {
+			continue
+		}
+		f, ok, err := widenFile(p, name, active)
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			out = append(out, f)
+			active = slices.DeleteFunc(slices.Clone(active), func(a string) bool { return slices.Contains(f.removes, a) })
+		}
+	}
+	return out, nil
+}
+
+func matchesLinuxOnly(dir, name string) bool {
+	if strings.HasSuffix(strings.TrimSuffix(name, ".go"), "_linux") {
+		return false
+	}
+	linux := build.Default
+	linux.GOOS, linux.GOARCH, linux.CgoEnabled = "linux", "wasm", false
+	matched, err := linux.MatchFile(dir, name)
+	return err == nil && matched
+}
+
+func widenFile(p goPackage, name string, active []string) (widenedFile, bool, error) {
+	src, err := os.ReadFile(filepath.Join(p.Dir, name))
+	if err != nil {
+		return widenedFile{}, false, err
+	}
+	parsed, err := parser.ParseFile(token.NewFileSet(), name, src, parser.SkipObjectResolution)
+	if err != nil || !callsMapOrLock(parsed) {
+		return widenedFile{}, false, nil
+	}
+	names, err := topLevelNames(name, src)
+	if err != nil {
+		return widenedFile{}, false, fmt.Errorf("compat overlay: %s: %w", p.ImportPath, err)
+	}
+	provided := map[string]bool{}
+	for _, n := range names {
+		provided[n] = true
+	}
+	var removes []string
+	for _, other := range active {
+		b, err := os.ReadFile(filepath.Join(p.Dir, other))
+		if err != nil {
+			return widenedFile{}, false, err
+		}
+		otherNames, err := topLevelNames(other, b)
+		if err != nil {
+			return widenedFile{}, false, fmt.Errorf("compat overlay: %s: %w", p.ImportPath, err)
+		}
+		if overlaps(otherNames, provided) {
+			if len(unprovided(otherNames, provided)) > 0 {
+				return widenedFile{}, false, nil
+			}
+			removes = append(removes, other)
+		}
+	}
+	return widenedFile{name: name, source: wasip1Source(src), removes: removes, unix: importsUnix(parsed)}, true, nil
+}
+
+func callsMapOrLock(f *ast.File) bool {
+	found := false
+	ast.Inspect(f, func(n ast.Node) bool {
+		s, ok := n.(*ast.SelectorExpr)
+		if !ok || found {
+			return !found
+		}
+		pkg, ok := s.X.(*ast.Ident)
+		found = ok && (pkg.Name == "unix" || pkg.Name == "syscall") && slices.Contains(widenedCalls, s.Sel.Name)
+		return !found
+	})
+	return found
+}
+
+var widenedCalls = []string{"Mmap", "Munmap", "Msync", "Flock"}
+
+func importsUnix(f *ast.File) bool {
+	return slices.ContainsFunc(f.Imports, func(s *ast.ImportSpec) bool { return s.Path.Value == fmt.Sprintf("%q", unixPackage) })
+}
+
+func wasip1Source(src []byte) []byte {
+	var body []string
+	inHeader := true
+	for _, line := range strings.Split(string(src), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if inHeader && (constraint.IsGoBuild(trimmed) || constraint.IsPlusBuild(trimmed)) {
+			continue
+		}
+		if strings.HasPrefix(trimmed, "package ") {
+			inHeader = false
+		}
+		body = append(body, line)
+	}
+	return []byte("//go:build wasip1\n\n" + strings.Join(body, "\n"))
 }
 
 func loadShims(importPath string) (*shimSet, error) {
@@ -194,7 +399,7 @@ func writeCompatModfile(cfg *Config, out string, copies map[string]string) (stri
 }
 
 func listDeps(cfg *Config) ([]goPackage, error) {
-	args := []string{"list", "-e", "-deps", "-json=ImportPath,Dir,GoFiles,Module"}
+	args := []string{"list", "-e", "-deps", "-json=ImportPath,Dir,GoFiles,IgnoredGoFiles,Module"}
 	for _, s := range cfg.all() {
 		if s.Pkg != "" {
 			args = append(args, s.Pkg)

@@ -83,7 +83,7 @@ A preset fills in a documented fault level. Fields set next to it override it, a
 | Preset | Adds |
 |---|---|
 | `none` | no faults |
-| `durability` | `crash_per_sec` 0.5, `crash_on_io` 0.002, `torn_writes`, `reorder_writes`, `strict_dirs` |
+| `durability` | `crash_per_sec` 0.5, `crash_on_io` 0.002, `torn_writes`, `reorder_writes`, `strict_dirs`, `mmap_early_writeback` 0.1 |
 | `resilient` | `pause_per_sec` 0.1, `slow_per_sec` 0.1, `reset_per_sec` 0.1, `clock_jump_per_sec` 0.05 |
 | `high_availability` | `partition_per_sec` 0.2, `clog_per_sec` 0.2, `swizzle_per_sec` 0.05, `udp_loss` 0.01, `udp_dup` 0.01 |
 | `everything` | `fsync_eio` 0.01, `write_eio`, `write_enospc`, `read_eio`, `read_corrupt`, `lost_write` and `misdirected_write` 0.005 each, `corrupt_on_crash`, `bitrot_per_sec` 0.05, `buggify` |

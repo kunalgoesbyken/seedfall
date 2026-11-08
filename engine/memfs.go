@@ -25,6 +25,7 @@ type crashModel struct {
 	model   string
 	pages   *rand.Rand
 	corrupt *rand.Rand
+	mapped  func(path string, off int64) bool
 }
 
 type pendingWrite struct {
@@ -72,6 +73,8 @@ type memFS struct {
 	files         map[string]*inode
 	dirs          map[string]uint64
 	ns            *namespace
+	maps          []*mapping
+	crashDirty    []dirtyPage
 }
 
 func newMemFS(clock func() int64) *memFS {
@@ -437,6 +440,7 @@ type fileDamage struct {
 }
 
 func (m *memFS) crash(r *rand.Rand, c crashModel) []fileDamage {
+	m.earlyWriteback(c)
 	hit := map[*inode]Damage{}
 	if m.ns != nil {
 		m.crashStrict(r, c, hit)
@@ -769,6 +773,7 @@ func (f *memFile) Pread(buf []byte, off int64) (int, fsapi.Errno) {
 	if f.in.atime <= f.in.mtime {
 		f.in.atime = f.fs.clock()
 	}
+	f.fs.flushMapped(f.in)
 	n := 0
 	if off < int64(len(f.in.data)) {
 		n = copy(buf, f.in.data[off:])
@@ -894,10 +899,15 @@ func (f *memFile) Truncate(size int64) fsapi.Errno {
 	return f.record(pendingWrite{off: size, truncate: true})
 }
 
-func (f *memFile) record(w pendingWrite) fsapi.Errno {
+func (f *memFile) store(w pendingWrite) {
 	f.in.data = w.apply(f.in.data)
 	f.in.pending = append(f.in.pending, w)
 	f.in.mtime = f.fs.clock()
+	f.fs.refreshMapped(f.in, w)
+}
+
+func (f *memFile) record(w pendingWrite) fsapi.Errno {
+	f.store(w)
 	f.fs.notify()
 	if f.sync && !f.weakenedTo(OsyncIgnored) {
 		return f.Sync()

@@ -3,40 +3,26 @@
 package z
 
 import (
-	"bytes"
-	"io"
 	"os"
-	"sync"
 	"syscall"
 )
 
-type seedfallMapping struct {
-	f     *os.File
-	clean []byte
-}
-
-var seedfallMappings sync.Map
-
 func mmap(fd *os.File, writeable bool, size int64) ([]byte, error) {
-	b := make([]byte, size)
-	if _, err := fd.ReadAt(b, 0); err != nil && err != io.EOF {
-		return nil, err
+	if size == 0 {
+		return nil, nil
 	}
-	if size > 0 && writeable {
-		seedfallMappings.Store(&b[0], &seedfallMapping{f: fd, clean: append([]byte(nil), b...)})
+	prot := syscall.PROT_READ
+	if writeable {
+		prot |= syscall.PROT_WRITE
 	}
-	return b, nil
+	return syscall.Mmap(int(fd.Fd()), 0, int(size), prot, syscall.MAP_SHARED)
 }
 
 func munmap(b []byte) error {
 	if len(b) == 0 {
 		return nil
 	}
-	m, ok := seedfallMappings.LoadAndDelete(&b[0])
-	if !ok {
-		return nil
-	}
-	return m.(*seedfallMapping).writeBack(b)
+	return syscall.Munmap(b)
 }
 
 func madvise(b []byte, readahead bool) error {
@@ -47,32 +33,5 @@ func msync(b []byte) error {
 	if len(b) == 0 {
 		return nil
 	}
-	m, ok := seedfallMappings.Load(&b[0])
-	if !ok {
-		return syscall.EINVAL
-	}
-	if err := m.(*seedfallMapping).writeBack(b); err != nil {
-		return err
-	}
-	return m.(*seedfallMapping).f.Sync()
-}
-
-func (m *seedfallMapping) writeBack(b []byte) error {
-	page := os.Getpagesize()
-	for start := 0; start < len(b); {
-		end := start
-		for end < len(b) && !bytes.Equal(b[end:min(end+page, len(b))], m.clean[end:min(end+page, len(b))]) {
-			end = min(end+page, len(b))
-		}
-		if end == start {
-			start = min(start+page, len(b))
-			continue
-		}
-		if _, err := m.f.WriteAt(b[start:end], int64(start)); err != nil {
-			return err
-		}
-		copy(m.clean[start:end], b[start:end])
-		start = end
-	}
-	return nil
+	return syscall.Msync(b, syscall.MS_SYNC)
 }

@@ -83,6 +83,7 @@ type FaultSpec struct {
 	BitrotPerSec        float64  `json:"bitrot_per_sec"`
 	UDPLoss             float64  `json:"udp_loss"`
 	UDPDup              float64  `json:"udp_dup"`
+	MmapEarlyWriteback  float64  `json:"mmap_early_writeback,omitempty" jsonschema:"probability that a crash finds a dirty page of a writable shared mapping already written back, for each such page that was never msynced"`
 	DiskLatency         Range    `json:"disk_latency"`
 	IncludeWorkload     bool     `json:"include_workload"`
 }

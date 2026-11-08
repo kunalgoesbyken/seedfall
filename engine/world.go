@@ -48,6 +48,7 @@ type node struct {
 	monoShift  int64
 	calls      int64
 	datagrams  int64
+	mappedPage int64
 	changes    []int64
 	fired      int
 }
@@ -226,6 +227,15 @@ func hostModule(ctx context.Context, rt wazero.Runtime) error {
 		}
 		return got
 	})
+	export("mmap", func(ctx context.Context, m api.Module, ino uint64, ptr, size uint32, off uint64, flags uint32) int32 {
+		return worldOf(ctx).instance(ctx).node.fs.mmap(m.Memory(), ino, ptr, size, int64(off), int32(flags))
+	})
+	export("msync", func(ctx context.Context, ptr, size, flags uint32) int32 {
+		return worldOf(ctx).instance(ctx).node.fs.msync(ptr, size, int32(flags))
+	})
+	export("munmap", func(ctx context.Context, ptr uint32) int32 {
+		return worldOf(ctx).instance(ctx).node.fs.munmap(ptr)
+	})
 	export("history_call", func(ctx context.Context, m api.Module, p, n uint32) int32 {
 		w := worldOf(ctx)
 		inst := w.instance(ctx)
@@ -370,6 +380,7 @@ func (w *world) start(n *node) {
 			inst.preempt.settle()
 		}
 		if mod != nil {
+			n.fs.endInstance(inst.killed)
 			mod.Close(context.Background())
 		}
 		w.events <- event{inst: inst, exit: true, err: err}
@@ -513,6 +524,8 @@ func (w *world) crashDisk(n *node, until int64, crash string) {
 	if w.spec.CorruptOnCrash {
 		c.corrupt = streams(w.seed, "corrupt/"+n.name()+"/"+crash)
 	}
+	mapped := streams(w.seed, "mmap/"+n.name()+"/"+crash)
+	c.mapped = func(p string, off int64) bool { return w.mappedPageFate(n, p, off, mapped) }
 	w.traceDamage(n, n.fs.crash(w.diskRand, c))
 	n.restartAt = until
 }

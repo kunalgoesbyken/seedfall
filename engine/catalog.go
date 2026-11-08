@@ -65,12 +65,14 @@ type goPackage struct {
 	ImportPath string
 	Dir        string
 	GoFiles    []string
+	Ignored    []string `json:"IgnoredGoFiles"`
 	Module     *goModule
 }
 
 type goModule struct {
 	Path string
 	Dir  string
+	Main bool
 }
 
 func catalog(cfg *Config) ([]CatalogEntry, error) {

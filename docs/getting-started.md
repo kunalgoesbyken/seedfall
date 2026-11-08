@@ -92,4 +92,4 @@ The property table shows that the recovery path really ran: hundreds of seeds pr
 3. Describe the world in `seedfall.json` ([faults.md](faults.md)).
 4. Sweep locally, then in CI ([ci.md](ci.md)), and from your coding agent ([agents.md](agents.md)).
 
-Your code must build for `GOOS=wasip1`. cgo is not available. Dependencies that need `mmap` or `flock`, such as bbolt, pebble and badger, work with `"compat_overlay": true` ([compat.md](compat.md)).
+Your code must build for `GOOS=wasip1`. cgo is not available. Dependencies that need `mmap` or `flock` work with `"compat_overlay": true`, through a shim for bbolt, pebble and badger or the generic shim for other callers of `Mmap` and `Flock`; `seedfall init` turns it on and says which dependency is covered ([compat.md](compat.md)).

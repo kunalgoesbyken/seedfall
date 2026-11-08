@@ -28,6 +28,7 @@ const (
 	workloadName    = "workload"
 	guessedPort     = "8080"
 	errorLines      = 6
+	noShim          = "none: needs a shim, see docs/compat.md"
 )
 
 //go:embed workload.go.txt
@@ -53,10 +54,15 @@ type listedPackage struct {
 	Standard   bool
 	DepOnly    bool
 	CgoFiles   []string
+	GoFiles    []string
+	Ignored    []string `json:"IgnoredGoFiles"`
 	Imports    []string
 	Deps       []string
-	Module     *struct{ Path string }
-	Error      *struct{ Err string }
+	Module     *struct {
+		Path string
+		Main bool
+	}
+	Error *struct{ Err string }
 }
 
 type listedModule struct {
@@ -79,6 +85,12 @@ type blocker struct {
 	OwnModule bool     `json:"own_module"`
 	Chain     []string `json:"import_chain"`
 	Reason    string   `json:"reason,omitempty"`
+	Shim      string   `json:"shim,omitempty"`
+}
+
+type compatUse struct {
+	Package string `json:"package"`
+	Shim    string `json:"shim"`
 }
 
 type initView struct {
@@ -88,6 +100,7 @@ type initView struct {
 	Mains            []mainPackage `json:"main_packages"`
 	Blockers         []blocker     `json:"wasip1_blockers"`
 	Cgo              []blocker     `json:"cgo_packages"`
+	CompatShims      []compatUse   `json:"compat_shims" jsonschema:"dependencies compat_overlay would swap for wasip1 versions: a shim for that package or the generic mmap and flock shim"`
 	ConfigPath       string        `json:"config_path"`
 	Config           engine.Config `json:"config"`
 	Profiles         profiles      `json:"profiles" jsonschema:"profiles written into the config, each selected with -profile name"`
@@ -149,7 +162,12 @@ func runInit(a initArgs) (initView, error) {
 		return initView{}, err
 	}
 	nodes := selected(v.Mains)
+	graph := packageGraph(listed)
 	v.Blockers = wasip1Blockers(listed, nodes, module)
+	if v.CompatShims, err = compatShims(graph, nodes); err != nil {
+		return initView{}, err
+	}
+	coverBlockers(v.Blockers, v.CompatShims)
 	if len(nodes) > 0 {
 		hostListed, err := goList(dir, cgoEnv, append([]string{"-deps"}, importPaths(nodes)...)...)
 		if err != nil {
@@ -158,6 +176,7 @@ func runInit(a initArgs) (initView, error) {
 		v.Cgo = cgoPackages(hostListed, nodes, module)
 	}
 	v.Config, v.Profiles = starterConfig(nodes, "./"+a.Workload), starterProfiles()
+	v.Config.CompatOverlay = len(v.CompatShims) > 0
 	v.Next = nextSteps(v, a, nodes)
 	if a.DryRun {
 		return v, nil
@@ -307,6 +326,42 @@ func wasip1Blockers(listed []listedPackage, nodes []mainPackage, module string) 
 	})
 }
 
+func compatShims(graph map[string]listedPackage, nodes []mainPackage) ([]compatUse, error) {
+	out := []compatUse{}
+	seen := map[string]bool{}
+	for _, n := range nodes {
+		for _, dep := range graph[n.ImportPath].Deps {
+			p, ok := graph[dep]
+			if !ok || seen[dep] || p.Standard || p.Module == nil {
+				continue
+			}
+			seen[dep] = true
+			shim, err := engine.CompatCoverage(engine.CompatDep{ImportPath: dep, Dir: p.Dir, GoFiles: p.GoFiles, Ignored: p.Ignored, Module: p.Module.Path, MainModule: p.Module.Main})
+			if err != nil {
+				return nil, err
+			}
+			if shim != "" {
+				out = append(out, compatUse{dep, shim})
+			}
+		}
+	}
+	return out, nil
+}
+
+func coverBlockers(blockers []blocker, shims []compatUse) {
+	for i := range blockers {
+		if blockers[i].OwnModule {
+			continue
+		}
+		blockers[i].Shim = noShim
+		for _, s := range shims {
+			if s.Package == blockers[i].Package {
+				blockers[i].Shim = s.Shim
+			}
+		}
+	}
+}
+
 func cgoPackages(listed []listedPackage, nodes []mainPackage, module string) []blocker {
 	return findBlockers(packageGraph(listed), nodes, module, func(p listedPackage) (string, bool) {
 		if p.Standard || len(p.CgoFiles) == 0 {
@@ -411,7 +466,10 @@ func nextSteps(v initView, a initArgs, nodes []mainPackage) []string {
 		steps = append(steps, "go get "+seedfallModule+"@latest")
 	}
 	if len(v.Blockers) > 0 {
-		steps = append(steps, "fix the wasip1_blockers: upgrade or replace each dependency (a go.mod replace with an in-process shim works, as examples/flockshim does for gofrs/flock), and move platform-specific code in your own packages behind build tags")
+		steps = append(steps, "fix the wasip1_blockers: a blocker whose shim names one is handled by compat_overlay; for the rest upgrade or replace the dependency (a go.mod replace with an in-process shim works, as examples/flockshim does for gofrs/flock), and move platform-specific code in your own packages behind build tags")
+	}
+	if len(v.CompatShims) > 0 {
+		steps = append(steps, fmt.Sprintf("compat_overlay is on because %d dependencies have wasip1 shims (compat_shims); see docs/compat.md for what each shim does", len(v.CompatShims)))
 	}
 	if len(v.Cgo) > 0 {
 		steps = append(steps, "cgo is off under wasip1: swap each cgo_packages entry for a pure-Go alternative, or stub it behind a build tag")
@@ -476,6 +534,12 @@ func printInit(v initView) {
 	}
 	printBlockers("wasip1 blockers", v.Blockers)
 	printBlockers("cgo packages", v.Cgo)
+	if len(v.CompatShims) > 0 {
+		fmt.Printf("\ncompat_overlay shims: %d\n", len(v.CompatShims))
+		for _, s := range v.CompatShims {
+			fmt.Printf("  %s: %s\n", s.Package, s.Shim)
+		}
+	}
 	fmt.Println()
 	for _, f := range v.Wrote {
 		fmt.Printf("wrote %s\n", f)
@@ -495,6 +559,9 @@ func printBlockers(title string, bs []blocker) {
 		fmt.Printf("  %s\n    via %s\n", b.Package, strings.Join(b.Chain, " -> "))
 		for _, l := range strings.Split(b.Reason, "\n") {
 			fmt.Printf("    %s\n", l)
+		}
+		if b.Shim != "" {
+			fmt.Printf("    shim: %s\n", b.Shim)
 		}
 	}
 }

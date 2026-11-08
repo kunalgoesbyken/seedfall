@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	FaultKinds  = []string{FaultCrash, FaultCrashIO, FaultPartition, FaultPause, FaultClockJump, FaultClog, FaultReset, FaultSlow, FaultBitrot, FaultFsyncEIO, FaultWriteEIO, FaultENOSPC, FaultReadEIO, FaultReadCorrupt, FaultLostWrite, FaultMisdirected, FaultBuggify, FaultPreempt, FaultUDPDrop, FaultUDPDup}
+	FaultKinds  = []string{FaultCrash, FaultCrashIO, FaultPartition, FaultPause, FaultClockJump, FaultClog, FaultReset, FaultSlow, FaultBitrot, FaultFsyncEIO, FaultWriteEIO, FaultENOSPC, FaultReadEIO, FaultReadCorrupt, FaultLostWrite, FaultMisdirected, FaultBuggify, FaultPreempt, FaultUDPDrop, FaultUDPDup, FaultMmapEarly}
 	windowKinds = []string{FaultCrash, FaultCrashIO, FaultPartition, FaultPause, FaultClog, FaultSlow}
 )
 

@@ -13,6 +13,9 @@ import (
 //go:embed overlay/net_seedfall.go.txt
 var netSeedfall string
 
+//go:embed overlay/syscall_seedfall.go.txt
+var syscallSeedfall string
+
 type patch struct {
 	file, anchor, replacement string
 }
@@ -51,41 +54,59 @@ func goEnv(dir, key string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-func writeNetOverlay(dir string) (string, error) {
+func overlayDirs(dir string) (string, string, error) {
 	goroot, err := goEnv(dir, "GOROOT")
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	netDir := filepath.Join(goroot, "src", "net")
 	out, err := filepath.Abs(filepath.Join(dir, ".seedfall", "overlay"))
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	if err := os.MkdirAll(out, 0o755); err != nil {
-		return "", err
+	return goroot, out, os.MkdirAll(out, 0o755)
+}
+
+func writeSyscallOverlay(dir string, replace map[string]string) error {
+	goroot, out, err := overlayDirs(dir)
+	if err != nil {
+		return err
 	}
+	replace[filepath.Join(goroot, "src", "syscall", "seedfall_mmap_wasip1.go")], err = writeFile(filepath.Join(out, "seedfall_mmap_wasip1.go"), syscallSeedfall)
+	return err
+}
+
+func writeNetOverlay(dir string, replace map[string]string) error {
+	goroot, out, err := overlayDirs(dir)
+	if err != nil {
+		return err
+	}
+	netDir := filepath.Join(goroot, "src", "net")
 	patched := map[string]string{}
 	for _, p := range netPatches {
 		text, ok := patched[p.file]
 		if !ok {
 			b, err := os.ReadFile(filepath.Join(netDir, p.file))
 			if err != nil {
-				return "", fmt.Errorf("net overlay: %w", err)
+				return fmt.Errorf("net overlay: %w", err)
 			}
 			text = string(b)
 		}
 		if patched[p.file], err = applyPatch(text, p); err != nil {
-			return "", err
+			return err
 		}
 	}
-	replace := map[string]string{}
 	for _, file := range sortedKeys(patched) {
 		if replace[filepath.Join(netDir, file)], err = writeFile(filepath.Join(out, file), patched[file]); err != nil {
-			return "", err
+			return err
 		}
 	}
-	added := filepath.Join(netDir, "net_seedfall_wasip1.go")
-	if replace[added], err = writeFile(filepath.Join(out, "net_seedfall_wasip1.go"), netSeedfall); err != nil {
+	replace[filepath.Join(netDir, "net_seedfall_wasip1.go")], err = writeFile(filepath.Join(out, "net_seedfall_wasip1.go"), netSeedfall)
+	return err
+}
+
+func writeOverlayFile(dir string, replace map[string]string) (string, error) {
+	_, out, err := overlayDirs(dir)
+	if err != nil {
 		return "", err
 	}
 	b, err := json.Marshal(map[string]any{"Replace": replace})
@@ -101,6 +122,7 @@ func writeFile(path, content string) (string, error) {
 
 func buildFlags(cfg *Config) ([]string, error) {
 	var flags []string
+	replace := map[string]string{}
 	if cfg.CompatOverlay {
 		modfile, err := writeCompatModule(cfg)
 		if err != nil {
@@ -108,14 +130,22 @@ func buildFlags(cfg *Config) ([]string, error) {
 		}
 		if modfile != "" {
 			flags = append(flags, "-modfile", modfile)
+			if err := writeSyscallOverlay(cfg.Dir, replace); err != nil {
+				return nil, err
+			}
 		}
 	}
 	if cfg.NetOverlay {
-		overlay, err := writeNetOverlay(cfg.Dir)
-		if err != nil {
+		if err := writeNetOverlay(cfg.Dir, replace); err != nil {
 			return nil, err
 		}
-		flags = append(flags, "-overlay", overlay)
 	}
-	return flags, nil
+	if len(replace) == 0 {
+		return flags, nil
+	}
+	overlay, err := writeOverlayFile(cfg.Dir, replace)
+	if err != nil {
+		return nil, err
+	}
+	return append(flags, "-overlay", overlay), nil
 }

@@ -45,7 +45,7 @@ A world is described in a JSON file, `seedfall.json` by default. Paths inside it
 | `faults_after_setup` | `false` | Suppress all faults until a node calls `sim.SetupComplete()` |
 | `supervise` | `false` | Restart a node that exits with an error, after `restart_after`. Go panics (exit code 2) still fail the run, and so does a workload that exits with an error, even under `include_workload` |
 | `net_overlay` | `false` | Route plain `net.Listen` / `net.Dial` through the simulated network. See [networking.md](networking.md) |
-| `compat_overlay` | `false` | Build dependencies that need `mmap` or `flock` (bbolt, pebble, badger) with `wasip1` shims. See [compat.md](compat.md) |
+| `compat_overlay` | `false` | Build dependencies that need `mmap` or `flock` with `wasip1` shims: a shim for bbolt, pebble or badger, or the generic shim for any dependency that calls `Mmap` or `Flock`. See [compat.md](compat.md) |
 | `watchdog` | `30s` | Real-time limit for one node to run without yielding. Catches busy loops and livelocks. With `preempt.loops`, a busy loop parks like any other node and a run that never finishes fails on `liveness` instead, which does not depend on the host |
 | `preempt.strategy` | `none` | When the running goroutine is preempted inside a node: `none` only at the end of a 4,194,304-call time slice, `random` after a seeded 1 to 4,096 counted calls, `pct` at `depth` - 1 seeded change points per node, each recorded as a `preempt` fault, `calls` every `preempt.calls` counted calls. See [how-it-works.md](how-it-works.md#strategies) |
 | `preempt.interleave` | `false` | Shorthand for `"strategy": "random"`. While it is `true`, `strategy` can only be `random` or `none`, and `none` still means `random`, so a profile that switches strategy sets `interleave` to `false` |
@@ -94,6 +94,7 @@ All faults come from the seed. Faults that depend on what the program does, such
 | `corrupt_on_crash` | `false` | Each crash flips one bit in every file whose pending writes cover bytes that are on disk after the crash, somewhere in those bytes, as a sector half-written when the power failed |
 | `bitrot_per_sec` | `0` | Rate of bit rot per node: one bit of durable data, in a random file at a random offset, flips |
 | `disk_latency` | `["0s", "0s"]` | Extra time each fsync takes, drawn per fsync. Slow nodes stretch it |
+| `mmap_early_writeback` | `0` | Probability that a dirty page of a writable shared mapping is already written back when a node crashes. Needs a shared mapping through `compat_overlay`. Recorded as a `mmap_early_writeback` fault. See [compat.md](compat.md#early-writeback-of-mapped-pages) |
 | `strict_dirs` | `false` | Directory entries survive a crash only after the parent directory is fsynced (strict POSIX) |
 | `clock_skew` | `0` | Each node's wall clock is offset by a seeded amount in `[-skew, +skew]`. The monotonic clock is untouched, so timers and `time.Since` are unaffected |
 | `pause_per_sec` | `0` | Rate of process pauses per node. A paused node stops running, like a long GC pause or a stalled VM, then resumes without crashing. Its connections stay open and messages queue up |
@@ -246,6 +247,7 @@ Every one of them comes from the seed and replays exactly. The rates are drawn p
 { "at": "2.601158s", "kind": "lost_write", "node": "server", "op": 232, "path": "data/kv.log", "until": "0s" }
 { "at": "5.259168s", "kind": "misdirected_write", "node": "server", "op": 558, "path": "data/kv.log", "offset": 4096, "until": "0s" }
 { "at": "657.015787ms", "kind": "bitrot", "node": "server", "path": "data/kv.log", "offset": 22, "until": "657.015787ms" }
+{ "at": "36ms", "kind": "mmap_early_writeback", "node": "server", "op": 3, "path": "data/pages", "offset": 65536, "until": "0s" }
 ```
 
 The other kinds are `write_enospc` and `read_eio`. A recorded fault fires at the operation its `kind`, `node` and `op` name, and bit rot fires at `at`. `path`, `offset` and `target` are filled in by the run so that you can read the schedule, and are left out when they are 0. `seedfall inspect` lists every damaged range of a file under `corrupted ranges`, and with `disk_bytes` shows how full each disk is. Disk usage and latency are settings, not faults, so swarm testing leaves them alone and toggles the rest.
@@ -274,7 +276,7 @@ On kvlog's `seedfall.always.json`, seed 1 fails with `torntail.faults.json`, sti
 |---|---|
 | `-faults` | The schedule to start from. Without it, `.seedfall/seed-N.faults.json` next to the config, or, when that file does not exist, the faults seed N draws on its own, which takes one run |
 | `-remove N` | Remove the fault at position N, counting from 1 as listed. Repeatable |
-| `-shift N=AMOUNT` | Move fault N. A timed fault moves by a signed duration (`2=-50ms`), together with its `until`. A fault that fires at a disk operation, read, buggify hit, counted call or udp datagram (`crash_io`, `fsync_eio`, `write_eio`, `write_enospc`, `read_eio`, `read_corrupt`, `lost_write`, `misdirected_write`, `buggify`, `preempt`, `udp_drop`, `udp_dup`) moves by a signed count of those (`1=+2`), because its `at` only records when it happened. Repeatable |
+| `-shift N=AMOUNT` | Move fault N. A timed fault moves by a signed duration (`2=-50ms`), together with its `until`. A fault that fires at a disk operation, read, buggify hit, counted call or udp datagram (`crash_io`, `fsync_eio`, `write_eio`, `write_enospc`, `read_eio`, `read_corrupt`, `lost_write`, `misdirected_write`, `buggify`, `preempt`, `udp_drop`, `udp_dup`, `mmap_early_writeback`) moves by a signed count of those (`1=+2`), because its `at` only records when it happened. Repeatable |
 | `-add JSON` | Add a fault in the format shown in this page, for example `{"at":"1s","kind":"pause","node":"server","until":"1.5s"}`. Repeatable |
 | `-out` | Write the result here. Without it, the schedule is written back to the file it came from |
 

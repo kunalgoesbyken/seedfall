@@ -29,12 +29,12 @@ Read the report in this order:
 
 1. **wasip1 blockers.** Packages that fail to compile for wasip1, each with the compiler error and the import chain from the node. Nothing else works until these are gone.
    - `own_module: true`: move the platform-specific file behind a build tag and give wasip1 a portable version.
-   - A dependency: upgrade it first, since newer versions often build for wasip1. Otherwise add a `replace` in go.mod that points at a small in-process shim. `examples/flockshim` in the seedfall repository replaces `github.com/gofrs/flock` this way.
+   - A dependency: read its `shim` line. If it names a shim, `compat_overlay` handles it (`seedfall init` turns that on). If it says `none`, upgrade first, since newer versions often build for wasip1, and otherwise add a `replace` in go.mod that points at a small in-process shim, as `examples/flockshim` does.
 2. **cgo packages.** cgo is off under wasip1, so these either fail to build or fall back to a stub. Use a pure-Go alternative or stub them behind a build tag.
 3. **main packages.** Every `main` package that imports `net` becomes a node. If init picked the wrong ones, such as a CLI, an admin tool or an existing test client, delete `seedfall.json` and rerun with one `-node` per real server, for example `seedfall init -node ./cmd/server`.
 4. **next steps.** Follow them in order.
 
-Some dependencies compile but fail at runtime under wasip1. For example, gofrs/flock returns `ErrUnsupported`. These show up as node errors in the first run's trace; shim them the same way.
+Some dependencies compile but fail at runtime under wasip1. For example, gofrs/flock returns `ErrUnsupported`. `compat_shims` in the report lists the ones `compat_overlay` covers; anything else shows up as a node error in the first run's trace, and gets a shim the same way.
 
 If the module does not require seedfall yet, run `go get github.com/kunalgoesbyken/seedfall@latest`. The workload imports `github.com/kunalgoesbyken/seedfall/sim`.
 

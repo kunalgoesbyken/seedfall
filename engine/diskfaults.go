@@ -149,6 +149,15 @@ func (w *world) diskFull(n *node, p string, kept, size int) {
 	w.trace.about(w.now, instLine(n.live), "disk full on %s: %d of a %d-byte write to %s fit, the rest fails with ENOSPC (%d of %d bytes used)", n.live.label, kept, size, p, n.fs.used(), n.fs.capacity)
 }
 
+func (w *world) mappedPageFate(n *node, p string, off int64, r *rand.Rand) bool {
+	n.mappedPage++
+	if !w.rated(n, FaultMmapEarly, w.spec.MmapEarlyWriteback, n.mappedPage, r) {
+		return false
+	}
+	w.recordDisk(Fault{Kind: FaultMmapEarly, Node: n.name(), Op: n.mappedPage, Path: p, Offset: off})
+	return true
+}
+
 func (w *world) rot(f *Fault) {
 	n := w.nodeByName(f.Node)
 	if n == nil || !n.crashable {
@@ -183,6 +192,8 @@ func (f Fault) diskText() string {
 		return fmt.Sprintf("fsync of %s on %s at disk op #%d succeeds, but the page at offset %d never reaches the disk", f.Path, f.Node, f.Op, f.Offset)
 	case FaultMisdirected:
 		return fmt.Sprintf("fsync of %s on %s at disk op #%d succeeds, but the page for offset %d lands at offset %d", f.Path, f.Node, f.Op, f.Offset, f.Target)
+	case FaultMmapEarly:
+		return fmt.Sprintf("crash on %s writes back the mapped page at offset %d of %s, which was never msynced (mapped page #%d)", f.Node, f.Offset, f.Path, f.Op)
 	case FaultBitrot:
 		if f.Path == "" {
 			return fmt.Sprintf("bit rot flips a stored bit on %s", f.Node)

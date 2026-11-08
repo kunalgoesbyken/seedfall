@@ -234,6 +234,10 @@ expect metapage seedfall.json         1-100 pass
 expect metapage "seedfall.json -profile reorder" 1-30  fail
 expect metapage "seedfall.json -profile fixed"   1-100 pass
 expect_replay metapage "seedfall.json -profile reorder" 26 reorder.faults.json fail
+expect mmapwal seedfall.json                 1-20 pass
+expect mmapwal "seedfall.json -profile early" 1-5  fail
+expect mmapwal "seedfall.json -profile fixed" 1-20 pass
+expect_shrink mmapwal "seedfall.json -profile early" 2 "2 faults, 36ms, 3 workload ops"
 expect symswap seedfall.json                 1-20 pass
 expect symswap "seedfall.json -profile dirs" 1-20 fail
 expect symswap "seedfall.json -profile fixed" 1-20 pass
