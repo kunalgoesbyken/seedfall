@@ -1,10 +1,13 @@
 package engine
 
 import (
+	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/tetratelabs/wazero/api"
 )
@@ -205,5 +208,123 @@ func TestCompatCoverageNamesTheShim(t *testing.T) {
 	}
 	if got, err := CompatCoverage(CompatDep{ImportPath: "example.com/none", Module: "example.com/none", Dir: t.TempDir()}); err != nil || got != "" {
 		t.Fatalf("coverage = %q, %v, want none", got, err)
+	}
+}
+
+func TestFsyncPersistsDirtyMappedPages(t *testing.T) {
+	m := testFS()
+	mem := &fakeMemory{b: make([]byte, pageSize)}
+	f, _ := mapFile(t, m, mem, "f", mmapShared|mmapWritable)
+	mem.b[0] = 'F'
+	fsync(t, f)
+	m.endInstance(true)
+	m.crash(seeded(1), crashModel{})
+	if got := f.in.data[0]; got != 'F' {
+		t.Fatalf("a mapped write reads %q after fsync and a crash, want it durable", got)
+	}
+}
+
+func TestRangedMsyncLeavesOtherMappedPagesDirty(t *testing.T) {
+	m := testFS()
+	mem := &fakeMemory{b: make([]byte, 2*pageSize)}
+	f, ptr := mapFile(t, m, mem, "f", mmapShared|mmapWritable)
+	mem.b[0], mem.b[pageSize] = 'S', 'D'
+	if code := m.msync(ptr, pageSize, msyncSync); code != mmapOK {
+		t.Fatalf("msync = %d", code)
+	}
+	m.endInstance(true)
+	m.crash(seeded(1), crashModel{})
+	if f.in.data[0] != 'S' || f.in.data[pageSize] != 'a' {
+		t.Fatalf("after a crash pages are %q and %q, want S and a", f.in.data[0], f.in.data[pageSize])
+	}
+}
+
+func TestNewMappingSeesAnotherMappingsDirtyPages(t *testing.T) {
+	m := testFS()
+	first := &fakeMemory{b: make([]byte, pageSize)}
+	f, _ := mapFile(t, m, first, "f", mmapShared|mmapWritable)
+	first.b[0] = 'N'
+	second := &fakeMemory{b: make([]byte, pageSize)}
+	if code := m.mmap(second, f.in.ino, 0, pageSize, 0, mmapShared); code != mmapOK {
+		t.Fatalf("mmap = %d", code)
+	}
+	if second.b[0] != 'N' {
+		t.Fatalf("the new mapping reads %q, want the other mapping's write", second.b[0])
+	}
+}
+
+func TestTruncateClearsMappedPagesPastTheNewSize(t *testing.T) {
+	m := testFS()
+	mem := &fakeMemory{b: make([]byte, 2*pageSize)}
+	f, _ := mapFile(t, m, mem, "f", mmapShared|mmapWritable)
+	if errno := f.Truncate(pageSize); errno != 0 {
+		t.Fatal(errno)
+	}
+	if errno := f.Truncate(2 * pageSize); errno != 0 {
+		t.Fatal(errno)
+	}
+	if mem.b[pageSize-1] != 'a' || mem.b[pageSize] != 0 {
+		t.Fatalf("mapping holds %q and %q around the truncation point", mem.b[pageSize-1], mem.b[pageSize])
+	}
+	m.endInstance(false)
+	if f.in.data[pageSize] != 0 {
+		t.Fatalf("the truncated page came back as %q", f.in.data[pageSize])
+	}
+}
+
+func TestGuestSyscallShimLocksAndMaps(t *testing.T) {
+	if testing.Short() {
+		t.Skip("builds a wasip1 guest against the syscall overlay")
+	}
+	dir := t.TempDir()
+	replace := map[string]string{}
+	if err := writeSyscallOverlay(dir, replace); err != nil {
+		t.Fatal(err)
+	}
+	overlay, err := writeOverlayFile(dir, replace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wasm := filepath.Join(dir, "shimguest.wasm")
+	build := exec.Command("go", "build", "-overlay", overlay, "-o", wasm, "./testdata/shimguest")
+	build.Env = append(os.Environ(), "GOOS=wasip1", "GOARCH=wasm")
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build guest: %v\n%s", err, out)
+	}
+	cfg := defaultConfig()
+	cfg.Workload = NodeSpec{Name: "client", Wasm: wasm}
+	cfg.Duration = Duration(time.Second)
+	if err := cfg.validate(); err != nil {
+		t.Fatal(err)
+	}
+	r, err := NewRunner(&cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { r.rt.Close(context.Background()) })
+	if res := r.Run(1, nil); res.Failed {
+		t.Fatalf("guest failed: %s\n%s", res.Reason, strings.Join(res.Trace, "\n"))
+	}
+}
+
+func TestWidenIgnoresPackageTextInTheLicenseComment(t *testing.T) {
+	p := packageDir(t, map[string]string{
+		"lock_unix.go": "/*\npackage notes\n*/\n//go:build linux\n\npackage p\n\nimport \"syscall\"\n\nfunc Lock(fd int) error { return syscall.Flock(fd, 2) }\n",
+	})
+	widened, err := widen(p, nil)
+	if err != nil || len(widened) != 1 {
+		t.Fatalf("widened %d files, err %v", len(widened), err)
+	}
+	if strings.Contains(string(widened[0].source), "//go:build linux") {
+		t.Fatalf("the old constraint survived:\n%s", widened[0].source)
+	}
+}
+
+func TestWidenFollowsRenamedImports(t *testing.T) {
+	p := packageDir(t, map[string]string{
+		"lock_unix.go": "//go:build linux\n\npackage p\n\nimport sys \"golang.org/x/sys/unix\"\n\nfunc Lock(fd int) error { return sys.Flock(fd, sys.LOCK_EX) }\n",
+	})
+	if widened, err := widen(p, nil); err != nil || len(widened) != 1 {
+		t.Fatalf("widened %d files, err %v, want the renamed import found", len(widened), err)
 	}
 }

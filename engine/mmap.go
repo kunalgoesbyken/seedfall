@@ -56,6 +56,7 @@ func (m *memFS) mmap(mem api.Memory, ino uint64, ptr, size uint32, off int64, fl
 	if !ok {
 		return mmapFault
 	}
+	m.flushMapped(in)
 	if off < int64(len(in.data)) {
 		copy(buf, in.data[off:])
 	}
@@ -85,7 +86,7 @@ func (m *memFS) msync(ptr, size uint32, flags int32) int32 {
 	if flags&msyncSync == 0 {
 		return mmapOK
 	}
-	if errno := mm.file.Sync(); errno != 0 {
+	if errno := mm.file.fsync(); errno != 0 {
 		return mmapIOError
 	}
 	return mmapOK
@@ -146,11 +147,12 @@ func (m *memFS) flushMapped(in *inode) {
 }
 
 func (m *memFS) refreshMapped(in *inode, w pendingWrite) {
-	if w.truncate {
-		return
-	}
 	for _, mm := range m.maps {
 		if mm.file.in != in {
+			continue
+		}
+		if w.truncate {
+			mm.clearFrom(w.off)
 			continue
 		}
 		end := min(w.off+int64(len(w.data)), mm.off+int64(mm.size))
@@ -159,6 +161,15 @@ func (m *memFS) refreshMapped(in *inode, w pendingWrite) {
 				copy(buf[start-mm.off:end-mm.off], w.data[start-w.off:end-w.off])
 			}
 		}
+	}
+}
+
+func (mm *mapping) clearFrom(size int64) {
+	if size >= mm.off+int64(mm.size) {
+		return
+	}
+	if buf, ok := mm.mem.Read(mm.ptr, mm.size); ok {
+		clear(buf[max(size-mm.off, 0):])
 	}
 }
 
@@ -189,5 +200,4 @@ func (in *inode) keepPage(off int64, data []byte) {
 		return
 	}
 	copy(in.durable[off:], data)
-	in.synced = true
 }

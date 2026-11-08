@@ -510,7 +510,7 @@ Some storage libraries don't build or run for `GOOS=wasip1` because they call `m
 A shim only replaces calls that WASI can't make. Every write still goes to a file, and every durability point is still a real fsync on seedfall's simulated disk, so crashes, torn writes and fsync errors behave as they do for any other code.
 
 - **Read-only `mmap`** (bbolt) becomes a heap copy of the file, re-read on every remap. bbolt writes pages with `pwrite` and syncs with `fdatasync`, never through the mapping. A `MAP_SHARED` mapping sees those writes immediately, so the shim copies each successful `pwrite` into the heap image too. The file stays the only source of truth after a crash.
-- **Shared `mmap`** (badger through ristretto's `z` package, the generic shim) becomes a heap buffer that seedfall's disk knows about. A `pwrite` to the file updates every shared mapping of it, and pages written through a writable mapping reach the page cache at `msync`, at `munmap`, when the file is read with `pread`, and when the process exits cleanly. `MS_SYNC` also fsyncs the file; `MS_ASYNC` does not. A `MAP_PRIVATE` mapping is a snapshot. Dirty pages that were never `msync`ed are lost on a crash unless [`mmap_early_writeback`](#early-writeback-of-mapped-pages) keeps them.
+- **Shared `mmap`** (badger through ristretto's `z` package, the generic shim) becomes a heap buffer that seedfall's disk knows about. A `pwrite` to the file updates every shared mapping of it, and pages written through a writable mapping reach the page cache at `msync`, at `munmap`, when the file is read with `pread` or mapped again, when it is fsynced, and when the process exits cleanly. `fsync` and `fdatasync` make every dirty page of the file durable. `MS_SYNC` flushes only the range it is given, then fsyncs the file; `MS_ASYNC` does not fsync. Truncating a file clears any part of a mapping past the new size. A `MAP_PRIVATE` mapping is a snapshot. Dirty pages that were never `msync`ed are lost on a crash unless [`mmap_early_writeback`](#early-writeback-of-mapped-pages) keeps them.
 - **`flock` and file locks** become an in-process lock table. Each node is one process, and a crash starts a fresh process, so this matches what the lock guarantees.
 - **`madvise`, `mlock` and disk-usage queries** are no-ops or report "unsupported". They are hints that don't change what is on disk.
 - **Route lookups** (`go-sockaddr`) report that no route is known, as the library does on `js` and `plan9`. Only the automatic choice of a private IP depends on them.
@@ -519,7 +519,7 @@ A shim only replaces calls that WASI can't make. Every write still goes to a fil
 
 Most libraries put their mapping code in a file constrained to unix, and it calls `unix.Mmap`, `syscall.Mmap`, `unix.Flock` or `syscall.Flock`. You don't need a shim for each one. With `compat_overlay`, seedfall adds `Mmap`, `Munmap`, `Msync`, `Mlock`, `Munlock`, `Madvise` and `Flock` to `syscall` on `wasip1`, and a matching `golang.org/x/sys/unix`. It then finds files in your dependencies that are excluded on `wasip1`, would build on Linux, and call one of those four functions, and compiles them for `wasip1`. If such a file conflicts with a stub the library already builds on `wasip1`, like `gofrs/flock`'s `flock_others.go`, the stub is removed, but only when the file declares everything the stub declares. It does not touch your own module, or a file whose name ends in `_linux`, which normally assumes much more of Linux.
 
-A file that uses anything else missing on `wasip1`, such as `unix.Fallocate`, fails to compile and the build error names the symbol. Run `seedfall init -n` to see which dependencies are covered: every `wasip1_blockers` entry has a `shim` line naming the shim or saying `none: needs a shim`, and `compat_shims` lists every dependency `compat_overlay` will touch, including ones like `gofrs/flock` that compile but fail at run time. `init` turns on `compat_overlay` when it finds any. `flock` is held by a table inside the node's process, keyed by inode: a lock is released by `LOCK_UN` or when the process dies, not by closing the file.
+A file that uses anything else missing on `wasip1`, such as `unix.Fallocate`, fails to compile and the build error names the symbol. Run `seedfall init -n` to see which dependencies are covered: every `wasip1_blockers` entry has a `shim` line naming the shim or saying `none: needs a shim`, and `compat_shims` lists every dependency `compat_overlay` will touch, including ones like `gofrs/flock` that compile but fail at run time. `init` turns on `compat_overlay` when it finds any. `flock` is held by a table inside the node's process, keyed by inode: a lock is released by `LOCK_UN`, by closing the file descriptor that holds it, or when the process dies. A blocking `Flock` retries on a virtual 1 ms sleep; because `syscall` cannot import `time`, the overlay reaches `time.Sleep` through one `go:linkname`, the only one in seedfall.
 
 ## Early writeback of mapped pages
 
@@ -546,6 +546,9 @@ Pebble records which manifest is current with an empty marker file. It creates t
 ## Not covered
 
 - A mapping whose bytes are only read by another process. Each node is one process, so a mapping is only ever coherent with the node's own `pwrite` calls.
+- Two mappings of one file see each other's writes only after one of the flushes above, because there is no page fault to hook.
+- Mapping a file after its last name is unlinked: `Mmap` returns `EBADF`.
+- `seedfall inspect` shows mapped writes only once they have reached the page cache, for the same reason.
 - `mremap`, and code that needs more of `syscall` or `x/sys/unix` than the functions above. The build error names what is missing.
 - Libraries seedfall doesn't have a verified shim for: `github.com/boltdb/bolt`, `github.com/hashicorp/raft-boltdb` before its `v2` (which uses bbolt), `github.com/dgraph-io/ristretto` before `v2`, and `github.com/cockroachdb/pebble` before `v2` (a `v2`-style shim made it build, but acknowledged writes were lost on restart, so it isn't shipped).
 - Libraries that need cgo, such as RocksDB bindings or `mattn/go-sqlite3`.
@@ -660,7 +663,7 @@ Every node starts with an empty disk unless its entry says otherwise:
 }
 ```
 
-- `disk` names a host directory. Its files and directories are copied onto the node's disk, the directory itself becoming `/`.
+- `disk` names a host directory. Its files, directories and symlinks are copied onto the node's disk, the directory itself becoming `/`.
 - `files` maps a path on the node's disk to a host file. A file listed here replaces the same path from `disk`.
 
 Both are read from the host once, when the config loads, and copied into memory, so a run never touches the host disk and stays deterministic. The copied files are durable and synced before the node first starts, as if an earlier life had written and fsynced them: a crash never loses them, and `seedfall inspect` shows them as durable from t=0. Directories leading to them are durable too, even with `strict_dirs`. Symlinks and other special files in `disk` are rejected. The trace opens with a line per seeded node, `ledger's disk starts with 2 durable files, 86 bytes`, and the config hash in failure artifacts covers the bytes of every seeded file, so changing a fixture changes `config_sha256`.
@@ -1169,7 +1172,7 @@ seedfall compiles every node with the stock Go toolchain for `GOOS=wasip1` and r
 
 A node gives up control when all of its goroutines are blocked, or when it is preempted after a long run without blocking (see [Preemption](#preemption)). The scheduler runs exactly one node at a time, picks the next one by earliest wake-up time, breaks ties with the seed, and jumps virtual time forward. Ten seconds of `time.Sleep` cost no real time.
 
-There is no `linkname`, no source rewriting and no forked runtime, so new Go releases keep working.
+There is no `linkname`, no source rewriting and no forked runtime, so new Go releases keep working. The opt-in `compat_overlay` and `net_overlay` are the exceptions: they add wasip1 files to your build ([compat](compat.md)), and the generic `flock` shim uses one `go:linkname` to `time.Sleep`.
 
 ## Preemption
 

@@ -329,3 +329,51 @@ func TestFSModelValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestExclusiveCreateDoesNotFollowASymlink(t *testing.T) {
+	m := testFS()
+	if errno := m.Symlink("target", "link"); errno != 0 {
+		t.Fatal(errno)
+	}
+	if _, errno := m.OpenFile("link", rw|fsapi.O_EXCL, 0); errno != fsapi.EEXIST {
+		t.Fatalf("O_CREAT|O_EXCL on a symlink = %v, want EEXIST", errno)
+	}
+	if _, ok := contents(m, "target"); ok {
+		t.Fatal("an exclusive create went through the symlink")
+	}
+}
+
+func TestSymlinkRefusesAnEmptyTarget(t *testing.T) {
+	if errno := testFS().Symlink("", "link"); errno != fsapi.ENOENT {
+		t.Fatalf("symlink to an empty target = %v, want ENOENT", errno)
+	}
+}
+
+func TestRelatimeRefreshesADayOldAccessTime(t *testing.T) {
+	now := int64(1000)
+	m := newMemFS(func() int64 { return now })
+	f := open(t, m, "a", rw)
+	write(t, f, "x")
+	now = 2000
+	if _, errno := f.Pread(make([]byte, 1), 0); errno != 0 {
+		t.Fatal(errno)
+	}
+	now = 2000 + relatimeSpan
+	if _, errno := f.Pread(make([]byte, 1), 0); errno != 0 {
+		t.Fatal(errno)
+	}
+	if st, _ := m.Stat("a"); st.Atim != now {
+		t.Fatalf("atime = %d, want the refresh at %d", st.Atim, now)
+	}
+}
+
+func TestSeededSymlinkIsALinkOnTheDisk(t *testing.T) {
+	m := testFS()
+	m.seed([]seedFile{{path: "target", data: []byte("x")}, {path: "link", link: "target"}})
+	if got, errno := m.Readlink("link"); errno != 0 || got != "target" {
+		t.Fatalf("readlink = %q, %v", got, errno)
+	}
+	if got, ok := contents(m, "target"); !ok || got != "x" {
+		t.Fatalf("target = %q, %v", got, ok)
+	}
+}

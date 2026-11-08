@@ -105,7 +105,7 @@ Every node starts with an empty disk unless its entry says otherwise:
 }
 ```
 
-- `disk` names a host directory. Its files and directories are copied onto the node's disk, the directory itself becoming `/`.
+- `disk` names a host directory. Its files, directories and symlinks are copied onto the node's disk, the directory itself becoming `/`.
 - `files` maps a path on the node's disk to a host file. A file listed here replaces the same path from `disk`.
 
 Both are read from the host once, when the config loads, and copied into memory, so a run never touches the host disk and stays deterministic. The copied files are durable and synced before the node first starts, as if an earlier life had written and fsynced them: a crash never loses them, and `seedfall inspect` shows them as durable from t=0. Directories leading to them are durable too, even with `strict_dirs`. Symlinks and other special files in `disk` are rejected. The trace opens with a line per seeded node, `ledger's disk starts with 2 durable files, 86 bytes`, and the config hash in failure artifacts covers the bytes of every seeded file, so changing a fixture changes `config_sha256`.

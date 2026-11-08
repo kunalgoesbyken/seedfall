@@ -300,3 +300,31 @@ func TestMCPMutateRejectsOnlyWithApp(t *testing.T) {
 		t.Fatalf("only was accepted with app: %v %v", err, res.Content)
 	}
 }
+
+func TestInitNamesTheShimForEachDependency(t *testing.T) {
+	module := func(path string) *struct {
+		Path string
+		Main bool
+	} {
+		return &struct {
+			Path string
+			Main bool
+		}{Path: path}
+	}
+	const covered, uncovered = "go.etcd.io/bbolt", "example.com/none"
+	graph := map[string]listedPackage{
+		"example.com/svc": {Deps: []string{covered, uncovered, "fmt"}},
+		covered:           {ImportPath: covered, Module: module(covered)},
+		uncovered:         {ImportPath: uncovered, Dir: t.TempDir(), Module: module(uncovered)},
+		"fmt":             {ImportPath: "fmt", Standard: true},
+	}
+	shims, err := compatShims(graph, []mainPackage{{ImportPath: "example.com/svc"}})
+	if err != nil || len(shims) != 1 || shims[0].Package != covered {
+		t.Fatalf("compat shims = %+v, %v, want only %s", shims, err, covered)
+	}
+	blockers := []blocker{{Package: covered}, {Package: uncovered}, {Package: "example.com/svc/own", OwnModule: true}}
+	coverBlockers(blockers, shims)
+	if blockers[0].Shim != shims[0].Shim || blockers[1].Shim != noShim || blockers[2].Shim != "" {
+		t.Fatalf("blockers = %+v", blockers)
+	}
+}

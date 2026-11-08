@@ -50,12 +50,12 @@ func Mmap(fd int, offset int64, length int, prot int, flags int) ([]byte, error)
 	return syscall.Mmap(fd, offset, length, prot, flags)
 }
 
-func Munmap(b []byte) error                   { return syscall.Munmap(b) }
-func Msync(b []byte, flags int) error         { return syscall.Msync(b, flags) }
-func Mlock(b []byte) error                    { return syscall.Mlock(b) }
-func Munlock(b []byte) error                  { return syscall.Munlock(b) }
-func Madvise(b []byte, advice int) error      { return syscall.Madvise(b, advice) }
-func Flock(fd int, how int) error             { return syscall.Flock(fd, how) }
-func Fstat(fd int, st *syscall.Stat_t) error  { return syscall.Fstat(fd, st) }
-func Fsync(fd int) error                      { return syscall.Fsync(fd) }
-func Getpagesize() int                        { return syscall.Getpagesize() }
+func Munmap(b []byte) error                  { return syscall.Munmap(b) }
+func Msync(b []byte, flags int) error        { return syscall.Msync(b, flags) }
+func Mlock(b []byte) error                   { return syscall.Mlock(b) }
+func Munlock(b []byte) error                 { return syscall.Munlock(b) }
+func Madvise(b []byte, advice int) error     { return syscall.Madvise(b, advice) }
+func Flock(fd int, how int) error            { return syscall.Flock(fd, how) }
+func Fstat(fd int, st *syscall.Stat_t) error { return syscall.Fstat(fd, st) }
+func Fsync(fd int) error                     { return syscall.Fsync(fd) }
+func Getpagesize() int                       { return syscall.Getpagesize() }

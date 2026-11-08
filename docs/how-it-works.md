@@ -12,7 +12,7 @@ seedfall compiles every node with the stock Go toolchain for `GOOS=wasip1` and r
 
 A node gives up control when all of its goroutines are blocked, or when it is preempted after a long run without blocking (see [Preemption](#preemption)). The scheduler runs exactly one node at a time, picks the next one by earliest wake-up time, breaks ties with the seed, and jumps virtual time forward. Ten seconds of `time.Sleep` cost no real time.
 
-There is no `linkname`, no source rewriting and no forked runtime, so new Go releases keep working.
+There is no `linkname`, no source rewriting and no forked runtime, so new Go releases keep working. The opt-in `compat_overlay` and `net_overlay` are the exceptions: they add wasip1 files to your build ([compat](compat.md)), and the generic `flock` shim uses one `go:linkname` to `time.Sleep`.
 
 ## Preemption
 

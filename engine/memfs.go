@@ -16,8 +16,9 @@ import (
 )
 
 const (
-	pageSize    = 4096
-	maxSymlinks = 40
+	pageSize     = 4096
+	maxSymlinks  = 40
+	relatimeSpan = int64(24 * time.Hour)
 )
 
 type crashModel struct {
@@ -159,11 +160,15 @@ func (m *memFS) OpenFile(p string, flag fsapi.Oflag, _ fs.FileMode) (fsapi.File,
 			return f, errno
 		}
 	}
-	p, errno := m.resolve(p, flag&fsapi.O_NOFOLLOW == 0)
+	exclusive := flag&fsapi.O_CREAT != 0 && flag&fsapi.O_EXCL != 0
+	p, errno := m.resolve(p, flag&fsapi.O_NOFOLLOW == 0 && !exclusive)
 	if errno != 0 {
 		return nil, errno
 	}
 	if in, ok := m.files[p]; ok && in.target != "" {
+		if exclusive {
+			return nil, fsapi.EEXIST
+		}
 		return nil, fsapi.ELOOP
 	}
 	if ino, ok := m.dirs[p]; ok {
@@ -180,7 +185,7 @@ func (m *memFS) OpenFile(p string, flag fsapi.Oflag, _ fs.FileMode) (fsapi.File,
 		return nil, fsapi.ENOENT
 	}
 	switch {
-	case ok && flag&fsapi.O_CREAT != 0 && flag&fsapi.O_EXCL != 0:
+	case ok && exclusive:
 		return nil, fsapi.EEXIST
 	case !ok && flag&fsapi.O_CREAT == 0:
 		return nil, fsapi.ENOENT
@@ -369,6 +374,9 @@ func (m *memFS) Link(oldPath, newPath string) fsapi.Errno {
 func (m *memFS) Symlink(target, link string) fsapi.Errno {
 	link = clean(link)
 	m.call("path_symlink", link, 0)
+	if target == "" {
+		return fsapi.ENOENT
+	}
 	to, errno := m.resolve(link, false)
 	if errno != 0 {
 		return errno
@@ -770,8 +778,8 @@ func (f *memFile) Pread(buf []byte, off int64) (int, fsapi.Errno) {
 	if f.in == nil {
 		return 0, fsapi.EISDIR
 	}
-	if f.in.atime <= f.in.mtime {
-		f.in.atime = f.fs.clock()
+	if now := f.fs.clock(); f.in.atime <= f.in.mtime || now-f.in.atime >= relatimeSpan {
+		f.in.atime = now
 	}
 	f.fs.flushMapped(f.in)
 	n := 0
@@ -910,7 +918,7 @@ func (f *memFile) record(w pendingWrite) fsapi.Errno {
 	f.store(w)
 	f.fs.notify()
 	if f.sync && !f.weakenedTo(OsyncIgnored) {
-		return f.Sync()
+		return f.fsync()
 	}
 	return 0
 }
@@ -922,6 +930,13 @@ func (m *memFS) notify() {
 }
 
 func (f *memFile) Sync() fsapi.Errno {
+	if f.in != nil {
+		f.fs.flushMapped(f.in)
+	}
+	return f.fsync()
+}
+
+func (f *memFile) fsync() fsapi.Errno {
 	f.fs.call("fd_sync", f.path, 0)
 	f.fs.notify()
 	if f.fs.syncWait != nil {

@@ -143,7 +143,7 @@ The [getting started guide](docs/getting-started.md) walks through finding, shri
 
 ## Features
 
-- **Stock toolchain.** No `linkname`, no source rewriting, no forked runtime. Works on Linux, macOS and Windows. [How it works](docs/how-it-works.md)
+- **Stock toolchain.** No forked runtime, and without the opt-in overlays no `linkname` and no source rewriting. Works on Linux, macOS and Windows. [How it works](docs/how-it-works.md)
 - **A real disk model.** Plain `os.File` with fsync durability, torn writes, out-of-order page writeback, crashes in the middle of a disk operation, fsync `EIO` with Linux "fsyncgate" semantics, and strict POSIX directory durability. [Faults](docs/faults.md)
 - **A disk that misbehaves.** A full disk that returns `ENOSPC`, read and write `EIO`, corrupted reads, lost and misdirected writes that fsync reports as done, bits flipped by a crash or by bit rot, and slow fsyncs. Every one replays and shrinks, and `seedfall inspect` shows the corrupted ranges. [Disk faults](docs/faults.md#disk-faults)
 - **A disk you can trust.** Hard links with link counts, symbolic links, `Lstat`, stored `Chtimes`, and three crash models for `reorder_writes`: `ext4_ordered`, an aggressive `page_independent`, and `dir_reorder` for ext2 and btrfs, grounded in the ALICE measurements. [File system models](docs/faults.md#file-system-models)

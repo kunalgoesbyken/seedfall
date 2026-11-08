@@ -37,6 +37,8 @@ const (
 	seedfallMapWritable = 0x2
 	seedfallSyncSync    = 0x1
 	seedfallLockRetry   = 1000000
+	seedfallBadFile     = 1
+	seedfallBadAddress  = 2
 )
 
 type seedfallLock struct {
@@ -66,9 +68,9 @@ func seedfallErr(code uint32) error {
 	switch code {
 	case 0:
 		return nil
-	case 1:
+	case seedfallBadFile:
 		return EBADF
-	case 2:
+	case seedfallBadAddress:
 		return EFAULT
 	}
 	return EIO
@@ -160,6 +162,12 @@ func seedfallTryLock(ino uint64, fd int, exclusive bool) bool {
 	if l == nil {
 		l = &seedfallLock{holders: map[int]bool{}}
 		seedfallLocks[ino] = l
+	}
+	for holder := range l.holders {
+		var st Stat_t
+		if holder != fd && (Fstat(holder, &st) != nil || st.Ino != ino) {
+			delete(l.holders, holder)
+		}
 	}
 	others := len(l.holders)
 	if l.holders[fd] {

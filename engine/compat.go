@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -208,7 +209,8 @@ func widenFile(p goPackage, name string, active []string) (widenedFile, bool, er
 	if err != nil {
 		return widenedFile{}, false, err
 	}
-	parsed, err := parser.ParseFile(token.NewFileSet(), name, src, parser.SkipObjectResolution)
+	fset := token.NewFileSet()
+	parsed, err := parser.ParseFile(fset, name, src, parser.SkipObjectResolution)
 	if err != nil || !callsMapOrLock(parsed) {
 		return widenedFile{}, false, nil
 	}
@@ -237,18 +239,19 @@ func widenFile(p goPackage, name string, active []string) (widenedFile, bool, er
 			removes = append(removes, other)
 		}
 	}
-	return widenedFile{name: name, source: wasip1Source(src), removes: removes, unix: importsUnix(parsed)}, true, nil
+	return widenedFile{name: name, source: wasip1Source(src, fset.Position(parsed.Package).Offset), removes: removes, unix: importsUnix(parsed)}, true, nil
 }
 
 func callsMapOrLock(f *ast.File) bool {
 	found := false
+	pkgs := shimmedImportNames(f)
 	ast.Inspect(f, func(n ast.Node) bool {
 		s, ok := n.(*ast.SelectorExpr)
 		if !ok || found {
 			return !found
 		}
 		pkg, ok := s.X.(*ast.Ident)
-		found = ok && (pkg.Name == "unix" || pkg.Name == "syscall") && slices.Contains(widenedCalls, s.Sel.Name)
+		found = ok && slices.Contains(pkgs, pkg.Name) && slices.Contains(widenedCalls, s.Sel.Name)
 		return !found
 	})
 	return found
@@ -256,24 +259,34 @@ func callsMapOrLock(f *ast.File) bool {
 
 var widenedCalls = []string{"Mmap", "Munmap", "Msync", "Flock"}
 
+func shimmedImportNames(f *ast.File) []string {
+	var names []string
+	for _, s := range f.Imports {
+		p, err := strconv.Unquote(s.Path.Value)
+		if err != nil || (p != "syscall" && p != unixPackage) {
+			continue
+		}
+		name := path.Base(p)
+		if s.Name != nil {
+			name = s.Name.Name
+		}
+		names = append(names, name)
+	}
+	return names
+}
+
 func importsUnix(f *ast.File) bool {
 	return slices.ContainsFunc(f.Imports, func(s *ast.ImportSpec) bool { return s.Path.Value == fmt.Sprintf("%q", unixPackage) })
 }
 
-func wasip1Source(src []byte) []byte {
-	var body []string
-	inHeader := true
-	for _, line := range strings.Split(string(src), "\n") {
-		trimmed := strings.TrimSpace(line)
-		if inHeader && (constraint.IsGoBuild(trimmed) || constraint.IsPlusBuild(trimmed)) {
-			continue
+func wasip1Source(src []byte, pkg int) []byte {
+	var header strings.Builder
+	for _, line := range strings.SplitAfter(string(src[:pkg]), "\n") {
+		if trimmed := strings.TrimSpace(line); !constraint.IsGoBuild(trimmed) && !constraint.IsPlusBuild(trimmed) {
+			header.WriteString(line)
 		}
-		if strings.HasPrefix(trimmed, "package ") {
-			inHeader = false
-		}
-		body = append(body, line)
 	}
-	return []byte("//go:build wasip1\n\n" + strings.Join(body, "\n"))
+	return []byte("//go:build wasip1\n\n" + header.String() + string(src[pkg:]))
 }
 
 func loadShims(importPath string) (*shimSet, error) {
