@@ -268,7 +268,7 @@ func (w *world) handle(ev event) {
 	case w.failure != "":
 	case ev.inst.killed:
 		if ev.inst.crashUntil > 0 {
-			w.crashDisk(n, ev.inst.crashUntil)
+			w.crashDisk(n, ev.inst.crashUntil, fmt.Sprintf("op/%d", n.ops))
 		}
 	case w.ctx.Err() != nil:
 		w.fail(Failure{Class: FailWatchdog, Node: n.name()}, fmt.Sprintf("watchdog: %s ran for more than %s of real time without yielding (livelock or busy loop)", ev.inst.label, time.Duration(w.cfg.Watchdog)))
@@ -304,7 +304,7 @@ func (w *world) applyFault(f Fault) {
 		}
 		w.trace.add(w.now, "fault crash %s, restart at %s", n.live.label, fmtTime(int64(f.Until)))
 		w.kill(n.live)
-		w.crashDisk(n, int64(f.Until))
+		w.crashDisk(n, int64(f.Until), fmt.Sprintf("at/%d", f.At))
 	case FaultPause:
 		n := w.nodeByName(f.Node)
 		if n == nil || n.live == nil {
@@ -329,8 +329,12 @@ func (w *world) applyFault(f Fault) {
 	}
 }
 
-func (w *world) crashDisk(n *node, until int64) {
-	n.fs.crash(w.diskRand, w.spec.TornWrites)
+func (w *world) crashDisk(n *node, until int64, crash string) {
+	c := crashModel{torn: w.spec.TornWrites}
+	if w.spec.ReorderWrites {
+		c.pages = streams(w.seed, "writeback/"+n.name()+"/"+crash)
+	}
+	n.fs.crash(w.diskRand, c)
 	n.restartAt = until
 }
 

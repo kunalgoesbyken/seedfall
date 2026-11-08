@@ -3,8 +3,10 @@ package engine
 import (
 	"io"
 	"io/fs"
+	"maps"
 	"math/rand/v2"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -12,6 +14,13 @@ import (
 	fsapi "github.com/tetratelabs/wazero/experimental/sys"
 	"github.com/tetratelabs/wazero/sys"
 )
+
+const pageSize = 4096
+
+type crashModel struct {
+	torn  bool
+	pages *rand.Rand
+}
 
 type pendingWrite struct {
 	off      int64
@@ -27,6 +36,7 @@ type inode struct {
 	pending []pendingWrite
 	mtime   int64
 	tear    *Tear
+	wb      *Writeback
 }
 
 type memFS struct {
@@ -222,40 +232,43 @@ func (m *memFS) Rename(from, to string) fsapi.Errno {
 func (m *memFS) Utimens(string, int64, int64) fsapi.Errno { return 0 }
 func (m *memFS) Chmod(string, fs.FileMode) fsapi.Errno    { return 0 }
 
-func (m *memFS) crash(r *rand.Rand, torn bool) {
+func (m *memFS) crash(r *rand.Rand, c crashModel) {
 	if m.ns != nil {
-		m.crashStrict(r, torn)
+		m.crashStrict(r, c)
 		return
 	}
 	at := m.crashTime()
 	for _, p := range sortedKeys(m.files) {
 		in := m.files[p]
-		in.recover(r, torn, at)
+		in.recover(r, c, at)
 		if !in.synced {
 			delete(m.files, p)
 		}
 	}
 }
 
-func (m *memFS) crashStrict(r *rand.Rand, torn bool) {
+func (m *memFS) crashStrict(r *rand.Rand, c crashModel) {
 	seen := map[*inode]bool{}
 	at := m.crashTime()
 	for _, files := range []map[string]*inode{m.files, m.ns.files} {
 		for _, p := range sortedKeys(files) {
 			if in := files[p]; !seen[in] {
 				seen[in] = true
-				in.recover(r, torn, at)
+				in.recover(r, c, at)
 			}
 		}
 	}
-	m.files, m.dirs = m.ns.recover(r, torn)
+	m.files, m.dirs = m.ns.recover(r, c.torn)
 }
 
 func (m *memFS) crashTime() time.Duration { return time.Duration(m.clock() - epochNanos) }
 
-func (in *inode) recover(r *rand.Rand, torn bool, at time.Duration) {
+func (in *inode) recover(r *rand.Rand, c crashModel, at time.Duration) {
 	data := append([]byte(nil), in.durable...)
-	if torn && len(in.pending) > 0 {
+	switch {
+	case c.pages != nil && len(in.pending) > 0:
+		data = in.writeBack(c.pages, c.torn, at, data)
+	case c.torn && len(in.pending) > 0:
 		keep := r.IntN(len(in.pending) + 1)
 		for i, w := range in.pending[:keep] {
 			if i == keep-1 && !w.truncate && len(w.data) > 0 {
@@ -268,6 +281,56 @@ func (in *inode) recover(r *rand.Rand, torn bool, at time.Duration) {
 	in.data = data
 	in.durable = append([]byte(nil), data...)
 	in.pending = nil
+}
+
+type pageChunk struct {
+	write int
+	w     pendingWrite
+}
+
+func pageChunks(pending []pendingWrite) map[int64][]pageChunk {
+	pages := map[int64][]pageChunk{}
+	for i, w := range pending {
+		if w.truncate {
+			pages[-1] = append(pages[-1], pageChunk{i, w})
+			continue
+		}
+		end := w.off + int64(len(w.data))
+		for off := w.off; off < end; {
+			page := off / pageSize
+			next := min((page+1)*pageSize, end)
+			pages[page] = append(pages[page], pageChunk{i, pendingWrite{off: off, data: w.data[off-w.off : next-w.off]}})
+			off = next
+		}
+	}
+	return pages
+}
+
+func (in *inode) writeBack(r *rand.Rand, torn bool, at time.Duration, data []byte) []byte {
+	pages := pageChunks(in.pending)
+	var kept []pageChunk
+	for _, p := range slices.Sorted(maps.Keys(pages)) {
+		chunks := pages[p]
+		n := r.IntN(len(chunks) + 1)
+		if torn && n > 0 && !chunks[n-1].w.truncate {
+			chunks[n-1].w = in.tearWrite(r, chunks[n-1].w, at)
+		}
+		kept = append(kept, chunks[:n]...)
+	}
+	slices.SortStableFunc(kept, func(a, b pageChunk) int { return a.write - b.write })
+	wb := &Writeback{At: Duration(at)}
+	for _, w := range in.pending {
+		wb.Writes = append(wb.Writes, WriteFate{Offset: w.off, Size: int64(len(w.data)), Truncate: w.truncate})
+	}
+	for _, c := range kept {
+		data = c.w.apply(data)
+		f := &wb.Writes[c.write]
+		f.Kept += int64(len(c.w.data))
+		f.Survived = f.Survived || c.w.truncate || f.Kept > 0
+	}
+	in.wb = wb
+	in.synced = in.synced || len(kept) > 0
+	return data
 }
 
 func (in *inode) tearWrite(r *rand.Rand, w pendingWrite, at time.Duration) pendingWrite {

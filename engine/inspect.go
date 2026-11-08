@@ -19,6 +19,19 @@ type Tear struct {
 	Size   int64    `json:"size"`
 }
 
+type WriteFate struct {
+	Offset   int64 `json:"offset"`
+	Size     int64 `json:"size"`
+	Kept     int64 `json:"kept"`
+	Truncate bool  `json:"truncate,omitempty"`
+	Survived bool  `json:"survived"`
+}
+
+type Writeback struct {
+	At     Duration    `json:"at"`
+	Writes []WriteFate `json:"writes"`
+}
+
 type FileState struct {
 	Path         string      `json:"path"`
 	Size         int64       `json:"size"`
@@ -26,6 +39,7 @@ type FileState struct {
 	Volatile     []ByteRange `json:"volatile,omitempty"`
 	EntryDurable bool        `json:"entry_durable"`
 	Tear         *Tear       `json:"last_tear,omitempty"`
+	Writeback    *Writeback  `json:"last_writeback,omitempty"`
 	Durable      []byte      `json:"-"`
 }
 
@@ -43,12 +57,13 @@ type DirState struct {
 }
 
 type Disk struct {
-	Node   string      `json:"node"`
-	Strict bool        `json:"strict_dirs"`
-	Torn   bool        `json:"torn_writes"`
-	Dirs   []DirState  `json:"dirs"`
-	Files  []FileState `json:"files"`
-	Ghosts []FileState `json:"ghosts,omitempty"`
+	Node    string      `json:"node"`
+	Strict  bool        `json:"strict_dirs"`
+	Torn    bool        `json:"torn_writes"`
+	Reorder bool        `json:"reorder_writes"`
+	Dirs    []DirState  `json:"dirs"`
+	Files   []FileState `json:"files"`
+	Ghosts  []FileState `json:"ghosts,omitempty"`
 }
 
 func (d Disk) AfterCrash() ([]DirState, []FileState) {
@@ -109,7 +124,7 @@ func (w *world) capture() {
 	for _, n := range w.nodes {
 		if p.node == "" || p.node == n.name() {
 			d := n.fs.snapshot(n.name())
-			d.Torn = w.spec.TornWrites
+			d.Torn, d.Reorder = w.spec.TornWrites, w.spec.ReorderWrites
 			p.disks = append(p.disks, d)
 		}
 	}
@@ -159,6 +174,11 @@ func fileState(p string, in *inode, entryDurable bool) FileState {
 	if in.tear != nil {
 		t := *in.tear
 		f.Tear = &t
+	}
+	if in.wb != nil {
+		wb := *in.wb
+		wb.Writes = slices.Clone(wb.Writes)
+		f.Writeback = &wb
 	}
 	return f
 }

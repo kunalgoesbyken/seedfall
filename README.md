@@ -111,7 +111,7 @@ The [getting started guide](docs/getting-started.md) walks through finding, shri
 ## Features
 
 - **Stock toolchain.** No `linkname`, no source rewriting, no forked runtime. Works on Linux, macOS and Windows. [How it works](docs/how-it-works.md)
-- **A real disk model.** Plain `os.File` with fsync durability, torn writes, crashes in the middle of a disk operation, fsync `EIO` with Linux "fsyncgate" semantics, and strict POSIX directory durability. [Faults](docs/faults.md)
+- **A real disk model.** Plain `os.File` with fsync durability, torn writes, out-of-order page writeback, crashes in the middle of a disk operation, fsync `EIO` with Linux "fsyncgate" semantics, and strict POSIX directory durability. [Faults](docs/faults.md)
 - **Storage engines that need `mmap`.** bbolt, pebble and badger run unmodified via `compat_overlay`, which swaps their platform files for `wasip1` versions. [Compat](docs/compat.md)
 - **A real network.** Partitions, latency, resets, through `sim` or with zero code changes via `net_overlay`, including `net/http` and hashicorp/raft's stock TCP transport. [Networking](docs/networking.md)
 - **Real processes.** Every node is its own wasm instance. A crash kills the process; a restart boots fresh over the surviving disk. `supervise` restarts nodes that exit, like systemd.
@@ -137,6 +137,7 @@ The [getting started guide](docs/getting-started.md) walks through finding, shri
 | Example | What it shows |
 |---|---|
 | [`examples/kvlog`](examples/kvlog) | A log-structured store: ack-before-fsync, the torn-tail recovery bug that survives "fsync before ack", the fsyncgate hole, and their fixes |
+| [`examples/metapage`](examples/metapage) | A store that commits records through a meta page: passes under torn writes, and `reorder_writes` finds the meta page reaching the disk before the record it commits |
 | [`examples/raftkv`](examples/raftkv) | hashicorp/raft v1.8 with linearizability checking, over a `sim` stream layer or the stock TCP transport |
 | [`examples/etcdraft`](examples/etcdraft) | etcd-io/raft v3 with a raftexample-style WAL and snapshots, linearizability checked |
 | [`examples/wals`](examples/wals) | tidwall/wal and rosedblabs/wal behind one log server and client |
@@ -162,7 +163,7 @@ The [getting started guide](docs/getting-started.md) walks through finding, shri
 - Goroutine interleavings inside a node come from the Go scheduler under a seeded random source. There is no systematic preemption, so use `go test -race` for shared-memory races. seedfall targets distributed and storage bugs.
 - There is no asynchronous preemption, so a goroutine that spins without making a syscall starves the others in its node. gRPC's transparent retry does this after a peer crashes, which shows up as a false watchdog livelock; [`examples/jmsraft`](examples/jmsraft) uses a plain TCP transport for this reason.
 - The guest's wall clock does not advance while it runs between scheduling points, so two `time.Now()` calls in a row can return the same value. Code that names files by timestamp can collide in a way it would not on real hardware.
-- Reordering of writes within the pending set is not modeled. A torn crash keeps an in-order prefix.
+- `reorder_writes` models the page cache as independent 4 KiB pages, which is weaker than ext4 `data=ordered` for appends: it can persist a later appended page before an earlier one, which ext4 does not. Directory operations under `strict_dirs` still persist as an in-order prefix, as on journaling file systems; ext2 and btrfs can reorder them, which is not modeled.
 - Heavy guests run at roughly real-time speed; sweeps get their speed from running seeds in parallel.
 
 ## License
