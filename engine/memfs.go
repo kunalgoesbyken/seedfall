@@ -248,25 +248,36 @@ type fileDamage struct {
 }
 
 func (m *memFS) crash(r *rand.Rand, c crashModel) []fileDamage {
+	hit := map[*inode]Damage{}
 	if m.ns != nil {
-		return m.crashStrict(r, c)
+		m.crashStrict(r, c, hit)
+	} else {
+		m.crashLoose(r, c, hit)
 	}
 	var damaged []fileDamage
-	at := m.crashTime()
 	for _, p := range sortedKeys(m.files) {
-		in := m.files[p]
-		if d, ok := in.recover(r, c, at); ok {
+		if d, ok := hit[m.files[p]]; ok {
 			damaged = append(damaged, fileDamage{p, d})
-		}
-		if !in.synced {
-			delete(m.files, p)
+			delete(hit, m.files[p])
 		}
 	}
 	return damaged
 }
 
-func (m *memFS) crashStrict(r *rand.Rand, c crashModel) []fileDamage {
-	var damaged []fileDamage
+func (m *memFS) crashLoose(r *rand.Rand, c crashModel, hit map[*inode]Damage) {
+	at := m.crashTime()
+	for _, p := range sortedKeys(m.files) {
+		in := m.files[p]
+		if d, ok := in.recover(r, c, at); ok {
+			hit[in] = d
+		}
+		if !in.synced {
+			delete(m.files, p)
+		}
+	}
+}
+
+func (m *memFS) crashStrict(r *rand.Rand, c crashModel, hit map[*inode]Damage) {
 	seen := map[*inode]bool{}
 	at := m.crashTime()
 	for _, files := range []map[string]*inode{m.files, m.ns.files} {
@@ -274,13 +285,12 @@ func (m *memFS) crashStrict(r *rand.Rand, c crashModel) []fileDamage {
 			if in := files[p]; !seen[in] {
 				seen[in] = true
 				if d, ok := in.recover(r, c, at); ok {
-					damaged = append(damaged, fileDamage{p, d})
+					hit[in] = d
 				}
 			}
 		}
 	}
 	m.files, m.dirs = m.ns.recover(r, c.torn)
-	return damaged
 }
 
 func (m *memFS) crashTime() time.Duration { return time.Duration(m.clock() - epochNanos) }
@@ -334,13 +344,19 @@ func (in *inode) corruptWritten(r *rand.Rand, pending []pendingWrite, at time.Du
 }
 
 func (in *inode) flip(off int64, mask byte, kind string, at time.Duration) Damage {
-	if off < int64(len(in.data)) && in.data[off] == in.durable[off] {
+	if off < int64(len(in.data)) && !in.pendingAt(off) {
 		in.data[off] ^= mask
 	}
 	in.durable[off] ^= mask
 	d := Damage{At: Duration(at), Kind: kind, Offset: off, Size: 1}
 	in.damage = append(in.damage, d)
 	return d
+}
+
+func (in *inode) pendingAt(off int64) bool {
+	return slices.ContainsFunc(in.pending, func(w pendingWrite) bool {
+		return w.off <= off && (w.truncate || off < w.off+int64(len(w.data)))
+	})
 }
 
 func (m *memFS) rot(r *rand.Rand) (string, Damage, bool) {

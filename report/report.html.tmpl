@@ -98,9 +98,9 @@ td.num { font-family: ui-monospace, monospace; white-space: nowrap; }
     <tr><td>connection resets Â· slowdowns per second per node</td><td class="num">{{.Faults.ResetPerSec}} Â· {{.Faults.SlowPerSec}}</td></tr>
     <tr><td>crash probability per disk operation</td><td class="num">{{.Faults.CrashOnIO}}</td></tr>
     <tr><td>fsync EIO probability</td><td class="num">{{.Faults.FsyncEIO}}</td></tr>
-    <tr><td>write EIO · write ENOSPC · read EIO · corrupted read probability</td><td class="num">{{.Faults.WriteEIO}} · {{.Faults.WriteENOSPC}} · {{.Faults.ReadEIO}} · {{.Faults.ReadCorrupt}}</td></tr>
-    <tr><td>lost · misdirected write probability per fsync</td><td class="num">{{.Faults.LostWrite}} · {{.Faults.MisdirectedWrite}}</td></tr>
-    <tr><td>bit rot per second per node · corrupt on crash · disk bytes</td><td class="num">{{.Faults.BitrotPerSec}} · {{.Faults.CorruptOnCrash}} · {{.Faults.DiskBytes}}</td></tr>
+    <tr><td>write EIO Â· write ENOSPC Â· read EIO Â· corrupted read probability</td><td class="num">{{.Faults.WriteEIO}} Â· {{.Faults.WriteENOSPC}} Â· {{.Faults.ReadEIO}} Â· {{.Faults.ReadCorrupt}}</td></tr>
+    <tr><td>lost Â· misdirected write probability per fsync</td><td class="num">{{.Faults.LostWrite}} Â· {{.Faults.MisdirectedWrite}}</td></tr>
+    <tr><td>bit rot per second per node Â· corrupt on crash Â· disk bytes</td><td class="num">{{.Faults.BitrotPerSec}} Â· {{.Faults.CorruptOnCrash}} Â· {{.Faults.DiskBytes}}</td></tr>
     <tr><td>torn writes Â· strict directories Â· swarm</td><td class="num">{{.Faults.TornWrites}} Â· {{.Faults.StrictDirs}} Â· {{.Faults.Swarm}}</td></tr>
   </table>
 </main>

@@ -241,3 +241,33 @@ func TestRewritingALostPageWritesItInFull(t *testing.T) {
 		t.Fatalf("after rewriting the lost page the disk holds %q, want the whole page", got)
 	}
 }
+
+func TestCrashCorruptionIsReportedOnlyForFilesThatSurvive(t *testing.T) {
+	m := strictFS()
+	f := open(t, m, "lost", rw)
+	write(t, f, "synced")
+	fsync(t, f)
+	if _, errno := f.Pwrite([]byte("SYN"), 0); errno != 0 {
+		t.Fatal(errno)
+	}
+	if damaged := m.crash(seeded(1), crashModel{corrupt: seeded(2)}); len(damaged) != 0 {
+		t.Fatalf("a file whose entry the crash removed was reported damaged: %+v", damaged)
+	}
+}
+
+func TestBitrotUnderAPendingWriteLeavesTheLiveCopyAlone(t *testing.T) {
+	m := testFS()
+	f := open(t, m, "a", rw)
+	write(t, f, "a")
+	fsync(t, f)
+	if _, errno := f.Pwrite([]byte("a"), 0); errno != 0 {
+		t.Fatal(errno)
+	}
+	if _, _, ok := m.rot(seeded(4)); !ok {
+		t.Fatal("rot found nothing durable")
+	}
+	fsync(t, f)
+	if got, _ := contents(m, "a"); got != "a" || durable(m, "a") != "a" {
+		t.Fatalf("live %q durable %q after fsyncing a pending write over a rotted byte, want a and a", got, durable(m, "a"))
+	}
+}

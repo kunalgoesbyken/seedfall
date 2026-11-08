@@ -79,7 +79,7 @@ All faults come from the seed. Faults that depend on what the program does, such
 | `read_corrupt` | `0` | Probability that a file read returns one flipped bit. The disk holds the right bytes, so reading again returns them |
 | `lost_write` | `0` | Probability that a file fsync succeeds but one 4 KiB page it should have written keeps its old content on disk. The program keeps reading the new content until a crash |
 | `misdirected_write` | `0` | Probability that a file fsync succeeds but one page lands at another page offset of the same file, overwriting what was there, while the intended page keeps its old content |
-| `corrupt_on_crash` | `false` | Each crash flips one bit in every file that had pending writes, somewhere in the bytes being written, as a sector half-written when the power failed |
+| `corrupt_on_crash` | `false` | Each crash flips one bit in every file whose pending writes cover bytes that are on disk after the crash, somewhere in those bytes, as a sector half-written when the power failed |
 | `bitrot_per_sec` | `0` | Rate of bit rot per node: one bit of durable data, in a random file at a random offset, flips |
 | `disk_latency` | `["0s", "0s"]` | Extra time each fsync takes, drawn per fsync. Slow nodes stretch it |
 | `strict_dirs` | `false` | Directory entries survive a crash only after the parent directory is fsynced (strict POSIX) |
