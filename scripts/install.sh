@@ -63,8 +63,9 @@ actual="$(sha256 "$tmp/$archive")"
 
 tar -xzf "$tmp/$archive" -C "$tmp" seedfall
 mkdir -p "$install_dir"
-cp "$tmp/seedfall" "$install_dir/seedfall"
-chmod 0755 "$install_dir/seedfall"
+cp "$tmp/seedfall" "$install_dir/.seedfall.new"
+chmod 0755 "$install_dir/.seedfall.new"
+mv -f "$install_dir/.seedfall.new" "$install_dir/seedfall"
 
 echo "installed seedfall ($version, checksum verified) to $install_dir/seedfall"
 case ":$PATH:" in

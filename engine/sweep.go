@@ -252,9 +252,6 @@ func sweepUntilNovelty(r *Runner, lo, hi uint64, opts SweepOptions, started time
 		if opts.OnRound != nil {
 			opts.OnRound(point)
 		}
-		if m.timedOut.Load() {
-			return sum
-		}
 		if !opts.KeepGoing && sum.First != nil {
 			sum.Stopped = "failure found"
 			return sum
@@ -264,8 +261,6 @@ func sweepUntilNovelty(r *Runner, lo, hi uint64, opts SweepOptions, started time
 			return sum
 		}
 	}
-	if !m.timedOut.Load() {
-		sum.Stopped = "seed range finished"
-	}
+	sum.Stopped = "seed range finished"
 	return sum
 }

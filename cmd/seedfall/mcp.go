@@ -315,6 +315,9 @@ func toolRun(_ context.Context, _ *mcp.CallToolRequest, a runArgs) (*mcp.CallToo
 		if timeout, err = time.ParseDuration(a.Timeout); err != nil {
 			return nil, runView{}, fmt.Errorf("timeout: %w", err)
 		}
+		if timeout < 0 {
+			return nil, runView{}, errNegativeTimeout
+		}
 	}
 	r, cfg, err := loadWith(a.ref(), a.UntilNovelty > 0)
 	if err != nil {

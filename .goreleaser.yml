@@ -62,20 +62,24 @@ changelog:
     - title: Other
       order: 999
 
-brews:
+homebrew_casks:
   - name: seedfall
     repository:
       owner: kunalgoesbyken
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    directory: Formula
     homepage: https://github.com/kunalgoesbyken/seedfall
     description: Deterministic simulation testing for Go
     license: MIT
+    skip_upload: auto
     dependencies:
-      - name: go
-    test: |
-      system "#{bin}/seedfall", "version"
+      - formula: go
+    hooks:
+      post:
+        install_steps: |
+          on_macos do
+            run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ .StagedPath }}/seedfall"]
+          end
 
 scoops:
   - name: seedfall
@@ -87,6 +91,7 @@ scoops:
     homepage: https://github.com/kunalgoesbyken/seedfall
     description: Deterministic simulation testing for Go
     license: MIT
+    skip_upload: auto
     depends: [go]
 
 dockers:
@@ -111,11 +116,13 @@ docker_manifests:
       - ghcr.io/kunalgoesbyken/seedfall:{{ .Tag }}-amd64
       - ghcr.io/kunalgoesbyken/seedfall:{{ .Tag }}-arm64
   - name_template: ghcr.io/kunalgoesbyken/seedfall:latest
+    skip_push: auto
     image_templates:
       - ghcr.io/kunalgoesbyken/seedfall:{{ .Tag }}-amd64
       - ghcr.io/kunalgoesbyken/seedfall:{{ .Tag }}-arm64
 
 release:
+  prerelease: auto
   github:
     owner: kunalgoesbyken
     name: seedfall

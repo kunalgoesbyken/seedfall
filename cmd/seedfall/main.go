@@ -140,7 +140,7 @@ func cmdRun(args []string) error {
 		return errors.New("-json and -report cannot be combined")
 	}
 	if *timeout < 0 {
-		return errors.New("-timeout cannot be negative")
+		return errNegativeTimeout
 	}
 	lo, hi, err := engine.ParseSeeds(*seeds)
 	if err != nil {
@@ -207,6 +207,8 @@ func cmdRun(args []string) error {
 	printEfficiency(sum)
 	return nil
 }
+
+var errNegativeTimeout = errors.New("timeout cannot be negative")
 
 func sweepDeadline(started time.Time, timeout time.Duration) time.Time {
 	if timeout <= 0 {

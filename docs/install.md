@@ -1,8 +1,8 @@
 # Installing seedfall
 
-seedfall ships as a single binary, and it builds your nodes with Go. Replaying results, reading reports and serving MCP need only the binary; running a simulation needs Go 1.25 or newer.
+seedfall ships as a single binary, and it builds your nodes with Go. Anything that runs nodes, including `run`, `replay`, `shrink` and the matching MCP tools, needs Go 1.25 or newer because it builds them first. Reading a finished report with `seedfall findings`, and `version`, `help` and `schema`, need only the binary.
 
-**Which of these work today.** The Homebrew, Scoop, install script and Docker paths install from a release built by `.github/workflows/release.yml`. v0.2.0 predates that workflow and has only bare binaries, with no archives or `checksums.txt`, so until a newer release is cut use `go install`. The pipeline's signing, SBOM, formula, manifest and image steps have not run yet, so the commands below that depend on them are what the configuration is set up to produce, not something checked against a published release.
+**Which of these work today.** The Homebrew, Scoop, install script and Docker paths install from a release built by `.github/workflows/release.yml`. v0.2.0 predates that workflow and has only bare binaries, with no archives or `checksums.txt`, so until a newer release is cut use `go install`. The pipeline's signing, SBOM, cask, manifest and image steps have not run yet, so the commands below that depend on them are what the configuration is set up to produce, not something checked against a published release.
 
 ## Homebrew
 
@@ -10,7 +10,7 @@ seedfall ships as a single binary, and it builds your nodes with Go. Replaying r
 brew install kunalgoesbyken/tap/seedfall
 ```
 
-The formula depends on Go.
+The cask depends on Go. seedfall binaries are not notarized by Apple, so on macOS the cask clears the quarantine flag on its own binary after installing; without that, Gatekeeper would refuse to start it.
 
 ## Scoop (Windows)
 
@@ -82,4 +82,4 @@ The install script checks SHA-256 only, which catches a corrupted download but n
 
 ## Cutting a release
 
-Pushing a `v*` tag runs the release workflow, which builds linux, darwin and windows on amd64 and arm64 with GoReleaser, signs, attests, publishes the GitHub release and pushes the formula, the Scoop manifest and the image. The repository needs a `HOMEBREW_TAP_TOKEN` secret with write access to `kunalgoesbyken/homebrew-tap`, which holds both the Homebrew formula and the Scoop `bucket/`. Release notes are grouped from commit subjects starting with `Add` or `feat` and `Fix` or `fix`.
+Pushing a `v*` tag runs the release workflow, which builds linux, darwin and windows on amd64 and arm64 with GoReleaser, signs, attests, publishes the GitHub release and pushes the Homebrew cask, the Scoop manifest and the image. The repository needs a `HOMEBREW_TAP_TOKEN` secret with write access to `kunalgoesbyken/homebrew-tap`, which holds both the `Casks/` directory and the Scoop `bucket/`. Release notes are grouped from commit subjects starting with `Add` or `feat` and `Fix` or `fix`. A tag with a prerelease suffix, such as `v0.3.0-rc1`, is marked as a prerelease and leaves the cask, the Scoop manifest and the `latest` image alone.

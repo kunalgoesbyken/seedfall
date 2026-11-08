@@ -119,12 +119,16 @@ func checkGo() (doctorCheck, bool) {
 		return c, false
 	}
 	want := requiredGo()
-	if version.Compare(installed, want) < 0 {
+	if goTooOld(installed, want) {
 		c.Status, c.Detail, c.Fix = checkFail, fmt.Sprintf("%s is older than %s", installed, want), "install "+want+" or newer from https://go.dev/dl/"
 		return c, true
 	}
 	c.Status, c.Detail = checkOK, fmt.Sprintf("%s (needs %s or newer)", installed, want)
 	return c, true
+}
+
+func goTooOld(installed, want string) bool {
+	return version.IsValid(installed) && version.Compare(installed, want) < 0
 }
 
 func checkWasip1() doctorCheck {

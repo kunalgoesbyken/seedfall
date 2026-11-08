@@ -1,14 +1,12 @@
 package engine
 
 import (
+	"cmp"
 	"fmt"
 	"slices"
 )
 
-const (
-	utilizationBatches = 10
-	batchesToCompare   = 2
-)
+const utilizationBatches = 10
 
 type UtilizationBatch struct {
 	From uint64 `json:"from_seed"`
@@ -61,15 +59,20 @@ func (s *Summary) Utilization() *Utilization {
 	}
 	span := s.hi - s.lo + 1
 	count := min(span, utilizationBatches)
-	size := span / count
+	size, extra := span/count, span%count
 	u := &Utilization{Outcomes: len(s.outcomes), Batches: make([]UtilizationBatch, count)}
+	from := s.lo
 	for i := range u.Batches {
-		from := s.lo + uint64(i)*size
-		u.Batches[i] = UtilizationBatch{From: from, To: from + size - 1}
+		to := from + size - 1
+		if uint64(i) < extra {
+			to++
+		}
+		u.Batches[i] = UtilizationBatch{From: from, To: to}
+		from = to + 1
 	}
-	u.Batches[count-1].To = s.hi
 	for _, seed := range s.outcomes {
-		u.Batches[min((seed-s.lo)/size, count-1)].New++
+		i, _ := slices.BinarySearchFunc(u.Batches, seed, func(b UtilizationBatch, seed uint64) int { return cmp.Compare(b.To, seed) })
+		u.Batches[i].New++
 	}
 	if len(s.speedups) > 0 {
 		sorted := slices.Sorted(slices.Values(s.speedups))
@@ -81,9 +84,9 @@ func (s *Summary) Utilization() *Utilization {
 
 func (u *Utilization) advice() string {
 	if u.Outcomes == 0 {
-		return "No sim.Sometimes, sim.Always or sim.Assert property was reached, so nothing here says whether more seeds would help."
+		return "No sim.Sometimes, sim.Always or sim.Reachable property was reached, so nothing here says whether more seeds would help."
 	}
-	if len(u.Batches) < batchesToCompare {
+	if len(u.Batches) < utilizationBatches {
 		return "Too few seeds to compare batches; run a wider range to see whether new property outcomes are still appearing."
 	}
 	quiet := 0
@@ -93,6 +96,10 @@ func (u *Utilization) advice() string {
 	last := u.Batches[len(u.Batches)-1]
 	if quiet == 0 {
 		return fmt.Sprintf("The last batch (seeds %d-%d) still reached %d new property outcomes, so more seeds are likely to find more.", last.From, last.To, last.New)
+	}
+	if quiet*2 < len(u.Batches) {
+		newest := u.Batches[len(u.Batches)-1-quiet]
+		return fmt.Sprintf("The newest property outcome came in seeds %d-%d, %d of %d batches from the end, so more seeds may still find more.", newest.From, newest.To, quiet, len(u.Batches))
 	}
 	return fmt.Sprintf("No new property outcome in the last %d of %d batches (seeds %d-%d), so more seeds of this config are unlikely to add coverage; change the faults or workload, or try seedfall explore.", quiet, len(u.Batches), u.Batches[len(u.Batches)-quiet].From, last.To)
 }

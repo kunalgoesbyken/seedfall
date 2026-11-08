@@ -95,9 +95,9 @@ A report from `seedfall run -until-novelty` or `seedfall explore -report` has an
 
 A report from `seedfall run` has a **Utilization** section (`utilization` in `report.json`, in the `-json` summary and in the `seedfall_run` result) that answers whether to keep sweeping:
 
-- `batches` splits the seeds that ran into up to ten equal ranges, with how many new property outcomes each added. An outcome is a property being reached, being true or being false, and it counts toward the lowest seed that showed it, so the table is the same whatever order parallel runs finished in.
+- `batches` splits the seeds that ran into up to ten ranges of nearly equal size, with how many new property outcomes each added. An outcome is a property being reached, being true or being false, and it counts toward the lowest seed that showed it, so the table is the same whatever order parallel runs finished in.
 - `speedup_min`, `speedup_median` and `speedup_max` are virtual seconds per real second for one seed, including time spent waiting for a CPU under `-j`.
-- `advice` is one sentence, also printed as `utilization:` at the end of the run, saying whether the last batches still added outcomes. It is a heuristic over property outcomes only: it cannot see a bug no property or invariant catches, so read `No new property outcome` as "this config has stopped widening coverage", not as "no bugs remain".
+- `advice` is one sentence, also printed as `utilization:` at the end of the run, saying whether the last batches still added outcomes: more seeds are likely to help if the last batch did, may help if a new outcome came in the later half, and are unlikely to if the later half was quiet. Under ten seeds it says there are too few to compare. It is a heuristic over property outcomes only: it cannot see a bug no property or invariant catches, so read `No new property outcome` as "this config has stopped widening coverage", not as "no bugs remain".
 
 `seedfall explore` reports have the Exploration section instead, because its runs are branches of earlier runs rather than a seed range.
 

@@ -6,7 +6,7 @@
 /seedfall
 .impeccable/
 .vercel/
-dist/
+/dist/
 
 .vercel
 PLAN.md

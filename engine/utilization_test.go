@@ -59,12 +59,16 @@ func TestUtilizationAdvice(t *testing.T) {
 	}
 	late := append([]Result{}, quiet...)
 	late[19] = usageResult(20, "a", "late")
+	recent := append([]Result{}, quiet...)
+	recent[16] = usageResult(17, "a", "recent")
 	for name, c := range map[string]struct {
 		results []Result
 		want    string
 	}{
 		"quiet":   {quiet, "unlikely to add coverage"},
 		"late":    {late, "likely to find more"},
+		"recent":  {recent, "may still find more"},
+		"small":   {quiet[:9], "Too few seeds"},
 		"no data": {[]Result{usageResult(1)}, "No sim.Sometimes"},
 		"one":     {[]Result{usageResult(1, "a")}, "Too few seeds"},
 	} {
@@ -72,6 +76,26 @@ func TestUtilizationAdvice(t *testing.T) {
 		if got := s.Utilization().Advice; !strings.Contains(got, c.want) {
 			t.Errorf("%s: %q, want %q", name, got, c.want)
 		}
+	}
+}
+
+func TestUtilizationBatchesAreNearlyEqualAndCoverTheSeeds(t *testing.T) {
+	results := []Result{}
+	for seed := uint64(1); seed <= 19; seed++ {
+		results = append(results, usageResult(seed, "a"))
+	}
+	results[18] = usageResult(19, "a", "last")
+	s := usageSummary(results)
+	u := s.Utilization()
+	next := uint64(1)
+	for _, b := range u.Batches {
+		if b.From != next || b.To < b.From || b.To-b.From > 1 {
+			t.Fatalf("%+v", u.Batches)
+		}
+		next = b.To + 1
+	}
+	if next != 20 || u.Batches[len(u.Batches)-1].New != 3 {
+		t.Fatalf("%+v", u.Batches)
 	}
 }
 

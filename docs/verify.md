@@ -7,7 +7,7 @@ seedfall verify -c seedfall.fixed.json -seed 1 -faults .seedfall/seed-1.faults.j
 ```
 
 ```
-verify seedfall.fixed.json
+verify seedfall.fixed.json (seedfall v1.2.3)
   pass  replay seed 1 with .seedfall/seed-1.faults.json  passes, twice, with identical host calls and traces
   pass  fresh sweep, seeds 2-300                         299 of 299 pass: 95% confidence that a failure with rate >= 0.997% would have shown up
   pass  determinism, seeds 2-11                          every seed ran twice with identical host calls and traces
@@ -21,7 +21,7 @@ PASS
 Against the unfixed config the same command stops at the first check and exits 1:
 
 ```
-verify seedfall.always.json
+verify seedfall.always.json (seedfall v1.2.3)
   FAIL  replay seed 1 with .seedfall/seed-1.faults.json  seed 1 FAILS [bug]: client#1: acknowledged write lost: k60=v60, server now answers "NONE"
   skip  fresh sweep                                      an earlier check failed
   skip  determinism                                      an earlier check failed
@@ -53,7 +53,7 @@ Every schedule [pinned](#pinned-regressions) for the config is replayed too, as 
 
 ```
 $ seedfall verify -c seedfall.fixed.json -report .seedfall/report.html
-verify seedfall.fixed.json
+verify seedfall.fixed.json (seedfall v1.2.3)
   pass  replay assert · client seed 1                                     passes, twice, with identical host calls and traces
   pass  replay assert · client seed 1 with .seedfall/seed-1.faults.json   passes, twice, with identical host calls and traces
   pass  replay assert · client seed 12                                    passes, twice, with identical host calls and traces
@@ -102,7 +102,7 @@ A file in `seedfall-regressions/` without a `pinned.config`, for example a sched
 ```markdown
 ### seedfall verify: PASS
 
-Config `seedfall.fixed.json`, reproduce with `seedfall verify -c seedfall.fixed.json -seed 1 -faults .seedfall/seed-1.faults.json -mutate`
+Config `seedfall.fixed.json`, seedfall `v1.2.3`, reproduce with `seedfall verify -c seedfall.fixed.json -seed 1 -faults .seedfall/seed-1.faults.json -mutate`
 
 | | Check | Result |
 |---|---|---|

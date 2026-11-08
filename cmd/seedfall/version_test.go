@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -94,6 +96,26 @@ func TestParseMemAvailable(t *testing.T) {
 func TestRequiredGoIsTheModuleDirective(t *testing.T) {
 	if got := requiredGo(); !strings.HasPrefix(got, "go1.") {
 		t.Fatalf("%q", got)
+	}
+}
+
+func TestGoTooOld(t *testing.T) {
+	for installed, want := range map[string]bool{"go1.24.9": true, "go1.25.0": false, "go1.27.1": false, "devel go1.28-abc123 Mon Jan 1": false} {
+		if got := goTooOld(installed, "go1.25.0"); got != want {
+			t.Errorf("%s: %v", installed, got)
+		}
+	}
+}
+
+func TestHelpRejectsAnUnknownCommand(t *testing.T) {
+	if err := cmdHelp([]string{"bogus"}); err == nil {
+		t.Fatal("help of an unknown command succeeded")
+	}
+}
+
+func TestRunToolRefusesANegativeTimeout(t *testing.T) {
+	if _, _, err := toolRun(context.Background(), nil, runArgs{Seeds: "1", Timeout: "-1s"}); !errors.Is(err, errNegativeTimeout) {
+		t.Fatalf("%v", err)
 	}
 }
 
