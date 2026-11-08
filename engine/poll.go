@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 	fsapi "github.com/tetratelabs/wazero/experimental/sys"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
@@ -36,12 +37,12 @@ type subscription struct {
 	deadline int64
 }
 
-func (w *world) wasiModule(ctx context.Context) error {
-	b := w.rt.NewHostModuleBuilder(wasi_snapshot_preview1.ModuleName)
+func wasiModule(ctx context.Context, rt wazero.Runtime) error {
+	b := rt.NewHostModuleBuilder(wasi_snapshot_preview1.ModuleName)
 	wasi_snapshot_preview1.NewFunctionExporter().ExportFunctions(b)
 	i32 := api.ValueTypeI32
 	b.NewFunctionBuilder().
-		WithGoModuleFunction(api.GoModuleFunc(w.pollOneoff), []api.ValueType{i32, i32, i32, i32}, []api.ValueType{i32}).
+		WithGoModuleFunction(api.GoModuleFunc(func(ctx context.Context, m api.Module, stack []uint64) { worldOf(ctx).pollOneoff(ctx, m, stack) }), []api.ValueType{i32, i32, i32, i32}, []api.ValueType{i32}).
 		Export("poll_oneoff")
 	_, err := b.Instantiate(ctx)
 	return err

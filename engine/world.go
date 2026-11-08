@@ -22,7 +22,10 @@ var (
 
 const epochNanos = int64(1767225600) * int64(time.Second)
 
-type instKey struct{}
+type (
+	instKey  struct{}
+	worldKey struct{}
+)
 
 type node struct {
 	spec      NodeSpec
@@ -87,7 +90,7 @@ type world struct {
 	ioRand      *rand.Rand
 	ioFaults    []Fault
 	spec        FaultSpec
-	wasm        map[string][]byte
+	compiled    map[string]wazero.CompiledModule
 	history     history
 	lin         Linearizability
 	props       properties
@@ -121,6 +124,11 @@ func (w *world) cut(a, b string) bool {
 	return c
 }
 
+func worldOf(ctx context.Context) *world {
+	w, _ := ctx.Value(worldKey{}).(*world)
+	return w
+}
+
 func (w *world) instance(ctx context.Context) *instance {
 	inst, _ := ctx.Value(instKey{}).(*instance)
 	return inst
@@ -134,37 +142,46 @@ func readBytes(m api.Module, ptr, n uint32) []byte {
 	return append([]byte(nil), b...)
 }
 
-func (w *world) hostModule(ctx context.Context) error {
-	b := w.rt.NewHostModuleBuilder("seedfall")
+func hostModule(ctx context.Context, rt wazero.Runtime) error {
+	b := rt.NewHostModuleBuilder("seedfall")
 	export := func(name string, fn any) { b.NewFunctionBuilder().WithFunc(fn).Export(name) }
 	export("net_listen", func(ctx context.Context, m api.Module, p, n uint32) int32 {
+		w := worldOf(ctx)
 		return w.net.listen(w.instance(ctx), string(readBytes(m, p, n)))
 	})
 	export("net_dial", func(ctx context.Context, m api.Module, p, n uint32) int32 {
+		w := worldOf(ctx)
 		return w.net.dial(w.instance(ctx), string(readBytes(m, p, n)))
 	})
 	export("net_accept", func(ctx context.Context, id int32) int32 {
+		w := worldOf(ctx)
 		return w.net.accept(w.instance(ctx), id)
 	})
 	export("net_bind", func(ctx context.Context, fd, id int32) {
-		w.instance(ctx).fds[fd] = id
+		worldOf(ctx).instance(ctx).fds[fd] = id
 	})
 	export("history_call", func(ctx context.Context, m api.Module, p, n uint32) int32 {
+		w := worldOf(ctx)
 		return w.history.call(w.now, readBytes(m, p, n))
 	})
 	export("history_return", func(ctx context.Context, m api.Module, id int32, p, n uint32, outcome int32) {
+		w := worldOf(ctx)
 		w.history.complete(w.now, id, string(readBytes(m, p, n)), outcome)
 	})
 	export("property", func(ctx context.Context, m api.Module, kind, cond int32, p, n, dp, dn uint32) {
+		w := worldOf(ctx)
 		w.observeProperty(w.instance(ctx), PropertyKind(kind), cond != 0, string(readBytes(m, p, n)), string(readBytes(m, dp, dn)))
 	})
 	export("setup_complete", func(ctx context.Context) {
+		w := worldOf(ctx)
 		w.setupComplete(w.instance(ctx))
 	})
 	export("quiet", func(ctx context.Context, ns int64) {
+		w := worldOf(ctx)
 		w.quietFor(w.instance(ctx), time.Duration(ns))
 	})
 	export("fail", func(ctx context.Context, m api.Module, p, n uint32) {
+		w := worldOf(ctx)
 		inst := w.instance(ctx)
 		w.fail(Failure{Class: FailAssert, Node: inst.node.name()}, fmt.Sprintf("%s: %s", inst.label, readBytes(m, p, n)))
 		panic(errFailed)
@@ -218,7 +235,7 @@ func (w *world) start(n *node) {
 	n.starts++
 	inst := &instance{node: n, label: fmt.Sprintf("%s#%d", n.name(), n.starts), wakeAt: w.now, resume: make(chan bool), fds: map[int32]int32{}}
 	n.live, n.restartAt, n.pausedTo = inst, -1, 0
-	ctx := context.WithValue(w.ctx, instKey{}, inst)
+	ctx := context.WithValue(context.WithValue(w.ctx, worldKey{}, w), instKey{}, inst)
 	cfg := w.moduleConfig(inst)
 	go func() {
 		if !<-inst.resume {
