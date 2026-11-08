@@ -21,6 +21,7 @@ const (
 	fakeGHEnv        = "SEEDFALL_FAKE_GH"
 	fakeGHCommentEnv = "SEEDFALL_FAKE_GH_COMMENT"
 	fakeCommentID    = 77
+	fakeLogin        = "seedfall-bot"
 )
 
 func TestMain(m *testing.M) {
@@ -45,9 +46,11 @@ func fakeGH(log string, args []string) int {
 		fmt.Println("https://github.com/o/r/issues/2")
 	case "api --paginate":
 		if body := os.Getenv(fakeGHCommentEnv); body != "" {
-			line, _ := json.Marshal(map[string]any{"id": fakeCommentID, "body": body})
+			line, _ := json.Marshal(map[string]any{"id": fakeCommentID, "body": body, "author": fakeLogin})
 			fmt.Println(string(line))
 		}
+	case "api user":
+		fmt.Println(fakeLogin)
 	case "api --method":
 		body, _ := io.ReadAll(os.Stdin)
 		f, err := os.OpenFile(log, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)

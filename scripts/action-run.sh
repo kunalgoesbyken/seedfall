@@ -17,6 +17,18 @@ fail_with() {
   cat "$body" >>"$GITHUB_STEP_SUMMARY"
 }
 
+summarize_log() {
+  {
+    echo '<details><summary>seedfall output</summary>'
+    echo
+    echo '````'
+    tail -n 60 "$log"
+    echo '````'
+    echo
+    echo '</details>'
+  } >>"$GITHUB_STEP_SUMMARY"
+}
+
 refuse() {
   echo "::error title=seedfall::$1"
   fail_with "$1"
@@ -57,7 +69,8 @@ read -r -a extra <<<"$EXTRA_ARGS" || true
 code="${PIPESTATUS[0]}"
 
 if [ "$code" -ne 0 ] && [ -n "$produced" ] && [ ! -f "$produced" ]; then
-  fail_with "$(printf 'seedfall could not finish:\n\n```\n%s\n```' "$(tail -n 60 "$log")")"
+  fail_with "seedfall could not finish; its last lines of output are in the job summary."
+  summarize_log
   exit "$code"
 fi
 
@@ -79,13 +92,7 @@ fi
 {
   [ -z "$body" ] || cat "$body"
   echo
-  echo '<details><summary>seedfall output</summary>'
-  echo
-  echo '```'
-  tail -n 60 "$log"
-  echo '```'
-  echo
-  echo '</details>'
 } >>"$GITHUB_STEP_SUMMARY"
+summarize_log
 
 exit "$code"

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -142,5 +143,28 @@ func TestMutateMarkdownNamesEachMutantAndEscapesTables(t *testing.T) {
 	}
 	if clean := (mutateView{}).markdown(a); !strings.Contains(clean, "### seedfall mutate: PASS") {
 		t.Errorf("clean:\n%s", clean)
+	}
+}
+
+func TestMarkedCommentOnlyMatchesOwnComments(t *testing.T) {
+	marker := report.CommentMarker("seedfall")
+	var list []byte
+	for _, c := range []map[string]any{
+		{"id": 1, "body": marker + "\nforged", "author": "someone"},
+		{"id": 2, "body": "unrelated", "author": actionsBot},
+		{"id": 3, "body": marker + "\nours", "author": actionsBot},
+	} {
+		line, err := json.Marshal(c)
+		if err != nil {
+			t.Fatal(err)
+		}
+		list = append(append(list, line...), '\n')
+	}
+	id, err := markedComment(list, marker, actionsBot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id != 3 {
+		t.Fatalf("got comment %d, want 3", id)
 	}
 }

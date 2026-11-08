@@ -103,9 +103,15 @@ func commentText(reportPath, bodyFile, link string) (string, error) {
 	return rep.CommentMarkdown(link)
 }
 
+const actionsBot = "github-actions[bot]"
+
 func upsertComment(repo string, pr int, marker, body string) error {
 	list := fmt.Sprintf("repos/%s/issues/%d/comments", repo, pr)
-	out, err := gh("", "api", "--paginate", list, "--jq", ".[] | {id, body}")
+	out, err := gh("", "api", "--paginate", list, "--jq", ".[] | {id, body, author: .user.login}")
+	if err != nil {
+		return err
+	}
+	self, err := tokenLogin()
 	if err != nil {
 		return err
 	}
@@ -113,7 +119,7 @@ func upsertComment(repo string, pr int, marker, body string) error {
 	if err != nil {
 		return err
 	}
-	id, err := markedComment(out, report.CommentMarker(marker))
+	id, err := markedComment(out, report.CommentMarker(marker), self)
 	if err != nil {
 		return err
 	}
@@ -131,18 +137,27 @@ func upsertComment(repo string, pr int, marker, body string) error {
 	return nil
 }
 
-func markedComment(list []byte, marker string) (int64, error) {
+func tokenLogin() (string, error) {
+	out, err := gh("", "api", "user", "--jq", ".login")
+	if err != nil {
+		return actionsBot, nil
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+func markedComment(list []byte, marker, author string) (int64, error) {
 	dec := json.NewDecoder(bytes.NewReader(list))
 	var found int64
 	for dec.More() {
 		var c struct {
-			ID   int64
-			Body string
+			ID     int64
+			Body   string
+			Author string
 		}
 		if err := dec.Decode(&c); err != nil {
 			return 0, fmt.Errorf("gh api: %w", err)
 		}
-		if strings.HasPrefix(c.Body, marker) {
+		if c.Author == author && strings.HasPrefix(c.Body, marker) {
 			found = cmp.Or(found, c.ID)
 		}
 	}

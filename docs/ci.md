@@ -78,7 +78,7 @@ Set `cache: "false"` if you keep `.seedfall/history.jsonl` some other way, such 
 
 ### Pull request comments
 
-`comment: "true"` posts one comment per job and edits it on later pushes, so a pull request does not collect one per run. It lists new, regressed and resolved findings, ongoing ones, failing pinned regressions and unmet properties, each failure with its replay command, and links the workflow run. It is the job summary's Markdown, so with `verify` or `mutate` it is the proof or the mutant table, and when seedfall cannot finish it says so. A clean run also updates it, so a stale failure does not linger.
+`comment: "true"` posts one comment per job and edits it on later pushes, so a pull request does not collect one per run. It lists new, regressed and resolved findings, ongoing ones, failing pinned regressions and unmet properties, each failure with its replay command, and links the workflow run. It is the job summary's Markdown, so with `verify` or `mutate` it is the proof or the mutant table, and when seedfall cannot finish it says so. A clean run also updates it, so a stale failure does not linger. Only a comment written by the token's own account is edited, so a comment someone else posts with the same marker is left alone. The comment never includes seedfall's raw output; that stays in the job summary.
 
 The job needs `pull-requests: write`. Pull requests from forks run with a read-only token, so the action logs a warning and the job's result is unaffected. `seedfall report comment` does the same from any CI, and `seedfall report github` writes the annotations and outputs ([reports.md](reports.md#github)).
 
