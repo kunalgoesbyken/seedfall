@@ -89,7 +89,7 @@ func input(seeds string, passed int, failures ...engine.Result) Input {
 		}},
 		Elapsed: 1234 * time.Millisecond,
 		Replay: func(seed uint64) Replayed {
-			return Replayed{Result: byseed[seed], Class: engine.Classification{Verdict: engine.VerdictBug}, Artifacts: fmt.Sprintf(".seedfall/failures/seed-%d", seed)}
+			return Replayed{Result: byseed[seed], Class: engine.Classification{Verdict: engine.VerdictBug}, Artifacts: fmt.Sprintf(".seedfall/failures/seedfall-seed-%d", seed)}
 		},
 	}
 }

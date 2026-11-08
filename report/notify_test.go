@@ -95,13 +95,13 @@ func TestIssueMarkdownAndHTMLCopyButton(t *testing.T) {
 	dir := t.TempDir()
 	in := input("1-100", 98, failing(3), failing(9))
 	in.Version, in.Commit = "v9.9.9", "abc123"
-	in.Regressions = []Regression{{Source: "seedfall-regressions/seedfall-seed-1.json", Seed: 1, Passed: true}, {Source: "seeds.txt:2", Seed: 7, Failure: &lost, Reason: "client#1: acknowledged write lost", Artifacts: ".seedfall/failures/seed-7"}}
+	in.Regressions = []Regression{{Source: "seedfall-regressions/seedfall-seed-1.json", Seed: 1, Passed: true}, {Source: "seeds.txt:2", Seed: 7, Failure: &lost, Reason: "client#1: acknowledged write lost", Artifacts: ".seedfall/failures/seedfall-seed-7"}}
 	r := generated(t, dir, in)
 	md, err := r.IssueMarkdown(r.Findings[0])
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"**assert · client**", "seedfall replay -c seedfall.json -seed 3", "Example seeds: 3, 9", "crash server", "| seedfall | v9.9.9 |", "| commit | abc123 |", ".seedfall/failures/seed-3"} {
+	for _, want := range []string{"**assert · client**", "seedfall replay -c seedfall.json -seed 3", "Example seeds: 3, 9", "crash server", "| seedfall | v9.9.9 |", "| commit | abc123 |", ".seedfall/failures/seedfall-seed-3"} {
 		if !strings.Contains(md, want) {
 			t.Errorf("issue markdown lacks %q:\n%s", want, md)
 		}

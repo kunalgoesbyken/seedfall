@@ -139,6 +139,10 @@ func defaultConfig() Config {
 	}
 }
 
+func (c *Config) Stem() string {
+	return strings.TrimSuffix(filepath.Base(c.Path), filepath.Ext(c.Path))
+}
+
 func LoadConfig(path string) (*Config, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {

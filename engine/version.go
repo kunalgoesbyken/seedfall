@@ -20,7 +20,7 @@ func Version() string {
 	if bi.Main.Path != module {
 		for _, d := range bi.Deps {
 			if d.Path == module {
-				return d.Version
+				return cmp.Or(d.Version, "unknown")
 			}
 		}
 		return "unknown"

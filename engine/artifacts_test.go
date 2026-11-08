@@ -105,3 +105,15 @@ func TestGuestArtifactsReplayExactly(t *testing.T) {
 		t.Fatal("pinned artifacts must not overwrite the seed's own")
 	}
 }
+
+func TestArtifactDirsDoNotCollideAcrossConfigs(t *testing.T) {
+	dir := t.TempDir()
+	a := &Config{Dir: dir, Path: filepath.Join(dir, "seedfall.always.json")}
+	b := &Config{Dir: dir, Path: filepath.Join(dir, "seedfall.bitrot.json")}
+	if ArtifactDir(a, 1, "") == ArtifactDir(b, 1, "") || ArtifactDir(a, 1, "") == ArtifactDir(a, 1, "pinned") {
+		t.Fatal("two configs, or a seed and its pinned schedule, must not share an artifacts folder")
+	}
+	if got, want := ArtifactDir(a, 1, "shrunk"), filepath.Join(dir, ".seedfall", "failures", "seedfall.always-seed-1-shrunk"); got != want {
+		t.Fatalf("ArtifactDir = %s, want %s", got, want)
+	}
+}

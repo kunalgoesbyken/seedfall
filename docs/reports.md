@@ -72,7 +72,7 @@ The report also lists every property with how many seeds reached it and how many
 Every failure seedfall reports gets a folder you can attach to an issue or upload from CI:
 
 ```
-.seedfall/failures/seed-1/
+.seedfall/failures/seedfall.always-seed-1/
   report.json            what failed, classification, seedfall and Go versions, config hash, commit, replay command
   trace.txt              the full trace
   faults.json            the run's fault schedule, replayable with seedfall replay -faults
@@ -81,12 +81,12 @@ Every failure seedfall reports gets a folder you can attach to an issue or uploa
   disk/<node>/           each node's durable disk image at the failure, as inspect -out exports it
 ```
 
-seedfall writes it by replaying the failing seed once more and capturing the disks at the failure, so it costs one run per reported failure, not one per seed. `seedfall run` writes it for the failure it stops at, `run -report` for the example seed of each finding (the report links it), `replay` for a failing replay, `shrink` for the minimal schedule, and a failing [pinned regression](verify.md#pinned-regressions) for itself. A run from the seed alone goes to `seed-N`; a replay from a schedule file to `seed-N-schedule`, a shrunk schedule to `seed-N-shrunk` and a pinned one to `seed-N-pinned`, so they do not overwrite each other. A new failure of the same seed replaces the folder. `run -json` writes artifacts only for failing regressions, not for every failing seed.
+seedfall writes it by replaying the failing seed once more and capturing the disks at the failure, so it costs one run per reported failure, not one per seed. `seedfall run` writes it for the failure it stops at, `run -report` for the example seed of each finding (the report links it), `replay` for a failing replay, `shrink` for the minimal schedule, and a failing [pinned regression](verify.md#pinned-regressions) for itself. The folder is named after the config and the seed, `<config>-seed-N`, so two configs in one directory keep separate folders. A run from the seed alone goes to `<config>-seed-N`; a replay from a schedule file to `<config>-seed-N-schedule`, a shrunk schedule to `<config>-seed-N-shrunk` and a pinned one to `<config>-seed-N-pinned`, so they do not overwrite each other. A new failure of the same seed replaces the folder. `run -json` writes artifacts only for failing regressions, not for every failing seed.
 
 `report.json` has `reproduced`, which is false when the replay did not fail the same way as the reported run, `classification` ([above](#classification)), `seedfall_version` (from the binary's build information), `config_sha256` (of the config file's bytes), `commit` (`git rev-parse HEAD` in the config's directory, so uncommitted changes are not reflected) and `replay`, a command that replays `faults.json` exactly:
 
 ```sh
-seedfall replay -c seedfall.always.json -seed 1 -faults .seedfall/failures/seed-1/faults.json
+seedfall replay -c seedfall.always.json -seed 1 -faults .seedfall/failures/seedfall.always-seed-1/faults.json
 ```
 
 Over MCP, failures from `seedfall_run`, `seedfall_replay` and `seedfall_shrink` carry the folder as `artifacts_dir`.

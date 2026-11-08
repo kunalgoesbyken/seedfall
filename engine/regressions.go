@@ -33,8 +33,7 @@ func (r Regression) Schedule() Schedule {
 }
 
 func PinPath(cfg *Config, seed uint64) string {
-	stem := strings.TrimSuffix(filepath.Base(cfg.Path), filepath.Ext(cfg.Path))
-	return filepath.Join(cfg.Dir, RegressionsDir, fmt.Sprintf("%s-seed-%d.json", stem, seed))
+	return filepath.Join(cfg.Dir, RegressionsDir, fmt.Sprintf("%s-seed-%d.json", cfg.Stem(), seed))
 }
 
 func Pinned(cfg *Config) ([]Regression, error) {

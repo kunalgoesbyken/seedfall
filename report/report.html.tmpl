@@ -52,7 +52,7 @@ textarea.issue { width: 100%; height: 220px; margin-top: 8px; background: #0d080
   {{if .Regressions}}
   <h2>Regressions</h2>
   <table>
-    <tr><th>result</th><th>seed</th><th>pinned schedule</th><th>failure</th></tr>
+    <tr><th>result</th><th>seed</th><th>source</th><th>failure</th></tr>
     {{range .Regressions}}
     <tr><td class="mono {{if .Passed}}resolved{{else}}regressed{{end}}">{{if .Passed}}pass{{else}}FAIL{{end}}</td><td class="num">{{.Seed}}</td><td class="mono">{{.Source}}</td><td>{{if not .Passed}}{{.Failure.Key}}: {{.Reason}}{{with .Artifacts}} <span class="dim mono">· artifacts {{.}}</span>{{end}}{{end}}</td></tr>
     {{end}}

@@ -99,7 +99,7 @@ expect_app_mutant kvlog seedfall.fixed.json 1-10 4 server/main.go:197 SURVIVED
 expect_replay kvlog seedfall.readcorrupt.json 1 readcorrupt.faults.json fail
 expect_replay kvlog seedfall.checksum.json    1 readcorrupt.faults.json pass
 expect_replay kvlog seedfall.always.json      1 torntail.faults.json fail
-expect_replay kvlog seedfall.always.json      1 .seedfall/failures/seed-1/faults.json fail
+expect_replay kvlog seedfall.always.json      1 .seedfall/failures/seedfall.always-seed-1/faults.json fail
 expect_pinned kvlog seedfall.fixed.json pass
 expect_shrink kvlog seedfall.always.json      1 "2 faults, 991ms, 63 workload ops"
 expect raftkv seedfall.json          1-40   pass

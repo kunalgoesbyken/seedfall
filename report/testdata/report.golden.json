@@ -100,7 +100,7 @@
         ],
         "replay": "seedfall replay -c seedfall.json -seed 3",
         "shrink": "seedfall shrink -c seedfall.json -seed 3",
-        "artifacts": ".seedfall/failures/seed-3"
+        "artifacts": ".seedfall/failures/seedfall-seed-3"
       }
     },
     {
@@ -127,7 +127,7 @@
         "trace_tail": null,
         "replay": "seedfall replay -c seedfall.json -seed 4",
         "shrink": "seedfall shrink -c seedfall.json -seed 4",
-        "artifacts": ".seedfall/failures/seed-4"
+        "artifacts": ".seedfall/failures/seedfall-seed-4"
       }
     }
   ],

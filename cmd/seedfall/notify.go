@@ -154,9 +154,9 @@ func gh(stdin string, args ...string) ([]byte, error) {
 }
 
 func lastField(b []byte) string {
-	lines := strings.Fields(strings.TrimSpace(string(b)))
-	if len(lines) == 0 {
+	fields := strings.Fields(string(b))
+	if len(fields) == 0 {
 		return ""
 	}
-	return lines[len(lines)-1]
+	return fields[len(fields)-1]
 }

@@ -54,7 +54,7 @@ type Artifact struct {
 }
 
 func ArtifactDir(cfg *Config, seed uint64, label string) string {
-	name := fmt.Sprintf("seed-%d", seed)
+	name := fmt.Sprintf("%s-seed-%d", cfg.Stem(), seed)
 	if label != "" {
 		name += "-" + label
 	}
