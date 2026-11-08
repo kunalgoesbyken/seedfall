@@ -1,0 +1,25 @@
+{
+  "seed": 1,
+  "faults": [
+    {
+      "at": "427.268419ms",
+      "kind": "crash_io",
+      "node": "server",
+      "until": "761.268419ms",
+      "op": 56
+    },
+    {
+      "at": "802ms",
+      "kind": "crash",
+      "node": "server",
+      "until": "802ms"
+    }
+  ],
+  "ops": 63,
+  "pinned": {
+    "config": "seedfall.fixed.json",
+    "from": "torntail.faults.json",
+    "seedfall_version": "v0.2.1-0.20261108092351-139d3cbca419+dirty",
+    "date": "2026-11-08T09:44:58.6165182Z"
+  }
+}

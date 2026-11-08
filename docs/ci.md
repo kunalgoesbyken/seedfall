@@ -23,8 +23,45 @@ jobs:
 | `go-version` | `stable` | Go version for building seedfall and your nodes |
 | `report` | `true` | Sweep every seed and upload an HTML triage report |
 | `artifact-name` | `seedfall-report` | Name of the report artifact; make it unique per job in a matrix |
+| `webhook` | | Slack or Discord incoming webhook URL, best from a secret. Posts the report's new and regressed findings with `seedfall report notify` |
+| `file-issues` | `false` | File a GitHub issue for each finding without an open one, with `seedfall report issue` |
 
-The job fails if any seed fails. The output goes to the job summary, and the triage report (see [reports.md](reports.md)) is uploaded as an artifact. Rotate the seed range over time, for example with the run number, to keep exploring new schedules while each failure stays reproducible.
+The job fails if any seed or [pinned regression](verify.md#pinned-regressions) fails. The output goes to the job summary, and the triage report (see [reports.md](reports.md)) is uploaded as an artifact, together with the [failure artifacts](reports.md#failure-artifacts) under `failures/`.
+
+For alerts and issues on a nightly sweep, keep `.seedfall/history.jsonl` between runs so only new and regressed findings are sent, and grant the job permission to write issues:
+
+```yaml
+on:
+  schedule:
+    - cron: "0 3 * * *"
+jobs:
+  simulate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache/restore@v4
+        with:
+          path: .seedfall/history.jsonl
+          key: seedfall-history-${{ github.run_id }}
+          restore-keys: seedfall-history-
+      - uses: kunalgoesbyken/seedfall@main
+        with:
+          seeds: ${{ github.run_number }}000-${{ github.run_number }}499
+          webhook: ${{ secrets.SEEDFALL_WEBHOOK }}
+          file-issues: "true"
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: .seedfall/history.jsonl
+          key: seedfall-history-${{ github.run_id }}
+```
+
+`webhook` and `file-issues` are newer than v0.2.0, hence `@main` until the next release. The history is saved with `if: always()` because a sweep that finds something fails the job, and that is the run whose history matters most.
+
+The message links the workflow run, and each issue names the seed, the replay command, the seedfall version and the commit ([notifications and issues](reports.md#notifications-and-issues)). Rotate the seed range over time, for example with the run number, to keep exploring new schedules while each failure stays reproducible.
 
 ## Machine-readable output
 
@@ -48,7 +85,9 @@ seedfall run -c seedfall.always.json -seeds 1-100 -json | jq -c 'select(.type ==
 | `faults` | Faults that happened during the run |
 | `host_calls`, `determinism_hash` | How many host calls the run made, and the running hash over them ([determinism check](properties.md#determinism-check)). It covers only simulated values, so the same seed and guest binary should give the same hash on any machine, and a CI matrix can compare it across operating systems to check |
 
-The summary has `passed`, `failed`, `unfinished`, `unmet_properties` and `properties`, the same coverage table `seedfall_run` returns over MCP, with a `problem` on each property that was never reached or never true and a `margin` on each numeric property. With `faults.buggify` on it also has `buggify_sites`: each `sim.Buggify` site with `seeds_reached`, `seeds_enabled`, `seeds_fired`, `fired` and a `problem` of `never reached` or `never fired`, which does not change the exit code. The exit code is 1 if any seed failed or any property is unmet. `-json` cannot be combined with `-report`.
+Before the seed lines comes one `{"type": "regression", ...}` line per [pinned regression](verify.md#pinned-regressions) and `-seeds-file` seed, with `source`, `seed` and `passed`, plus `failure`, `reason`, `classification` and `artifacts` when it fails again.
+
+The summary has `passed`, `failed`, `unfinished`, `regressions_failed`, `unmet_properties` and `properties`, the same coverage table `seedfall_run` returns over MCP, with a `problem` on each property that was never reached or never true and a `margin` on each numeric property. With `faults.buggify` on it also has `buggify_sites`: each `sim.Buggify` site with `seeds_reached`, `seeds_enabled`, `seeds_fired`, `fired` and a `problem` of `never reached` or `never fired`, which does not change the exit code. The exit code is 1 if any seed or regression failed or any property is unmet. `-json` cannot be combined with `-report`.
 
 ## `go test`
 
@@ -60,7 +99,25 @@ func TestDurabilityUnderCrashes(t *testing.T) {
 }
 ```
 
-A failure reports the seed, the reason, the trace tail and the replay command. A `Sometimes` property that is never satisfied also fails the test. `examples/kvlog/seedfall_test.go` is a working example.
+`Sweep` first replays every [pinned regression](verify.md#pinned-regressions) for the config. A failure reports the seed, the reason, the trace tail, the classification, a replay command and the [failure artifacts](reports.md#failure-artifacts) folder. A `Sometimes` property that is never satisfied also fails the test.
+
+Three more helpers turn known bugs into tests, each replaying for the config's full duration and expecting a pass:
+
+```go
+func TestPinnedRegressions(t *testing.T) {
+	seedfalltest.Pinned(t, "seedfall.json")
+}
+
+func TestTornTailStaysFixed(t *testing.T) {
+	seedfalltest.Replay(t, "seedfall.json", "testdata/torntail.faults.json")
+}
+
+func TestKnownSeeds(t *testing.T) {
+	seedfalltest.Seeds(t, "seedfall.json", []uint64{1, 9})
+}
+```
+
+`Pinned` runs each schedule in `seedfall-regressions/` as a subtest, and skips when there is none. `Replay` takes any schedule file with a `seed`, such as one written by `seedfall shrink`. `Seeds` runs each seed with its own faults as a subtest. `examples/kvlog/seedfall_test.go` uses all four.
 
 ## Speed
 

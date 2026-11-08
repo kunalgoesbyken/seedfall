@@ -115,6 +115,7 @@ type Config struct {
 	FaultsAfterSetup bool         `json:"faults_after_setup"`
 	Preempt          PreemptSpec  `json:"preempt"`
 	Dir              string       `json:"-"`
+	Path             string       `json:"-"`
 }
 
 func defaultConfig() Config {
@@ -147,7 +148,7 @@ func LoadConfig(path string) (*Config, error) {
 	if err := json.Unmarshal(b, &cfg); err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
-	cfg.Dir = filepath.Dir(path)
+	cfg.Dir, cfg.Path = filepath.Dir(path), path
 	return &cfg, cfg.validate()
 }
 

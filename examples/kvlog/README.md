@@ -24,6 +24,8 @@ seedfall inspect -c seedfall.misdirected.json -seed 4 -node server   # the corru
 go test ./...    # seedfall_test.go sweeps the fixed config from go test
 ```
 
+`seedfall-regressions/seedfall.fixed-seed-1.json` is `torntail.faults.json` pinned for the fixed config with `seedfall pin -c seedfall.fixed.json -seed 1 -faults torntail.faults.json`, so every `seedfall run -c seedfall.fixed.json` and the go test replay the torn tail first and fail if `-repair` stops repairing it.
+
 The client wraps its write count in `sim.Budget`, so `seedfall shrink` can lower it ([workload size](../../docs/properties.md#workload-size)).
 
 See the [getting started guide](../../docs/getting-started.md) for a walkthrough.

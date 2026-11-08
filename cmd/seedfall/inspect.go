@@ -5,9 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"os"
 	"path"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -314,44 +312,9 @@ func renderContent(b []byte) (string, string) {
 }
 
 func exportImages(disks []engine.Disk, dir string) error {
-	for _, d := range disks {
-		if !filepath.IsLocal(d.Node) {
-			return fmt.Errorf("node name %q cannot be used as a directory name", d.Node)
-		}
-		root := filepath.Join(dir, d.Node)
-		if err := exportImage(d, root); err != nil {
-			return err
-		}
-		fmt.Printf("\nexported the durable disk image of node %s to %s\n", d.Node, root)
+	roots, err := engine.ExportDisks(disks, dir)
+	for i, root := range roots {
+		fmt.Printf("\nexported the durable disk image of node %s to %s\n", disks[i].Node, root)
 	}
-	return nil
-}
-
-func exportImage(d engine.Disk, root string) error {
-	if err := os.MkdirAll(filepath.Dir(root), 0o755); err != nil {
-		return err
-	}
-	if err := os.Mkdir(root, 0o755); err != nil {
-		return fmt.Errorf("export target must not exist yet: %w", err)
-	}
-	dir, err := os.OpenRoot(root)
-	if err != nil {
-		return err
-	}
-	defer dir.Close()
-	dirs, files := d.AfterCrash()
-	for _, s := range dirs {
-		if err := dir.MkdirAll(s.Path, 0o755); err != nil {
-			return err
-		}
-	}
-	for _, f := range files {
-		if err := dir.MkdirAll(path.Dir(f.Path), 0o755); err != nil {
-			return err
-		}
-		if err := dir.WriteFile(f.Path, f.Durable, 0o644); err != nil {
-			return err
-		}
-	}
-	return nil
+	return err
 }

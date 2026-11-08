@@ -33,9 +33,17 @@ func cmdHook([]string) error {
 	if err != nil {
 		return err
 	}
-	r, _, err := load(config)
+	r, cfg, err := load(config)
 	if err != nil {
 		return err
+	}
+	regs, err := replayRegressions(r, cfg, true, "", runtime.NumCPU())
+	if err != nil {
+		return err
+	}
+	if bad := engine.FirstFailed(regs); bad != nil {
+		fmt.Fprintf(os.Stderr, "seedfall: pinned regression %s fails again under %s: %s\nreplay: seedfall replay -c %s -seed %d -faults %s\n", bad.String(), config, bad.Result.Reason, config, bad.File.Seed, bad.Path)
+		os.Exit(blockStop)
 	}
 	sum := engine.Sweep(r, lo, hi, engine.SweepOptions{Jobs: runtime.NumCPU()})
 	if sum.First != nil {

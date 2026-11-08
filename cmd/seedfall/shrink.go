@@ -1,13 +1,10 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
-	"os"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -32,14 +29,6 @@ type shrinkView struct {
 	BudgetExhausted bool                `json:"budget_exhausted"`
 	ScheduleFile    string              `json:"schedule_file"`
 	Failure         *failureView        `json:"failure"`
-}
-
-type scheduleFile struct {
-	Seed uint64 `json:"seed"`
-	engine.Schedule
-	ShrunkFrom      *engine.ScheduleSize `json:"shrunk_from,omitempty"`
-	ShrinkRuns      int                  `json:"shrink_runs,omitempty"`
-	BudgetExhausted bool                 `json:"budget_exhausted,omitempty"`
 }
 
 func cmdShrink(args []string) error {
@@ -76,6 +65,8 @@ func cmdShrink(args []string) error {
 	if shrunk.Exhausted {
 		fmt.Println("budget spent: the schedule fails the same way but may not be minimal; run shrink again with a larger -budget")
 	}
+	a, _, err := r.SaveArtifacts(*seed, shrunk.Schedule, engine.ArtifactOptions{Config: *conf, ScheduleFile: out, Label: "shrunk", Original: &shrunk.Result})
+	printArtifacts(a, err)
 	label := "minimal schedule"
 	if shrunk.Exhausted {
 		label = "shrunk schedule"
@@ -104,6 +95,7 @@ func toolShrink(_ context.Context, _ *mcp.CallToolRequest, a shrinkArgs) (*mcp.C
 		return nil, shrinkView{}, err
 	}
 	failure := viewFailure(a.Config, shrunk.Result)
+	withArtifacts(r, failure, a.Config, shrunk.Schedule, engine.ArtifactOptions{Config: a.Config, ScheduleFile: path, Label: "shrunk", Original: &shrunk.Result})
 	failure.Replay = fmt.Sprintf("seedfall replay -c %s -seed %d -faults %s", a.Config, a.Seed, path)
 	return nil, shrinkView{
 		OriginalFaults: shrunk.Before.Faults, MinimalFaults: shrunk.After.Faults,
@@ -150,23 +142,8 @@ func readSchedule(path string) (engine.Schedule, error) {
 	if path == "" {
 		return engine.Schedule{}, nil
 	}
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return engine.Schedule{}, err
-	}
-	var file scheduleFile
-	if trimmed := bytes.TrimSpace(b); len(trimmed) > 0 && trimmed[0] == '[' {
-		err = json.Unmarshal(trimmed, &file.Faults)
-	} else {
-		err = json.Unmarshal(b, &file)
-	}
-	if err != nil {
-		return engine.Schedule{}, fmt.Errorf("%s: %w", path, err)
-	}
-	if file.Faults == nil {
-		file.Faults = []engine.Fault{}
-	}
-	return file.Schedule, nil
+	file, err := engine.ReadScheduleFile(path)
+	return file.Schedule, err
 }
 
 func schedulePath(config string, seed uint64) string {
@@ -175,13 +152,6 @@ func schedulePath(config string, seed uint64) string {
 
 func saveSchedule(config string, seed uint64, shrunk engine.Shrunk) (string, error) {
 	path := schedulePath(config, seed)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return "", err
-	}
-	file := scheduleFile{Seed: seed, Schedule: shrunk.Schedule, ShrunkFrom: &shrunk.Before, ShrinkRuns: shrunk.Runs, BudgetExhausted: shrunk.Exhausted}
-	b, err := json.MarshalIndent(file, "", "  ")
-	if err != nil {
-		return "", err
-	}
-	return path, os.WriteFile(path, b, 0o644)
+	file := engine.ScheduleFile{Seed: seed, Schedule: shrunk.Schedule, ShrunkFrom: &shrunk.Before, ShrinkRuns: shrunk.Runs, BudgetExhausted: shrunk.Exhausted}
+	return path, engine.WriteScheduleFile(path, file)
 }

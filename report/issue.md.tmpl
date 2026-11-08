@@ -1,0 +1,37 @@
+seedfall found **{{.Finding.Key}}** in `{{.Report.Config}}`: {{.Finding.Count}} of {{.Report.Total}} seeds failed ({{percent .Finding.Rate}}), status {{.Finding.Status}}{{with .Finding.Classification}}, class `{{.Verdict}}`{{end}}.
+{{with .Finding.Example}}
+> {{.Reason}}
+
+Reproduce with seed {{.Seed}}, which fails at t={{.At}}:
+
+```sh
+{{.Replay}}
+{{.Shrink}}
+```
+
+Example seeds: {{range $i, $s := $.Finding.Seeds}}{{if $i}}, {{end}}{{$s}}{{end}}
+{{if .Faults}}
+<details><summary>Faults before the failure ({{len .Faults}})</summary>
+
+```
+{{range .Faults}}{{.}}
+{{end}}```
+
+</details>
+{{end}}{{if .Trace}}
+<details><summary>Trace tail</summary>
+
+```
+{{range .Trace}}{{.}}
+{{end}}```
+
+</details>
+{{end}}{{if .Artifacts}}
+The failure's artifacts (report.json, trace.txt, a replayable faults.json, the disk images and any recorded history) are in `{{.Artifacts}}`.
+{{end}}{{end}}
+| | |
+|---|---|
+| seedfall | {{.Report.Version}} |
+| commit | {{or .Report.Commit "unknown"}} |
+| Go | {{.Report.GoVersion}} |
+| seeds swept | {{.Report.Seeds}} |

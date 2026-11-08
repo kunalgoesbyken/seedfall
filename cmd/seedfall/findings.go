@@ -1,9 +1,7 @@
 package main
 
 import (
-	"cmp"
 	"context"
-	"path/filepath"
 
 	"github.com/kunalgoesbyken/seedfall/report"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -30,7 +28,7 @@ func toolFindings(_ context.Context, _ *mcp.CallToolRequest, a findingsArgs) (*m
 	if err != nil {
 		return nil, findingsView{}, err
 	}
-	runs, err := report.ReadHistory(cmp.Or(a.History, filepath.Join(filepath.Dir(rep.Config), ".seedfall", "history.jsonl")), rep.Config)
+	runs, err := report.ReadHistory(reportHistory(rep, a.History), rep.Config)
 	if err != nil {
 		return nil, findingsView{}, err
 	}

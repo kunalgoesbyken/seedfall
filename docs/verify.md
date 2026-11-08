@@ -49,6 +49,8 @@ Any failure is printed with its [classification](reports.md#classification), so 
 
 `-seed` and `-report` can be combined. Point `-c` at the config of the code you changed; the report can come from an earlier run of the same or another config.
 
+Every schedule [pinned](#pinned-regressions) for the config is replayed too, as a `replay pinned seed N with seedfall-regressions/...` row, without being named.
+
 ```
 $ seedfall verify -c seedfall.fixed.json -report .seedfall/report.html
 verify seedfall.fixed.json
@@ -60,6 +62,38 @@ verify seedfall.fixed.json
   pass  determinism, seeds 41-50                                          every seed ran twice with identical host calls and traces
 PASS
 ```
+
+## Pinned regressions
+
+A fixed bug should stay fixed. `seedfall pin` copies a failing seed's schedule into `seedfall-regressions/`, next to the config, a directory you commit:
+
+```sh
+seedfall pin -c seedfall.fixed.json -seed 1 -faults torntail.faults.json
+```
+
+```
+pinned seed 1 (2 faults, from torntail.faults.json) to seedfall-regressions/seedfall.fixed-seed-1.json
+it passes now; seedfall run, verify and seedfalltest replay it first and fail if it fails again
+```
+
+Without `-faults`, pin takes the schedule `seedfall shrink` saved in `.seedfall/seed-N.faults.json`, or else the seed's own faults, recorded fault by fault so the pinned faults stay the same if the fault rates change later. The file is a schedule in the usual format with a `pinned` block: the config it belongs to, the finding and reason if it fails now, where it came from, the seedfall version and the date. It is named `<config>-seed-N.json`, so two configs in one directory can pin the same seed. Pinning a schedule that still fails is allowed, and the commands below fail until the bug is fixed, the way a test written before its fix does.
+
+A pinned schedule keeps its faults and `ops` cap but runs for the config's full `duration`, as `-faults` does in verify, so a shrunk schedule's short duration cannot end the run before the workload checks anything. The same file replays exactly with `seedfall replay -c C -seed N -faults seedfall-regressions/<file>`.
+
+Pinned schedules are replayed, in parallel, before anything else by:
+
+| Where | What happens |
+|---|---|
+| `seedfall run` | A `regressions` table comes first. One that fails again stops the run before the sweep with its failure, classification, [artifacts](reports.md#failure-artifacts) and replay command, and exit code 1 |
+| `seedfall run -report` | The sweep still runs, the report gets a **Regressions** section, and a failing regression fails the run |
+| `seedfall run -json` | One `{"type": "regression", ...}` line per regression before the seed lines, with `source`, `seed`, `passed`, and on a failure `failure`, `reason`, `classification` and `artifacts`; the summary counts `regressions_failed` |
+| `seedfall verify` | A `replay pinned` row each, which must pass twice |
+| `seedfalltest.Sweep` and `seedfalltest.Pinned` | The test fails with the regression's failure ([ci.md](ci.md#go-test)) |
+| `seedfall hook` and `seedfall_run` over MCP | The regression's failure is reported before any sweep |
+
+A file in `seedfall-regressions/` without a `pinned.config`, for example a schedule copied in by hand, is replayed for every config in that directory. `run -pinned=false` skips them; over MCP, `skip_pinned`.
+
+`run -seeds-file known-bad.txt` replays a list of seeds, each with its own faults, the same way before the sweep. The file holds seeds separated by spaces or lines, with `#` comments.
 
 ## The proof block
 

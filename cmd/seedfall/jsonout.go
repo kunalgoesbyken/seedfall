@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/kunalgoesbyken/seedfall/engine"
+	"github.com/kunalgoesbyken/seedfall/report"
 )
 
 type seedLine struct {
@@ -21,26 +22,39 @@ type seedLine struct {
 	Hash           string          `json:"determinism_hash"`
 }
 
-type summaryLine struct {
-	Type       string         `json:"type"`
-	Passed     int            `json:"passed"`
-	Failed     int            `json:"failed"`
-	Unfinished int            `json:"unfinished"`
-	Unmet      int            `json:"unmet_properties"`
-	Properties []propertyView `json:"properties"`
-	Buggify    []buggifyView  `json:"buggify_sites,omitempty"`
+type regressionLine struct {
+	Type string `json:"type"`
+	report.Regression
 }
 
-func runJSON(r *engine.Runner, lo, hi uint64, jobs int) error {
+type summaryLine struct {
+	Type        string         `json:"type"`
+	Passed      int            `json:"passed"`
+	Failed      int            `json:"failed"`
+	Unfinished  int            `json:"unfinished"`
+	Regressions int            `json:"regressions_failed"`
+	Unmet       int            `json:"unmet_properties"`
+	Properties  []propertyView `json:"properties"`
+	Buggify     []buggifyView  `json:"buggify_sites,omitempty"`
+}
+
+func runJSON(r *engine.Runner, config string, regs []engine.RegressionResult, lo, hi uint64, jobs int) error {
 	enc := json.NewEncoder(os.Stdout)
 	var encodeErr error
+	regressionsFailed := 0
+	for _, reg := range viewRegressions(r, config, regs) {
+		encodeErr = cmp.Or(encodeErr, enc.Encode(regressionLine{Type: "regression", Regression: reg}))
+		if !reg.Passed {
+			regressionsFailed++
+		}
+	}
 	sum := engine.Sweep(r, lo, hi, engine.SweepOptions{Jobs: jobs, KeepGoing: true, OnResult: func(res engine.Result) {
 		encodeErr = cmp.Or(encodeErr, enc.Encode(seedJSON(res)))
 	}})
 	if encodeErr != nil {
 		return encodeErr
 	}
-	return printSummaryJSON(enc, sum)
+	return printSummaryJSON(enc, sum, regressionsFailed)
 }
 
 func seedJSON(res engine.Result) seedLine {
@@ -54,13 +68,13 @@ func seedJSON(res engine.Result) seedLine {
 	return line
 }
 
-func printSummaryJSON(enc *json.Encoder, sum engine.Summary) error {
+func printSummaryJSON(enc *json.Encoder, sum engine.Summary, regressionsFailed int) error {
 	unmet := len(sum.Coverage.Unmet())
-	line := summaryLine{Type: "summary", Passed: sum.Passed, Failed: len(sum.Failures), Unfinished: sum.Unfinished, Unmet: unmet, Properties: properties(sum.Coverage), Buggify: buggifySites(sum.Buggify)}
+	line := summaryLine{Type: "summary", Passed: sum.Passed, Failed: len(sum.Failures), Unfinished: sum.Unfinished, Regressions: regressionsFailed, Unmet: unmet, Properties: properties(sum.Coverage), Buggify: buggifySites(sum.Buggify)}
 	if err := enc.Encode(line); err != nil {
 		return err
 	}
-	if line.Failed > 0 || unmet > 0 {
+	if line.Failed > 0 || regressionsFailed > 0 || unmet > 0 {
 		os.Exit(1)
 	}
 	return nil

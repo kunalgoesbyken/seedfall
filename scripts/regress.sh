@@ -60,6 +60,15 @@ expect_app_mutant() {
   printf '%s  %-8s %-24s source mutant %s of %s on seeds %s: want %s, got %s\n' "$verdict" "$dir" "$config" "$site" "$count" "$seeds" "$want" "$got"
 }
 
+expect_pinned() {
+  local dir="$1" config="$2" want="$3"
+  local got
+  got="$(cd "$root/examples/$dir" && "$bin" run -c "$config" -seeds 1 2>&1 | awk '/^regressions, replayed before the sweep/ {getline; print $1; exit}')"
+  local verdict="PASS"
+  [ "$got" != "$want" ] && verdict="FAIL" && failures=$((failures + 1))
+  printf '%s  %-8s %-24s pinned regression: want %s, got %s\n' "$verdict" "$dir" "$config" "$want" "$got"
+}
+
 deterministic() {
   local dir="$1" config="$2" seed="$3"
   local a b
@@ -90,6 +99,8 @@ expect_app_mutant kvlog seedfall.fixed.json 1-10 4 server/main.go:197 SURVIVED
 expect_replay kvlog seedfall.readcorrupt.json 1 readcorrupt.faults.json fail
 expect_replay kvlog seedfall.checksum.json    1 readcorrupt.faults.json pass
 expect_replay kvlog seedfall.always.json      1 torntail.faults.json fail
+expect_replay kvlog seedfall.always.json      1 .seedfall/failures/seed-1/faults.json fail
+expect_pinned kvlog seedfall.fixed.json pass
 expect_shrink kvlog seedfall.always.json      1 "2 faults, 991ms, 63 workload ops"
 expect raftkv seedfall.json          1-40   pass
 expect raftkv seedfall.nofsync.json  1-120  fail

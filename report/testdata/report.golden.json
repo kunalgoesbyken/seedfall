@@ -7,6 +7,7 @@
   "elapsed": "1.234s",
   "generated": "0001-01-01T00:00:00Z",
   "go_version": "go",
+  "seedfall_version": "v0.0.0",
   "faults": {
     "crash_per_sec": 0,
     "restart_after": [
@@ -98,7 +99,8 @@
           "      2.000  FAIL  client#1: acknowledged write lost"
         ],
         "replay": "seedfall replay -c seedfall.json -seed 3",
-        "shrink": "seedfall shrink -c seedfall.json -seed 3"
+        "shrink": "seedfall shrink -c seedfall.json -seed 3",
+        "artifacts": ".seedfall/failures/seed-3"
       }
     },
     {
@@ -124,7 +126,8 @@
         "faults_before_failure": null,
         "trace_tail": null,
         "replay": "seedfall replay -c seedfall.json -seed 4",
-        "shrink": "seedfall shrink -c seedfall.json -seed 4"
+        "shrink": "seedfall shrink -c seedfall.json -seed 4",
+        "artifacts": ".seedfall/failures/seed-4"
       }
     }
   ],

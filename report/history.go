@@ -47,28 +47,61 @@ func knownFindings(entries []Entry) map[string]known {
 	return out
 }
 
+const EventNotified = "notified"
+
+type Event struct {
+	Time    time.Time `json:"time"`
+	Config  string    `json:"config"`
+	Kind    string    `json:"event"`
+	Finding string    `json:"finding"`
+	Report  time.Time `json:"report"`
+}
+
 func ReadHistory(path, config string) ([]Entry, error) {
+	var entries []Entry
+	err := readLines(path, func(b []byte) {
+		var e struct {
+			Entry
+			Kind string `json:"event"`
+		}
+		if json.Unmarshal(b, &e) == nil && e.Kind == "" && e.Config == config {
+			entries = append(entries, e.Entry)
+		}
+	})
+	return entries, err
+}
+
+func ReadEvents(path, config string) ([]Event, error) {
+	var events []Event
+	err := readLines(path, func(b []byte) {
+		var e Event
+		if json.Unmarshal(b, &e) == nil && e.Kind != "" && e.Config == config {
+			events = append(events, e)
+		}
+	})
+	return events, err
+}
+
+func readLines(path string, line func([]byte)) error {
 	f, err := os.Open(path)
 	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil
+		return nil
 	}
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer f.Close()
-	var entries []Entry
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
 	for scanner.Scan() {
-		var e Entry
-		if json.Unmarshal(scanner.Bytes(), &e) == nil && e.Config == config {
-			entries = append(entries, e)
-		}
+		line(scanner.Bytes())
 	}
-	return entries, scanner.Err()
+	return scanner.Err()
 }
 
-func appendEntry(path string, e Entry) error {
+func AppendEvent(path string, e Event) error { return appendLine(path, e) }
+
+func appendLine(path string, v any) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
@@ -77,5 +110,5 @@ func appendEntry(path string, e Entry) error {
 		return err
 	}
 	defer f.Close()
-	return json.NewEncoder(f).Encode(e)
+	return json.NewEncoder(f).Encode(v)
 }

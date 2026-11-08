@@ -4,12 +4,14 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/kunalgoesbyken/seedfall/engine"
+	"github.com/kunalgoesbyken/seedfall/report"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -18,9 +20,10 @@ const mcpTraceTail = 60
 const mcpInstructions = "seedfall runs Go services as wasip1 guests under simulated crashes, torn writes, fsync errors, disk corruption, full disks, partitions, clogs and slow nodes, with exact replay from a seed. In a module without a seedfall.json, call seedfall_init first. Read seedfall://docs/properties before writing checks and seedfall://schema/config before editing seedfall.json. The prompts seedfall-setup, seedfall-properties, seedfall-triage and seedfall-fix-and-prove walk through each stage."
 
 type runArgs struct {
-	Config string `json:"config" jsonschema:"path to seedfall.json"`
-	Seeds  string `json:"seeds" jsonschema:"seed or inclusive range, for example 1-200"`
-	Check  bool   `json:"check,omitempty" jsonschema:"run every seed twice and fail at the first host call or trace line that differs"`
+	Config     string `json:"config" jsonschema:"path to seedfall.json"`
+	Seeds      string `json:"seeds" jsonschema:"seed or inclusive range, for example 1-200"`
+	Check      bool   `json:"check,omitempty" jsonschema:"run every seed twice and fail at the first host call or trace line that differs"`
+	SkipPinned bool   `json:"skip_pinned,omitempty" jsonschema:"do not replay the schedules pinned in seedfall-regressions/ before the sweep"`
 }
 
 type seedArgs struct {
@@ -30,14 +33,15 @@ type seedArgs struct {
 }
 
 type failureView struct {
-	Seed     uint64   `json:"seed"`
-	At       string   `json:"at"`
-	Reason   string   `json:"reason"`
-	Faults   []string `json:"faults_before_failure"`
-	Trace    []string `json:"trace_tail"`
-	Replay   string   `json:"replay_command"`
-	History  string   `json:"history_file,omitempty"`
-	Timeline string   `json:"timeline_file,omitempty"`
+	Seed      uint64   `json:"seed"`
+	At        string   `json:"at"`
+	Reason    string   `json:"reason"`
+	Faults    []string `json:"faults_before_failure"`
+	Trace     []string `json:"trace_tail"`
+	Replay    string   `json:"replay_command"`
+	History   string   `json:"history_file,omitempty"`
+	Timeline  string   `json:"timeline_file,omitempty"`
+	Artifacts string   `json:"artifacts_dir,omitempty"`
 
 	Class *engine.Classification `json:"classification,omitempty"`
 }
@@ -68,12 +72,13 @@ type buggifyView struct {
 }
 
 type runView struct {
-	Passed     int            `json:"seeds_passed"`
-	Unfinished int            `json:"seeds_hit_horizon"`
-	Failure    *failureView   `json:"failure,omitempty"`
-	Properties []propertyView `json:"properties"`
-	Buggify    []buggifyView  `json:"buggify_sites,omitempty"`
-	Elapsed    string         `json:"elapsed"`
+	Regressions []report.Regression `json:"regressions,omitempty"`
+	Passed      int                 `json:"seeds_passed"`
+	Unfinished  int                 `json:"seeds_hit_horizon"`
+	Failure     *failureView        `json:"failure,omitempty"`
+	Properties  []propertyView      `json:"properties"`
+	Buggify     []buggifyView       `json:"buggify_sites,omitempty"`
+	Elapsed     string              `json:"elapsed"`
 }
 
 type seedView struct {
@@ -166,7 +171,7 @@ func newMCPServer() (*mcp.Server, error) {
 	}, toolInit)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "seedfall_run",
-		Description: "Sweep a seed range under simulated crashes, torn writes, fsync errors, disk corruption, full disks, partitions, clogs and slow nodes. Returns the lowest failing seed with its fault schedule and trace tail, plus property coverage and, with faults.buggify on, how often each sim.Buggify site was reached, enabled and fired.",
+		Description: "Sweep a seed range under simulated crashes, torn writes, fsync errors, disk corruption, full disks, partitions, clogs and slow nodes. First replays every schedule pinned in seedfall-regressions/ and stops at the first one that fails. Returns the regressions, the lowest failing seed with its fault schedule, trace tail, classification and artifacts_dir (report.json, trace.txt, a replayable faults.json, history and disk images), plus property coverage and, with faults.buggify on, how often each sim.Buggify site was reached, enabled and fired.",
 	}, toolRun)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "seedfall_replay",
@@ -197,6 +202,10 @@ func newMCPServer() (*mcp.Server, error) {
 		Description: "Grade the checks: sweep the seed range once unmutated (it must pass), then once per mutant, each of which silently breaks one guarantee under the nodes: fsync, directory fsync, O_SYNC, fsync data integrity, rename atomicity, durable truncation, data before a close, no duplicated TCP writes, and a monotonic clock. With app, rebuilds the node packages once per source mutant instead (flipped comparisons, skipped early error returns, skipped Sync calls), picked from the first seed. Returns each mutant as killed (with the seed and reason), survived (a blind spot in the checks), not exercised or did not build.",
 	}, toolMutate)
 	mcp.AddTool(server, &mcp.Tool{
+		Name:        "seedfall_pin",
+		Description: "Pin a seed's fault schedule as a permanent regression: copy the schedule seedfall_shrink saved for it (or a given schedule, or else the seed's own faults) into seedfall-regressions/ next to the config, with the finding, seedfall version and date. seedfall_run, seedfall_verify, seedfall run and seedfalltest replay every pinned schedule before the sweep and fail if one fails. Returns the pinned file and whether the schedule passes now.",
+	}, toolPin)
+	mcp.AddTool(server, &mcp.Tool{
 		Name:        "seedfall_findings",
 		Description: "Read a triage report written by seedfall run -report without running anything: every finding with its status (new, ongoing, regressed), failing seed count, rate, classification and an example failure with replay and shrink commands, findings not seen this time, properties that were never reached or never true, and the run history of the same config.",
 	}, toolFindings)
@@ -211,18 +220,37 @@ func toolRun(_ context.Context, _ *mcp.CallToolRequest, a runArgs) (*mcp.CallToo
 	if err != nil {
 		return nil, runView{}, err
 	}
-	r, _, err := load(a.Config)
+	r, cfg, err := load(a.Config)
 	if err != nil {
 		return nil, runView{}, err
 	}
 	r.Doublecheck = a.Check
 	started := time.Now()
+	regs, err := replayRegressions(r, cfg, !a.SkipPinned, "", runtime.NumCPU())
+	if err != nil {
+		return nil, runView{}, err
+	}
+	out := runView{Regressions: viewRegressions(r, a.Config, regs)}
+	if bad := engine.FirstFailed(regs); bad != nil {
+		out.Failure = viewFailure(a.Config, bad.Result)
+		if bad.Path != "" {
+			out.Failure.Replay += " -faults " + filepath.ToSlash(bad.Path)
+		}
+		for _, reg := range out.Regressions {
+			if !reg.Passed {
+				out.Failure.Class, out.Failure.Artifacts = reg.Class, reg.Artifacts
+				break
+			}
+		}
+		out.Elapsed = time.Since(started).Round(time.Millisecond).String()
+		return nil, out, nil
+	}
 	sum := engine.Sweep(r, lo, hi, engine.SweepOptions{Jobs: runtime.NumCPU()})
-	out := runView{Passed: sum.Passed, Unfinished: sum.Unfinished, Properties: properties(sum.Coverage), Buggify: buggifySites(sum.Buggify), Elapsed: time.Since(started).Round(time.Millisecond).String()}
+	out.Passed, out.Unfinished, out.Properties, out.Buggify = sum.Passed, sum.Unfinished, properties(sum.Coverage), buggifySites(sum.Buggify)
+	out.Elapsed = time.Since(started).Round(time.Millisecond).String()
 	if sum.First != nil {
 		out.Failure = viewFailure(a.Config, *sum.First)
-		class := r.Classify(*sum.First, engine.Schedule{})
-		out.Failure.Class = &class
+		withArtifacts(r, out.Failure, a.Config, engine.Schedule{}, engine.ArtifactOptions{Config: a.Config, Original: sum.First})
 	}
 	return nil, out, nil
 }
@@ -240,8 +268,11 @@ func toolReplay(_ context.Context, _ *mcp.CallToolRequest, a seedArgs) (*mcp.Cal
 	out := seedView{Seed: a.Seed, Passed: !res.Failed, Steps: res.Steps, Hash: res.Hash(), Events: events(res)}
 	if res.Failed {
 		out.Failure = viewFailure(a.Config, res)
-		class := r.Classify(res, sched)
-		out.Failure.Class = &class
+		opts := engine.ArtifactOptions{Config: a.Config, ScheduleFile: a.Faults, Original: &res}
+		if a.Faults != "" {
+			opts.Label = "schedule"
+		}
+		withArtifacts(r, out.Failure, a.Config, sched, opts)
 		return nil, out, nil
 	}
 	out.Trace = tail(res.Trace, mcpTraceTail)
@@ -327,6 +358,16 @@ func viewFailure(config string, res engine.Result) *failureView {
 		Faults: described, Trace: tail(res.Trace, mcpTraceTail),
 		Replay:  fmt.Sprintf("seedfall replay -c %s -seed %d", config, res.Seed),
 		History: files.History, Timeline: files.Timeline,
+	}
+}
+
+func withArtifacts(r *engine.Runner, view *failureView, config string, s engine.Schedule, opts engine.ArtifactOptions) {
+	a, _, err := r.SaveArtifacts(view.Seed, s, opts)
+	if a.Classification.Verdict != "" {
+		view.Class = &a.Classification
+	}
+	if err == nil {
+		view.Artifacts = filepath.ToSlash(a.Dir)
 	}
 }
 

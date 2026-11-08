@@ -31,13 +31,16 @@ th { font: 500 12px ui-monospace, monospace; color: var(--dim); }
 td.num { font-family: ui-monospace, monospace; white-space: nowrap; }
 .problem { color: var(--bad); }
 .empty { color: var(--ok); padding: 18px 0; border-top: 1px solid var(--line); }
+button.copy { margin-top: 12px; font: 13px ui-monospace, monospace; color: var(--text); background: transparent; border: 1px solid var(--line); border-radius: 4px; padding: 4px 10px; cursor: pointer; }
+button.copy:hover { border-color: var(--ember); }
+textarea.issue { width: 100%; height: 220px; margin-top: 8px; background: #0d0805; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 12px; font: 12.5px/1.6 ui-monospace, monospace; }
 </style>
 </head>
 <body>
 <main>
   <p class="brand"><span><i style="height:8px;opacity:.55"></i> <i style="height:18px"></i> <i style="height:12px;opacity:.75"></i></span>seedfall triage report</p>
   <h1>{{.Config}}</h1>
-  <p class="dim mono">seeds {{.Seeds}} · {{.Elapsed}} · {{.GoVersion}} · {{.Generated.Format "2006-01-02 15:04 MST"}}</p>
+  <p class="dim mono">seeds {{.Seeds}} · {{.Elapsed}} · seedfall {{.Version}} · {{.GoVersion}}{{with .Commit}} · commit {{.}}{{end}} · {{.Generated.Format "2006-01-02 15:04 MST"}}</p>
 
   <div class="stats">
     <div><b>{{.Total}}</b><span class="dim">seeds run</span></div>
@@ -45,6 +48,16 @@ td.num { font-family: ui-monospace, monospace; white-space: nowrap; }
     <div><b>{{.Failed}}</b><span class="dim">failed</span></div>
     <div><b>{{len .Findings}}</b><span class="dim">distinct findings</span></div>
   </div>
+
+  {{if .Regressions}}
+  <h2>Regressions</h2>
+  <table>
+    <tr><th>result</th><th>seed</th><th>pinned schedule</th><th>failure</th></tr>
+    {{range .Regressions}}
+    <tr><td class="mono {{if .Passed}}resolved{{else}}regressed{{end}}">{{if .Passed}}pass{{else}}FAIL{{end}}</td><td class="num">{{.Seed}}</td><td class="mono">{{.Source}}</td><td>{{if not .Passed}}{{.Failure.Key}}: {{.Reason}}{{with .Artifacts}} <span class="dim mono">· artifacts {{.}}</span>{{end}}{{end}}</td></tr>
+    {{end}}
+  </table>
+  {{end}}
 
   <h2>Findings</h2>
   {{if not .Findings}}<p class="empty">No failures in {{.Total}} seeds.</p>{{end}}
@@ -65,7 +78,10 @@ td.num { font-family: ui-monospace, monospace; white-space: nowrap; }
 {{end}}</pre>{{end}}
     <details><summary>trace of seed {{.Seed}}, failing at t={{.At}}</summary><pre>{{range .Trace}}{{.}}
 {{end}}</pre></details>
+    {{with .Artifacts}}<p class="dim mono" style="margin-top:10px">artifacts: {{.}}</p>{{end}}
     {{end}}
+    <button class="copy" type="button">Copy issue markdown</button>
+    <details><summary>issue markdown</summary><textarea class="issue" readonly>{{$.IssueMarkdown $f}}</textarea></details>
   </section>
   {{end}}
 
@@ -104,5 +120,20 @@ td.num { font-family: ui-monospace, monospace; white-space: nowrap; }
     <tr><td>torn writes · strict directories · swarm</td><td class="num">{{.Faults.TornWrites}} · {{.Faults.StrictDirs}} · {{.Faults.Swarm}}</td></tr>
   </table>
 </main>
+<script>
+for (const button of document.querySelectorAll("button.copy")) {
+  button.addEventListener("click", async () => {
+    const text = button.parentElement.querySelector("textarea.issue");
+    try {
+      await navigator.clipboard.writeText(text.value);
+    } catch {
+      text.closest("details").open = true;
+      text.select();
+      document.execCommand("copy");
+    }
+    button.textContent = "Copied";
+  });
+}
+</script>
 </body>
 </html>

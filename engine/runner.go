@@ -130,7 +130,10 @@ func (r *Runner) Run(seed uint64, faults []Fault) Result {
 }
 
 func (r *Runner) Replay(seed uint64, s Schedule) Result {
-	res := r.once(seed, s, 0)
+	return r.doublecheck(seed, s, r.once(seed, s, 0))
+}
+
+func (r *Runner) doublecheck(seed uint64, s Schedule, res Result) Result {
 	if !r.Doublecheck {
 		return res
 	}

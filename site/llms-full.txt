@@ -58,13 +58,14 @@ Config paths in tool calls are resolved against the server's working directory, 
 | Tool | Arguments | Returns |
 |---|---|---|
 | `seedfall_init` | optional `dir`, `config`, `nodes`, `workload`, `dry_run` | The module's `main` packages and which become nodes, the packages that block a `GOOS=wasip1` build (compile errors and cgo, each with its import chain), the starter config, the files written, and the next steps. See [onboarding](#onboarding-a-new-module) |
-| `seedfall_run` | `config`, `seeds` (for example `1-200`), optional `check` | Seeds passed, the lowest failing seed with its reason, [classification](reports.md#classification), the faults before the failure, the trace tail and a replay command, plus property coverage and, with `faults.buggify` on, `buggify_sites` ([buggify](buggify.md#coverage)) |
+| `seedfall_run` | `config`, `seeds` (for example `1-200`), optional `check`, `skip_pinned` | First the [pinned regressions](verify.md#pinned-regressions), stopping at one that fails again. Then seeds passed, the lowest failing seed with its reason, [classification](reports.md#classification), the faults before the failure, the trace tail, a replay command and `artifacts_dir` ([failure artifacts](reports.md#failure-artifacts)), plus property coverage and, with `faults.buggify` on, `buggify_sites` ([buggify](buggify.md#coverage)) |
 | `seedfall_replay` | `config`, `seed`, optional `faults` file | The same failure view for one seed, or the trace tail if it passes, with a `note` when a shrunk schedule's shorter duration ended the run before the workload finished. A failure view of a run that recorded operations also names its `history_file` and, on a linearizability violation, its `timeline_file`. Every result has the run's `determinism_hash` and its `events` from `sim.Event` or `lifecycle.SendEvent` |
 | `seedfall_shrink` | `config`, `seed`, optional `budget` (runs such as `300`, or time such as `10m`) | The original and minimal sizes (faults, duration and, with [`sim.Budget`](properties.md#workload-size), workload operations), the runs used, whether the budget ran out, the path of the saved schedule, and the failure view under that schedule with its replay command ([shrinking](how-it-works.md#shrinking)) |
 | `seedfall_inspect` | `config`, `seed`, optional `faults`, `at`, `node`, `path` | Every node's disk at the failure or at virtual time `at`: per file the live and durable sizes, the byte ranges a crash would lose, whether its directory entry is durable, the last torn write, and removed entries a crash would bring back. With `path`, one file's durable content as text or a hex dump ([inspect.md](inspect.md)) |
 | `seedfall_check` | `history`, optional `model` | Re-checks a recorded history file against a model: the verdict, each anomaly with its cycle, and on a linearizability violation the HTML timeline file ([properties.md](properties.md#history-files)) |
 | `seedfall_verify` | `config`, `seed` and optional `faults`, and/or `report`; optional `seeds`, `check_seeds`, `mutate`, `app_mutants` | Whether the fix holds: each replayed schedule, the fresh sweep with its confidence, the determinism check and the mutants, plus a Markdown proof block for the PR ([verify.md](verify.md)) |
 | `seedfall_mutate` | `config`, optional `seeds` (default `1-100`), `only`, `app`, `mutants` | Sweeps the seeds unmutated, then once per [mutant](mutate.md) (disk, rename, truncate, network and clock guarantees), or with `app` once per [source mutant](mutate.md#source-mutants) of the node packages: each mutant's `outcome` (`killed`, `survived`, `not exercised` or `did not build`), its `location` and change for source mutants, the seed and reason that killed it, and how often the operation was weakened |
+| `seedfall_pin` | `config`, `seed`, optional `faults` | Pins the seed's schedule (the one `seedfall_shrink` saved, the given file, or else the seed's own faults) into `seedfall-regressions/` as a permanent regression, and returns the file and whether it passes now, with the failure view if not ([verify.md](verify.md#pinned-regressions)) |
 | `seedfall_findings` | `report`, optional `history` | Reads a triage report from `seedfall run -report` without running anything: each finding with its status, failing seeds, rate, classification and example failure with replay and shrink commands, findings not seen this time, unmet properties, and the run history of that config from `.seedfall/history.jsonl` ([reports.md](reports.md)) |
 | `seedfall_cause` | `config`, `seed`, optional `points`, `branches` | The probability of failing from each moment of the run, with the faults between moments, so the agent can see which event made the failure inevitable ([cause.md](cause.md)) |
 
@@ -359,8 +360,45 @@ jobs:
 | `go-version` | `stable` | Go version for building seedfall and your nodes |
 | `report` | `true` | Sweep every seed and upload an HTML triage report |
 | `artifact-name` | `seedfall-report` | Name of the report artifact; make it unique per job in a matrix |
+| `webhook` | | Slack or Discord incoming webhook URL, best from a secret. Posts the report's new and regressed findings with `seedfall report notify` |
+| `file-issues` | `false` | File a GitHub issue for each finding without an open one, with `seedfall report issue` |
 
-The job fails if any seed fails. The output goes to the job summary, and the triage report (see [reports.md](reports.md)) is uploaded as an artifact. Rotate the seed range over time, for example with the run number, to keep exploring new schedules while each failure stays reproducible.
+The job fails if any seed or [pinned regression](verify.md#pinned-regressions) fails. The output goes to the job summary, and the triage report (see [reports.md](reports.md)) is uploaded as an artifact, together with the [failure artifacts](reports.md#failure-artifacts) under `failures/`.
+
+For alerts and issues on a nightly sweep, keep `.seedfall/history.jsonl` between runs so only new and regressed findings are sent, and grant the job permission to write issues:
+
+```yaml
+on:
+  schedule:
+    - cron: "0 3 * * *"
+jobs:
+  simulate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache/restore@v4
+        with:
+          path: .seedfall/history.jsonl
+          key: seedfall-history-${{ github.run_id }}
+          restore-keys: seedfall-history-
+      - uses: kunalgoesbyken/seedfall@main
+        with:
+          seeds: ${{ github.run_number }}000-${{ github.run_number }}499
+          webhook: ${{ secrets.SEEDFALL_WEBHOOK }}
+          file-issues: "true"
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: .seedfall/history.jsonl
+          key: seedfall-history-${{ github.run_id }}
+```
+
+`webhook` and `file-issues` are newer than v0.2.0, hence `@main` until the next release. The history is saved with `if: always()` because a sweep that finds something fails the job, and that is the run whose history matters most.
+
+The message links the workflow run, and each issue names the seed, the replay command, the seedfall version and the commit ([notifications and issues](reports.md#notifications-and-issues)). Rotate the seed range over time, for example with the run number, to keep exploring new schedules while each failure stays reproducible.
 
 ## Machine-readable output
 
@@ -384,7 +422,9 @@ seedfall run -c seedfall.always.json -seeds 1-100 -json | jq -c 'select(.type ==
 | `faults` | Faults that happened during the run |
 | `host_calls`, `determinism_hash` | How many host calls the run made, and the running hash over them ([determinism check](properties.md#determinism-check)). It covers only simulated values, so the same seed and guest binary should give the same hash on any machine, and a CI matrix can compare it across operating systems to check |
 
-The summary has `passed`, `failed`, `unfinished`, `unmet_properties` and `properties`, the same coverage table `seedfall_run` returns over MCP, with a `problem` on each property that was never reached or never true and a `margin` on each numeric property. With `faults.buggify` on it also has `buggify_sites`: each `sim.Buggify` site with `seeds_reached`, `seeds_enabled`, `seeds_fired`, `fired` and a `problem` of `never reached` or `never fired`, which does not change the exit code. The exit code is 1 if any seed failed or any property is unmet. `-json` cannot be combined with `-report`.
+Before the seed lines comes one `{"type": "regression", ...}` line per [pinned regression](verify.md#pinned-regressions) and `-seeds-file` seed, with `source`, `seed` and `passed`, plus `failure`, `reason`, `classification` and `artifacts` when it fails again.
+
+The summary has `passed`, `failed`, `unfinished`, `regressions_failed`, `unmet_properties` and `properties`, the same coverage table `seedfall_run` returns over MCP, with a `problem` on each property that was never reached or never true and a `margin` on each numeric property. With `faults.buggify` on it also has `buggify_sites`: each `sim.Buggify` site with `seeds_reached`, `seeds_enabled`, `seeds_fired`, `fired` and a `problem` of `never reached` or `never fired`, which does not change the exit code. The exit code is 1 if any seed or regression failed or any property is unmet. `-json` cannot be combined with `-report`.
 
 ## `go test`
 
@@ -396,7 +436,25 @@ func TestDurabilityUnderCrashes(t *testing.T) {
 }
 ```
 
-A failure reports the seed, the reason, the trace tail and the replay command. A `Sometimes` property that is never satisfied also fails the test. `examples/kvlog/seedfall_test.go` is a working example.
+`Sweep` first replays every [pinned regression](verify.md#pinned-regressions) for the config. A failure reports the seed, the reason, the trace tail, the classification, a replay command and the [failure artifacts](reports.md#failure-artifacts) folder. A `Sometimes` property that is never satisfied also fails the test.
+
+Three more helpers turn known bugs into tests, each replaying for the config's full duration and expecting a pass:
+
+```go
+func TestPinnedRegressions(t *testing.T) {
+	seedfalltest.Pinned(t, "seedfall.json")
+}
+
+func TestTornTailStaysFixed(t *testing.T) {
+	seedfalltest.Replay(t, "seedfall.json", "testdata/torntail.faults.json")
+}
+
+func TestKnownSeeds(t *testing.T) {
+	seedfalltest.Seeds(t, "seedfall.json", []uint64{1, 9})
+}
+```
+
+`Pinned` runs each schedule in `seedfall-regressions/` as a subtest, and skips when there is none. `Replay` takes any schedule file with a `seed`, such as one written by `seedfall shrink`. `Seeds` runs each seed with its own faults as a subtest. `examples/kvlog/seedfall_test.go` uses all four.
 
 ## Speed
 
@@ -1637,7 +1695,46 @@ Keep `.seedfall/history.jsonl` between CI runs (cache or commit it) to get this 
 
 ## Properties and fault profile
 
-The report also lists every property with how many seeds reached it and how many saw it true, flagging properties that were never reached or never true, and the fault profile the sweep ran with.
+The report also lists every property with how many seeds reached it and how many saw it true, flagging properties that were never reached or never true, and the fault profile the sweep ran with. Its header names the seedfall version, the Go version and, when the config is in a git repository, the commit it was run at. Schedules pinned with `seedfall pin` are replayed before the sweep and listed in a **Regressions** section ([pinned regressions](verify.md#pinned-regressions)); a regression that fails again fails the run.
+
+## Failure artifacts
+
+Every failure seedfall reports gets a folder you can attach to an issue or upload from CI:
+
+```
+.seedfall/failures/seed-1/
+  report.json            what failed, classification, seedfall and Go versions, config hash, commit, replay command
+  trace.txt              the full trace
+  faults.json            the run's fault schedule, replayable with seedfall replay -faults
+  history.jsonl          the recorded operations, when the workload records any
+  linearizability.html   the timeline, on a linearizability violation
+  disk/<node>/           each node's durable disk image at the failure, as inspect -out exports it
+```
+
+seedfall writes it by replaying the failing seed once more and capturing the disks at the failure, so it costs one run per reported failure, not one per seed. `seedfall run` writes it for the failure it stops at, `run -report` for the example seed of each finding (the report links it), `replay` for a failing replay, `shrink` for the minimal schedule, and a failing [pinned regression](verify.md#pinned-regressions) for itself. A run from the seed alone goes to `seed-N`; a replay from a schedule file to `seed-N-schedule`, a shrunk schedule to `seed-N-shrunk` and a pinned one to `seed-N-pinned`, so they do not overwrite each other. A new failure of the same seed replaces the folder. `run -json` writes artifacts only for failing regressions, not for every failing seed.
+
+`report.json` has `reproduced`, which is false when the replay did not fail the same way as the reported run, `classification` ([above](#classification)), `seedfall_version` (from the binary's build information), `config_sha256` (of the config file's bytes), `commit` (`git rev-parse HEAD` in the config's directory, so uncommitted changes are not reflected) and `replay`, a command that replays `faults.json` exactly:
+
+```sh
+seedfall replay -c seedfall.always.json -seed 1 -faults .seedfall/failures/seed-1/faults.json
+```
+
+Over MCP, failures from `seedfall_run`, `seedfall_replay` and `seedfall_shrink` carry the folder as `artifacts_dir`.
+
+## Notifications and issues
+
+Two commands turn a report into alerts and issues, so a nightly sweep needs no glue code:
+
+```sh
+seedfall report notify -report .seedfall/report.html -webhook "$SEEDFALL_WEBHOOK" -link "$CI_RUN_URL"
+seedfall report issue  -report .seedfall/report.html -repo owner/name
+```
+
+`report notify` posts one message with the report's `new` and `regressed` findings, each with its failing seeds, rate, example seed, reason and replay command, to an incoming webhook. The body is `{"text": ..., "content": ...}`, the fields Slack and Discord incoming webhooks read, and the message is cut to Discord's 2000-character limit with a count of the findings left out. `-webhook` defaults to `$SEEDFALL_WEBHOOK`, and errors never print the URL, which holds the webhook's secret. Each finding sent is recorded in `.seedfall/history.jsonl` against the report it came from, so posting the same report twice sends nothing the second time; an `ongoing` finding is never sent. Because new and regressed come from that history, keep the file between CI runs (see [above](#history-new-ongoing-resolved-regressed)), or every run's findings are new and every run notifies. `-dry-run` prints the message instead.
+
+`report issue` files one GitHub issue per finding with the [`gh` CLI](https://cli.github.com), titled `seedfall finding: <key>`, for example `seedfall finding: assert · client`. The body has the counts, status and class, the reason, the replay and shrink commands, the example seeds, the faults before the failure, the trace tail, the artifacts folder, and the seedfall version, commit and Go version. Before filing, it reads the titles of the repository's 1000 most recent open issues and skips a finding whose title is among them, so a finding has one open issue whether or not the history is saved, and gets a new one if it comes back after its issue was closed. `gh` needs to be logged in, or `GH_TOKEN` set, with permission to write issues. `-dry-run` prints each issue without calling `gh`.
+
+The HTML report has a **Copy issue markdown** button on every finding with the same body, and the text itself under it, for filing by hand in any tracker.
 
 
 <!-- docs/testing.md -->
@@ -1752,6 +1849,8 @@ Any failure is printed with its [classification](reports.md#classification), so 
 
 `-seed` and `-report` can be combined. Point `-c` at the config of the code you changed; the report can come from an earlier run of the same or another config.
 
+Every schedule [pinned](#pinned-regressions) for the config is replayed too, as a `replay pinned seed N with seedfall-regressions/...` row, without being named.
+
 ```
 $ seedfall verify -c seedfall.fixed.json -report .seedfall/report.html
 verify seedfall.fixed.json
@@ -1763,6 +1862,38 @@ verify seedfall.fixed.json
   pass  determinism, seeds 41-50                                          every seed ran twice with identical host calls and traces
 PASS
 ```
+
+## Pinned regressions
+
+A fixed bug should stay fixed. `seedfall pin` copies a failing seed's schedule into `seedfall-regressions/`, next to the config, a directory you commit:
+
+```sh
+seedfall pin -c seedfall.fixed.json -seed 1 -faults torntail.faults.json
+```
+
+```
+pinned seed 1 (2 faults, from torntail.faults.json) to seedfall-regressions/seedfall.fixed-seed-1.json
+it passes now; seedfall run, verify and seedfalltest replay it first and fail if it fails again
+```
+
+Without `-faults`, pin takes the schedule `seedfall shrink` saved in `.seedfall/seed-N.faults.json`, or else the seed's own faults, recorded fault by fault so the pinned faults stay the same if the fault rates change later. The file is a schedule in the usual format with a `pinned` block: the config it belongs to, the finding and reason if it fails now, where it came from, the seedfall version and the date. It is named `<config>-seed-N.json`, so two configs in one directory can pin the same seed. Pinning a schedule that still fails is allowed, and the commands below fail until the bug is fixed, the way a test written before its fix does.
+
+A pinned schedule keeps its faults and `ops` cap but runs for the config's full `duration`, as `-faults` does in verify, so a shrunk schedule's short duration cannot end the run before the workload checks anything. The same file replays exactly with `seedfall replay -c C -seed N -faults seedfall-regressions/<file>`.
+
+Pinned schedules are replayed, in parallel, before anything else by:
+
+| Where | What happens |
+|---|---|
+| `seedfall run` | A `regressions` table comes first. One that fails again stops the run before the sweep with its failure, classification, [artifacts](reports.md#failure-artifacts) and replay command, and exit code 1 |
+| `seedfall run -report` | The sweep still runs, the report gets a **Regressions** section, and a failing regression fails the run |
+| `seedfall run -json` | One `{"type": "regression", ...}` line per regression before the seed lines, with `source`, `seed`, `passed`, and on a failure `failure`, `reason`, `classification` and `artifacts`; the summary counts `regressions_failed` |
+| `seedfall verify` | A `replay pinned` row each, which must pass twice |
+| `seedfalltest.Sweep` and `seedfalltest.Pinned` | The test fails with the regression's failure ([ci.md](ci.md#go-test)) |
+| `seedfall hook` and `seedfall_run` over MCP | The regression's failure is reported before any sweep |
+
+A file in `seedfall-regressions/` without a `pinned.config`, for example a schedule copied in by hand, is replayed for every config in that directory. `run -pinned=false` skips them; over MCP, `skip_pinned`.
+
+`run -seeds-file known-bad.txt` replays a list of seeds, each with its own faults, the same way before the sweep. The file holds seeds separated by spaces or lines, with `#` comments.
 
 ## The proof block
 
@@ -1855,8 +1986,15 @@ Paste `proof.md`, or the MCP `markdown` field, into the pull request description
 
 ## 6. Keep it fixed
 
-- Copy the schedule out of `.seedfall/`, which is usually gitignored, into the repository, for example `seedfall/seed-N.faults.json`. Then `seedfall replay -c C -seed N -faults seedfall/seed-N.faults.json` stays a regression test.
-- Run the sweep from `go test` with `seedfalltest.Sweep(t, "seedfall.json", "1-100")` from `github.com/kunalgoesbyken/seedfall/seedfalltest`, or in CI with the `kunalgoesbyken/seedfall` GitHub Action.
+- Pin the schedule as a permanent regression and commit the file:
+
+  ```sh
+  seedfall pin -c C -seed N
+  git add seedfall-regressions/
+  ```
+
+  Pin takes `S` (or `-faults` another file) and writes `seedfall-regressions/<config>-seed-N.json`. Over MCP, `seedfall_pin` with `{"config": "C", "seed": N}`. It reports whether the schedule passes now; after a real fix it must. From then on `seedfall run`, `seedfall verify`, the Stop hook and `seedfalltest.Sweep` replay it before every sweep and fail if the bug comes back.
+- Run the sweep from `go test` with `seedfalltest.Sweep(t, "seedfall.json", "1-100")`, and the pinned schedules alone with `seedfalltest.Pinned(t, "seedfall.json")`, from `github.com/kunalgoesbyken/seedfall/seedfalltest`, or in CI with the `kunalgoesbyken/seedfall` GitHub Action.
 
 
 <!-- skills/seedfall-properties/SKILL.md -->
@@ -2037,6 +2175,8 @@ The output ends with `class:`.
 - `bug`: the replay fails with the same trace. Continue.
 - `nondeterministic`: something leaks host nondeterminism, such as real time, unseeded randomness or map iteration feeding I/O. The first diverging trace line is shown; `seedfall run -seeds N -check` goes further and names the first host call that differs (a clock read, a `random_get`, a file or network call) with its node and virtual time. Fix the leak first: it is a harness problem, not the bug.
 - `timeout`: the real-time watchdog fired. A busy loop that never yields, or a host that is too slow. Rerun on an idle machine, or raise `watchdog`, before treating it as a bug.
+
+The line after it, `artifacts: .seedfall/failures/seed-N`, is a folder with the full trace, a replayable `faults.json`, the operation history and each node's disk image at the failure. Read `trace.txt` there instead of rerunning for it, and attach the folder if you file an issue.
 
 Many failing seeds? `seedfall run -c C -seeds 1-500 -report .seedfall/report.html` groups them into findings, each with an example seed. Triage one example seed per finding. Over MCP, `seedfall_findings` reads that report back (findings, their status across runs, unmet properties) without running anything.
 

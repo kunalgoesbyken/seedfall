@@ -2,6 +2,9 @@ package engine
 
 import (
 	"fmt"
+	"os"
+	"path"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -216,4 +219,48 @@ func (d Disk) DurableFile(p string) (FileState, bool) {
 		return FileState{}, false
 	}
 	return files[i], true
+}
+
+func ExportDisks(disks []Disk, dir string) ([]string, error) {
+	var roots []string
+	for _, d := range disks {
+		if !filepath.IsLocal(d.Node) {
+			return roots, fmt.Errorf("node name %q cannot be used as a directory name", d.Node)
+		}
+		root := filepath.Join(dir, d.Node)
+		if err := d.export(root); err != nil {
+			return roots, err
+		}
+		roots = append(roots, root)
+	}
+	return roots, nil
+}
+
+func (d Disk) export(root string) error {
+	if err := os.MkdirAll(filepath.Dir(root), 0o755); err != nil {
+		return err
+	}
+	if err := os.Mkdir(root, 0o755); err != nil {
+		return fmt.Errorf("export target must not exist yet: %w", err)
+	}
+	dir, err := os.OpenRoot(root)
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
+	dirs, files := d.AfterCrash()
+	for _, s := range dirs {
+		if err := dir.MkdirAll(s.Path, 0o755); err != nil {
+			return err
+		}
+	}
+	for _, f := range files {
+		if err := dir.MkdirAll(path.Dir(f.Path), 0o755); err != nil {
+			return err
+		}
+		if err := dir.WriteFile(f.Path, f.Durable, 0o644); err != nil {
+			return err
+		}
+	}
+	return nil
 }

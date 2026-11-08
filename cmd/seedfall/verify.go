@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -160,7 +161,10 @@ func verifyPlan(a verifyArgs, targets []verify.Target, last uint64) (verify.Plan
 }
 
 func verifyTargets(a verifyArgs) ([]verify.Target, uint64, error) {
-	var targets []verify.Target
+	targets, err := pinnedTargets(a.Config)
+	if err != nil {
+		return nil, 0, err
+	}
 	var last uint64
 	if a.Seed != nil {
 		sched, err := readSchedule(a.Faults)
@@ -210,6 +214,19 @@ func savedSchedule(config string, seed uint64, f report.Finding) ([]verify.Targe
 		return nil, err
 	}
 	return []verify.Target{{Label: fmt.Sprintf("%s %s", f.Key, scheduleLabel(seed, path)), Seed: seed, Schedule: sched, Rate: f.Rate}}, nil
+}
+
+func pinnedTargets(config string) ([]verify.Target, error) {
+	cfg, err := engine.LoadConfig(config)
+	if err != nil {
+		return nil, err
+	}
+	pinned, err := engine.Pinned(cfg)
+	var targets []verify.Target
+	for _, p := range pinned {
+		targets = append(targets, verify.Target{Label: "pinned " + scheduleLabel(p.File.Seed, filepath.ToSlash(p.Path)), Seed: p.File.Seed, Schedule: p.File.Schedule})
+	}
+	return targets, err
 }
 
 func scheduleLabel(seed uint64, faultsFile string) string {

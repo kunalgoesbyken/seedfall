@@ -1,7 +1,7 @@
 ---
 name: seedfall-fix-and-prove
 description: Fix a triaged seedfall failure and prove the fix. Replays the saved minimal fault schedule until it passes, sweeps fresh seeds, then runs seedfall verify for a 95%-confidence proof with determinism and mutant checks, and puts the Markdown proof block into the pull request. Use after seedfall-triage, or whenever a change to storage, recovery or replication code must be shown crash-safe before it is merged.
-compatibility: Requires the seedfall CLI, the failing seedfall.json, and ideally the schedule written by seedfall shrink (.seedfall/seed-N.faults.json).
+compatibility: Requires the seedfall CLI, the failing seedfall.json, and ideally the schedule written by seedfall shrink (.seedfall/seed-N.faults.json). Ends by pinning that schedule into seedfall-regressions/.
 ---
 
 # Fix a seedfall failure and prove it
@@ -50,5 +50,12 @@ Paste `proof.md`, or the MCP `markdown` field, into the pull request description
 
 ## 6. Keep it fixed
 
-- Copy the schedule out of `.seedfall/`, which is usually gitignored, into the repository, for example `seedfall/seed-N.faults.json`. Then `seedfall replay -c C -seed N -faults seedfall/seed-N.faults.json` stays a regression test.
-- Run the sweep from `go test` with `seedfalltest.Sweep(t, "seedfall.json", "1-100")` from `github.com/kunalgoesbyken/seedfall/seedfalltest`, or in CI with the `kunalgoesbyken/seedfall` GitHub Action.
+- Pin the schedule as a permanent regression and commit the file:
+
+  ```sh
+  seedfall pin -c C -seed N
+  git add seedfall-regressions/
+  ```
+
+  Pin takes `S` (or `-faults` another file) and writes `seedfall-regressions/<config>-seed-N.json`. Over MCP, `seedfall_pin` with `{"config": "C", "seed": N}`. It reports whether the schedule passes now; after a real fix it must. From then on `seedfall run`, `seedfall verify`, the Stop hook and `seedfalltest.Sweep` replay it before every sweep and fail if the bug comes back.
+- Run the sweep from `go test` with `seedfalltest.Sweep(t, "seedfall.json", "1-100")`, and the pinned schedules alone with `seedfalltest.Pinned(t, "seedfall.json")`, from `github.com/kunalgoesbyken/seedfall/seedfalltest`, or in CI with the `kunalgoesbyken/seedfall` GitHub Action.

@@ -22,6 +22,12 @@ inputs:
   artifact-name:
     description: Name of the uploaded report artifact; must be unique per workflow run
     default: seedfall-report
+  webhook:
+    description: Slack or Discord incoming webhook URL, best passed from a secret; posts the report's new and regressed findings
+    default: ""
+  file-issues:
+    description: File a GitHub issue for each finding in the report that has no open issue yet; needs report and the issues write permission
+    default: "false"
 runs:
   using: composite
   steps:
@@ -50,8 +56,36 @@ runs:
       run: |
         [ -f "$RUNNER_TEMP/seedfall.txt" ] || exit 0
         { echo '### seedfall'; echo '```'; tail -n 60 "$RUNNER_TEMP/seedfall.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+    - name: Collect failure artifacts
+      if: always()
+      shell: bash
+      env:
+        CONFIG: ${{ inputs.config }}
+      run: |
+        failures="$(dirname "$CONFIG")/.seedfall/failures"
+        [ -d "$failures" ] || exit 0
+        mkdir -p "$RUNNER_TEMP/seedfall-report"
+        cp -R "$failures" "$RUNNER_TEMP/seedfall-report/"
+    - name: Notify
+      if: always() && inputs.report == 'true' && inputs.webhook != ''
+      shell: bash
+      env:
+        SEEDFALL_WEBHOOK: ${{ inputs.webhook }}
+        LINK: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      run: |
+        [ -f "$RUNNER_TEMP/seedfall-report/report.json" ] || exit 0
+        "$RUNNER_TEMP/seedfall" report notify -report "$RUNNER_TEMP/seedfall-report/report.html" -link "$LINK"
+    - name: File issues
+      if: always() && inputs.report == 'true' && inputs.file-issues == 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REPO: ${{ github.repository }}
+      run: |
+        [ -f "$RUNNER_TEMP/seedfall-report/report.json" ] || exit 0
+        "$RUNNER_TEMP/seedfall" report issue -report "$RUNNER_TEMP/seedfall-report/report.html" -repo "$REPO"
     - name: Upload triage report
-      if: always() && inputs.report == 'true'
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: ${{ inputs.artifact-name }}

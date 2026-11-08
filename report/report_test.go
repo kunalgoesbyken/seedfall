@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -86,16 +87,17 @@ func input(seeds string, passed int, failures ...engine.Result) Input {
 			"a crash interrupted the workload": {Kind: engine.Sometimes, SeedsReached: passed + len(failures), SeedsTrue: 3},
 			"never runs":                       {Kind: engine.Reachable},
 		}},
-		Elapsed:  1234 * time.Millisecond,
-		Replay:   func(seed uint64) engine.Result { return byseed[seed] },
-		Classify: func(engine.Result) engine.Classification { return engine.Classification{Verdict: engine.VerdictBug} },
+		Elapsed: 1234 * time.Millisecond,
+		Replay: func(seed uint64) Replayed {
+			return Replayed{Result: byseed[seed], Class: engine.Classification{Verdict: engine.VerdictBug}, Artifacts: fmt.Sprintf(".seedfall/failures/seed-%d", seed)}
+		},
 	}
 }
 
 func TestBuildMatchesGolden(t *testing.T) {
 	crash := engine.Result{Seed: 4, Failed: true, Failure: engine.Failure{Class: engine.FailCrash, Node: "server"}, Reason: "server#2 crashed: panic"}
 	r := Build(input("1-100", 96, failing(9), crash, failing(3), failing(30)), map[string]known{})
-	r.Generated, r.GoVersion = time.Time{}, "go"
+	r.Generated, r.GoVersion, r.Version = time.Time{}, "go", "v0.0.0"
 	got, err := json.MarshalIndent(r, "", "  ")
 	if err != nil {
 		t.Fatal(err)
