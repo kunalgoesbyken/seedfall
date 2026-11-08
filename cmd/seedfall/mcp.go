@@ -221,7 +221,7 @@ func newMCPServer() (*mcp.Server, error) {
 	}
 	mcp.AddTool(server, &mcp.Tool{
 		Name:         "seedfall_init",
-		Description:  "Onboard a Go module: find its main packages, report what blocks a GOOS=wasip1 build (compile errors from go list, and cgo packages) with the import chain to each, and scaffold a starter seedfall.json and workload skeleton. Existing files are kept. Returns the report and the next steps.",
+		Description:  "Onboard a Go module: find its main packages, report what blocks a GOOS=wasip1 build (compile errors from go list, and cgo packages) with the import chain to each and the shim that covers it, list the dependencies compat_overlay would shim, and scaffold a starter seedfall.json and workload skeleton. Existing files are kept. Returns the report and the next steps.",
 		OutputSchema: initOutput,
 	}, toolInit)
 	mcp.AddTool(server, &mcp.Tool{
@@ -268,7 +268,7 @@ func newMCPServer() (*mcp.Server, error) {
 	}, toolCheck)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "seedfall_inspect",
-		Description: "Replay a seed and snapshot every node's simulated disk at the failure or at a virtual time. Returns each file's size, durable size, the byte ranges a crash would lose, directory entries that are not durable yet, removed entries a crash would bring back, the last torn write, under reorder_writes which pending writes the last crash kept, the ranges disk faults corrupted, and with disk_bytes how full each disk is. Optionally returns one file's durable content.",
+		Description: "Replay a seed and snapshot every node's simulated disk at the failure or at a virtual time. Returns each file's size, durable size, the byte ranges a crash would lose, directory entries that are not durable yet, removed entries a crash would bring back, the last torn write, under reorder_writes the fs_model and which pending writes the last crash kept, the ranges disk faults corrupted, and with disk_bytes how full each disk is. Optionally returns one file's durable content.",
 	}, toolInspect)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "seedfall_mutate",
