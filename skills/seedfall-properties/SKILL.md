@@ -38,7 +38,7 @@ The full reference is the MCP resource `seedfall://docs/properties` (docs/proper
 Rules:
 - Keep messages constant string literals and pass changing values as extra arguments. seedfall catalogs literal messages before the sweep, and an `Always` or `Reachable` that no seed reaches fails the sweep.
 - Add a `Sometimes` for each fault-dependent path you care about. The coverage table then proves the faults reached it.
-- Properties can live in nodes. Outside the simulator, `Always` and `Unreachable` panic on violation and the others do nothing, so only put invariants in node code that must hold in production too.
+- Properties can live in nodes. Outside the simulator, `Always`, `Unreachable` and `Eventually` panic on violation and the others do nothing, so only put invariants in node code that must hold in production too.
 
 ## 3. Sweep and read the coverage table
 

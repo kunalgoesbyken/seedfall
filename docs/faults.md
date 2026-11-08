@@ -43,7 +43,7 @@ A world is described in a JSON file, `seedfall.json` by default. Paths inside it
 | `latency` | `["1ms", "10ms"]` | Per-chunk network delay range |
 | `links[]` | | Per-link latency overrides, each `{"from": "n1", "to": "n2", "latency": ["20ms", "80ms"]}`. Links are one-way; leave out `from` or `to` to match any node, so `{"to": "n3", ...}` slows everything sent to `n3`. The first matching entry wins. See [Network faults](#network-faults) |
 | `faults_after_setup` | `false` | Suppress all faults until a node calls `sim.SetupComplete()` |
-| `supervise` | `false` | Restart a node that exits with an error, after `restart_after`. Go panics (exit code 2) still fail the run |
+| `supervise` | `false` | Restart a node that exits with an error, after `restart_after`. Go panics (exit code 2) still fail the run, and so does a workload that exits with an error, even under `include_workload` |
 | `net_overlay` | `false` | Route plain `net.Listen` / `net.Dial` through the simulated network. See [networking.md](networking.md) |
 | `compat_overlay` | `false` | Build dependencies that need `mmap` or `flock` (bbolt, pebble, badger) with `wasip1` shims. See [compat.md](compat.md) |
 | `watchdog` | `30s` | Real-time limit for one node to run without yielding. Catches busy loops and livelocks |

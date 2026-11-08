@@ -265,7 +265,7 @@ const goPanicExitCode = 2
 
 func (w *world) supervised(n *node, err error) bool {
 	var ee *sys.ExitError
-	return w.cfg.Supervise && n.crashable && errors.As(err, &ee) && ee.ExitCode() != 0 && ee.ExitCode() != goPanicExitCode
+	return w.cfg.Supervise && n.crashable && !n.workload && errors.As(err, &ee) && ee.ExitCode() != 0 && ee.ExitCode() != goPanicExitCode
 }
 
 func exitedCleanly(err error) bool {

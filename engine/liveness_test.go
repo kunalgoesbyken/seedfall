@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/tetratelabs/wazero/sys"
 )
 
 func livenessRunner(t *testing.T, edit func(cfg *Config, wasm string)) *Runner {
@@ -266,5 +268,16 @@ func f() { sim.Eventually(func() bool { return true }, "leader elected", 0) }
 	want := []CatalogEntry{{Kind: Eventually, Message: "leader elected", Location: "main.go:5"}}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("catalog %+v, want %+v", got, want)
+	}
+}
+
+func TestSupervisorNeverRestartsAFailedWorkload(t *testing.T) {
+	w := &world{cfg: &Config{Supervise: true}}
+	exit := sys.NewExitError(1)
+	if !w.supervised(&node{crashable: true}, exit) {
+		t.Fatal("a crashable node that exits 1 must be restarted under supervise")
+	}
+	if w.supervised(&node{crashable: true, workload: true}, exit) {
+		t.Fatal("a faulted workload that exits 1 was restarted instead of failing the run")
 	}
 }
