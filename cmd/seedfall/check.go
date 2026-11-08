@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -94,11 +93,13 @@ func checkFile(path, model, timeline string) (checkView, error) {
 }
 
 func cmdCheck(args []string) error {
-	fs := flag.NewFlagSet("check", flag.ExitOnError)
+	fs := newFlags("check")
 	path := fs.String("history", "", "history file written by run, replay or shrink, for example .seedfall/seed-4.history.jsonl")
 	model := fs.String("model", engine.DefaultConfig().Checker.Model, "model to check the history against: "+strings.Join(engine.Models(), ", "))
 	timeline := fs.String("timeline", "", "where to write the HTML timeline on a violation (default: the history file with .html)")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 	if *path == "" {
 		return errors.New("-history is required")
 	}

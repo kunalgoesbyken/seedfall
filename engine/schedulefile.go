@@ -3,10 +3,17 @@ package engine
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"time"
+)
+
+var (
+	FaultKinds  = []string{FaultCrash, FaultCrashIO, FaultPartition, FaultPause, FaultClockJump, FaultClog, FaultReset, FaultSlow, FaultBitrot, FaultFsyncEIO, FaultWriteEIO, FaultENOSPC, FaultReadEIO, FaultReadCorrupt, FaultLostWrite, FaultMisdirected, FaultBuggify}
+	windowKinds = []string{FaultCrash, FaultCrashIO, FaultPartition, FaultPause, FaultClog, FaultSlow}
 )
 
 type ScheduleFile struct {
@@ -66,4 +73,54 @@ func (r Result) Schedule(s Schedule) Schedule {
 		faults = []Fault{}
 	}
 	return Schedule{Faults: faults, Duration: Duration(r.Horizon), Ops: s.Ops}
+}
+
+func (f Fault) FiresAtOp() bool { return observedAtRuntime(f.Kind) }
+
+func (c *Config) CheckSchedule(s Schedule) error {
+	horizon := time.Duration(c.Duration)
+	if s.Duration > 0 {
+		horizon = time.Duration(s.Duration)
+	}
+	names := namesWhere(c, func(NodeSpec) bool { return true })
+	var errs []error
+	for i, f := range s.Faults {
+		for _, problem := range f.problems(names, horizon) {
+			errs = append(errs, fmt.Errorf("fault %d (%s at %s): %s", i+1, f.Kind, time.Duration(f.At), problem))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func (f Fault) problems(names []string, horizon time.Duration) []string {
+	if !slices.Contains(FaultKinds, f.Kind) {
+		return []string{fmt.Sprintf("unknown kind, want one of %v", FaultKinds)}
+	}
+	var out []string
+	add := func(bad bool, format string, args ...any) {
+		if bad {
+			out = append(out, fmt.Sprintf(format, args...))
+		}
+	}
+	add(f.At < 0, "at is negative")
+	add(time.Duration(f.At) >= horizon, "at is not before the end of the run at %s, so it never fires", horizon)
+	add(slices.Contains(windowKinds, f.Kind) && f.Until < f.At, "until %s is before at", time.Duration(f.Until))
+	for _, n := range append(append([]string{f.Node, f.From, f.To}, f.Side...), slices.Concat(f.Groups...)...) {
+		add(n != "" && !slices.Contains(names, n), "unknown node %q, want one of %v", n, names)
+	}
+	switch f.Kind {
+	case FaultPartition:
+		add((len(f.Side) == 0) == (len(f.Groups) == 0), "a partition needs either side or groups")
+	case FaultClog:
+		add(!slices.Contains(clogModes, f.Mode), "mode %q, want one of %v", f.Mode, clogModes)
+		add(f.Dir != "" && !slices.Contains(clogDirs, f.Dir), "dir %q, want one of %v, or none for a from and to link", f.Dir, clogDirs)
+		add(f.Dir != "" && f.Node == "", "a clog with dir needs node")
+		add(f.Dir == "" && (f.From == "" || f.To == "" || f.From == f.To), "a clog without dir needs two different nodes in from and to")
+	default:
+		add(f.Node == "", "node is required")
+	}
+	add(f.Kind == FaultSlow && f.Factor < 1, "factor %g is below 1", f.Factor)
+	add(f.FiresAtOp() && f.Op < 1, "op %d is below 1: disk operations, reads and buggify hits count from 1", f.Op)
+	add(f.Kind == FaultBuggify && f.Site == "", "a buggify fault needs site")
+	return out
 }

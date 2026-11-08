@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"path/filepath"
 	"runtime"
@@ -32,12 +31,14 @@ type shrinkView struct {
 }
 
 func cmdShrink(args []string) error {
-	fs := flag.NewFlagSet("shrink", flag.ExitOnError)
+	fs := newFlags("shrink")
 	ca := configFlags(fs)
 	seed := seedFlag(fs)
 	jobs := fs.Int("j", runtime.NumCPU(), "candidate schedules run at once; the result is the same for any value")
 	budget := fs.String("budget", "", "stop after this many runs (300) or this much wall-clock time (10m) and keep the smallest schedule so far")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 	conf := ca.ref().String()
 	opts, err := parseBudget(*budget)
 	if err != nil {

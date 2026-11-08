@@ -64,6 +64,25 @@ Every report appends a line to `.seedfall/history.jsonl`, keyed by config path. 
 
 Keep `.seedfall/history.jsonl` between CI runs (cache or commit it) to get this classification on every pull request.
 
+## Reading findings back
+
+`seedfall findings` reads the last report and the run history without running anything:
+
+```sh
+seedfall findings                          # .seedfall/report.html
+seedfall findings -status new,regressed    # only what needs attention
+seedfall findings -report ci/report.json -json
+```
+
+```
+.seedfall/report.html: 1 of 6 seeds failed (seeds 1-6 of seedfall.always.json), 3 runs in history
+  new       assert · client                              1 seeds  16.67%  e.g. seed 1
+            client#1: acknowledged write lost: k96=v96, server now answers "NONE"
+            replay: seedfall replay -c seedfall.always.json -seed 1
+```
+
+It lists each finding with its status, failing seeds, rate, example seed, reason and replay command, then the earlier findings this run did not see (`resolved` or `not seen`) and the properties that were never reached or never true. `-status` takes a comma-separated list of the statuses above and applies to both lists, `-history` points at a history file other than the one the report names, and `-json` prints the same object the `seedfall_findings` MCP tool returns, with every finding's example failure, trace tail, shrink command and artifacts folder, and every run of that config in the history.
+
 ## Properties and fault profile
 
 The report also lists every property with how many seeds reached it and how many saw it true, flagging properties that were never reached or never true, and the fault profile the sweep ran with. Its header names the seedfall version, the Go version and, when the config is in a git repository, the commit it was run at. Schedules pinned with `seedfall pin` are replayed before the sweep and listed in a **Regressions** section ([pinned regressions](verify.md#pinned-regressions)); a regression that fails again fails the run.

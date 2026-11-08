@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -46,13 +45,15 @@ func newDebugREPL(s *engine.Session) *debugREPL {
 }
 
 func cmdDebug(args []string) error {
-	fs := flag.NewFlagSet("debug", flag.ExitOnError)
+	fs := newFlags("debug")
 	ca := configFlags(fs)
 	seed := seedFlag(fs)
 	faultsFile := fs.String("faults", "", "fault schedule from seedfall shrink")
 	at := fs.Duration("at", 0, "virtual time to stop at: the session opens before the first step after it")
 	netTrace := fs.Bool("net-trace", false, "also trace every connection, message sent and message read")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 	r, _, err := load(ca.ref())
 	if err != nil {
 		return err

@@ -7,7 +7,6 @@ import (
 	_ "embed"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -98,7 +97,7 @@ type initView struct {
 }
 
 func cmdInit(args []string) error {
-	fs := flag.NewFlagSet("init", flag.ExitOnError)
+	fs := newFlags("init")
 	var a initArgs
 	fs.StringVar(&a.Dir, "dir", ".", "Go module directory to onboard")
 	fs.StringVar(&a.Config, "c", "seedfall.json", "config file to write, relative to -dir")
@@ -109,7 +108,9 @@ func cmdInit(args []string) error {
 		a.Nodes = append(a.Nodes, s)
 		return nil
 	})
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 	v, err := runInit(a)
 	if err != nil {
 		return err

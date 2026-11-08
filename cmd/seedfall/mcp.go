@@ -190,7 +190,10 @@ type inspectView struct {
 	File    *fileView     `json:"file,omitempty"`
 }
 
-func cmdMCP([]string) error {
+func cmdMCP(args []string) error {
+	if err := newFlags("mcp").Parse(args); err != nil {
+		return err
+	}
 	server, err := newMCPServer()
 	if err != nil {
 		return err
@@ -201,6 +204,18 @@ func cmdMCP([]string) error {
 func newMCPServer() (*mcp.Server, error) {
 	server := mcp.NewServer(&mcp.Implementation{Name: "seedfall", Version: "0.2.0"}, &mcp.ServerOptions{Instructions: mcpInstructions})
 	initOutput, err := jsonschema.For[initView](schemaOptions())
+	if err != nil {
+		return nil, err
+	}
+	editInput, err := jsonschema.For[faultsEditArgs](schemaOptions())
+	if err != nil {
+		return nil, err
+	}
+	editInput.Properties["add"].Items.Required = []string{"at", "kind"}
+	for _, kind := range engine.FaultKinds {
+		editInput.Properties["add"].Items.Properties["kind"].Enum = append(editInput.Properties["add"].Items.Properties["kind"].Enum, kind)
+	}
+	editOutput, err := jsonschema.For[faultsView](schemaOptions())
 	if err != nil {
 		return nil, err
 	}
@@ -222,6 +237,10 @@ func newMCPServer() (*mcp.Server, error) {
 		Description: "Replay one seed and return its trace lines filtered by node, regular expression and virtual time window: guest stdout and stderr with virtual timestamps, starts, crashes, faults and, with net_trace, every connection, message sent and message read. A guest line that is a JSON object, such as slog's JSON handler output, comes back parsed in fields.",
 	}, toolLogs)
 	mcp.AddTool(server, &mcp.Tool{
+		Name:        "seedfall_trace_search",
+		Description: "Replay one seed and search its trace with a regular expression, optionally only on some nodes and inside a virtual time window. Returns each match with the trace lines of every node around it (context, default 3), each line with its number, virtual time, node and instance, overlapping windows merged, plus how many lines matched.",
+	}, toolTraceSearch)
+	mcp.AddTool(server, &mcp.Tool{
 		Name:        "seedfall_debug",
 		Description: "Time-travel debugger: replay one seed, stop before the first step after a virtual time, and run debugger commands there: where (node states), log, grep, ls, stat and cat on a node's live disk, net (in-flight messages), faults (active and next), step, until <regex>, to <time> and branch (re-randomize the future, as seedfall_cause does). Returns each command's output and the final state.",
 	}, toolDebug)
@@ -229,6 +248,12 @@ func newMCPServer() (*mcp.Server, error) {
 		Name:        "seedfall_shrink",
 		Description: "Minimize a failing seed while it keeps failing the same way: remove faults by delta debugging, then shorten crash downtimes, partitions, pauses, clogs and slowdowns, shrink clock jumps, narrow partition sides, move faults earlier, trim the run duration and, for workloads sized with sim.Budget, the operation count. Saves the schedule for replay and returns the sizes before and after, the runs used and whether the optional budget ran out.",
 	}, toolShrink)
+	mcp.AddTool(server, &mcp.Tool{
+		Name:         "seedfall_faults_edit",
+		Description:  "Edit a seed's fault schedule to test a hypothesis: remove faults by position, shift a timed fault by a duration or a disk-op, read or buggify fault by a number of operations, and add faults in the faults JSON format. Starts from the given file, else .seedfall/seed-N.faults.json, else the seed's own faults. Checks every fault against the config (known kind and nodes, until not before at, at before the end of the run, required fields per kind) and writes nothing if one is wrong. With no edits it only lists and checks. Returns the numbered schedule, the file written and the replay command.",
+		InputSchema:  editInput,
+		OutputSchema: editOutput,
+	}, toolFaultsEdit)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "seedfall_cause",
 		Description: "Explain a failing seed: replay it up to many moments, re-randomize everything after each one, and return the probability of failing from each moment. The fault where the probability jumps is the cause.",
@@ -255,7 +280,7 @@ func newMCPServer() (*mcp.Server, error) {
 	}, toolPin)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "seedfall_findings",
-		Description: "Read a triage report written by seedfall run -report without running anything: every finding with its status (new, ongoing, regressed), failing seed count, rate, classification and an example failure with replay and shrink commands, findings not seen this time, properties that were never reached or never true, and the run history of the same config.",
+		Description: "Read a triage report written by seedfall run -report (default .seedfall/report.html) without running anything, optionally only findings with some statuses: every finding with its status (new, ongoing, regressed), failing seed count, rate, classification and an example failure with replay and shrink commands, findings not seen this time (resolved or not seen), properties that were never reached or never true, and the run history of the same config.",
 	}, toolFindings)
 	if err := addResources(server); err != nil {
 		return nil, err

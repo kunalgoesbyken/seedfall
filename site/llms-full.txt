@@ -61,17 +61,37 @@ Config paths in tool calls are resolved against the server's working directory, 
 | `seedfall_run` | `config`, `seeds` (for example `1-200`), optional `check`, `skip_pinned` | First the [pinned regressions](verify.md#pinned-regressions), stopping at one that fails again. Then seeds passed, the lowest failing seed with its reason, [classification](reports.md#classification), the faults before the failure, the trace tail, a replay command and `artifacts_dir` ([failure artifacts](reports.md#failure-artifacts)), plus property coverage and, with `faults.buggify` on, `buggify_sites` ([buggify](buggify.md#coverage)) |
 | `seedfall_replay` | `config`, `seed`, optional `faults` file | The same failure view for one seed, or the trace tail if it passes, with a `note` when a shrunk schedule's shorter duration ended the run before the workload finished. A failure view of a run that recorded operations also names its `history_file` and, on a linearizability violation, its `timeline_file`. Every result has the run's `determinism_hash` and its `events` from `sim.Event` or `lifecycle.SendEvent` |
 | `seedfall_logs` | `config`, `seed`, optional `faults`, `node`, `grep`, `from`, `to`, `net_trace`, `limit` | The run's trace lines filtered by node, regular expression and virtual time, each with its node, instance and time, and a node's slog JSON output parsed into `fields`, plus how many lines matched ([timeline.md](timeline.md#logs)) |
+| `seedfall_trace_search` | `config`, `seed`, `pattern`, optional `faults`, `context` (default 3), `node`, `from`, `to`, `net_trace`, `limit` | Each line that matches the regular expression (on the given nodes, inside the virtual time window) with `context` trace lines of every node before and after it, as windows of numbered lines with their virtual time, node and instance, overlapping windows merged, plus how many lines matched ([timeline.md](timeline.md#searching-the-trace)) |
 | `seedfall_debug` | `config`, `seed`, optional `faults`, `at`, `net_trace`, `commands` | Replays to `at`, runs each debugger command (`where`, `net`, `faults`, `ls`, `stat`, `cat`, `step`, `until <regex>`, `to <time>`, `branch`, `log`, `grep`) and returns each output and the final state of every node ([timeline.md](timeline.md#debugger)) |
 | `seedfall_shrink` | `config`, `seed`, optional `budget` (runs such as `300`, or time such as `10m`) | The original and minimal sizes (faults, duration and, with [`sim.Budget`](properties.md#workload-size), workload operations), the runs used, whether the budget ran out, the path of the saved schedule, and the failure view under that schedule with its replay command ([shrinking](how-it-works.md#shrinking)) |
+| `seedfall_faults_edit` | `config`, `seed`, optional `faults`, `remove`, `shift`, `add`, `out` | Edits a fault schedule to test a hypothesis: `remove` takes positions counting from 1, `shift` takes `{"fault": 2, "by": "-50ms"}` (a count such as `"+2"` for a fault that fires at a disk operation, read or buggify hit), `add` takes faults in the [schedule format](faults.md#editing-a-schedule). Starts from `faults`, else `.seedfall/seed-N.faults.json`, else the seed's own faults, checks every fault against the config and writes nothing if one is wrong. Returns the numbered schedule, the file written (`out`, or the file it came from) and the replay command |
 | `seedfall_inspect` | `config`, `seed`, optional `faults`, `at`, `node`, `path` | Every node's disk at the failure or at virtual time `at`: per file the live and durable sizes, the byte ranges a crash would lose, whether its directory entry is durable, the last torn write, and removed entries a crash would bring back. With `path`, one file's durable content as text or a hex dump ([inspect.md](inspect.md)) |
 | `seedfall_check` | `history`, optional `model` | Re-checks a recorded history file against a model: the verdict, each anomaly with its cycle, and on a linearizability violation the HTML timeline file ([properties.md](properties.md#history-files)) |
 | `seedfall_verify` | `config`, `seed` and optional `faults`, and/or `report`; optional `seeds`, `check_seeds`, `mutate`, `app_mutants` | Whether the fix holds: each replayed schedule, the fresh sweep with its confidence, the determinism check and the mutants, plus a Markdown proof block for the PR ([verify.md](verify.md)) |
 | `seedfall_mutate` | `config`, optional `seeds` (default `1-100`), `only`, `app`, `mutants` | Sweeps the seeds unmutated, then once per [mutant](mutate.md) (disk, rename, truncate, network and clock guarantees), or with `app` once per [source mutant](mutate.md#source-mutants) of the node packages: each mutant's `outcome` (`killed`, `survived`, `not exercised` or `did not build`), its `location` and change for source mutants, the seed and reason that killed it, and how often the operation was weakened |
 | `seedfall_pin` | `config`, `seed`, optional `faults` | Pins the seed's schedule (the one `seedfall_shrink` saved, the given file, or else the seed's own faults) into `seedfall-regressions/` as a permanent regression, and returns the file and whether it passes now, with the failure view if not ([verify.md](verify.md#pinned-regressions)) |
-| `seedfall_findings` | `report`, optional `history` | Reads a triage report from `seedfall run -report` without running anything: each finding with its status, failing seeds, rate, classification and example failure with replay and shrink commands, findings not seen this time, unmet properties, and the run history of that config from `.seedfall/history.jsonl` ([reports.md](reports.md)) |
+| `seedfall_findings` | optional `report` (default `.seedfall/report.html`), `history`, `status` (comma separated: `new`, `ongoing`, `regressed`, `resolved`, `not seen`) | Reads a triage report from `seedfall run -report` without running anything, the same as `seedfall findings`: each finding with the given statuses with its status, failing seeds, rate, classification and example failure with replay and shrink commands, findings not seen this time, unmet properties, and the run history of that config from `.seedfall/history.jsonl` ([reports.md](reports.md)) |
 | `seedfall_cause` | `config`, `seed`, optional `points`, `branches` | The probability of failing from each moment of the run, with the faults between moments, so the agent can see which event made the failure inevitable ([cause.md](cause.md)) |
 
 Every result is structured JSON, so the agent can read the seed, the faults and the trace directly.
+
+### The same operations on the command line
+
+Every tool has a command, so a person can repeat what the agent did and an agent without MCP can shell out:
+
+| Tool | Command |
+|---|---|
+| `seedfall_init`, `seedfall_run`, `seedfall_replay`, `seedfall_logs`, `seedfall_debug`, `seedfall_shrink`, `seedfall_cause`, `seedfall_inspect`, `seedfall_check`, `seedfall_verify`, `seedfall_mutate`, `seedfall_pin` | `seedfall init`, `run`, `replay`, `logs`, `debug`, `shrink`, `cause`, `inspect`, `check`, `verify`, `mutate`, `pin` |
+| `seedfall_trace_search` | `seedfall trace grep -seed N -e re [-context 3]` |
+| `seedfall_faults_edit` | `seedfall faults -seed N [-remove 2] [-shift 1=-50ms] [-add '{...}'] [-out file]` |
+| `seedfall_findings` | `seedfall findings [-status new,regressed] [-json]` |
+
+`seedfall schema` prints the whole surface as JSON: every command with each flag's name, type, default and usage, and every MCP tool with its description and input and output JSON Schemas, plus the prompts and resources. Generate client bindings or check an agent's calls against it:
+
+```sh
+seedfall schema | jq '.commands[] | select(.command == "seedfall faults") | .flags[].name'
+seedfall schema | jq '.mcp_tools[] | select(.name == "seedfall_faults_edit") | .inputSchema'
+```
 
 ## Prompts and resources
 
@@ -130,7 +150,7 @@ The site serves [`llms.txt`](https://seedfall-lemon.vercel.app/llms.txt), an ind
 Ask the agent to treat a seed sweep as the definition of done for storage or replication changes:
 
 1. Run `seedfall_run` over a few hundred seeds before changing anything, to record the baseline.
-2. When a seed fails, run `seedfall_shrink` and read the minimal fault schedule. It usually names the exact window: "crash during disk op #56", then "crash". `seedfall_cause` shows which of those faults made the failure likely.
+2. When a seed fails, run `seedfall_shrink` and read the minimal fault schedule. It usually names the exact window: "crash during disk op #56", then "crash". `seedfall_cause` shows which of those faults made the failure likely, and `seedfall_faults_edit` with `out` plus `seedfall_replay` tests a guess, such as dropping a fault or moving a crash one disk operation earlier.
 3. Fix the code, then `seedfall_replay` the saved schedule until it passes.
 4. Run `seedfall_verify` with the seed and schedule and paste its `markdown` proof block into the pull request.
 
@@ -856,6 +876,48 @@ Every one of them comes from the seed and replays exactly. The rates are drawn p
 The other kinds are `write_enospc` and `read_eio`. A recorded fault fires at the operation its `kind`, `node` and `op` name, and bit rot fires at `at`. `path`, `offset` and `target` are filled in by the run so that you can read the schedule, and are left out when they are 0. `seedfall inspect` lists every damaged range of a file under `corrupted ranges`, and with `disk_bytes` shows how full each disk is. Disk usage and latency are settings, not faults, so swarm testing leaves them alone and toggles the rest.
 
 [`examples/kvlog`](../examples/kvlog) shows each one: a corrupted read changes an acknowledged value, a checksum with a re-read fixes it, and a lost write, a misdirected write or bit rot breaks a store that keeps one copy, with or without checksums.
+
+## Editing a schedule
+
+A fault schedule (`.seedfall/seed-N.faults.json` from `shrink`, an artifact's `faults.json`, or a pinned regression) is a list of faults that a replay applies instead of drawing new ones. Changing one fault and replaying is the quickest way to test an explanation of a failure. `seedfall faults` makes the change and checks it:
+
+```sh
+seedfall faults -c seedfall.always.json -seed 1 -faults torntail.faults.json -remove 1 -out hypothesis.json
+seedfall replay -c seedfall.always.json -seed 1 -faults hypothesis.json
+```
+
+```
+seed 1, 1 faults from torntail.faults.json, wrote hypothesis.json
+  1    802ms  crash server, restart at 802ms
+duration 991ms
+replay: seedfall replay -c seedfall.always.json -seed 1 -faults hypothesis.json
+```
+
+On kvlog's `seedfall.always.json`, seed 1 fails with `torntail.faults.json`, still fails with the crash during disk op #56 moved one operation earlier (`-shift 1=-1`), and passes once that crash is removed. That pass is within the schedule's shrunk 991ms, and the replay prints a note saying so: it shows the crash is necessary for this failure, not that the store is fixed.
+
+| Flag | Meaning |
+|---|---|
+| `-faults` | The schedule to start from. Without it, `.seedfall/seed-N.faults.json` next to the config, or, when that file does not exist, the faults seed N draws on its own, which takes one run |
+| `-remove N` | Remove the fault at position N, counting from 1 as listed. Repeatable |
+| `-shift N=AMOUNT` | Move fault N. A timed fault moves by a signed duration (`2=-50ms`), together with its `until`. A fault that fires at a disk operation, read or buggify hit (`crash_io`, `fsync_eio`, `write_eio`, `write_enospc`, `read_eio`, `read_corrupt`, `lost_write`, `misdirected_write`, `buggify`) moves by a signed count of those (`1=+2`), because its `at` only records when it happened. Repeatable |
+| `-add JSON` | Add a fault in the format shown in this page, for example `{"at":"1s","kind":"pause","node":"server","until":"1.5s"}`. Repeatable |
+| `-out` | Write the result here. Without it, the schedule is written back to the file it came from |
+
+Positions in `-remove` and `-shift` always refer to the schedule as it was before the edit. The result is sorted by `at` and checked against the config before anything is written:
+
+| Check | Applies to |
+|---|---|
+| `kind` is a fault kind seedfall knows | every fault |
+| `node`, `from`, `to`, `side` and `groups` name nodes of the config | every fault |
+| `at` is not negative and is before the end of the run: the schedule's `duration`, else the config's | every fault |
+| `until` is not before `at` | `crash`, `crash_io`, `partition`, `pause`, `clog`, `slow` |
+| `side` or `groups`, not both | `partition` |
+| `mode` is `stop`, `slow` or `jam`; `dir` is `in`, `out` or `both` with a `node`, or empty with two different nodes in `from` and `to` | `clog` |
+| `node` is set | every kind except `partition` and `clog` |
+| `factor` is at least 1 | `slow` |
+| `op` is at least 1, and a `buggify` fault names its `site` | faults that fire at a disk operation, read or buggify hit |
+
+Without any edit, `seedfall faults` only lists and checks the schedule, and writes it only when it came from the seed's own faults, so that there is a file to edit. Over MCP, `seedfall_faults_edit` takes the same edits as JSON ([agents.md](agents.md#tools)).
 
 ## Choosing rates
 
@@ -1836,6 +1898,25 @@ Every report appends a line to `.seedfall/history.jsonl`, keyed by config path. 
 
 Keep `.seedfall/history.jsonl` between CI runs (cache or commit it) to get this classification on every pull request.
 
+## Reading findings back
+
+`seedfall findings` reads the last report and the run history without running anything:
+
+```sh
+seedfall findings                          # .seedfall/report.html
+seedfall findings -status new,regressed    # only what needs attention
+seedfall findings -report ci/report.json -json
+```
+
+```
+.seedfall/report.html: 1 of 6 seeds failed (seeds 1-6 of seedfall.always.json), 3 runs in history
+  new       assert · client                              1 seeds  16.67%  e.g. seed 1
+            client#1: acknowledged write lost: k96=v96, server now answers "NONE"
+            replay: seedfall replay -c seedfall.always.json -seed 1
+```
+
+It lists each finding with its status, failing seeds, rate, example seed, reason and replay command, then the earlier findings this run did not see (`resolved` or `not seen`) and the properties that were never reached or never true. `-status` takes a comma-separated list of the statuses above and applies to both lists, `-history` points at a history file other than the one the report names, and `-json` prints the same object the `seedfall_findings` MCP tool returns, with every finding's example failure, trace tail, shrink command and artifacts folder, and every run of that config in the history.
+
 ## Properties and fault profile
 
 The report also lists every property with how many seeds reached it and how many saw it true, flagging properties that were never reached or never true, and the fault profile the sweep ran with. Its header names the seedfall version, the Go version and, when the config is in a git repository, the commit it was run at. Schedules pinned with `seedfall pin` are replayed before the sweep and listed in a **Regressions** section ([pinned regressions](verify.md#pinned-regressions)); a regression that fails again fails the run.
@@ -1956,7 +2037,7 @@ A failing seed replays exactly, so you can look at it as many times and in as ma
 | Logs | `seedfall logs -seed N -node server -grep re -from 1s -to 2s` | The trace filtered by node, pattern and virtual time, with app output interleaved with engine events and slog JSON parsed into fields |
 | Debugger | `seedfall debug -seed N -at 1.7s` | A prompt paused at a moment of the run: node states, the live disk, in-flight messages and active faults, then step, run until a pattern, or branch into a different future |
 
-`seedfall trace diff` compares two traces and shows where they first part ways. Logs and the debugger are also MCP tools, and the timeline is in every artifact folder the MCP tools name.
+`seedfall trace grep` finds a pattern and shows the lines of every node around each match, and `seedfall trace diff` compares two traces and shows where they first part ways. Logs, trace search and the debugger are also MCP tools, and the timeline is in every artifact folder the MCP tools name.
 
 ## The trace
 
@@ -2063,6 +2144,26 @@ The summary line goes to stderr, so `seedfall logs ... > server.log` keeps only 
 
 slog's `time` field is the guest's wall clock, which seedfall simulates from 2026-01-01 (and skews or jumps under clock faults); `at` is the virtual time the line was written. Other slog handlers' text output comes through as `output` without `fields`.
 
+## Searching the trace
+
+`logs -grep` keeps only the matching lines. To see what happened around each match, across every node, use `seedfall trace grep`:
+
+```sh
+seedfall trace grep -c seedfall.always.json -seed 1 -e crash -context 1
+```
+
+```
+     4     0.292s  fault partition [client] | rest, heals at 0.627s
+>    5     0.757s  fault crash server#1 during disk op 56, restart at 1.121s
+     6     1.121s  start server#2
+     7     1.121s  server#2| serving 26 keys on :7000
+>    8     1.705s  fault crash server#2, restart at 1.943s
+     9     1.943s  start server#3
+2 matches of 12 trace lines, 2 shown; seed 1: FAIL client#1: acknowledged write lost: k96=v96, server now answers "NONE"
+```
+
+Matches are marked `>`, each line carries its number in the run's trace (the same as the artifact's `trace.txt` for that run) and its virtual time, windows that touch or overlap are merged, and separate windows are divided by `--`. `-e` is a Go regular expression. `-node`, `-from` and `-to` narrow which lines can match, as for `logs`, while the context lines come from every node. `-context` sets the lines before and after each match (3 by default), `-limit` the most matches shown (200), `-net-trace` adds connections and messages first, and `-json` prints the windows as one JSON object with the same line fields as `logs -json` plus `n` and `match`.
+
 ## Debugger
 
 ```sh
@@ -2129,7 +2230,7 @@ Use it after shrinking to see where the shrunk schedule leaves the original run,
 
 ## Over MCP
 
-`seedfall_logs` takes `config`, `seed` and optionally `faults`, `node`, `grep`, `from`, `to`, `net_trace` and `limit` (200 by default), and returns the matching lines with the same fields as `logs -json`, how many matched and how many the trace has. `seedfall_debug` takes `config`, `seed`, optionally `faults`, `at`, `net_trace` and a `commands` list run in order (`["until fault crash", "net", "ls server"]`), and returns each command's output and the final state. Failures from `seedfall_run`, `seedfall_replay` and `seedfall_shrink` name the artifact folder, which holds `timeline.html` and `timeline.mmd`. See [agents.md](agents.md#tools).
+`seedfall_logs` takes `config`, `seed` and optionally `faults`, `node`, `grep`, `from`, `to`, `net_trace` and `limit` (200 by default), and returns the matching lines with the same fields as `logs -json`, how many matched and how many the trace has. `seedfall_trace_search` takes `config`, `seed`, `pattern` and optionally `faults`, `context`, `node`, `from`, `to`, `net_trace` and `limit`, and returns the same windows as `trace grep -json`. `seedfall_debug` takes `config`, `seed`, optionally `faults`, `at`, `net_trace` and a `commands` list run in order (`["until fault crash", "net", "ls server"]`), and returns each command's output and the final state. Failures from `seedfall_run`, `seedfall_replay` and `seedfall_shrink` name the artifact folder, which holds `timeline.html` and `timeline.mmd`. See [agents.md](agents.md#tools).
 
 
 <!-- docs/verify.md -->
@@ -2524,7 +2625,7 @@ The output ends with `class:`.
 
 The line after it, `artifacts: .seedfall/failures/<config>-seed-N`, is a folder with the full trace, a replayable `faults.json`, the operation history, each node's disk image at the failure, and `timeline.html` and `timeline.mmd`, a space-time diagram of every node, message and fault. Read `trace.txt` there instead of rerunning for it, and attach the folder if you file an issue.
 
-Many failing seeds? `seedfall run -c C -seeds 1-500 -report .seedfall/report.html` groups them into findings, each with an example seed. Triage one example seed per finding. Over MCP, `seedfall_findings` reads that report back (findings, their status across runs, unmet properties) without running anything.
+Many failing seeds? `seedfall run -c C -seeds 1-500 -report .seedfall/report.html` groups them into findings, each with an example seed. Triage one example seed per finding. `seedfall findings -status new,regressed` reads that report back (findings, their status across runs, unmet properties) without running anything, and over MCP so does `seedfall_findings`.
 
 ## 2. Shrink
 
@@ -2554,7 +2655,7 @@ seedfall cause -c C -seed N
 
 seedfall replays the run up to many moments, re-randomizes everything after each one, and prints the probability of failing from that moment on. The fault just before the jump to near 100% is the cause; faults after it are just how the damage gets observed. Raise `-points` and `-branches` for a finer curve.
 
-Read what each node did around that moment with `seedfall logs -c C -seed N -node server -from 400ms -to 500ms` (add `-net-trace` for every message sent and read, `-grep` for a pattern, `-json` for slog fields). To stop the run there and look around, `seedfall debug -c C -seed N -at 427ms` opens a prompt: `where`, `net` (messages in flight), `faults`, `ls`, `cat` and `stat` on a node's live disk, `step`, `until <regex>` and `branch`. Over MCP these are `seedfall_logs` and `seedfall_debug` with a `commands` list.
+Read what each node did around that moment with `seedfall logs -c C -seed N -node server -from 400ms -to 500ms` (add `-net-trace` for every message sent and read, `-grep` for a pattern, `-json` for slog fields). To stop the run there and look around, `seedfall debug -c C -seed N -at 427ms` opens a prompt: `where`, `net` (messages in flight), `faults`, `ls`, `cat` and `stat` on a node's live disk, `step`, `until <regex>` and `branch`. `seedfall trace grep -c C -seed N -e 'crash|fsync' -context 3` shows every node's lines around each match. Over MCP these are `seedfall_logs`, `seedfall_trace_search` and `seedfall_debug` with a `commands` list.
 
 ## 4. Look at the disk
 
@@ -2572,11 +2673,11 @@ A `linearizability` or `isolation` failure is about the recorded history, not th
 
 Write the explanation down as one sentence, for example "the crash in op #56 leaves a torn record, and recovery appends after it instead of truncating". Then test it by changing one thing and replaying.
 
-- **Drop a fault.** Copy `.seedfall/seed-N.faults.json` to `hypothesis.json` and delete one entry. The schedule is a JSON object whose `faults` array holds `{"at", "kind", "node", "until", "op", ...}`, plus `duration` and `ops` when shrink trimmed them (older files are a bare array of faults). Then run `seedfall replay -c C -seed N -faults hypothesis.json`. If it now passes, that fault is necessary. If it still fails, compare the failure message with the original: a different message means you uncovered a second bug, so note it and triage it separately.
-- **Move a fault.** Change `op` on a `crash_io` entry, or `at` on a `crash`, to put the crash just before or after the suspect operation, then replay again. On a `buggify` entry, `op` is which hit of that site on that node fires.
+- **Drop a fault.** `seedfall faults -c C -seed N -remove 2 -out hypothesis.json` copies `.seedfall/seed-N.faults.json` without its second fault (`seedfall faults -c C -seed N` alone lists the faults with their positions). Then run `seedfall replay -c C -seed N -faults hypothesis.json`. If it now passes, that fault is necessary. If it still fails, compare the failure message with the original: a different message means you uncovered a second bug, so note it and triage it separately.
+- **Move a fault.** `-shift 1=-1` moves a `crash_io` entry one disk operation earlier, and `-shift 2=+20ms` moves a `crash` 20ms later, to put the crash just before or after the suspect operation; then replay again. On a `buggify` entry, the count is which hit of that site on that node fires. `-add '{"at":"1s","kind":"pause","node":"server","until":"1.5s"}'` adds a fault. Every edit is checked against the config (known nodes, `until` after `at`, inside the run) before it is written, and the schedule format is in `seedfall://docs/faults` under "Editing a schedule".
 - **Change the world.** In a copy of `C`, turn off `torn_writes`, or turn `strict_dirs` on or off, and replay the same seed. If the failure needs torn writes, the bug is in recovery parsing. If it needs `strict_dirs`, a directory fsync is missing.
 
-`replay` exits 1 and prints the trace when the seed fails, and ends with `seed N: ok, ... steps` when it passes. Over MCP, use `seedfall_replay` with `faults`, `seedfall_shrink`, `seedfall_cause` and `seedfall_inspect`, which take the same arguments as JSON.
+`replay` exits 1 and prints the trace when the seed fails, and ends with `seed N: ok, ... steps` when it passes. Over MCP, use `seedfall_faults_edit` (with `out`), then `seedfall_replay` with `faults`, and `seedfall_shrink`, `seedfall_cause` and `seedfall_inspect`, which take the same arguments as JSON.
 
 `seedfall trace diff .seedfall/failures/<config>-seed-N hypothesis-trace.txt` shows the first line where two traces part, for a replay saved with `seedfall logs ... > hypothesis-trace.txt`.
 

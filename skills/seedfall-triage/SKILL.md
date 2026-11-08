@@ -21,7 +21,7 @@ The output ends with `class:`.
 
 The line after it, `artifacts: .seedfall/failures/<config>-seed-N`, is a folder with the full trace, a replayable `faults.json`, the operation history, each node's disk image at the failure, and `timeline.html` and `timeline.mmd`, a space-time diagram of every node, message and fault. Read `trace.txt` there instead of rerunning for it, and attach the folder if you file an issue.
 
-Many failing seeds? `seedfall run -c C -seeds 1-500 -report .seedfall/report.html` groups them into findings, each with an example seed. Triage one example seed per finding. Over MCP, `seedfall_findings` reads that report back (findings, their status across runs, unmet properties) without running anything.
+Many failing seeds? `seedfall run -c C -seeds 1-500 -report .seedfall/report.html` groups them into findings, each with an example seed. Triage one example seed per finding. `seedfall findings -status new,regressed` reads that report back (findings, their status across runs, unmet properties) without running anything, and over MCP so does `seedfall_findings`.
 
 ## 2. Shrink
 
@@ -51,7 +51,7 @@ seedfall cause -c C -seed N
 
 seedfall replays the run up to many moments, re-randomizes everything after each one, and prints the probability of failing from that moment on. The fault just before the jump to near 100% is the cause; faults after it are just how the damage gets observed. Raise `-points` and `-branches` for a finer curve.
 
-Read what each node did around that moment with `seedfall logs -c C -seed N -node server -from 400ms -to 500ms` (add `-net-trace` for every message sent and read, `-grep` for a pattern, `-json` for slog fields). To stop the run there and look around, `seedfall debug -c C -seed N -at 427ms` opens a prompt: `where`, `net` (messages in flight), `faults`, `ls`, `cat` and `stat` on a node's live disk, `step`, `until <regex>` and `branch`. Over MCP these are `seedfall_logs` and `seedfall_debug` with a `commands` list.
+Read what each node did around that moment with `seedfall logs -c C -seed N -node server -from 400ms -to 500ms` (add `-net-trace` for every message sent and read, `-grep` for a pattern, `-json` for slog fields). To stop the run there and look around, `seedfall debug -c C -seed N -at 427ms` opens a prompt: `where`, `net` (messages in flight), `faults`, `ls`, `cat` and `stat` on a node's live disk, `step`, `until <regex>` and `branch`. `seedfall trace grep -c C -seed N -e 'crash|fsync' -context 3` shows every node's lines around each match. Over MCP these are `seedfall_logs`, `seedfall_trace_search` and `seedfall_debug` with a `commands` list.
 
 ## 4. Look at the disk
 
@@ -69,11 +69,11 @@ A `linearizability` or `isolation` failure is about the recorded history, not th
 
 Write the explanation down as one sentence, for example "the crash in op #56 leaves a torn record, and recovery appends after it instead of truncating". Then test it by changing one thing and replaying.
 
-- **Drop a fault.** Copy `.seedfall/seed-N.faults.json` to `hypothesis.json` and delete one entry. The schedule is a JSON object whose `faults` array holds `{"at", "kind", "node", "until", "op", ...}`, plus `duration` and `ops` when shrink trimmed them (older files are a bare array of faults). Then run `seedfall replay -c C -seed N -faults hypothesis.json`. If it now passes, that fault is necessary. If it still fails, compare the failure message with the original: a different message means you uncovered a second bug, so note it and triage it separately.
-- **Move a fault.** Change `op` on a `crash_io` entry, or `at` on a `crash`, to put the crash just before or after the suspect operation, then replay again. On a `buggify` entry, `op` is which hit of that site on that node fires.
+- **Drop a fault.** `seedfall faults -c C -seed N -remove 2 -out hypothesis.json` copies `.seedfall/seed-N.faults.json` without its second fault (`seedfall faults -c C -seed N` alone lists the faults with their positions). Then run `seedfall replay -c C -seed N -faults hypothesis.json`. If it now passes, that fault is necessary. If it still fails, compare the failure message with the original: a different message means you uncovered a second bug, so note it and triage it separately.
+- **Move a fault.** `-shift 1=-1` moves a `crash_io` entry one disk operation earlier, and `-shift 2=+20ms` moves a `crash` 20ms later, to put the crash just before or after the suspect operation; then replay again. On a `buggify` entry, the count is which hit of that site on that node fires. `-add '{"at":"1s","kind":"pause","node":"server","until":"1.5s"}'` adds a fault. Every edit is checked against the config (known nodes, `until` after `at`, inside the run) before it is written, and the schedule format is in `seedfall://docs/faults` under "Editing a schedule".
 - **Change the world.** In a copy of `C`, turn off `torn_writes`, or turn `strict_dirs` on or off, and replay the same seed. If the failure needs torn writes, the bug is in recovery parsing. If it needs `strict_dirs`, a directory fsync is missing.
 
-`replay` exits 1 and prints the trace when the seed fails, and ends with `seed N: ok, ... steps` when it passes. Over MCP, use `seedfall_replay` with `faults`, `seedfall_shrink`, `seedfall_cause` and `seedfall_inspect`, which take the same arguments as JSON.
+`replay` exits 1 and prints the trace when the seed fails, and ends with `seed N: ok, ... steps` when it passes. Over MCP, use `seedfall_faults_edit` (with `out`), then `seedfall_replay` with `faults`, and `seedfall_shrink`, `seedfall_cause` and `seedfall_inspect`, which take the same arguments as JSON.
 
 `seedfall trace diff .seedfall/failures/<config>-seed-N hypothesis-trace.txt` shows the first line where two traces part, for a replay saved with `seedfall logs ... > hypothesis-trace.txt`.
 

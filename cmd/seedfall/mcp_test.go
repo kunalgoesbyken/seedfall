@@ -261,6 +261,19 @@ func TestMCPReadsFindingsAndRunHistory(t *testing.T) {
 	if len(v.Findings) != 1 || v.Findings[0].Count != 2 || len(v.Properties) != 1 || v.Properties[0].Message != "torn tail" || len(v.Runs) != 1 || v.Runs[0].Seeds != 50 {
 		t.Fatalf("findings view %+v", v)
 	}
+	res, err = cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "seedfall_findings", Arguments: map[string]any{"report": filepath.Join(dir, "report.json"), "status": "regressed,ongoing"}})
+	if err != nil || res.IsError {
+		t.Fatalf("seedfall_findings by status: %v %v", err, res.Content)
+	}
+	b, _ = json.Marshal(res.StructuredContent)
+	var filtered findingsView
+	if err := json.Unmarshal(b, &filtered); err != nil || len(filtered.Findings) != 0 || len(filtered.Runs) != 1 {
+		t.Fatalf("findings with status regressed or ongoing %+v %v", filtered, err)
+	}
+	res, err = cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "seedfall_findings", Arguments: map[string]any{"report": filepath.Join(dir, "report.json"), "status": "fixed"}})
+	if err != nil || !res.IsError || !strings.Contains(res.Content[0].(*mcp.TextContent).Text, `"fixed"`) {
+		t.Fatalf("an unknown status was accepted: %v %v", err, res.Content)
+	}
 }
 
 func TestMCPMutateRejectsAnUnknownMutant(t *testing.T) {

@@ -210,6 +210,48 @@ The other kinds are `write_enospc` and `read_eio`. A recorded fault fires at the
 
 [`examples/kvlog`](../examples/kvlog) shows each one: a corrupted read changes an acknowledged value, a checksum with a re-read fixes it, and a lost write, a misdirected write or bit rot breaks a store that keeps one copy, with or without checksums.
 
+## Editing a schedule
+
+A fault schedule (`.seedfall/seed-N.faults.json` from `shrink`, an artifact's `faults.json`, or a pinned regression) is a list of faults that a replay applies instead of drawing new ones. Changing one fault and replaying is the quickest way to test an explanation of a failure. `seedfall faults` makes the change and checks it:
+
+```sh
+seedfall faults -c seedfall.always.json -seed 1 -faults torntail.faults.json -remove 1 -out hypothesis.json
+seedfall replay -c seedfall.always.json -seed 1 -faults hypothesis.json
+```
+
+```
+seed 1, 1 faults from torntail.faults.json, wrote hypothesis.json
+  1    802ms  crash server, restart at 802ms
+duration 991ms
+replay: seedfall replay -c seedfall.always.json -seed 1 -faults hypothesis.json
+```
+
+On kvlog's `seedfall.always.json`, seed 1 fails with `torntail.faults.json`, still fails with the crash during disk op #56 moved one operation earlier (`-shift 1=-1`), and passes once that crash is removed. That pass is within the schedule's shrunk 991ms, and the replay prints a note saying so: it shows the crash is necessary for this failure, not that the store is fixed.
+
+| Flag | Meaning |
+|---|---|
+| `-faults` | The schedule to start from. Without it, `.seedfall/seed-N.faults.json` next to the config, or, when that file does not exist, the faults seed N draws on its own, which takes one run |
+| `-remove N` | Remove the fault at position N, counting from 1 as listed. Repeatable |
+| `-shift N=AMOUNT` | Move fault N. A timed fault moves by a signed duration (`2=-50ms`), together with its `until`. A fault that fires at a disk operation, read or buggify hit (`crash_io`, `fsync_eio`, `write_eio`, `write_enospc`, `read_eio`, `read_corrupt`, `lost_write`, `misdirected_write`, `buggify`) moves by a signed count of those (`1=+2`), because its `at` only records when it happened. Repeatable |
+| `-add JSON` | Add a fault in the format shown in this page, for example `{"at":"1s","kind":"pause","node":"server","until":"1.5s"}`. Repeatable |
+| `-out` | Write the result here. Without it, the schedule is written back to the file it came from |
+
+Positions in `-remove` and `-shift` always refer to the schedule as it was before the edit. The result is sorted by `at` and checked against the config before anything is written:
+
+| Check | Applies to |
+|---|---|
+| `kind` is a fault kind seedfall knows | every fault |
+| `node`, `from`, `to`, `side` and `groups` name nodes of the config | every fault |
+| `at` is not negative and is before the end of the run: the schedule's `duration`, else the config's | every fault |
+| `until` is not before `at` | `crash`, `crash_io`, `partition`, `pause`, `clog`, `slow` |
+| `side` or `groups`, not both | `partition` |
+| `mode` is `stop`, `slow` or `jam`; `dir` is `in`, `out` or `both` with a `node`, or empty with two different nodes in `from` and `to` | `clog` |
+| `node` is set | every kind except `partition` and `clog` |
+| `factor` is at least 1 | `slow` |
+| `op` is at least 1, and a `buggify` fault names its `site` | faults that fire at a disk operation, read or buggify hit |
+
+Without any edit, `seedfall faults` only lists and checks the schedule, and writes it only when it came from the seed's own faults, so that there is a file to edit. Over MCP, `seedfall_faults_edit` takes the same edits as JSON ([agents.md](agents.md#tools)).
+
 ## Choosing rates
 
 Start with crashes and torn writes, then add `crash_on_io` around `0.005`, so a few hundred disk operations per run produce one or two mid-operation crashes. Add `fsync_eio`, `strict_dirs` and `reorder_writes` once the basic durability path passes. For consensus and leader-election code, add `partition_topologies` beyond `half`, then `clog_per_sec` and `slow_per_sec`: one-way links and slow leaders are the gray failures that break leases and stale-read checks. For a storage engine, add `disk_bytes` and `write_eio` to test the error paths of every write, then `read_corrupt` and `corrupt_on_crash` to test checksums. `lost_write`, `misdirected_write` and `bitrot_per_sec` lose data that a single copy cannot get back, so use them on replicated systems, or to check that a single node notices and stops instead of serving wrong data. Turn on `buggify` once you have marked sites in your code that should sometimes take the rare path. Turn on `swarm` for long CI sweeps. Use property coverage ([properties.md](properties.md)) to confirm the faults are actually reaching the code you care about.

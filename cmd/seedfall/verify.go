@@ -68,7 +68,7 @@ func toolVerify(_ context.Context, _ *mcp.CallToolRequest, a verifyArgs) (*mcp.C
 }
 
 func parseVerify(args []string) (verifyArgs, error) {
-	fs := flag.NewFlagSet("verify", flag.ExitOnError)
+	fs := newFlags("verify")
 	var a verifyArgs
 	a.register(fs)
 	seed := seedFlag(fs)
@@ -80,7 +80,9 @@ func parseVerify(args []string) (verifyArgs, error) {
 	fs.IntVar(&a.AppMutants, "app-mutants", 0, "also rebuild the nodes with N source mutants and require each one that builds to be killed")
 	fs.StringVar(&a.Markdown, "md", "", "write a Markdown proof block for the pull request to this file")
 	fs.IntVar(&a.jobs, "j", runtime.NumCPU(), "parallel runs")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return a, err
+	}
 	fs.Visit(func(f *flag.Flag) {
 		if f.Name == "seed" {
 			a.Seed = seed

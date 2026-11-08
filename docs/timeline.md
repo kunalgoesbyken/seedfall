@@ -9,7 +9,7 @@ A failing seed replays exactly, so you can look at it as many times and in as ma
 | Logs | `seedfall logs -seed N -node server -grep re -from 1s -to 2s` | The trace filtered by node, pattern and virtual time, with app output interleaved with engine events and slog JSON parsed into fields |
 | Debugger | `seedfall debug -seed N -at 1.7s` | A prompt paused at a moment of the run: node states, the live disk, in-flight messages and active faults, then step, run until a pattern, or branch into a different future |
 
-`seedfall trace diff` compares two traces and shows where they first part ways. Logs and the debugger are also MCP tools, and the timeline is in every artifact folder the MCP tools name.
+`seedfall trace grep` finds a pattern and shows the lines of every node around each match, and `seedfall trace diff` compares two traces and shows where they first part ways. Logs, trace search and the debugger are also MCP tools, and the timeline is in every artifact folder the MCP tools name.
 
 ## The trace
 
@@ -116,6 +116,26 @@ The summary line goes to stderr, so `seedfall logs ... > server.log` keeps only 
 
 slog's `time` field is the guest's wall clock, which seedfall simulates from 2026-01-01 (and skews or jumps under clock faults); `at` is the virtual time the line was written. Other slog handlers' text output comes through as `output` without `fields`.
 
+## Searching the trace
+
+`logs -grep` keeps only the matching lines. To see what happened around each match, across every node, use `seedfall trace grep`:
+
+```sh
+seedfall trace grep -c seedfall.always.json -seed 1 -e crash -context 1
+```
+
+```
+     4     0.292s  fault partition [client] | rest, heals at 0.627s
+>    5     0.757s  fault crash server#1 during disk op 56, restart at 1.121s
+     6     1.121s  start server#2
+     7     1.121s  server#2| serving 26 keys on :7000
+>    8     1.705s  fault crash server#2, restart at 1.943s
+     9     1.943s  start server#3
+2 matches of 12 trace lines, 2 shown; seed 1: FAIL client#1: acknowledged write lost: k96=v96, server now answers "NONE"
+```
+
+Matches are marked `>`, each line carries its number in the run's trace (the same as the artifact's `trace.txt` for that run) and its virtual time, windows that touch or overlap are merged, and separate windows are divided by `--`. `-e` is a Go regular expression. `-node`, `-from` and `-to` narrow which lines can match, as for `logs`, while the context lines come from every node. `-context` sets the lines before and after each match (3 by default), `-limit` the most matches shown (200), `-net-trace` adds connections and messages first, and `-json` prints the windows as one JSON object with the same line fields as `logs -json` plus `n` and `match`.
+
 ## Debugger
 
 ```sh
@@ -182,4 +202,4 @@ Use it after shrinking to see where the shrunk schedule leaves the original run,
 
 ## Over MCP
 
-`seedfall_logs` takes `config`, `seed` and optionally `faults`, `node`, `grep`, `from`, `to`, `net_trace` and `limit` (200 by default), and returns the matching lines with the same fields as `logs -json`, how many matched and how many the trace has. `seedfall_debug` takes `config`, `seed`, optionally `faults`, `at`, `net_trace` and a `commands` list run in order (`["until fault crash", "net", "ls server"]`), and returns each command's output and the final state. Failures from `seedfall_run`, `seedfall_replay` and `seedfall_shrink` name the artifact folder, which holds `timeline.html` and `timeline.mmd`. See [agents.md](agents.md#tools).
+`seedfall_logs` takes `config`, `seed` and optionally `faults`, `node`, `grep`, `from`, `to`, `net_trace` and `limit` (200 by default), and returns the matching lines with the same fields as `logs -json`, how many matched and how many the trace has. `seedfall_trace_search` takes `config`, `seed`, `pattern` and optionally `faults`, `context`, `node`, `from`, `to`, `net_trace` and `limit`, and returns the same windows as `trace grep -json`. `seedfall_debug` takes `config`, `seed`, optionally `faults`, `at`, `net_trace` and a `commands` list run in order (`["until fault crash", "net", "ls server"]`), and returns each command's output and the final state. Failures from `seedfall_run`, `seedfall_replay` and `seedfall_shrink` name the artifact folder, which holds `timeline.html` and `timeline.mmd`. See [agents.md](agents.md#tools).

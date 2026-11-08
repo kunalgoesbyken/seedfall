@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -173,5 +174,41 @@ func TestStreamsAreIndependentAndReproducible(t *testing.T) {
 	}
 	if same {
 		t.Fatal("different stream names gave the same sequence")
+	}
+}
+
+func TestCheckScheduleAcceptsGeneratedFaultsAndNamesEveryProblem(t *testing.T) {
+	cfg := faultConfig()
+	cfg.Faults.ClogPerSec, cfg.Faults.SlowPerSec, cfg.Faults.ResetPerSec = 0.3, 0.2, 0.2
+	for seed := uint64(1); seed <= 20; seed++ {
+		if err := cfg.CheckSchedule(Schedule{Faults: generateFaults(cfg, cfg.Faults, streams(seed, "faults"))}); err != nil {
+			t.Fatalf("seed %d: %v", seed, err)
+		}
+	}
+	bad := []struct {
+		f    Fault
+		want string
+	}{
+		{Fault{At: Duration(time.Second), Kind: "meteor", Node: "n1"}, "unknown kind"},
+		{Fault{At: Duration(time.Second), Kind: FaultCrash, Node: "n9", Until: Duration(2 * time.Second)}, `unknown node "n9"`},
+		{Fault{At: Duration(2 * time.Second), Kind: FaultPause, Node: "n1", Until: Duration(time.Second)}, "before at"},
+		{Fault{At: Duration(30 * time.Second), Kind: FaultCrash, Node: "n1", Until: Duration(31 * time.Second)}, "never fires"},
+		{Fault{At: Duration(time.Second), Kind: FaultPartition, Until: Duration(2 * time.Second)}, "side or groups"},
+		{Fault{At: Duration(time.Second), Kind: FaultClog, Mode: ClogStop, From: "n1", To: "n1", Until: Duration(2 * time.Second)}, "two different nodes"},
+		{Fault{At: Duration(time.Second), Kind: FaultClog, Mode: "melt", Node: "n1", Dir: DirIn, Until: Duration(2 * time.Second)}, `mode "melt"`},
+		{Fault{At: Duration(time.Second), Kind: FaultSlow, Node: "n1", Factor: 0.5, Until: Duration(2 * time.Second)}, "below 1"},
+		{Fault{At: Duration(time.Second), Kind: FaultCrashIO, Node: "n1", Until: Duration(2 * time.Second)}, "op 0"},
+		{Fault{At: Duration(time.Second), Kind: FaultBuggify, Node: "n1", Op: 1}, "needs site"},
+		{Fault{At: Duration(time.Second), Kind: FaultClockJump}, "node is required"},
+	}
+	for _, c := range bad {
+		err := cfg.CheckSchedule(Schedule{Faults: []Fault{c.f}})
+		if err == nil || !strings.Contains(err.Error(), c.want) || !strings.Contains(err.Error(), "fault 1 ") {
+			t.Errorf("%+v: %v, want %q", c.f, err, c.want)
+		}
+	}
+	late := Fault{At: Duration(5 * time.Second), Kind: FaultReset, Node: "n1", Until: Duration(5 * time.Second)}
+	if err := cfg.CheckSchedule(Schedule{Faults: []Fault{late}, Duration: Duration(4 * time.Second)}); err == nil {
+		t.Error("a fault after a shrunk schedule's duration was accepted")
 	}
 }

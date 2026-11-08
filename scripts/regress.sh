@@ -89,6 +89,27 @@ expect_logs() {
   printf '%s  %-8s %-24s logs of seed %s %s: want %s lines, got %s\n' "$verdict" "$dir" "$config" "$seed" "$filter" "$want" "$got"
 }
 
+expect_grep() {
+  local dir="$1" config="$2" seed="$3" search="$4" want="$5"
+  local got
+  got="$(cd "$root/examples/$dir" && "$bin" trace grep -c $config -seed "$seed" $search 2>&1 >/dev/null | awk '{print $1}')"
+  local verdict="PASS"
+  [ "$got" != "$want" ] && verdict="FAIL" && failures=$((failures + 1))
+  printf '%s  %-8s %-24s trace grep of seed %s %s: want %s matches, got %s
+' "$verdict" "$dir" "$config" "$seed" "$search" "$want" "$got"
+}
+
+expect_edit() {
+  local dir="$1" config="$2" seed="$3" faults="$4" edit="$5" want="$6"
+  local edited="$root/.regress-edited.faults.json" got="pass"
+  (cd "$root/examples/$dir" && "$bin" faults -c $config -seed "$seed" -faults "$faults" $edit -out "$edited" >/dev/null 2>&1 && "$bin" replay -c $config -seed "$seed" -faults "$edited" >/dev/null 2>&1) || got="fail"
+  rm -f "$edited"
+  local verdict="PASS"
+  [ "$got" != "$want" ] && verdict="FAIL" && failures=$((failures + 1))
+  printf '%s  %-8s %-24s replay seed %s with %s edited by %s: want %s, got %s
+' "$verdict" "$dir" "$config" "$seed" "$faults" "$edit" "$want" "$got"
+}
+
 expect_debug() {
   local dir="$1" config="$2" seed="$3" at="$4" command="$5" want="$6"
   local got
@@ -135,6 +156,10 @@ expect_timeline kvlog seedfall.always.json    1 538
 expect_logs kvlog seedfall.always.json 1 "-node server" 8
 expect_logs kvlog seedfall.always.json 1 "-net-trace -grep refused|reset" 92
 expect_debug kvlog seedfall.always.json 1 1s "until fault crash" 1.705199634s
+expect_grep kvlog seedfall.always.json 1 "-e crash" 2
+expect_grep kvlog seedfall.always.json 1 "-net-trace -e refused|reset" 92
+expect_edit kvlog seedfall.always.json 1 torntail.faults.json "-remove 1" pass
+expect_edit kvlog seedfall.always.json 1 torntail.faults.json "-shift 1=-1" fail
 deterministic kvlog "seedfall.always.json -net-trace" 1
 expect raftkv seedfall.json          1-40   pass
 expect raftkv seedfall.nofsync.json  1-120  fail

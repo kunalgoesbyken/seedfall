@@ -13,7 +13,10 @@ import (
 
 const blockStop = 2
 
-func cmdHook([]string) error {
+func cmdHook(args []string) error {
+	if err := newFlags("hook").Parse(args); err != nil {
+		return err
+	}
 	seeds := os.Getenv("SEEDFALL_HOOK_SEEDS")
 	var in struct {
 		StopHookActive bool   `json:"stop_hook_active"`

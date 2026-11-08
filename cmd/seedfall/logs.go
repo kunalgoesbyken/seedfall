@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -87,7 +86,7 @@ func recordedRun(ca *configArgs, seed uint64, faultsFile string, netTrace bool) 
 }
 
 func cmdLogs(args []string) error {
-	fs := flag.NewFlagSet("logs", flag.ExitOnError)
+	fs := newFlags("logs")
 	ca := configFlags(fs)
 	seed := seedFlag(fs)
 	faultsFile := fs.String("faults", "", "fault schedule from seedfall shrink")
@@ -97,7 +96,9 @@ func cmdLogs(args []string) error {
 	to := fs.String("to", "", "only lines at or before this virtual time")
 	jsonOut := fs.Bool("json", false, "print one JSON object per line, with slog JSON output parsed into fields")
 	netTrace := fs.Bool("net-trace", false, "also trace every connection, message sent and message read")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 	filter, err := newLogFilter(*node, *grep, *from, *to)
 	if err != nil {
 		return err
@@ -149,13 +150,12 @@ func timelineTitle(cfg *engine.Config, seed uint64) string {
 
 var errTraceUsage = errors.New("usage: seedfall trace diff [-context 3] <trace.txt or artifacts dir> <trace.txt or artifacts dir>")
 
-func cmdTrace(args []string) error {
-	if len(args) == 0 || args[0] != "diff" {
-		return errTraceUsage
-	}
-	fs := flag.NewFlagSet("trace diff", flag.ExitOnError)
+func cmdTraceDiff(args []string) error {
+	fs := newFlags("trace diff")
 	around := fs.Int("context", 3, "matching lines to show before the first difference")
-	fs.Parse(args[1:])
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 	if fs.NArg() != 2 {
 		return errTraceUsage
 	}

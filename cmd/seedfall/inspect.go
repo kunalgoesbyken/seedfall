@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/hex"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -25,7 +24,7 @@ const (
 )
 
 func cmdInspect(args []string) error {
-	fs := flag.NewFlagSet("inspect", flag.ExitOnError)
+	fs := newFlags("inspect")
 	ca := configFlags(fs)
 	seed := seedFlag(fs)
 	faultsFile := fs.String("faults", "", "fault schedule from seedfall shrink")
@@ -33,7 +32,9 @@ func cmdInspect(args []string) error {
 	node := fs.String("node", "", "only inspect this node")
 	cat := fs.String("cat", "", "print the durable content of this file, as text or a hex dump")
 	out := fs.String("out", "", "export each node's durable disk image into this directory")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 	if *cat != "" && *out != "" {
 		return errors.New("-cat and -out cannot be combined")
 	}

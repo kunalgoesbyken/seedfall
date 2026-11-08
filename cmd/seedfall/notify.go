@@ -5,7 +5,6 @@ import (
 	"cmp"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -24,26 +23,20 @@ const (
 
 var ghCommand = "gh"
 
-func cmdReportFindings(args []string) error {
-	commands := map[string]func([]string) error{"notify": cmdNotify, "issue": cmdIssue}
-	if len(args) == 0 || commands[args[0]] == nil {
-		return errors.New("usage: seedfall report notify [-report file] [-webhook URL] [-link URL] [-dry-run] | seedfall report issue -repo owner/name [-report file] [-dry-run]")
-	}
-	return commands[args[0]](args[1:])
-}
-
 func reportHistory(rep report.Report, path string) string {
 	return cmp.Or(path, rep.History, filepath.Join(filepath.Dir(rep.Config), ".seedfall", "history.jsonl"))
 }
 
 func cmdNotify(args []string) error {
-	fs := flag.NewFlagSet("report notify", flag.ExitOnError)
+	fs := newFlags("report notify")
 	path := fs.String("report", defaultReport, "triage report written by seedfall run -report")
 	history := fs.String("history", "", "run history (default: .seedfall/history.jsonl next to the report's config)")
 	webhook := fs.String("webhook", os.Getenv("SEEDFALL_WEBHOOK"), "Slack or Discord incoming webhook URL (default: $SEEDFALL_WEBHOOK)")
 	link := fs.String("link", "", "URL to put in the message, for example the CI run")
 	dry := fs.Bool("dry-run", false, "print the message instead of posting it")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 	rep, err := report.Load(*path)
 	if err != nil {
 		return err
@@ -80,11 +73,13 @@ func cmdNotify(args []string) error {
 }
 
 func cmdIssue(args []string) error {
-	fs := flag.NewFlagSet("report issue", flag.ExitOnError)
+	fs := newFlags("report issue")
 	path := fs.String("report", defaultReport, "triage report written by seedfall run -report")
 	repo := fs.String("repo", "", "GitHub repository to file issues in, as owner/name")
 	dry := fs.Bool("dry-run", false, "print each issue instead of filing it")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 	rep, err := report.Load(*path)
 	if err != nil {
 		return err

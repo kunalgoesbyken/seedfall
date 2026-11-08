@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -29,11 +28,13 @@ type pinView struct {
 }
 
 func cmdPin(args []string) error {
-	fs := flag.NewFlagSet("pin", flag.ExitOnError)
+	fs := newFlags("pin")
 	ca := configFlags(fs)
 	seed := seedFlag(fs)
 	faultsFile := fs.String("faults", "", "schedule to pin (default: .seedfall/seed-N.faults.json from shrink if present, else the seed's own faults)")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 	out, err := pin(pinArgs{configArgs: *ca, Seed: *seed, Faults: *faultsFile})
 	if err != nil {
 		return err
@@ -57,7 +58,9 @@ func pin(a pinArgs) (pinView, error) {
 	if err != nil {
 		return pinView{}, err
 	}
-	file, from, err := pinSource(r, a)
+	file, from, err := scheduleSource(a.Config, a.Seed, a.Faults, func() (engine.Schedule, error) {
+		return r.Run(a.Seed, nil).Schedule(engine.Schedule{}), nil
+	})
 	if err != nil {
 		return pinView{}, err
 	}
@@ -74,23 +77,22 @@ func pin(a pinArgs) (pinView, error) {
 	return out, engine.WriteScheduleFile(out.File, file)
 }
 
-func pinSource(r *engine.Runner, a pinArgs) (engine.ScheduleFile, string, error) {
-	path := a.Faults
+func scheduleSource(config string, seed uint64, path string, own func() (engine.Schedule, error)) (engine.ScheduleFile, string, error) {
 	if path == "" {
-		path = schedulePath(a.Config, a.Seed)
+		path = schedulePath(config, seed)
 		if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
-			res := r.Run(a.Seed, nil)
-			return engine.ScheduleFile{Seed: a.Seed, Schedule: res.Schedule(engine.Schedule{})}, fmt.Sprintf("seed %d's own faults", a.Seed), nil
+			s, err := own()
+			return engine.ScheduleFile{Seed: seed, Schedule: s}, fmt.Sprintf("seed %d's own faults", seed), err
 		}
 	}
 	file, err := engine.ReadScheduleFile(path)
 	if err != nil {
 		return file, "", err
 	}
-	if file.Seed != 0 && file.Seed != a.Seed {
-		return file, "", fmt.Errorf("%s is a schedule for seed %d, not %d", path, file.Seed, a.Seed)
+	if file.Seed != 0 && file.Seed != seed {
+		return file, "", fmt.Errorf("%s is a schedule for seed %d, not %d", path, file.Seed, seed)
 	}
-	file.Seed = a.Seed
+	file.Seed = seed
 	return file, filepath.ToSlash(path), nil
 }
 

@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"os"
 	"runtime"
@@ -46,7 +45,7 @@ type mutateView struct {
 }
 
 func cmdMutate(args []string) error {
-	fs := flag.NewFlagSet("mutate", flag.ExitOnError)
+	fs := newFlags("mutate")
 	var a mutateArgs
 	a.register(fs)
 	fs.StringVar(&a.Seeds, "seeds", defaultMutateSeeds, "seed or seed range for each mutant")
@@ -54,7 +53,9 @@ func cmdMutate(args []string) error {
 	fs.StringVar(&a.Only, "only", "", "comma-separated mutants to run (default: all)")
 	fs.BoolVar(&a.App, "app", false, "mutate the node packages' source instead of the simulated disk, network and clock")
 	fs.IntVar(&a.Mutants, "mutants", defaultAppMutants, "with -app, how many source mutants to pick from the first seed")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 	out, err := runMutate(a)
 	if err != nil {
 		return err
