@@ -36,7 +36,14 @@ func (c *Config) seedFiles(s NodeSpec) ([]seedFile, error) {
 	byPath := map[string]seedFile{}
 	if s.Disk != "" {
 		root := resolve(c.Dir, s.Disk)
-		err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+		info, err := os.Lstat(root)
+		if err != nil {
+			return nil, fmt.Errorf("disk: %w", err)
+		}
+		if !info.IsDir() {
+			return nil, fmt.Errorf("disk %s is not a directory", s.Disk)
+		}
+		err = filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}

@@ -1,0 +1,70 @@
+{
+  "seed": 21,
+  "faults": [
+    {
+      "at": "851.049531ms",
+      "kind": "crash_io",
+      "node": "ledger",
+      "until": "1.418537693s",
+      "op": 82
+    },
+    {
+      "at": "1.083111328s",
+      "kind": "crash",
+      "node": "ledger",
+      "until": "1.387109654s"
+    },
+    {
+      "at": "1.4185377s",
+      "kind": "crash_io",
+      "node": "ledger",
+      "until": "1.753003476s",
+      "op": 133
+    },
+    {
+      "at": "2.903711181s",
+      "kind": "crash_io",
+      "node": "ledger",
+      "until": "3.683468075s",
+      "op": 245
+    },
+    {
+      "at": "3.912169545s",
+      "kind": "crash",
+      "node": "ledger",
+      "until": "4.32873141s"
+    },
+    {
+      "at": "4.984285852s",
+      "kind": "crash_io",
+      "node": "ledger",
+      "until": "5.114870333s",
+      "op": 328
+    },
+    {
+      "at": "9.237921869s",
+      "kind": "crash",
+      "node": "ledger",
+      "until": "10.014392468s"
+    },
+    {
+      "at": "13.689219481s",
+      "kind": "crash",
+      "node": "ledger",
+      "until": "14.623890214s"
+    },
+    {
+      "at": "15.303882613s",
+      "kind": "crash",
+      "node": "ledger",
+      "until": "15.961193944s"
+    },
+    {
+      "at": "17.110558871s",
+      "kind": "crash",
+      "node": "ledger",
+      "until": "17.321839812s"
+    }
+  ],
+  "duration": "20s"
+}

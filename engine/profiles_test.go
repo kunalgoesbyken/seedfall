@@ -165,6 +165,13 @@ func TestSetOverridesValuesLast(t *testing.T) {
 	if preset.Faults.Preset != "durability" || preset.Faults.CrashPerSec != 3 || !preset.Faults.StrictDirs {
 		t.Errorf("faults = %+v, want durability with crash_per_sec 3", preset.Faults)
 	}
+	kept, err := Load(ConfigRef{Path: ref.Path, Sets: []string{"faults.crash_per_sec=1.25", "faults.preset=durability"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if kept.Faults.Preset != "durability" || kept.Faults.CrashPerSec != 1.25 || !kept.Faults.StrictDirs || !kept.Faults.TornWrites {
+		t.Errorf("faults = %+v, want durability under the base config's fault fields", kept.Faults)
+	}
 	for _, bad := range []string{"duration", "nodes.z.args=[]", "duration.x=1"} {
 		if _, err := Load(ConfigRef{Path: ref.Path, Sets: []string{bad}}); err == nil {
 			t.Errorf("-set %s: want an error", bad)
@@ -240,6 +247,36 @@ func TestSeedFilesRejectMissingHostFiles(t *testing.T) {
 	})
 	if _, err := LoadConfig(filepath.Join(dir, "seedfall.json")); err == nil || !strings.Contains(err.Error(), `node "a"`) {
 		t.Fatalf("err = %v, want a missing fixture error naming the node", err)
+	}
+}
+
+func TestSeedDiskMustBeADirectory(t *testing.T) {
+	dir := writeFiles(t, map[string]string{
+		"image":         "a file, not a directory",
+		"seedfall.json": `{"nodes": [{"name": "a", "pkg": "./server", "disk": "image"}], "workload": {"name": "client", "pkg": "./client"}}`,
+	})
+	if _, err := LoadConfig(filepath.Join(dir, "seedfall.json")); err == nil || !strings.Contains(err.Error(), "not a directory") {
+		t.Fatalf("err = %v, want a disk that is not a directory rejected", err)
+	}
+}
+
+func TestOverridesGetTheirOwnPinsAndArtifacts(t *testing.T) {
+	dir := writeFiles(t, map[string]string{"seedfall.json": baseConfig})
+	path := filepath.Join(dir, "seedfall.json")
+	base, err := Load(ConfigRef{Path: path})
+	if err != nil {
+		t.Fatal(err)
+	}
+	set, err := Load(ConfigRef{Path: path, Sets: []string{"duration=10s"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := Load(ConfigRef{Path: path, Sets: []string{"duration=20s"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if PinPath(base, 3) == PinPath(set, 3) || PinPath(set, 3) == PinPath(other, 3) || ArtifactDir(base, 3, "") == ArtifactDir(set, 3, "") {
+		t.Errorf("overrides share files: %s, %s, %s", PinPath(base, 3), PinPath(set, 3), PinPath(other, 3))
 	}
 }
 

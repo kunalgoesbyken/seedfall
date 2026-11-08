@@ -17,6 +17,8 @@ One `seedfall.json` holds every variant as a profile:
 | `seedfall run -profile nomigrate -seeds 1-5` | `etc/ledger.conf` says `migrate = none`, so v2 ignores the v1 lines: fails seed 1 right after the upgrade, `seeded account alice holds 0, want 100` |
 | `seedfall run -profile inplace -seeds 1-30` | v2 rewrites the ledger in place. A crash in the middle of that rewrite leaves the new header and a torn part of the converted lines, and the next start takes the file as already migrated: fails seed 21, `new4 holds 24 after 30 acknowledged and 30 sent deposits` |
 
+`tornmigration.faults.json` is seed 21's fault schedule. `seedfall replay -profile inplace -seed 21 -faults tornmigration.faults.json` fails the same way, and the same schedule passes without the profile, where the migration is atomic.
+
 The `inplace` failure is the classic upgrade bug that only shows up when a real old data file meets the new version under a crash, which is why seeding the disk matters: without it the first run of v2 would always see an empty disk.
 
 To reuse a failing state as the starting point of new runs, export it with `seedfall inspect -out` and point `disk` at the node's directory:

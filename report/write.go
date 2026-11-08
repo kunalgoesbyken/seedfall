@@ -23,6 +23,7 @@ func Generate(in Input, htmlPath, historyPath string) (Report, error) {
 		return Report{}, err
 	}
 	r := Build(in, knownFindings(entries))
+	r.History = filepath.ToSlash(historyPath)
 	if err := writeHTML(r, htmlPath); err != nil {
 		return r, err
 	}

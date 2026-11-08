@@ -35,7 +35,7 @@ func cmdInspect(args []string) error {
 	if *cat != "" && *out != "" {
 		return errors.New("-cat and -out cannot be combined")
 	}
-	r, _, err := load(ca.ref())
+	r, cfg, err := load(ca.ref())
 	if err != nil {
 		return err
 	}
@@ -52,7 +52,7 @@ func cmdInspect(args []string) error {
 	}
 	printInspection(in, *at)
 	if *out != "" {
-		return exportImages(in.Disks, *out)
+		return exportImages(in.Disks, *out, cfg.Dir)
 	}
 	return nil
 }
@@ -312,13 +312,23 @@ func renderContent(b []byte) (string, string) {
 	return "hex", hex.Dump(b)
 }
 
-func exportImages(disks []engine.Disk, dir string) error {
+func exportImages(disks []engine.Disk, dir, configDir string) error {
 	roots, err := engine.ExportDisks(disks, dir)
 	for i, root := range roots {
 		fmt.Printf("\nexported the durable disk image of node %s to %s\n", disks[i].Node, root)
 	}
 	if len(roots) > 0 {
-		fmt.Printf("\nstart a node from an exported image with \"disk\" in its config entry, for example \"disk\": %q\n", filepath.ToSlash(roots[0]))
+		fmt.Printf("\nstart a node from an exported image with \"disk\" in its config entry, for example \"disk\": %q\n", filepath.ToSlash(relativeTo(configDir, roots[0])))
 	}
 	return err
+}
+
+func relativeTo(base, path string) string {
+	absBase, errBase := filepath.Abs(base)
+	absPath, errPath := filepath.Abs(path)
+	rel, err := filepath.Rel(absBase, absPath)
+	if errors.Join(errBase, errPath, err) != nil {
+		return path
+	}
+	return rel
 }

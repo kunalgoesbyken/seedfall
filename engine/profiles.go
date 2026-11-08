@@ -2,6 +2,8 @@ package engine
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -26,6 +28,13 @@ func (r ConfigRef) String() string {
 		parts = append(parts, "-set", shellQuote(s))
 	}
 	return strings.Join(parts, " ")
+}
+
+const setsDigestBytes = 4
+
+func setsDigest(sets []string) string {
+	sum := sha256.Sum256([]byte(strings.Join(sets, "\x00")))
+	return hex.EncodeToString(sum[:setsDigestBytes])
 }
 
 func shellQuote(s string) string {

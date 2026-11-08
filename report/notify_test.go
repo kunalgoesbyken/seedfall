@@ -27,6 +27,9 @@ func TestAlertsOnlyNewAndRegressedAndOncePerReport(t *testing.T) {
 	dir := t.TempDir()
 	history := filepath.Join(dir, "history.jsonl")
 	first := generated(t, dir, input("1-100", 99, failing(1)))
+	if first.History != filepath.ToSlash(history) {
+		t.Errorf("report history = %q, want %q", first.History, filepath.ToSlash(history))
+	}
 	if got := first.Alerts(nil); len(got) != 1 || got[0].Status != StatusNew {
 		t.Fatalf("a new finding must alert: %+v", got)
 	}

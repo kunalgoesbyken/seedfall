@@ -219,7 +219,8 @@ deterministic ledger seedfall.json 3
 expect upgrade seedfall.json                      1-100 pass
 expect upgrade "seedfall.json -profile nomigrate" 1-5   fail
 expect upgrade "seedfall.json -profile inplace"   1-30  fail
-expect_replay upgrade "seedfall.json -profile inplace" 21 .seedfall/failures/seedfall.inplace-seed-21/faults.json fail
+expect_replay upgrade "seedfall.json -profile inplace" 21 tornmigration.faults.json fail
+expect_replay upgrade seedfall.json 21 tornmigration.faults.json pass
 deterministic upgrade "seedfall.json -profile inplace" 21
 expect aikv configs/haiku-1.reorder.json 1     fail
 expect aikv configs/opus-2.harsh.json    99    fail

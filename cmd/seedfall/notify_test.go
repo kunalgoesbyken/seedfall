@@ -114,3 +114,14 @@ func TestIssueFilesOnlyFindingsWithoutAnOpenIssue(t *testing.T) {
 		t.Fatalf("issue body lacks the replay command or version:\n%s", created)
 	}
 }
+
+func TestReportHistoryIgnoresOverridesInTheConfigReference(t *testing.T) {
+	ref := engine.ConfigRef{Path: "examples/upgrade/seedfall.json", Sets: []string{"nodes.ledger.disk=state/ledger"}}
+	saved := report.Report{Config: ref.String(), History: "examples/upgrade/.seedfall/history.jsonl"}
+	if got := reportHistory(saved, ""); got != saved.History {
+		t.Errorf("history = %q, want the one the report recorded, %q", got, saved.History)
+	}
+	if got := reportHistory(saved, "other.jsonl"); got != "other.jsonl" {
+		t.Errorf("history = %q, want the explicit path", got)
+	}
+}

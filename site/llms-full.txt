@@ -569,6 +569,7 @@ A profile is part of the config's identity everywhere seedfall prints or saves i
 - replay and shrink commands carry it: `replay: seedfall replay -c seedfall.json -profile fixed -seed 2`
 - failure artifacts go to `.seedfall/failures/seedfall.fixed-seed-2/`, the same folder a separate `seedfall.fixed.json` would use
 - `seedfall pin` records the profile and `-set` overrides in the pinned file (`"profile": "fixed"`), and a pinned schedule is replayed only by runs with the same config file, profile and overrides
+- `-set` overrides add a short hash of the overrides to artifact folder and pinned file names, `seedfall.fixed.set-1a2b3c4d-seed-2`, so a run with overrides never replaces the files of a run without them
 - reports, proofs and the hook print the full config reference
 
 The Claude Code hook reads the profile from `$SEEDFALL_HOOK_PROFILE`.
@@ -602,7 +603,7 @@ A preset fills in a documented fault level. Fields set next to it override it, a
 
 Durations, topologies and clog modes keep their defaults, and every rate is per node per second, or per disk operation for the I/O faults, as in [faults](faults.md). The levels are seedfall's own, named after the fault tolerance levels Antithesis offers, not a copy of them. `high_availability` and `everything` include partitions, clogs and swizzles, which need at least two nodes that take faults, workload included. `everything` includes faults such as corrupted reads that only a system with checksums can survive.
 
-A layer that names a preset starts its faults from that preset, and fault fields from earlier layers are dropped, so a profile with `"faults": "none"` turns every fault off even when the base config sets rates. A layer without a preset merges its fault fields as usual. The preset in effect shows up as `faults.preset` in the triage report JSON and in the HTML report's fault table.
+A layer that names a preset starts its faults from that preset, and fault fields from earlier layers are dropped, so a profile with `"faults": "none"` turns every fault off even when the base config sets rates. A layer without a preset merges its fault fields as usual. On the command line, `-set faults=none` replaces the faults the same way, while `-set faults.preset=none` changes only the preset and keeps the fault fields set so far, which still override it. The preset in effect shows up as `faults.preset` in the triage report JSON and in the HTML report's fault table.
 
 ## Seeded disks and files
 
@@ -1187,7 +1188,7 @@ seedfall inspect [-c seedfall.json] -seed N [-faults file.json] [-at DURATION] [
 | `-at` | Snapshot at this virtual time instead of at the failure, for example `-at 4.4s`. The snapshot is taken at the last scheduler step at or before it. If the run fails or ends first, the snapshot is taken there. |
 | `-node` | Only this node |
 | `-cat` | Print the durable content of one file: text as is, binary as a hex dump. The file must exist in the durable image. |
-| `-out` | Write each node's durable disk image to `dir/<node>/`, so you can open it with the library's own tools, or start new runs from it with `"disk": "dir/<node>"` ([seeded disks](config.md#seeded-disks-and-files)). The target must not exist yet. |
+| `-out` | Write each node's durable disk image to `dir/<node>/`, so you can open it with the library's own tools, or start new runs from it with `"disk": "dir/<node>"`, a path relative to the config's directory ([seeded disks](config.md#seeded-disks-and-files)); the command prints that path. The target must not exist yet. |
 
 The run is the same as `seedfall replay`: same seed, same faults, same trace. Inspecting changes nothing about it.
 
@@ -1845,7 +1846,7 @@ Every failure seedfall reports gets a folder you can attach to an issue or uploa
   disk/<node>/           each node's durable disk image at the failure, as inspect -out exports it
 ```
 
-seedfall writes it by replaying the failing seed once more and capturing the disks at the failure, so it costs one run per reported failure, not one per seed. `seedfall run` writes it for the failure it stops at, `run -report` for the example seed of each finding (the report links it), `replay` for a failing replay, `shrink` for the minimal schedule, and a failing [pinned regression](verify.md#pinned-regressions) for itself. The folder is named after the config and the seed, `<config>-seed-N`, so two configs in one directory keep separate folders. A run from the seed alone goes to `<config>-seed-N`; a replay from a schedule file to `<config>-seed-N-schedule`, a shrunk schedule to `<config>-seed-N-shrunk` and a pinned one to `<config>-seed-N-pinned`, so they do not overwrite each other. A new failure of the same seed replaces the folder. `run -json` writes artifacts only for failing regressions, not for every failing seed.
+seedfall writes it by replaying the failing seed once more and capturing the disks at the failure, so it costs one run per reported failure, not one per seed. `seedfall run` writes it for the failure it stops at, `run -report` for the example seed of each finding (the report links it), `replay` for a failing replay, `shrink` for the minimal schedule, and a failing [pinned regression](verify.md#pinned-regressions) for itself. The folder is named after the config and the seed, `<config>-seed-N`, so two configs in one directory keep separate folders. `<config>` is the file name without `.json`, then `.<profile>` for a profile and `.set-<hash>` for `-set` overrides, a short hash of the overrides in order, as in `seedfall.fixed.set-1a2b3c4d-seed-2`. A run from the seed alone goes to `<config>-seed-N`; a replay from a schedule file to `<config>-seed-N-schedule`, a shrunk schedule to `<config>-seed-N-shrunk` and a pinned one to `<config>-seed-N-pinned`, so they do not overwrite each other. A new failure of the same seed replaces the folder. `run -json` writes artifacts only for failing regressions, not for every failing seed.
 
 `report.json` has `reproduced`, which is false when the replay did not fail the same way as the reported run, `classification` ([above](#classification)), `seedfall_version` (from the binary's build information), `config_sha256` (of the resolved config after `extends`, the profile and `-set`, plus the bytes of every file seeded onto a node's disk), `commit` (`git rev-parse HEAD` in the config's directory, so uncommitted changes are not reflected) and `replay`, a command that replays `faults.json` exactly:
 
@@ -2010,7 +2011,7 @@ pinned seed 1 (2 faults, from torntail.faults.json) to seedfall-regressions/seed
 it passes now; seedfall run, verify and seedfalltest replay it first and fail if it fails again
 ```
 
-Without `-faults`, pin takes the schedule `seedfall shrink` saved in `.seedfall/seed-N.faults.json`, or else the seed's own faults, recorded fault by fault so the pinned faults stay the same if the fault rates change later. The file is a schedule in the usual format with a `pinned` block: the config it belongs to, the finding and reason if it fails now, where it came from, the seedfall version and the date. It is named `<config>-seed-N.json`, so two configs in one directory can pin the same seed. Pinning a schedule that still fails is allowed, and the commands below fail until the bug is fixed, the way a test written before its fix does.
+Without `-faults`, pin takes the schedule `seedfall shrink` saved in `.seedfall/seed-N.faults.json`, or else the seed's own faults, recorded fault by fault so the pinned faults stay the same if the fault rates change later. The file is a schedule in the usual format with a `pinned` block: the config it belongs to, the finding and reason if it fails now, where it came from, the seedfall version and the date. It is named `<config>-seed-N.json`, so two configs in one directory can pin the same seed; `<config>` carries the profile and a hash of any `-set` overrides, as artifact folders do ([config](config.md#profiles)). Pinning a schedule that still fails is allowed, and the commands below fail until the bug is fixed, the way a test written before its fix does.
 
 A pinned schedule keeps its faults and `ops` cap but runs for the config's full `duration`, as `-faults` does in verify, so a shrunk schedule's short duration cannot end the run before the workload checks anything. The same file replays exactly with `seedfall replay -c C -seed N -faults seedfall-regressions/<file>`.
 

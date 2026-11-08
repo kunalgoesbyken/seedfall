@@ -33,7 +33,7 @@ func cmdReportFindings(args []string) error {
 }
 
 func reportHistory(rep report.Report, path string) string {
-	return cmp.Or(path, filepath.Join(filepath.Dir(rep.Config), ".seedfall", "history.jsonl"))
+	return cmp.Or(path, rep.History, filepath.Join(filepath.Dir(rep.Config), ".seedfall", "history.jsonl"))
 }
 
 func cmdNotify(args []string) error {

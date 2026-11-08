@@ -56,6 +56,7 @@ A profile is part of the config's identity everywhere seedfall prints or saves i
 - replay and shrink commands carry it: `replay: seedfall replay -c seedfall.json -profile fixed -seed 2`
 - failure artifacts go to `.seedfall/failures/seedfall.fixed-seed-2/`, the same folder a separate `seedfall.fixed.json` would use
 - `seedfall pin` records the profile and `-set` overrides in the pinned file (`"profile": "fixed"`), and a pinned schedule is replayed only by runs with the same config file, profile and overrides
+- `-set` overrides add a short hash of the overrides to artifact folder and pinned file names, `seedfall.fixed.set-1a2b3c4d-seed-2`, so a run with overrides never replaces the files of a run without them
 - reports, proofs and the hook print the full config reference
 
 The Claude Code hook reads the profile from `$SEEDFALL_HOOK_PROFILE`.
@@ -89,7 +90,7 @@ A preset fills in a documented fault level. Fields set next to it override it, a
 
 Durations, topologies and clog modes keep their defaults, and every rate is per node per second, or per disk operation for the I/O faults, as in [faults](faults.md). The levels are seedfall's own, named after the fault tolerance levels Antithesis offers, not a copy of them. `high_availability` and `everything` include partitions, clogs and swizzles, which need at least two nodes that take faults, workload included. `everything` includes faults such as corrupted reads that only a system with checksums can survive.
 
-A layer that names a preset starts its faults from that preset, and fault fields from earlier layers are dropped, so a profile with `"faults": "none"` turns every fault off even when the base config sets rates. A layer without a preset merges its fault fields as usual. The preset in effect shows up as `faults.preset` in the triage report JSON and in the HTML report's fault table.
+A layer that names a preset starts its faults from that preset, and fault fields from earlier layers are dropped, so a profile with `"faults": "none"` turns every fault off even when the base config sets rates. A layer without a preset merges its fault fields as usual. On the command line, `-set faults=none` replaces the faults the same way, while `-set faults.preset=none` changes only the preset and keeps the fault fields set so far, which still override it. The preset in effect shows up as `faults.preset` in the triage report JSON and in the HTML report's fault table.
 
 ## Seeded disks and files
 

@@ -75,6 +75,7 @@ type Regression struct {
 
 type Report struct {
 	Config      string           `json:"config"`
+	History     string           `json:"history,omitempty"`
 	Seeds       string           `json:"seeds"`
 	Total       int              `json:"seeds_run"`
 	Passed      int              `json:"seeds_passed"`

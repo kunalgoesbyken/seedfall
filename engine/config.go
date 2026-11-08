@@ -154,6 +154,9 @@ func (c *Config) Stem() string {
 	if c.Profile != "" {
 		stem += "." + c.Profile
 	}
+	if len(c.Sets) > 0 {
+		stem += ".set-" + setsDigest(c.Sets)
+	}
 	return stem
 }
 

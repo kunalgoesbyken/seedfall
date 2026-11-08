@@ -39,7 +39,7 @@ seedfall inspect [-c seedfall.json] -seed N [-faults file.json] [-at DURATION] [
 | `-at` | Snapshot at this virtual time instead of at the failure, for example `-at 4.4s`. The snapshot is taken at the last scheduler step at or before it. If the run fails or ends first, the snapshot is taken there. |
 | `-node` | Only this node |
 | `-cat` | Print the durable content of one file: text as is, binary as a hex dump. The file must exist in the durable image. |
-| `-out` | Write each node's durable disk image to `dir/<node>/`, so you can open it with the library's own tools, or start new runs from it with `"disk": "dir/<node>"` ([seeded disks](config.md#seeded-disks-and-files)). The target must not exist yet. |
+| `-out` | Write each node's durable disk image to `dir/<node>/`, so you can open it with the library's own tools, or start new runs from it with `"disk": "dir/<node>"`, a path relative to the config's directory ([seeded disks](config.md#seeded-disks-and-files)); the command prints that path. The target must not exist yet. |
 
 The run is the same as `seedfall replay`: same seed, same faults, same trace. Inspecting changes nothing about it.
 
