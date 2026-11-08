@@ -147,6 +147,7 @@ The [getting started guide](docs/getting-started.md) walks through finding, shri
 | [`examples/natscluster`](examples/natscluster) | A 3-node nats-server cluster with an R3 JetStream stream, run unmodified through `net_overlay` |
 | [`examples/ledger`](examples/ledger) | A service with no seedfall imports, checked only with the Antithesis SDK's assertions |
 | [`examples/httpkv`](examples/httpkv) | A plain `net/http` server with no seedfall code, run through `net_overlay` |
+| [`examples/interleave`](examples/interleave) | A check-then-act race between goroutines in one process, found only with seeded preemption (`preempt.interleave`) |
 | [`examples/gostman`](examples/gostman) | A [Gostman](https://github.com/kunalgoesbyken/gostman) collection as the workload: its checks must pass after every fault window |
 
 `bash scripts/regress.sh` runs every example against its expected result.
@@ -154,9 +155,8 @@ The [getting started guide](docs/getting-started.md) walks through finding, shri
 ## Limitations
 
 - Code must build for `GOOS=wasip1`: no cgo, and no dependencies that need `mmap` or `flock` (for example bbolt or pebble).
-- Goroutine interleavings inside a node come from the Go scheduler under a seeded random source. There is no systematic preemption, so use `go test -race` for shared-memory races. seedfall targets distributed and storage bugs.
-- There is no asynchronous preemption, so a goroutine that spins without making a syscall starves the others in its node. gRPC's transparent retry does this after a peer crashes, which shows up as a false watchdog livelock; [`examples/jmsraft`](examples/jmsraft) uses a plain TCP transport for this reason.
-- The guest's wall clock does not advance while it runs between scheduling points, so two `time.Now()` calls in a row can return the same value. Code that names files by timestamp can collide in a way it would not on real hardware.
+- Preemption is counted in function calls, not time: a goroutine that spins is preempted after about four million calls, and a loop that makes no function call at all is never preempted.
+- Goroutine interleavings inside a node come from the Go scheduler under a seeded random source. `"preempt": {"interleave": true}` adds seeded preemption points between function calls, which finds check-then-act races between goroutines ([`examples/interleave`](examples/interleave)), but it samples interleavings rather than enumerating them and does not detect data races the way `go test -race` does.
 - Reordering of writes within the pending set is not modeled. A torn crash keeps an in-order prefix.
 - Heavy guests run at roughly real-time speed; sweeps get their speed from running seeds in parallel.
 

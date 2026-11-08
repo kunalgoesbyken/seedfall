@@ -43,6 +43,9 @@ func (w *world) wasiModule(ctx context.Context) error {
 	b.NewFunctionBuilder().
 		WithGoModuleFunction(api.GoModuleFunc(w.pollOneoff), []api.ValueType{i32, i32, i32, i32}, []api.ValueType{i32}).
 		Export("poll_oneoff")
+	b.NewFunctionBuilder().
+		WithGoModuleFunction(api.GoModuleFunc(w.schedYield), nil, []api.ValueType{i32}).
+		Export("sched_yield")
 	_, err := b.Instantiate(ctx)
 	return err
 }

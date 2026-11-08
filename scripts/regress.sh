@@ -59,7 +59,7 @@ expect raftkv nofsync.lin.json       1-120  fail
 expect raftkv strict.lin.json        1-30   fail
 expect raftkv tcp.lin.json           1-20   pass
 expect raftkv pause.lin.json         1-60   pass
-expect raftkv pause.localreads.lin.json 1-30 fail
+expect raftkv pause.localreads.lin.json 1-40 fail
 expect raftkv tcp.nofsync.lin.json   1-150  fail
 expect ledger seedfall.json          1-60   pass
 expect ledger seedfall.nofsync.json  1-20   fail
@@ -106,6 +106,7 @@ expect jmsraft clock.json             9-16  fail
 expect jmsraft pause.json             1-8   pass
 expect jmsraft pause.lease.json       1-8   pass
 expect jmsraft localreads.json        1-4   fail
+expect jmsraft grpc.json              1-12  pass
 expect_replay jmsraft seedfall.json 4  statefile.faults.json       fail
 expect_replay jmsraft seedfall.json 16 statefile.crash.faults.json fail
 expect_replay jmsraft seedfall.json 7  tornlog.faults.json         fail
@@ -115,6 +116,10 @@ expect natscluster seedfall.json            1-2  pass
 expect natscluster seedfall.pause.json      1-4  pass
 expect natscluster seedfall.r1.nosync.json  1-4  fail
 expect_replay natscluster seedfall.strict.json 3 strict.faults.json fail
+expect interleave seedfall.json         1-50  pass
+expect interleave interleave.json       1-5   fail
+expect interleave interleave.lock.json  1-50  pass
+deterministic interleave interleave.json 1
 deterministic kvlog  seedfall.always.json 1
 deterministic raftkv seedfall.lin.json    3
 deterministic wals   rosedb.json             1

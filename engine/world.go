@@ -47,6 +47,7 @@ type instance struct {
 	crashUntil int64
 	fds        map[int32]int32
 	resume     chan bool
+	preempt    *preemption
 }
 
 type event struct {
@@ -192,13 +193,13 @@ func (w *world) moduleConfig(inst *instance) wazero.ModuleConfig {
 		WithEnv(antithesisOutputEnv, "/"+antithesisOutputPath).
 		WithStdout(out).WithStderr(out).
 		WithRandSource(w.guestRandom(fmt.Sprintf("%s/%d", n.name(), n.starts))).
+		WithStartFunctions().
 		WithWalltime(func() (int64, int32) {
-			t := epochNanos + w.now + n.skew
+			t := epochNanos + w.tick() + n.skew
 			return t / int64(time.Second), int32(t % int64(time.Second))
 		}, 1).
-		WithNanotime(func() int64 { return epochNanos + w.now }, 1).
+		WithNanotime(func() int64 { return epochNanos + w.tick() }, 1).
 		WithNanosleep(func(ns int64) { w.park(inst, w.now+max(ns, 0)) }).
-		WithOsyield(func() {}).
 		WithFSConfig(wazero.NewFSConfig().(sysfs.FSConfig).WithSysFSMount(n.fs, "/"))
 	for _, k := range sortedKeys(n.spec.Env) {
 		cfg = cfg.WithEnv(k, n.spec.Env[k])
@@ -212,6 +213,12 @@ func (w *world) park(inst *instance, at int64) {
 	if !<-inst.resume {
 		panic(errKilled)
 	}
+	inst.preempt.reset()
+}
+
+func (w *world) tick() int64 {
+	w.now++
+	return w.now
 }
 
 func (w *world) start(n *node) {
@@ -226,6 +233,10 @@ func (w *world) start(n *node) {
 			return
 		}
 		mod, err := w.rt.InstantiateModule(ctx, n.compiled, cfg)
+		if err == nil {
+			inst.preempt = newPreemption(mod, w.interleaver(inst))
+			_, err = mod.ExportedFunction("_start").Call(ctx)
+		}
 		if mod != nil {
 			mod.Close(context.Background())
 		}

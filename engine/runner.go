@@ -55,7 +55,7 @@ func NewRunner(cfg *Config) (*Runner, error) {
 		if err != nil {
 			return nil, fmt.Errorf("node %s: %w", s.Name, err)
 		}
-		r.wasm[s.Name] = b
+		r.wasm[s.Name] = instrument(b)
 	}
 	return r, r.warm()
 }

@@ -1,0 +1,5 @@
+{
+  "workload": { "name": "shop", "pkg": "./shop", "args": ["-lock"] },
+  "duration": "10s",
+  "preempt": { "interleave": true }
+}
