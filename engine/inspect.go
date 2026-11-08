@@ -52,6 +52,8 @@ type FileState struct {
 	Tear         *Tear       `json:"last_tear,omitempty"`
 	Writeback    *Writeback  `json:"last_writeback,omitempty"`
 	Damage       []Damage    `json:"damage,omitempty"`
+	Symlink      string      `json:"symlink,omitempty"`
+	Links        uint64      `json:"links,omitempty"`
 	Durable      []byte      `json:"-"`
 }
 
@@ -73,6 +75,7 @@ type Disk struct {
 	Strict  bool        `json:"strict_dirs"`
 	Torn    bool        `json:"torn_writes"`
 	Reorder bool        `json:"reorder_writes"`
+	FSModel string      `json:"fs_model,omitempty"`
 	Bytes   int64       `json:"disk_bytes,omitempty"`
 	Used    int64       `json:"used_bytes"`
 	Dirs    []DirState  `json:"dirs"`
@@ -139,9 +142,16 @@ func (w *world) capture() {
 	for _, n := range w.nodes {
 		if p.node == "" || p.node == n.name() {
 			d := n.fs.snapshot(n.name())
-			d.Torn, d.Reorder = w.spec.TornWrites, w.spec.ReorderWrites
+			w.describeDisk(&d)
 			p.disks = append(p.disks, d)
 		}
+	}
+}
+
+func (w *world) describeDisk(d *Disk) {
+	d.Torn, d.Reorder = w.spec.TornWrites, w.spec.ReorderWrites
+	if d.Reorder {
+		d.FSModel = w.spec.diskModel()
 	}
 }
 
@@ -183,7 +193,7 @@ func (m *memFS) dirDurable(p string) bool {
 func fileState(p string, in *inode, entryDurable bool) FileState {
 	f := FileState{
 		Path: p, Size: int64(len(in.data)), DurableSize: int64(len(in.durable)),
-		Volatile: diffRanges(in.data, in.durable), EntryDurable: entryDurable,
+		Volatile: diffRanges(in.data, in.durable), EntryDurable: entryDurable, Symlink: in.target, Links: in.nlink,
 		Durable: slices.Clone(in.durable), Damage: slices.Clone(in.damage),
 	}
 	if in.tear != nil {
@@ -237,6 +247,13 @@ func ExportDisks(disks []Disk, dir string) ([]string, error) {
 	return roots, nil
 }
 
+func (f FileState) exportBytes() []byte {
+	if f.Symlink != "" {
+		return []byte(f.Symlink)
+	}
+	return f.Durable
+}
+
 func (d Disk) export(root string) error {
 	if err := os.MkdirAll(filepath.Dir(root), 0o755); err != nil {
 		return err
@@ -259,7 +276,10 @@ func (d Disk) export(root string) error {
 		if err := dir.MkdirAll(path.Dir(f.Path), 0o755); err != nil {
 			return err
 		}
-		if err := dir.WriteFile(f.Path, f.Durable, 0o644); err != nil {
+		if f.Symlink != "" && dir.Symlink(f.Symlink, f.Path) == nil {
+			continue
+		}
+		if err := dir.WriteFile(f.Path, f.exportBytes(), 0o644); err != nil {
 			return err
 		}
 	}

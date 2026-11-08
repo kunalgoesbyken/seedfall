@@ -1,0 +1,23 @@
+{
+  "nodes": [
+    { "name": "server", "pkg": "./server", "args": ["-dir", "data"] }
+  ],
+  "workload": { "name": "client", "pkg": "../kvlog/client", "args": ["-writes", "60"] },
+  "duration": "30s",
+  "latency": ["1ms", "5ms"],
+  "faults": {
+    "crash_per_sec": 1,
+    "restart_after": ["10ms", "200ms"],
+    "crash_on_io": 0.05,
+    "torn_writes": true,
+    "strict_dirs": true,
+    "reorder_writes": true
+  },
+  "profiles": {
+    "dirs": { "faults": { "fs_model": "dir_reorder" } },
+    "fixed": {
+      "faults": { "fs_model": "dir_reorder" },
+      "nodes": [{ "name": "server", "args": ["-dir", "data", "-sync-dir"] }]
+    }
+  }
+}

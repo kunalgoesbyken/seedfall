@@ -86,6 +86,12 @@ func snapshotMoment(res engine.Result, at time.Duration) string {
 	return "the end of the run"
 }
 
+var fsModelText = map[string]string{
+	engine.FSModelExt4:  "ext4_ordered: a crash keeps an in-order prefix of appends and truncates, and overwrites of existing pages survive per page",
+	engine.FSModelPages: "page_independent: a crash keeps any subset of dirty pages, in order within each page",
+	engine.FSModelDirs:  "dir_reorder: a crash keeps any subset of dirty pages and any subset of pending directory operations",
+}
+
 func printDisk(w io.Writer, d engine.Disk) {
 	mode := "directory entries are durable once made"
 	if d.Strict {
@@ -95,7 +101,7 @@ func printDisk(w io.Writer, d engine.Disk) {
 		mode += "; torn_writes: a crash may also keep a prefix of the pending writes"
 	}
 	if d.Reorder {
-		mode += "; reorder_writes: a crash keeps any subset of dirty pages, in order within each page"
+		mode += "; reorder_writes: " + fsModelText[d.FSModel]
 	}
 	fmt.Fprintf(w, "node %s (%s)\n", d.Node, mode)
 	if len(d.Dirs)+len(d.Files)+len(d.Ghosts) == 0 {

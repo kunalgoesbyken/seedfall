@@ -198,7 +198,7 @@ func (s *Session) Disk(name string) (Disk, error) {
 	var d Disk
 	err := s.onNode(name, func(w *world, n *node) {
 		d = n.fs.snapshot(n.name())
-		d.Torn, d.Reorder = w.spec.TornWrites, w.spec.ReorderWrites
+		w.describeDisk(&d)
 	})
 	return d, err
 }

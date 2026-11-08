@@ -233,7 +233,10 @@ expect_replay jmsraft clock.json    13 snapshotorder.faults.json   fail
 expect metapage seedfall.json         1-100 pass
 expect metapage "seedfall.json -profile reorder" 1-30  fail
 expect metapage "seedfall.json -profile fixed"   1-100 pass
-expect_replay metapage "seedfall.json -profile reorder" 16 reorder.faults.json fail
+expect_replay metapage "seedfall.json -profile reorder" 26 reorder.faults.json fail
+expect symswap seedfall.json                 1-20 pass
+expect symswap "seedfall.json -profile dirs" 1-20 fail
+expect symswap "seedfall.json -profile fixed" 1-20 pass
 expect natscluster seedfall.json            1-2  pass
 expect natscluster "seedfall.json -profile pause"      1-4  pass
 expect natscluster "seedfall.json -profile r1.nosync"  1-4  fail

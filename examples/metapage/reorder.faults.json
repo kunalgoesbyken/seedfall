@@ -1,9 +1,27 @@
-[
-  {
-    "at": "218.308324ms",
-    "kind": "crash_io",
-    "node": "server",
-    "until": "584.69126ms",
-    "op": 43
-  }
-]
+{
+  "seed": 26,
+  "faults": [
+    {
+      "at": "1.057159885s",
+      "kind": "crash_io",
+      "node": "server",
+      "until": "1.332159885s",
+      "op": 192
+    },
+    {
+      "at": "1.529695124s",
+      "kind": "crash_io",
+      "node": "server",
+      "until": "1.529695124s",
+      "op": 229
+    }
+  ],
+  "duration": "1.53s",
+  "ops": 103,
+  "shrunk_from": {
+    "faults": 29,
+    "duration": "1m0s",
+    "ops": 200
+  },
+  "shrink_runs": 121
+}

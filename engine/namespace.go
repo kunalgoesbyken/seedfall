@@ -103,8 +103,15 @@ func (n *namespace) rename(op nsOp) {
 	}
 }
 
-func (n *namespace) recover(r *rand.Rand, torn bool) (map[string]*inode, map[string]uint64) {
-	if torn && len(n.pending) > 0 {
+func (n *namespace) recover(r *rand.Rand, c crashModel) (map[string]*inode, map[string]uint64) {
+	switch {
+	case c.model == FSModelDirs:
+		for _, op := range n.pending {
+			if c.pages.IntN(2) == 0 {
+				n.apply(op)
+			}
+		}
+	case c.torn && len(n.pending) > 0:
 		for _, op := range n.pending[:r.IntN(len(n.pending)+1)] {
 			n.apply(op)
 		}

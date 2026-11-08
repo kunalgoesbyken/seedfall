@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"cmp"
 	"fmt"
 	"math"
 	"math/rand/v2"
@@ -31,7 +32,30 @@ const (
 	FaultUDPDrop     = "udp_drop"
 	FaultUDPDup      = "udp_dup"
 	DamageCrash      = "corrupt_on_crash"
+	FSModelExt4      = "ext4_ordered"
+	FSModelPages     = "page_independent"
+	FSModelDirs      = "dir_reorder"
 )
+
+var FSModels = []string{FSModelExt4, FSModelPages, FSModelDirs}
+
+func (s FaultSpec) checkFSModel() error {
+	if s.FSModel == "" {
+		return nil
+	}
+	if !slices.Contains(FSModels, s.FSModel) {
+		return fmt.Errorf("config: faults.fs_model %q, want one of %s", s.FSModel, strings.Join(FSModels, ", "))
+	}
+	if !s.ReorderWrites {
+		return fmt.Errorf("config: faults.fs_model %s needs faults.reorder_writes", s.FSModel)
+	}
+	if s.FSModel == FSModelDirs && !s.StrictDirs {
+		return fmt.Errorf("config: faults.fs_model %s needs faults.strict_dirs", s.FSModel)
+	}
+	return nil
+}
+
+func (s FaultSpec) diskModel() string { return cmp.Or(s.FSModel, FSModelExt4) }
 
 type FaultPreset struct {
 	Name  string

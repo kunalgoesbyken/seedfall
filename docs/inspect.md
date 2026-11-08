@@ -69,7 +69,7 @@ With the [disk faults](faults.md#disk-faults), a `^ corrupted ranges` list under
 
 With `strict_dirs`, a file that was unlinked or renamed away while its parent directory was not fsynced is listed separately as an entry that a crash brings back. Renaming a temporary file over an existing one without fsyncing the directory shows up as the new name `NOT DURABLE` and the old content coming back.
 
-The durable image is the disk a crash would leave without `torn_writes` or `reorder_writes`. With `torn_writes`, a crash can also keep an in-order prefix of the pending writes and, with `strict_dirs`, of the pending directory operations. With `reorder_writes`, it can keep any subset of the dirty pages.
+The durable image is the disk a crash would leave without `torn_writes` or `reorder_writes`. With `torn_writes`, a crash can also keep an in-order prefix of the pending writes and, with `strict_dirs`, of the pending directory operations. With `reorder_writes`, what it can keep depends on `fs_model`, which the node line names: `fs_model` is also a field of the MCP inspect output, and each file reports `symlink` and `links` there. With `inspect -out`, a symlink is written as a symlink; on Windows without the privilege to create one, it is written as a file holding its target. Hard links are written as separate files.
 
 ## Examples
 

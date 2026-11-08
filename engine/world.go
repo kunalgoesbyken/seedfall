@@ -508,7 +508,7 @@ func (w *world) applyFault(f *Fault) {
 func (w *world) crashDisk(n *node, until int64, crash string) {
 	c := crashModel{torn: w.spec.TornWrites}
 	if w.spec.ReorderWrites {
-		c.pages = streams(w.seed, "writeback/"+n.name()+"/"+crash)
+		c.pages, c.model = streams(w.seed, "writeback/"+n.name()+"/"+crash), w.spec.diskModel()
 	}
 	if w.spec.CorruptOnCrash {
 		c.corrupt = streams(w.seed, "corrupt/"+n.name()+"/"+crash)

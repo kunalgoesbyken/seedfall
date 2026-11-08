@@ -354,3 +354,21 @@ func TestGuestLostWriteShrinksToTheLostWrite(t *testing.T) {
 		t.Fatal("the shrunk schedule does not replay exactly")
 	}
 }
+
+func TestGuestLinksSymlinksAndTimes(t *testing.T) {
+	wasm := guestWasm(t)
+	cfg := defaultConfig()
+	cfg.Workload = NodeSpec{Name: "client", Wasm: wasm, Args: []string{"-role", "links"}}
+	cfg.Duration = Duration(time.Second)
+	if err := cfg.validate(); err != nil {
+		t.Fatal(err)
+	}
+	r, err := NewRunner(&cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { r.rt.Close(context.Background()) })
+	if res := r.Run(1, nil); res.Failed {
+		t.Fatalf("guest failed: %s\n%s", res.Reason, strings.Join(res.Trace, "\n"))
+	}
+}

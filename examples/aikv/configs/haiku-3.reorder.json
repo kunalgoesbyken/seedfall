@@ -11,7 +11,7 @@
     "restart_after": ["10ms", "500ms"],
     "torn_writes": true,
     "crash_on_io": 0.005,
-    "reorder_writes": true,
+    "reorder_writes": true, "fs_model": "page_independent",
     "strict_dirs": true
   }
 }

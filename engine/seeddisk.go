@@ -15,6 +15,7 @@ import (
 type seedFile struct {
 	path string
 	data []byte
+	link string
 	dir  bool
 }
 
@@ -59,8 +60,12 @@ func (c *Config) seedFiles(s NodeSpec) ([]seedFile, error) {
 				data, err := os.ReadFile(p)
 				byPath[guest] = seedFile{path: guest, data: data}
 				return err
+			case d.Type()&fs.ModeSymlink != 0:
+				target, err := os.Readlink(p)
+				byPath[guest] = seedFile{path: guest, link: filepath.ToSlash(target)}
+				return err
 			default:
-				return fmt.Errorf("disk %s: %s is not a regular file or directory", s.Disk, rel)
+				return fmt.Errorf("disk %s: %s is not a regular file, directory or symlink", s.Disk, rel)
 			}
 			return nil
 		})
@@ -94,7 +99,7 @@ func (c *Config) Digest() string {
 	h.Write(c.resolved)
 	for _, name := range sortedKeys(c.disks) {
 		for _, f := range c.disks[name] {
-			fmt.Fprintf(h, "\x00%s\x00%s\x00%t\x00%d\x00", name, f.path, f.dir, len(f.data))
+			fmt.Fprintf(h, "\x00%s\x00%s\x00%t\x00%s\x00%d\x00", name, f.path, f.dir, f.link, len(f.data))
 			h.Write(f.data)
 		}
 	}
@@ -112,7 +117,8 @@ func (m *memFS) seed(files []seedFile) (int, int64) {
 			m.seedDir(f.path)
 			continue
 		}
-		in := &inode{ino: m.allocIno(), data: slices.Clone(f.data), durable: slices.Clone(f.data), synced: true, mtime: m.clock()}
+		in := m.newInode()
+		in.data, in.durable, in.target, in.synced = slices.Clone(f.data), slices.Clone(f.data), f.link, true
 		m.files[f.path] = in
 		if m.ns != nil {
 			m.ns.files[f.path] = in

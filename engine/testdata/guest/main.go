@@ -33,6 +33,8 @@ func main() {
 	switch *role {
 	case "race":
 		race(*writes)
+	case "links":
+		links()
 	case "spin":
 		for nap := range *naps + 1 {
 			if nap > 0 {
@@ -183,4 +185,37 @@ func race(records int) {
 		}
 	})
 	wg.Wait()
+}
+
+func links() {
+	must := func(err error, what string) {
+		sim.Assert(err == nil, fmt.Sprintf("%s: %v", what, err))
+	}
+	must(os.WriteFile("orig", []byte("data"), 0o644), "write")
+	must(os.Link("orig", "hard"), "link")
+	st, err := os.Stat("hard")
+	must(err, "stat")
+	sys := st.Sys().(*syscall.Stat_t)
+	sim.Assert(sys.Nlink == 2, fmt.Sprintf("nlink = %d, want 2", sys.Nlink))
+	must(os.Symlink("orig", "soft"), "symlink")
+	target, err := os.Readlink("soft")
+	must(err, "readlink")
+	sim.Assert(target == "orig", "readlink returned "+target)
+	info, err := os.Lstat("soft")
+	must(err, "lstat")
+	sim.Assert(info.Mode()&os.ModeSymlink != 0, "lstat does not see a symlink: "+info.Mode().String())
+	info, err = os.Stat("soft")
+	must(err, "stat through symlink")
+	sim.Assert(info.Size() == 4 && info.Mode().IsRegular(), "stat through a symlink saw "+info.Mode().String())
+	when := time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC)
+	must(os.Chtimes("orig", when, when), "chtimes")
+	info, err = os.Stat("orig")
+	must(err, "stat after chtimes")
+	sim.Assert(info.ModTime().Equal(when), "mtime = "+info.ModTime().String())
+	must(os.Remove("hard"), "unlink")
+	st, err = os.Stat("orig")
+	must(err, "stat after unlink")
+	sys = st.Sys().(*syscall.Stat_t)
+	sim.Assert(sys.Nlink == 1, fmt.Sprintf("nlink after unlink = %d, want 1", sys.Nlink))
+	fmt.Println("links ok")
 }

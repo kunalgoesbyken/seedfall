@@ -61,6 +61,7 @@ type FaultSpec struct {
 	SlowFactor          float64  `json:"slow_factor"`
 	TornWrites          bool     `json:"torn_writes"`
 	ReorderWrites       bool     `json:"reorder_writes"`
+	FSModel             string   `json:"fs_model,omitempty" jsonschema:"what a crash may keep under reorder_writes: ext4_ordered (the default), page_independent or dir_reorder, which needs strict_dirs"`
 	CrashOnIO           float64  `json:"crash_on_io"`
 	StrictDirs          bool     `json:"strict_dirs"`
 	FsyncEIO            float64  `json:"fsync_eio"`
@@ -223,6 +224,9 @@ func (c *Config) validate() error {
 		if strings.HasPrefix(s.UpgradeTo, "-") {
 			return fmt.Errorf("config: node %q has an invalid upgrade_to %q", s.Name, s.UpgradeTo)
 		}
+	}
+	if err := c.Faults.checkFSModel(); err != nil {
+		return err
 	}
 	if c.Faults.DiskBytes < 0 {
 		return errors.New("config: faults.disk_bytes is negative")

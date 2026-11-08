@@ -7,18 +7,19 @@ Torn writes cannot break it: a crash keeps an in-order prefix of the pending wri
 | Config | Server flags | Result |
 |---|---|---|
 | `seedfall.json` | none, `torn_writes` | passes (100 seeds tested). In 93 of them recovery finds a record the slot does not commit, so the crash window is covered |
-| `-profile reorder` | none, `torn_writes` and `reorder_writes` | **fails** on seed 16: the meta slot commits a record that never reached the disk. Shrinks to 1 fault |
+| `-profile reorder` | none, `torn_writes` and `reorder_writes` (the default `ext4_ordered` `fs_model`) | **fails** on seed 26: the meta slot, an overwrite that ext4 can write back at any time, commits a record the crash tore |
 | `-profile fixed` | `-sync-body` (fsync the record before writing the slot) | passes (100 seeds tested) |
 
 ```sh
 seedfall run     -c seedfall.json -profile reorder -seeds 1-30
-seedfall shrink  -c seedfall.json -profile reorder -seed 16
-seedfall inspect -c seedfall.json -profile reorder -seed 16 -faults reorder.faults.json -node server
+seedfall shrink  -c seedfall.json -profile reorder -seed 26
+seedfall inspect -c seedfall.json -profile reorder -seed 26 -faults reorder.faults.json -node server
 ```
 
 ```
-    kv.db                                                4182       4182  durable
-      ^ the crash at t=218.308324ms wrote back pages out of order: 1 of 2 pending writes reached the disk
-        #1 lost     8-byte write at offset 4182
-        #2 kept     20-byte write at offset 0
+    kv.db                                                4673       4673  durable
+      ^ torn by the crash at t=1.529695124s: kept 1 of a 10-byte write at offset 4672
+      ^ the crash at t=1.529695124s wrote back pages out of order: 2 of 2 pending writes reached the disk
+        #1 partial  1 of a 10-byte write at offset 4672
+        #2 kept     20-byte write at offset 20
 ```

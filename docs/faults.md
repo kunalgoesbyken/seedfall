@@ -80,7 +80,8 @@ All faults come from the seed. Faults that depend on what the program does, such
 | `slow_for` | `["500ms", "5s"]` | Slowdown duration |
 | `slow_factor` | `10` | Largest slowdown. Each slowdown picks a factor between 1 and this value |
 | `torn_writes` | `false` | A crash keeps a random in-order prefix of unsynced writes, possibly ending in a partial write |
-| `reorder_writes` | `false` | A crash keeps any subset of the dirty 4 KiB pages of each file, keeping writes in order within a page. This finds a commit record or header that reaches the disk before the data it points to. Combine with `torn_writes` to also tear the last write kept in each page. See [how-it-works.md](how-it-works.md#disk) |
+| `reorder_writes` | `false` | A crash writes dirty pages back out of order, as the kernel does between fsyncs, within the limits of `fs_model`. This finds a commit record or header that reaches the disk before the data it points to. Combine with `torn_writes` to also tear the last write kept in each page. See [File system models](#file-system-models) |
+| `fs_model` | `ext4_ordered` | Which crash states `reorder_writes` may produce: `ext4_ordered`, `page_independent` or `dir_reorder`, which needs `strict_dirs`. Setting it without `reorder_writes` is an error. See [File system models](#file-system-models) |
 | `crash_on_io` | `0` | Probability that a node crashes *during* each disk operation. This is how you hit the window between a write and its fsync |
 | `fsync_eio` | `0` | Probability that a file fsync fails with `EIO`. The unsynced writes stay readable but are dropped from durable storage, and the next fsync succeeds (Linux "fsyncgate" semantics) |
 | `disk_bytes` | `0` | Size of each node's disk in bytes; `0` means unlimited. A write that does not fit writes what fits and returns the short count, and the next write fails with `ENOSPC`. See [Disk faults](#disk-faults) |
@@ -176,6 +177,25 @@ A partition or a clog that stops or jams a link also drops a datagram sent acros
 `op` is the number of the datagram the sender sent, and the fault fires on that datagram whatever its destination; `to` is a record of where it went. Both replay exactly, shrink like any fault recorded at runtime, can be edited with `seedfall faults`, and join swarm testing. They do not apply when `faults` is off for either end of the datagram, or during a quiet period or the recovery phase. Semantics of sockets and addresses are in [networking.md](networking.md#udp).
 
 ## Disk faults
+
+## File system models
+
+`reorder_writes` turns on out-of-order writeback at a crash. `fs_model` says which states a crash may then leave behind. A model that is too weak reports bugs your file system cannot produce; one that is too strong misses bugs it can. The models follow Table 1 of ALICE ([All File Systems Are Not Created Equal](https://www.usenix.org/system/files/conference/osdi14/osdi14-paper-pillai.pdf), OSDI '14), which measured these properties on real file systems.
+
+| `fs_model` | File contents | Directory operations (`strict_dirs`) | Matches |
+|---|---|---|---|
+| `ext4_ordered` (default) | Appends and truncates of one file persist as an in-order prefix, split at 4 KiB page boundaries. Overwrites of existing bytes persist per page in any order, independently of the appends. Bytes past the surviving file size are not kept | An in-order prefix of the pending operations, under `torn_writes` | ext4 `data=ordered` |
+| `page_independent` | Any subset of the dirty pages of a file, in order within each page. A later appended page can survive without an earlier one, leaving zeros in the gap | As `ext4_ordered` | Aggressive: useful to find code that depends on append order, but it reaches states ext4 `data=ordered` does not. ALICE records this for ext2, ext3 and ext4 in `writeback` mode, not for `ordered` |
+| `dir_reorder` | As `page_independent` | Each pending operation survives independently, so a rename can persist without the create before it | ext2 and btrfs, where ALICE found directory operations persist out of order |
+
+Details that follow from these rules:
+
+- Models apply per file. Different files are independent, so an append to one file can survive while an earlier append to another is lost. ALICE records `Append -> Any op` failing on ext4 `ordered` for this reason (delayed allocation).
+- Under `ext4_ordered` a crash that keeps an overwrite past the surviving file size keeps nothing of it, because that page was never part of the file on disk.
+- A single directory operation is atomic in every model, as on btrfs. ext2 can also tear one rename so that both names or neither survive; that is not modelled.
+- Plain `torn_writes` without `reorder_writes` does not use `fs_model`: it keeps an in-order prefix of all pending writes.
+
+[`examples/symswap`](../examples/symswap) shows the difference. It publishes each generation by renaming a symlink over `current`, and fsyncs the new generation's file but not its directory entry first. Under `ext4_ordered` it passes, because a journal keeps directory operations in order. Under `dir_reorder` the rename can survive without the create, and `current` points at nothing.
 
 Crashes, torn writes, `reorder_writes` and `fsync_eio` test what survives a crash. The faults below test what a storage engine does when the disk itself misbehaves: it fills up, it fails an operation, or it hands back or keeps the wrong bytes. These are the paths that WAL recovery and checksum code exist for, and the ones that are hardest to reach with a real disk.
 

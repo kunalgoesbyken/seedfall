@@ -15,10 +15,14 @@ import (
 	"github.com/tetratelabs/wazero/sys"
 )
 
-const pageSize = 4096
+const (
+	pageSize    = 4096
+	maxSymlinks = 40
+)
 
 type crashModel struct {
 	torn    bool
+	model   string
 	pages   *rand.Rand
 	corrupt *rand.Rand
 }
@@ -27,6 +31,7 @@ type pendingWrite struct {
 	off      int64
 	data     []byte
 	truncate bool
+	clip     bool
 }
 
 type inode struct {
@@ -35,7 +40,11 @@ type inode struct {
 	durable []byte
 	synced  bool
 	pending []pendingWrite
+	target  string
+	nlink   uint64
 	mtime   int64
+	atime   int64
+	saved   [2]int64
 	tear    *Tear
 	wb      *Writeback
 	damage  []Damage
@@ -105,6 +114,40 @@ func (m *memFS) parentExists(p string) bool {
 	return ok
 }
 
+func (m *memFS) newInode() *inode {
+	now := m.clock()
+	return &inode{ino: m.allocIno(), nlink: 1, mtime: now, atime: now, saved: [2]int64{now, now}}
+}
+
+func (m *memFS) resolve(p string, follow bool) (string, fsapi.Errno) {
+	p = clean(p)
+	for hops := 0; ; hops++ {
+		link, rest, ok := m.firstSymlink(p, follow)
+		if !ok {
+			return p, 0
+		}
+		if hops == maxSymlinks {
+			return "", fsapi.ELOOP
+		}
+		target := m.files[link].target
+		if !path.IsAbs(target) {
+			target = path.Join(path.Dir(link), target)
+		}
+		p = clean(path.Join(target, rest))
+	}
+}
+
+func (m *memFS) firstSymlink(p string, follow bool) (string, string, bool) {
+	parts := strings.Split(p, "/")
+	for i := range parts {
+		at := strings.Join(parts[:i+1], "/")
+		if in, ok := m.files[at]; ok && in.target != "" && (follow || i < len(parts)-1) {
+			return at, strings.Join(parts[i+1:], "/"), true
+		}
+	}
+	return "", "", false
+}
+
 func (m *memFS) OpenFile(p string, flag fsapi.Oflag, _ fs.FileMode) (fsapi.File, fsapi.Errno) {
 	p = clean(p)
 	m.call("path_open", p, int64(flag))
@@ -112,6 +155,13 @@ func (m *memFS) OpenFile(p string, flag fsapi.Oflag, _ fs.FileMode) (fsapi.File,
 		if f, errno, ok := m.special(p); ok {
 			return f, errno
 		}
+	}
+	p, errno := m.resolve(p, flag&fsapi.O_NOFOLLOW == 0)
+	if errno != 0 {
+		return nil, errno
+	}
+	if in, ok := m.files[p]; ok && in.target != "" {
+		return nil, fsapi.ELOOP
 	}
 	if ino, ok := m.dirs[p]; ok {
 		if flag&(fsapi.O_WRONLY|fsapi.O_RDWR) != 0 {
@@ -134,7 +184,7 @@ func (m *memFS) OpenFile(p string, flag fsapi.Oflag, _ fs.FileMode) (fsapi.File,
 	case !ok && !m.parentExists(p):
 		return nil, fsapi.ENOENT
 	case !ok:
-		in = &inode{ino: m.allocIno(), mtime: m.clock()}
+		in = m.newInode()
 		m.files[p] = in
 		m.logNS(nsOp{kind: nsCreate, path: p, in: in})
 	}
@@ -145,9 +195,13 @@ func (m *memFS) OpenFile(p string, flag fsapi.Oflag, _ fs.FileMode) (fsapi.File,
 	return f, 0
 }
 
-func (m *memFS) stat(p string) (sys.Stat_t, fsapi.Errno) {
+func (m *memFS) stat(op, p string, follow bool) (sys.Stat_t, fsapi.Errno) {
 	p = clean(p)
-	m.call("path_stat", p, 0)
+	m.call(op, p, 0)
+	p, errno := m.resolve(p, follow)
+	if errno != 0 {
+		return sys.Stat_t{}, errno
+	}
 	if ino, ok := m.dirs[p]; ok {
 		return dirStat(ino), 0
 	}
@@ -161,8 +215,8 @@ func dirStat(ino uint64) sys.Stat_t {
 	return sys.Stat_t{Ino: ino, Mode: fs.ModeDir | 0o755, Nlink: 1}
 }
 
-func (m *memFS) Stat(p string) (sys.Stat_t, fsapi.Errno)  { return m.stat(p) }
-func (m *memFS) Lstat(p string) (sys.Stat_t, fsapi.Errno) { return m.stat(p) }
+func (m *memFS) Stat(p string) (sys.Stat_t, fsapi.Errno)  { return m.stat("path_stat", p, true) }
+func (m *memFS) Lstat(p string) (sys.Stat_t, fsapi.Errno) { return m.stat("path_lstat", p, false) }
 
 func (m *memFS) exists(p string) bool {
 	_, d := m.dirs[p]
@@ -173,6 +227,10 @@ func (m *memFS) exists(p string) bool {
 func (m *memFS) Mkdir(p string, _ fs.FileMode) fsapi.Errno {
 	p = clean(p)
 	m.call("path_mkdir", p, 0)
+	p, errno := m.resolve(p, false)
+	if errno != 0 {
+		return errno
+	}
 	if m.exists(p) {
 		return fsapi.EEXIST
 	}
@@ -198,6 +256,10 @@ func (m *memFS) children(dir string) []string {
 func (m *memFS) Rmdir(p string) fsapi.Errno {
 	p = clean(p)
 	m.call("path_rmdir", p, 0)
+	p, errno := m.resolve(p, false)
+	if errno != 0 {
+		return errno
+	}
 	if _, ok := m.dirs[p]; !ok {
 		return fsapi.ENOENT
 	}
@@ -212,12 +274,18 @@ func (m *memFS) Rmdir(p string) fsapi.Errno {
 func (m *memFS) Unlink(p string) fsapi.Errno {
 	p = clean(p)
 	m.call("path_unlink", p, 0)
+	p, errno := m.resolve(p, false)
+	if errno != 0 {
+		return errno
+	}
 	if _, ok := m.dirs[p]; ok {
 		return fsapi.EISDIR
 	}
-	if _, ok := m.files[p]; !ok {
+	in, ok := m.files[p]
+	if !ok {
 		return fsapi.ENOENT
 	}
+	in.nlink--
 	delete(m.files, p)
 	m.logNS(nsOp{kind: nsUnlink, path: p})
 	return 0
@@ -226,11 +294,25 @@ func (m *memFS) Unlink(p string) fsapi.Errno {
 func (m *memFS) Rename(from, to string) fsapi.Errno {
 	from, to = clean(from), clean(to)
 	m.call("path_rename", from+" "+to, 0)
+	from, errno := m.resolve(from, false)
+	if errno != 0 {
+		return errno
+	}
+	if to, errno = m.resolve(to, false); errno != 0 {
+		return errno
+	}
 	if !m.parentExists(to) {
 		return fsapi.ENOENT
 	}
 	if in, ok := m.files[from]; ok {
+		replaced, exists := m.files[to]
+		if exists && replaced == in {
+			return 0
+		}
 		m.renameNotDurable(from, to)
+		if exists {
+			replaced.nlink--
+		}
 		delete(m.files, from)
 		m.files[to] = in
 		m.logNS(nsOp{kind: nsRename, path: from, to: to, in: in})
@@ -254,8 +336,100 @@ func (m *memFS) Rename(from, to string) fsapi.Errno {
 	return 0
 }
 
-func (m *memFS) Utimens(string, int64, int64) fsapi.Errno { return 0 }
-func (m *memFS) Chmod(string, fs.FileMode) fsapi.Errno    { return 0 }
+func (m *memFS) Link(oldPath, newPath string) fsapi.Errno {
+	oldPath, newPath = clean(oldPath), clean(newPath)
+	m.call("path_link", oldPath+" "+newPath, 0)
+	from, errno := m.resolve(oldPath, false)
+	if errno != 0 {
+		return errno
+	}
+	to, errno := m.resolve(newPath, false)
+	if errno != 0 {
+		return errno
+	}
+	if _, ok := m.dirs[from]; ok {
+		return fsapi.EPERM
+	}
+	in, ok := m.files[from]
+	switch {
+	case !ok || !m.parentExists(to):
+		return fsapi.ENOENT
+	case m.exists(to):
+		return fsapi.EEXIST
+	}
+	in.nlink++
+	m.files[to] = in
+	m.logNS(nsOp{kind: nsCreate, path: to, in: in})
+	return 0
+}
+
+func (m *memFS) Symlink(target, link string) fsapi.Errno {
+	link = clean(link)
+	m.call("path_symlink", link, 0)
+	to, errno := m.resolve(link, false)
+	if errno != 0 {
+		return errno
+	}
+	if m.exists(to) {
+		return fsapi.EEXIST
+	}
+	if !m.parentExists(to) {
+		return fsapi.ENOENT
+	}
+	in := m.newInode()
+	in.target, in.synced = target, true
+	m.files[to] = in
+	m.logNS(nsOp{kind: nsCreate, path: to, in: in})
+	return 0
+}
+
+func (m *memFS) Readlink(p string) (string, fsapi.Errno) {
+	p = clean(p)
+	m.call("path_readlink", p, 0)
+	p, errno := m.resolve(p, false)
+	if errno != 0 {
+		return "", errno
+	}
+	in, ok := m.files[p]
+	if !ok {
+		if _, isDir := m.dirs[p]; isDir {
+			return "", fsapi.EINVAL
+		}
+		return "", fsapi.ENOENT
+	}
+	if in.target == "" {
+		return "", fsapi.EINVAL
+	}
+	return in.target, 0
+}
+
+func (m *memFS) Utimens(p string, atim, mtim int64) fsapi.Errno {
+	p = clean(p)
+	m.call("path_utimens", p, mtim)
+	p, errno := m.resolve(p, true)
+	if errno != 0 {
+		return errno
+	}
+	if in, ok := m.files[p]; ok {
+		in.setTimes(atim, mtim)
+		return 0
+	}
+	if _, ok := m.dirs[p]; ok {
+		return 0
+	}
+	return fsapi.ENOENT
+}
+
+func (in *inode) setTimes(atim, mtim int64) {
+	if atim != fsapi.UTIME_OMIT {
+		in.atime = atim
+	}
+	if mtim != fsapi.UTIME_OMIT {
+		in.mtime = mtim
+	}
+}
+
+func (m *memFS) Chmod(string, fs.FileMode) fsapi.Errno { return 0 }
 
 type fileDamage struct {
 	path string
@@ -270,6 +444,7 @@ func (m *memFS) crash(r *rand.Rand, c crashModel) []fileDamage {
 		m.crashLoose(r, c, hit)
 	}
 	m.loseUnsafeRenames()
+	m.recount()
 	var damaged []fileDamage
 	for _, p := range sortedKeys(m.files) {
 		if d, ok := hit[m.files[p]]; ok {
@@ -306,7 +481,16 @@ func (m *memFS) crashStrict(r *rand.Rand, c crashModel, hit map[*inode]Damage) {
 			}
 		}
 	}
-	m.files, m.dirs = m.ns.recover(r, c.torn)
+	m.files, m.dirs = m.ns.recover(r, c)
+}
+
+func (m *memFS) recount() {
+	for _, in := range m.files {
+		in.nlink = 0
+	}
+	for _, in := range m.files {
+		in.nlink++
+	}
 }
 
 func (m *memFS) crashTime() time.Duration { return time.Duration(m.clock() - epochNanos) }
@@ -316,7 +500,7 @@ func (in *inode) recover(r *rand.Rand, c crashModel, at time.Duration) (Damage, 
 	data := append([]byte(nil), in.durable...)
 	switch {
 	case c.pages != nil && len(in.pending) > 0:
-		data = in.writeBack(c.pages, c.torn, at, data)
+		data = in.writeBack(c, at, data)
 	case c.torn && len(in.pending) > 0:
 		keep := r.IntN(len(in.pending) + 1)
 		for i, w := range in.pending[:keep] {
@@ -331,6 +515,7 @@ func (in *inode) recover(r *rand.Rand, c crashModel, at time.Duration) (Damage, 
 	in.durable = append([]byte(nil), data...)
 	in.pending = nil
 	in.stale = nil
+	in.atime, in.mtime = in.saved[0], in.saved[1]
 	if c.corrupt == nil {
 		return Damage{}, false
 	}
@@ -400,41 +585,86 @@ type pageChunk struct {
 	w     pendingWrite
 }
 
+func pageSpans(w pendingWrite) []pendingWrite {
+	var out []pendingWrite
+	end := w.off + int64(len(w.data))
+	for off := w.off; off < end; {
+		next := min((off/pageSize+1)*pageSize, end)
+		out = append(out, pendingWrite{off: off, data: w.data[off-w.off : next-w.off]})
+		off = next
+	}
+	return out
+}
+
 func pageChunks(pending []pendingWrite) map[int64][]pageChunk {
 	pages := map[int64][]pageChunk{}
 	for i, w := range pending {
 		if w.truncate {
-			pages[-1] = append(pages[-1], pageChunk{i, w})
+			pages[-1] = append(pages[-1], pageChunk{write: i, w: w})
 			continue
 		}
-		end := w.off + int64(len(w.data))
-		for off := w.off; off < end; {
-			page := off / pageSize
-			next := min((page+1)*pageSize, end)
-			pages[page] = append(pages[page], pageChunk{i, pendingWrite{off: off, data: w.data[off-w.off : next-w.off]}})
-			off = next
+		for _, s := range pageSpans(w) {
+			pages[s.off/pageSize] = append(pages[s.off/pageSize], pageChunk{write: i, w: s})
 		}
 	}
 	return pages
 }
 
-func (in *inode) writeBack(r *rand.Rand, torn bool, at time.Duration, data []byte) []byte {
-	pages := pageChunks(in.pending)
-	var kept []pageChunk
-	for _, p := range slices.Sorted(maps.Keys(pages)) {
-		chunks := pages[p]
-		n := r.IntN(len(chunks) + 1)
-		if torn && n > 0 && !chunks[n-1].w.truncate {
-			chunks[n-1].w = in.tearWrite(r, chunks[n-1].w, at)
+func orderedChunks(pending []pendingWrite, size int64) ([]pageChunk, map[int64][]pageChunk) {
+	var journal []pageChunk
+	pages := map[int64][]pageChunk{}
+	for i, w := range pending {
+		if w.truncate {
+			journal = append(journal, pageChunk{write: i, w: w})
+			size = w.off
+			continue
 		}
-		kept = append(kept, chunks[:n]...)
+		end := w.off + int64(len(w.data))
+		split := min(max(size, w.off), end)
+		for _, s := range pageSpans(pendingWrite{off: w.off, data: w.data[:split-w.off]}) {
+			pages[s.off/pageSize] = append(pages[s.off/pageSize], pageChunk{write: i, w: pendingWrite{off: s.off, data: s.data, clip: true}})
+		}
+		for _, s := range pageSpans(pendingWrite{off: split, data: w.data[split-w.off:]}) {
+			journal = append(journal, pageChunk{write: i, w: s})
+		}
+		size = max(size, end)
 	}
+	return journal, pages
+}
+
+func (in *inode) keepPrefix(c crashModel, at time.Duration, chunks []pageChunk) []pageChunk {
+	n := c.pages.IntN(len(chunks) + 1)
+	if c.torn && n > 0 && !chunks[n-1].w.truncate {
+		chunks[n-1].w = in.tearWrite(c.pages, chunks[n-1].w, at)
+	}
+	return chunks[:n]
+}
+
+func (in *inode) survivingChunks(c crashModel, at time.Duration, size int64) []pageChunk {
+	var kept []pageChunk
+	pages := map[int64][]pageChunk{}
+	if c.model == FSModelExt4 {
+		var journal []pageChunk
+		journal, pages = orderedChunks(in.pending, size)
+		kept = in.keepPrefix(c, at, journal)
+	} else {
+		pages = pageChunks(in.pending)
+	}
+	for _, p := range slices.Sorted(maps.Keys(pages)) {
+		kept = append(kept, in.keepPrefix(c, at, pages[p])...)
+	}
+	return kept
+}
+
+func (in *inode) writeBack(c crashModel, at time.Duration, data []byte) []byte {
+	kept := in.survivingChunks(c, at, int64(len(data)))
 	slices.SortStableFunc(kept, func(a, b pageChunk) int { return a.write - b.write })
 	wb := &Writeback{At: Duration(at)}
 	for _, w := range in.pending {
 		wb.Writes = append(wb.Writes, WriteFate{Offset: w.off, Size: int64(len(w.data)), Truncate: w.truncate})
 	}
 	for _, c := range kept {
+		c.w = c.w.within(int64(len(data)))
 		data = c.w.apply(data)
 		f := &wb.Writes[c.write]
 		f.Kept += int64(len(c.w.data))
@@ -454,9 +684,19 @@ func (in *inode) tearWrite(r *rand.Rand, w pendingWrite, at time.Duration) pendi
 	return w
 }
 
+func (w pendingWrite) within(size int64) pendingWrite {
+	if w.clip {
+		w.data = w.data[:max(min(int64(len(w.data)), size-w.off), 0)]
+	}
+	return w
+}
+
 func (w pendingWrite) apply(data []byte) []byte {
 	if w.truncate {
 		return resize(data, w.off)
+	}
+	if len(w.data) == 0 {
+		return data
 	}
 	end := w.off + int64(len(w.data))
 	if int64(len(data)) < end {
@@ -474,7 +714,11 @@ func resize(data []byte, size int64) []byte {
 }
 
 func (in *inode) stat() sys.Stat_t {
-	return sys.Stat_t{Ino: in.ino, Mode: 0o644, Nlink: 1, Size: int64(len(in.data)), Mtim: in.mtime, Ctim: in.mtime, Atim: in.mtime}
+	st := sys.Stat_t{Ino: in.ino, Mode: 0o644, Nlink: in.nlink, Size: int64(len(in.data)), Mtim: in.mtime, Ctim: in.mtime, Atim: in.atime}
+	if in.target != "" {
+		st.Mode, st.Size = fs.ModeSymlink|0o777, int64(len(in.target))
+	}
+	return st
 }
 
 type memFile struct {
@@ -521,6 +765,9 @@ func (f *memFile) Pread(buf []byte, off int64) (int, fsapi.Errno) {
 	f.fs.call("fd_read", f.path, off)
 	if f.in == nil {
 		return 0, fsapi.EISDIR
+	}
+	if f.in.atime <= f.in.mtime {
+		f.in.atime = f.fs.clock()
 	}
 	n := 0
 	if off < int64(len(f.in.data)) {
@@ -574,7 +821,7 @@ func (f *memFile) Readdir(n int) ([]fsapi.Dirent, fsapi.Errno) {
 	f.dirRead += len(names)
 	out := make([]fsapi.Dirent, 0, len(names))
 	for _, p := range names {
-		st, _ := f.fs.stat(p)
+		st, _ := f.fs.stat("path_stat", p, false)
 		out = append(out, fsapi.Dirent{Ino: st.Ino, Name: path.Base(p), Type: st.Mode.Type()})
 	}
 	return out, 0
@@ -628,9 +875,13 @@ func (m *memFS) noSpaceLeft() fsapi.Errno {
 }
 
 func (m *memFS) used() int64 {
+	seen := map[*inode]bool{}
 	var total int64
 	for _, in := range m.files {
-		total += int64(len(in.data))
+		if !seen[in] {
+			seen[in] = true
+			total += int64(len(in.data))
+		}
 	}
 	return total
 }
@@ -707,6 +958,7 @@ func (f *memFile) persist() {
 	}
 	in.pending = nil
 	in.synced = true
+	in.saved = [2]int64{in.atime, in.mtime}
 }
 
 func (f *memFile) damage(dirty []int64, size int64) (Damage, bool) {
@@ -787,9 +1039,16 @@ func (in *inode) rewrite(dirty []int64) {
 	}
 }
 
-func (f *memFile) Datasync() fsapi.Errno            { return f.Sync() }
-func (f *memFile) Utimens(int64, int64) fsapi.Errno { return 0 }
-func (f *memFile) Close() fsapi.Errno               { return 0 }
+func (f *memFile) Datasync() fsapi.Errno { return f.Sync() }
+func (f *memFile) Close() fsapi.Errno    { return 0 }
+
+func (f *memFile) Utimens(atim, mtim int64) fsapi.Errno {
+	if f.in != nil {
+		f.fs.call("fd_utimens", f.path, mtim)
+		f.in.setTimes(atim, mtim)
+	}
+	return 0
+}
 
 func sortedKeys[V any](m map[string]V) []string {
 	keys := make([]string, 0, len(m))

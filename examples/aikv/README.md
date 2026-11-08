@@ -30,7 +30,7 @@ The fault profiles, all with crashes at 0.5 per second, torn writes, and crashes
 | strict | `strict_dirs`: a new or renamed file survives a crash only after its directory is fsynced |
 | eio | `fsync_eio`: 1% of fsyncs fail with `EIO`, and the unsynced data stays in the page cache, as on Linux |
 | harsh | `strict_dirs`, `fsync_eio`, and crashes in 2% of disk operations |
-| reorder | `strict_dirs` and `reorder_writes`: unsynced writes reach the disk page by page, in any order |
+| reorder | `strict_dirs` and `reorder_writes` with `fs_model` `page_independent`: unsynced writes reach the disk page by page, in any order, including later appended pages before earlier ones |
 
 `fsync_noop` and `dirsync_noop` are [mutants](../../docs/mutate.md): seedfall turns every file fsync, or every directory fsync, into a no-op, and checks that some seed now fails. A killed mutant shows the tests would notice that durability mistake.
 
