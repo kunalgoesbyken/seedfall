@@ -97,6 +97,7 @@ type Report struct {
 	Stopped        string               `json:"stopped,omitempty"`
 	SeedsPerSec    float64              `json:"seeds_per_second"`
 	VirtualPerWall float64              `json:"virtual_seconds_per_wall_second"`
+	Utilization    *engine.Utilization  `json:"utilization,omitempty"`
 }
 
 type Replayed struct {
@@ -124,6 +125,7 @@ func Build(in Input, history map[string]known) Report {
 		Elapsed: in.Elapsed.Round(time.Millisecond).String(), Generated: time.Now(), GoVersion: runtime.Version(), Version: in.Version, Commit: in.Commit,
 		Faults: in.Faults, Regressions: in.Regressions, Properties: properties(in.Summary.Coverage),
 		Exploration: in.Summary.Growth, Stopped: in.Summary.Stopped, SeedsPerSec: in.Summary.SeedsPerSecond(), VirtualPerWall: in.Summary.VirtualPerWall(),
+		Utilization: in.Summary.Utilization(),
 	}
 	for _, group := range groupFailures(in.Summary.Failures) {
 		r.Findings = append(r.Findings, finding(in, group, total, history))
@@ -237,7 +239,7 @@ func properties(c engine.Coverage) []Property {
 }
 
 func (r Report) entry() Entry {
-	e := Entry{Time: r.Generated, Config: r.Config, Seeds: r.Total, Findings: map[string]int{}}
+	e := Entry{Time: r.Generated, Config: r.Config, Seeds: r.Total, Version: r.Version, Findings: map[string]int{}}
 	for _, f := range r.Findings {
 		e.Findings[f.Key] = f.Count
 	}

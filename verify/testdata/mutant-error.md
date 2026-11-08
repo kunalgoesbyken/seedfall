@@ -1,6 +1,6 @@
 ### seedfall verify: FAIL
 
-Config `seedfall.json`, reproduce with `seedfall verify -seed 9 -app-mutants 3`
+Config `seedfall.json`, seedfall `v0.2.0`, reproduce with `seedfall verify -seed 9 -app-mutants 3`
 
 | | Check | Result |
 |---|---|---|

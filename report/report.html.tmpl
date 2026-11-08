@@ -107,6 +107,17 @@ textarea.issue { width: 100%; height: 220px; margin-top: 8px; background: #0d080
   </table>
   {{end}}
 
+  {{if not .Exploration}}{{with .Stopped}}<p class="dim">Stopped: {{.}}.</p>{{end}}{{end}}
+  {{with .Utilization}}
+  <h2>Utilization</h2>
+  <p class="dim">{{.Advice}}</p>
+  <p class="dim mono">{{.Outcomes}} property outcomes · speedup per seed {{printf "%.0f" .SpeedupMin}}x min, {{printf "%.0f" .SpeedupMedian}}x median, {{printf "%.0f" .SpeedupMax}}x max</p>
+  <table>
+    <tr><th>seeds</th><th>new property outcomes</th></tr>
+    {{range .Batches}}<tr><td class="num">{{.From}}-{{.To}}</td><td class="num">{{.New}}</td></tr>{{end}}
+  </table>
+  {{end}}
+
   <h2>Properties</h2>
   {{if not .Properties}}<p class="dim">No properties declared. Add sim.Always, sim.Sometimes or sim.Reachable to know which paths the faults reached.</p>{{else}}
   <table>

@@ -1,0 +1,121 @@
+version: 2
+
+project_name: seedfall
+
+builds:
+  - id: seedfall
+    main: ./cmd/seedfall
+    binary: seedfall
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/kunalgoesbyken/seedfall/engine.buildVersion={{ .Tag }}
+      - -X github.com/kunalgoesbyken/seedfall/engine.buildCommit={{ .FullCommit }}
+      - -X github.com/kunalgoesbyken/seedfall/engine.buildDate={{ .Date }}
+
+archives:
+  - name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+signs:
+  - cmd: cosign
+    artifacts: checksum
+    signature: "${artifact}.sigstore.json"
+    args:
+      - sign-blob
+      - --bundle=${signature}
+      - --yes
+      - ${artifact}
+
+sboms:
+  - artifacts: archive
+
+changelog:
+  use: git
+  sort: asc
+  abbrev: -1
+  filters:
+    exclude:
+      - "^(?i)(docs|test|chore)\\b"
+  groups:
+    - title: Features
+      regexp: "^(?i)(feat|add)\\b"
+      order: 0
+    - title: Fixes
+      regexp: "^(?i)fix\\b"
+      order: 1
+    - title: Other
+      order: 999
+
+brews:
+  - name: seedfall
+    repository:
+      owner: kunalgoesbyken
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: https://github.com/kunalgoesbyken/seedfall
+    description: Deterministic simulation testing for Go
+    license: MIT
+    dependencies:
+      - name: go
+    test: |
+      system "#{bin}/seedfall", "version"
+
+scoops:
+  - name: seedfall
+    repository:
+      owner: kunalgoesbyken
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: bucket
+    homepage: https://github.com/kunalgoesbyken/seedfall
+    description: Deterministic simulation testing for Go
+    license: MIT
+    depends: [go]
+
+dockers:
+  - image_templates: ["ghcr.io/kunalgoesbyken/seedfall:{{ .Tag }}-amd64"]
+    use: buildx
+    dockerfile: Dockerfile
+    goos: linux
+    goarch: amd64
+    build_flag_templates:
+      - --platform=linux/amd64
+  - image_templates: ["ghcr.io/kunalgoesbyken/seedfall:{{ .Tag }}-arm64"]
+    use: buildx
+    dockerfile: Dockerfile
+    goos: linux
+    goarch: arm64
+    build_flag_templates:
+      - --platform=linux/arm64
+
+docker_manifests:
+  - name_template: ghcr.io/kunalgoesbyken/seedfall:{{ .Tag }}
+    image_templates:
+      - ghcr.io/kunalgoesbyken/seedfall:{{ .Tag }}-amd64
+      - ghcr.io/kunalgoesbyken/seedfall:{{ .Tag }}-arm64
+  - name_template: ghcr.io/kunalgoesbyken/seedfall:latest
+    image_templates:
+      - ghcr.io/kunalgoesbyken/seedfall:{{ .Tag }}-amd64
+      - ghcr.io/kunalgoesbyken/seedfall:{{ .Tag }}-arm64
+
+release:
+  github:
+    owner: kunalgoesbyken
+    name: seedfall

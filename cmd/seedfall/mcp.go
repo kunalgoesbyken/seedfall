@@ -29,6 +29,7 @@ type runArgs struct {
 	SkipPinned   bool   `json:"skip_pinned,omitempty" jsonschema:"do not replay the schedules pinned in seedfall-regressions/ before the sweep"`
 	UntilNovelty int    `json:"until_novelty,omitempty" jsonschema:"stop once this many batches of seeds in a row add no new property outcome, fault shape, buggify firing or function"`
 	Batch        int    `json:"batch,omitempty" jsonschema:"seeds per batch for until_novelty, default 20"`
+	Timeout      string `json:"timeout,omitempty" jsonschema:"stop starting seeds after this wall-clock time, for example 10m; seeds in flight finish and pinned regressions count toward it"`
 }
 
 type seedArgs struct {
@@ -89,6 +90,7 @@ type runView struct {
 	VirtualPerWall float64              `json:"virtual_seconds_per_wall_second"`
 	Stopped        string               `json:"stopped,omitempty"`
 	Growth         []engine.GrowthPoint `json:"exploration,omitempty"`
+	Utilization    *engine.Utilization  `json:"utilization,omitempty"`
 }
 
 type seedView struct {
@@ -209,7 +211,7 @@ func cmdMCP(args []string) error {
 }
 
 func newMCPServer() (*mcp.Server, error) {
-	server := mcp.NewServer(&mcp.Implementation{Name: "seedfall", Version: "0.2.0"}, &mcp.ServerOptions{Instructions: mcpInstructions})
+	server := mcp.NewServer(&mcp.Implementation{Name: "seedfall", Version: engine.Version()}, &mcp.ServerOptions{Instructions: mcpInstructions})
 	initOutput, err := jsonschema.For[initView](schemaOptions())
 	if err != nil {
 		return nil, err
@@ -239,6 +241,10 @@ func newMCPServer() (*mcp.Server, error) {
 		Name:        "seedfall_explore",
 		Description: "Search for rare failures with feedback instead of fresh seeds: run a seed range as the first round, keep the runs that reached something new (a property outcome, a fault shape, a buggify firing or a function), and spend later rounds branching from the moment those signals fired, re-keying a random stream, and adding, removing or shifting faults. The search is deterministic for any job count, and a failure comes back as a schedule file that seedfall_replay, seedfall_shrink and seedfall_inspect accept. Stops on rounds, a time budget, or until_novelty rounds with nothing new. The corpus persists in .seedfall/corpus/.",
 	}, toolExplore)
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "seedfall_doctor",
+		Description: "Check that this machine can run seedfall: the Go version against the one seedfall needs, that GOOS=wasip1 builds, that net_overlay patches and builds for the installed Go, that the build cache and this directory are writable, and how much memory is free. Returns the seedfall build and each check as ok, warn, fail or skip with a fix.",
+	}, toolDoctor)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "seedfall_replay",
 		Description: "Replay one seed exactly, optionally with a fault schedule file, and return its trace.",
@@ -304,12 +310,19 @@ func toolRun(_ context.Context, _ *mcp.CallToolRequest, a runArgs) (*mcp.CallToo
 	if err != nil {
 		return nil, runView{}, err
 	}
+	var timeout time.Duration
+	if a.Timeout != "" {
+		if timeout, err = time.ParseDuration(a.Timeout); err != nil {
+			return nil, runView{}, fmt.Errorf("timeout: %w", err)
+		}
+	}
 	r, cfg, err := loadWith(a.ref(), a.UntilNovelty > 0)
 	if err != nil {
 		return nil, runView{}, err
 	}
 	r.Doublecheck = a.Check
 	started := time.Now()
+	deadline := sweepDeadline(started, timeout)
 	regs, err := replayRegressions(r, cfg, !a.SkipPinned, "", runtime.NumCPU())
 	if err != nil {
 		return nil, runView{}, err
@@ -329,9 +342,9 @@ func toolRun(_ context.Context, _ *mcp.CallToolRequest, a runArgs) (*mcp.CallToo
 		out.Elapsed = time.Since(started).Round(time.Millisecond).String()
 		return nil, out, nil
 	}
-	sum := engine.Sweep(r, lo, hi, engine.SweepOptions{Jobs: runtime.NumCPU(), UntilNovelty: a.UntilNovelty, Batch: cmp.Or(a.Batch, defaultSweepBatch)})
+	sum := engine.Sweep(r, lo, hi, engine.SweepOptions{Jobs: runtime.NumCPU(), UntilNovelty: a.UntilNovelty, Batch: cmp.Or(a.Batch, defaultSweepBatch), Deadline: deadline})
 	out.Passed, out.Unfinished, out.Properties, out.Buggify = sum.Passed, sum.Unfinished, properties(sum.Coverage), buggifySites(sum.Buggify)
-	out.SeedsPerSecond, out.VirtualPerWall, out.Stopped, out.Growth = sum.SeedsPerSecond(), sum.VirtualPerWall(), sum.Stopped, sum.Growth
+	out.SeedsPerSecond, out.VirtualPerWall, out.Stopped, out.Growth, out.Utilization = sum.SeedsPerSecond(), sum.VirtualPerWall(), sum.Stopped, sum.Growth, sum.Utilization()
 	out.Elapsed = time.Since(started).Round(time.Millisecond).String()
 	if sum.First != nil {
 		out.Failure = viewFailure(a.ref().String(), *sum.First)

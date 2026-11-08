@@ -14,6 +14,7 @@ type Entry struct {
 	Time     time.Time      `json:"time"`
 	Config   string         `json:"config"`
 	Seeds    int            `json:"seeds"`
+	Version  string         `json:"seedfall_version,omitempty"`
 	Findings map[string]int `json:"findings"`
 }
 

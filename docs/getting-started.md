@@ -8,9 +8,12 @@ seedfall needs Go 1.25 or newer. It runs on Linux, macOS and Windows.
 
 ```sh
 go install github.com/kunalgoesbyken/seedfall/cmd/seedfall@latest
+seedfall doctor
 git clone https://github.com/kunalgoesbyken/seedfall
 cd seedfall/examples/kvlog
 ```
+
+`seedfall doctor` checks the toolchain and prints a fix for anything missing. Homebrew, Scoop, an install script, a Docker image and how to verify a release are in [install.md](install.md); those paths need a release newer than v0.2.0.
 
 ## 2. Look at the world
 

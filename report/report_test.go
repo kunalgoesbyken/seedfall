@@ -226,3 +226,23 @@ func TestReportEmbedsTheArtifactTimeline(t *testing.T) {
 		t.Fatal("a missing timeline was linked")
 	}
 }
+
+func TestHTMLShowsUtilizationAndStop(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "report.html")
+	r := Report{Stopped: "time limit reached after 3 of 8 seeds", Utilization: &engine.Utilization{
+		Outcomes: 4, Advice: "more seeds are likely", SpeedupMin: 3, SpeedupMedian: 5, SpeedupMax: 9,
+		Batches: []engine.UtilizationBatch{{From: 1, To: 4, New: 3}, {From: 5, To: 8, New: 1}},
+	}}
+	if err := writeHTML(r, path); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Stopped: time limit reached after 3 of 8 seeds", "Utilization", "more seeds are likely", "5x median", "1-4"} {
+		if !strings.Contains(string(b), want) {
+			t.Errorf("report lacks %q", want)
+		}
+	}
+}

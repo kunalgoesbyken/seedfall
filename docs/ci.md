@@ -90,6 +90,16 @@ Before the seed lines comes one `{"type": "regression", ...}` line per [pinned r
 
 The summary has `passed`, `failed`, `unfinished`, `regressions_failed`, `unmet_properties` and `properties`, the same coverage table `seedfall_run` returns over MCP, with a `problem` on each property that was never reached or never true and a `margin` on each numeric property. With `faults.buggify` on it also has `buggify_sites`: each `sim.Buggify` site with `seeds_reached`, `seeds_enabled`, `seeds_fired`, `fired` and a `problem` of `never reached` or `never fired`, which does not change the exit code. The exit code is 1 if any seed or regression failed or any property is unmet. `-json` cannot be combined with `-report`.
 
+## Time budgets
+
+`seedfall run -timeout 10m` stops starting seeds after ten minutes of wall-clock time, so a CI job can use a wide range and take whatever fits:
+
+```sh
+seedfall run -seeds 1-1000000 -timeout 10m -report .seedfall/report.html
+```
+
+Seeds already running finish, so the sweep can run slightly past the limit, and [pinned regressions](verify.md#pinned-regressions) always run and count toward it. The run prints `stopped: time limit reached after N of M seeds`, the same text is `stopped` in the JSON summary, report and `seedfall_run` result, and the exit code is decided as usual: 0 if every seed that ran passed and every property was met. A property that needs more seeds than fit fails as `never reached`, as it would with a shorter range, so give the sweep enough time, or [pin](verify.md#pinned-regressions) a seed that reaches the rare path. Each seed stays exactly replayable, but which seeds ran depends on the machine's speed, so compare runs by seed and not by count.
+
 ## `go test`
 
 ```go

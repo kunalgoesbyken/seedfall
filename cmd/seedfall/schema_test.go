@@ -20,7 +20,9 @@ func TestSchemaDescribesEveryCommandAndTool(t *testing.T) {
 		}
 	}
 	for command, want := range map[string][]string{
-		"seedfall run":        {"c", "seeds", "report", "json"},
+		"seedfall run":        {"c", "seeds", "report", "json", "timeout"},
+		"seedfall doctor":     {"json"},
+		"seedfall version":    {"json"},
 		"seedfall faults":     {"c", "seed", "faults", "remove", "shift", "add", "out"},
 		"seedfall trace grep": {"c", "seed", "e", "context", "node", "from", "to", "limit", "json"},
 		"seedfall findings":   {"report", "history", "status", "json"},
@@ -41,7 +43,7 @@ func TestSchemaDescribesEveryCommandAndTool(t *testing.T) {
 			t.Errorf("%s has no input schema or description", tl.Name)
 		}
 	}
-	for _, name := range []string{"seedfall_mutate", "seedfall_findings", "seedfall_trace_search", "seedfall_faults_edit", "seedfall_pin", "seedfall_logs"} {
+	for _, name := range []string{"seedfall_mutate", "seedfall_findings", "seedfall_trace_search", "seedfall_faults_edit", "seedfall_pin", "seedfall_logs", "seedfall_doctor"} {
 		if !slices.Contains(tools, name) {
 			t.Errorf("%s is not in %v", name, tools)
 		}

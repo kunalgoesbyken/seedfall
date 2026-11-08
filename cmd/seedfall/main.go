@@ -27,7 +27,7 @@ var commands []command
 func init() {
 	commands = []command{
 		{"init", "[-dir .] [-c seedfall.json] [-node ./cmd/server]... [-workload seedfall/workload] [-n] [-json]", cmdInit},
-		{"run", "[-c seedfall.json] [-seeds 1-1000] [-j N] [-v] [-check] [-net-trace] [-report report.html | -json] [-pinned=false] [-seeds-file file] [-until-novelty N [-batch 20]] [-cpuprofile file]", cmdRun},
+		{"run", "[-c seedfall.json] [-seeds 1-1000] [-j N] [-v] [-check] [-net-trace] [-report report.html | -json] [-pinned=false] [-seeds-file file] [-until-novelty N [-batch 20]] [-timeout 10m] [-cpuprofile file]", cmdRun},
 		{"explore", "[-c seedfall.json] [-seeds 1-32] [-rounds N] [-batch 16] [-until-novelty 8] [-budget 10m] [-explore-seed 1] [-keep-going] [-corpus dir] [-report report.html | -json] [-cpuprofile file]", cmdExplore},
 		{"replay", "[-c seedfall.json] -seed N [-faults file.json] [-net-trace] [-html timeline.html | -html timeline.mmd]", cmdReplay},
 		{"logs", "[-c seedfall.json] -seed N [-faults file.json] [-node a,b] [-grep re] [-from 1s] [-to 2s] [-json] [-net-trace]", cmdLogs},
@@ -45,8 +45,11 @@ func init() {
 		{"report notify", "[-report .seedfall/report.html] [-webhook URL] [-link URL] [-dry-run]", cmdNotify},
 		{"report issue", "-repo owner/name [-report .seedfall/report.html] [-dry-run]", cmdIssue},
 		{"verify", "[-c seedfall.json] [-seed N [-faults file.json]] [-report report.html] [-seeds range] [-check 10] [-mutate] [-app-mutants N] [-md proof.md]", cmdVerify},
+		{"doctor", "[-json]", cmdDoctor},
+		{"version", "[-json]", cmdVersion},
+		{"help", "[command]", cmdHelp},
 		{"schema", "print every command with its flags and every MCP tool, prompt and resource as JSON", cmdSchema},
-		{"mcp", "serve init, run, explore, replay, logs, trace search, debug, shrink, faults edit, cause, inspect, check, mutate, pin, findings and verify to AI coding agents over MCP (stdio)", cmdMCP},
+		{"mcp", "serve init, run, explore, replay, logs, trace search, debug, shrink, faults edit, cause, inspect, check, mutate, pin, findings, verify and doctor to AI coding agents over MCP (stdio)", cmdMCP},
 		{"hook", "Claude Code Stop hook: sweep $SEEDFALL_HOOK_SEEDS (unset: do nothing) and block the stop on a failure", cmdHook},
 	}
 }
@@ -75,7 +78,7 @@ func findCommand(args []string) (command, []string, bool) {
 }
 
 func main() {
-	cmd, args, ok := findCommand(os.Args[1:])
+	cmd, args, ok := findCommand(normalizeArgs(os.Args[1:]))
 	if !ok {
 		fmt.Print(usage())
 		os.Exit(2)
@@ -127,6 +130,7 @@ func cmdRun(args []string) error {
 	seedsFile := fs.String("seeds-file", "", "file of known-bad seeds, one or more per line with # comments, replayed before the sweep")
 	untilNovelty := fs.Int("until-novelty", 0, "stop once this many batches of seeds in a row add no new property outcome, fault shape, buggify firing or function; 0 sweeps the whole range")
 	batch := fs.Int("batch", defaultSweepBatch, "seeds per batch for -until-novelty")
+	timeout := fs.Duration("timeout", 0, "stop starting seeds after this wall-clock time, for example 10m; seeds in flight finish, and pinned regressions count toward it; 0 sweeps the whole range")
 	cpuProfile := fs.String("cpuprofile", "", "write a pprof CPU profile of the sweep to this file")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -134,6 +138,9 @@ func cmdRun(args []string) error {
 	conf := ca.ref().String()
 	if *jsonOut && *reportPath != "" {
 		return errors.New("-json and -report cannot be combined")
+	}
+	if *timeout < 0 {
+		return errors.New("-timeout cannot be negative")
 	}
 	lo, hi, err := engine.ParseSeeds(*seeds)
 	if err != nil {
@@ -151,6 +158,7 @@ func cmdRun(args []string) error {
 	sweep := engine.SweepOptions{Jobs: *jobs, Batch: *batch, UntilNovelty: *untilNovelty}
 	r.Doublecheck, r.NetTrace = *check, *netTrace
 	started := time.Now()
+	sweep.Deadline = sweepDeadline(started, *timeout)
 	regs, err := replayRegressions(r, cfg, *pinned, *seedsFile, *jobs)
 	if err != nil {
 		return err
@@ -173,7 +181,9 @@ func cmdRun(args []string) error {
 			fmt.Printf("seed %d: %s\n", res.Seed, status(res))
 		}
 	}
+	clearProgress := withProgress(&sweep, !*verbose && stderrIsTerminal())
 	sum := engine.Sweep(r, lo, hi, sweep)
+	clearProgress()
 	took := time.Since(started).Round(time.Millisecond)
 	if *reportPath != "" {
 		return writeReport(r, cfg, conf, *seeds, *reportPath, sum, viewRegressions(r, conf, regs), took, true)
@@ -196,6 +206,13 @@ func cmdRun(args []string) error {
 	fmt.Printf("ok  %d seeds passed (%d hit the time horizon) in %s\n", sum.Passed, sum.Unfinished, took)
 	printEfficiency(sum)
 	return nil
+}
+
+func sweepDeadline(started time.Time, timeout time.Duration) time.Time {
+	if timeout <= 0 {
+		return time.Time{}
+	}
+	return started.Add(timeout)
 }
 
 func printCoverage(c engine.Coverage) {

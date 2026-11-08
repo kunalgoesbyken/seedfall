@@ -79,7 +79,10 @@ hashicorp/raft (600 seeds) and etcd-io/raft (100 seeds) pass cleanly, with linea
 
 ```sh
 go install github.com/kunalgoesbyken/seedfall/cmd/seedfall@latest
+seedfall doctor   # checks Go, wasip1 builds, net_overlay, caches and memory, and prints fixes
 ```
+
+Homebrew, Scoop, an install script and a Docker image are set up for releases from the automated pipeline; v0.2.0 predates it, so use `go install` until a newer release is out. Paths, signatures and checksums: [Install](docs/install.md).
 
 Make nodes reachable on the simulated network, either with one line or with no code changes:
 
@@ -174,6 +177,7 @@ The [getting started guide](docs/getting-started.md) walks through finding, shri
 - **Runs Antithesis SDK code.** Programs instrumented with the Antithesis Go SDK run unchanged: `assert.Always`, `Sometimes`, `Reachable`, the numeric and grouped variants, `lifecycle.SetupComplete` and `lifecycle.SendEvent` become seedfall properties, setup and trace events. [Antithesis compatibility](docs/antithesis.md)
 - **Failure classification.** Every reported failure is classed as a `bug`, `nondeterministic` (with the first diverging trace line) or `timeout`, so CI and agents block only on real bugs. [Reports](docs/reports.md#classification)
 - **Proof of fix.** `seedfall verify` replays the failing schedules, sweeps enough fresh seeds for 95% confidence, checks determinism and mutants, and writes a Markdown proof block for the pull request. [Verify](docs/verify.md)
+- **Sweep feedback.** A live progress line with seeds per second, failures, ETA and virtual speedup on a terminal, a `-timeout` budget for CI, and a utilization section that says whether more seeds are likely to help. [Reports](docs/reports.md#utilization)
 - **AI-agent native.** `seedfall mcp` lets Claude Code, Cursor and other agents run, replay, search traces, shrink, edit fault schedules, grade checks with mutants, pin regressions and read findings on their own, and prove a fix before opening a PR. Every MCP tool has a CLI command, and `seedfall schema` prints both surfaces as JSON. [Agents](docs/agents.md)
 - **CI ready.** A GitHub Action, a `go test` helper, and `run -json` for one JSON object per seed. [CI](docs/ci.md)
 - **Tested itself.** Unit tests pin down the crash, torn-write, writeback, fsync `EIO`, disk fault, `strict_dirs`, scheduler, network, shrink and confidence models, and an end-to-end guest proves byte-identical replay. CI runs them with `-race` on Linux, macOS and Windows, plus staticcheck, govulncheck and CodeQL, and every example nightly. [Testing](docs/testing.md)

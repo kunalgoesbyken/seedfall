@@ -12,6 +12,7 @@ seedfall builds each node (a Go `main` package) for `GOOS=wasip1`, runs every no
 
 ```sh
 go install github.com/kunalgoesbyken/seedfall/cmd/seedfall@latest
+seedfall doctor   # Go version, wasip1 builds, net_overlay, caches, memory; over MCP, seedfall_doctor
 ```
 
 ## 2. Inspect and scaffold

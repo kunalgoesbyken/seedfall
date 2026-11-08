@@ -58,7 +58,7 @@ Config paths in tool calls are resolved against the server's working directory, 
 | Tool | Arguments | Returns |
 |---|---|---|
 | `seedfall_init` | optional `dir`, `config`, `nodes`, `workload`, `dry_run` | The module's `main` packages and which become nodes, the packages that block a `GOOS=wasip1` build (compile errors and cgo, each with its import chain and the shim that covers it), `compat_shims` for every dependency `compat_overlay` would swap, the starter config and its starter profiles, the files written, and the next steps. See [onboarding](#onboarding-a-new-module) |
-| `seedfall_run` | `config`, `seeds` (for example `1-200`), optional `check`, `skip_pinned`, `until_novelty`, `batch` | First the [pinned regressions](verify.md#pinned-regressions), stopping at one that fails again. Then seeds passed, the lowest failing seed with its reason, [classification](reports.md#classification), the faults before the failure, the trace tail, a replay command and `artifacts_dir` ([failure artifacts](reports.md#failure-artifacts)), plus property coverage, `seeds_per_second` and `virtual_seconds_per_wall_second`, and, with `faults.buggify` on, `buggify_sites` ([buggify](buggify.md#coverage)). With `until_novelty`, `stopped` and the `exploration` growth table ([explore.md](explore.md#stopping-a-plain-sweep)) |
+| `seedfall_run` | `config`, `seeds` (for example `1-200`), optional `check`, `skip_pinned`, `until_novelty`, `batch`, `timeout` | First the [pinned regressions](verify.md#pinned-regressions), stopping at one that fails again. Then seeds passed, the lowest failing seed with its reason, [classification](reports.md#classification), the faults before the failure, the trace tail, a replay command and `artifacts_dir` ([failure artifacts](reports.md#failure-artifacts)), plus property coverage, `seeds_per_second`, `virtual_seconds_per_wall_second` and `utilization` ([reports.md](reports.md#utilization)), and, with `faults.buggify` on, `buggify_sites` ([buggify](buggify.md#coverage)). With `until_novelty`, `stopped` and the `exploration` growth table ([explore.md](explore.md#stopping-a-plain-sweep)) |
 | `seedfall_explore` | `config`, optional `seeds`, `rounds`, `batch`, `until_novelty`, `budget`, `explore_seed`, `keep_going`, `corpus` | Feedback-guided search: every round with the new signals and functions it added, the stop reason, the corpus size, property coverage, throughput, and the first failure with `artifacts_dir` and a replay command ([explore.md](explore.md)) |
 | `seedfall_replay` | `config`, `seed`, optional `faults` file | The same failure view for one seed, or the trace tail if it passes, with a `note` when a shrunk schedule's shorter duration ended the run before the workload finished. A failure view of a run that recorded operations also names its `history_file` and, on a linearizability violation, its `timeline_file`. Every result has the run's `determinism_hash` and its `events` from `sim.Event` or `lifecycle.SendEvent` |
 | `seedfall_logs` | `config`, `seed`, optional `faults`, `node`, `grep`, `from`, `to`, `net_trace`, `limit` | The run's trace lines filtered by node, regular expression and virtual time, each with its node, instance and time, and a node's slog JSON output parsed into `fields`, plus how many lines matched ([timeline.md](timeline.md#logs)) |
@@ -71,6 +71,7 @@ Config paths in tool calls are resolved against the server's working directory, 
 | `seedfall_verify` | `config`, `seed` and optional `faults`, and/or `report`; optional `seeds`, `check_seeds`, `mutate`, `app_mutants` | Whether the fix holds: each replayed schedule, the fresh sweep with its confidence, the determinism check and the mutants, plus a Markdown proof block for the PR ([verify.md](verify.md)) |
 | `seedfall_mutate` | `config`, optional `seeds` (default `1-100`), `only`, `app`, `mutants` | Sweeps the seeds unmutated, then once per [mutant](mutate.md) (disk, rename, truncate, network and clock guarantees), or with `app` once per [source mutant](mutate.md#source-mutants) of the node packages: each mutant's `outcome` (`killed`, `survived`, `not exercised` or `did not build`), its `location` and change for source mutants, the seed and reason that killed it, and how often the operation was weakened |
 | `seedfall_pin` | `config`, `seed`, optional `faults` | Pins the seed's schedule (the one `seedfall_shrink` saved, the given file, or else the seed's own faults) into `seedfall-regressions/` as a permanent regression, and returns the file and whether it passes now, with the failure view if not ([verify.md](verify.md#pinned-regressions)) |
+| `seedfall_doctor` | none | Checks the Go version, `GOOS=wasip1` builds, `net_overlay` against the installed Go, a writable build cache and working directory, and free memory, returning the seedfall build and each check as `ok`, `warn`, `fail` or `skip` with a fix ([install.md](install.md#check-the-install)) |
 | `seedfall_findings` | optional `report` (default `.seedfall/report.html`), `history`, `status` (comma separated: `new`, `ongoing`, `regressed`, `resolved`, `not seen`) | Reads a triage report from `seedfall run -report` without running anything, the same as `seedfall findings`: each finding with the given statuses with its status, failing seeds, rate, classification and example failure with replay and shrink commands, findings not seen this time, unmet properties, and the run history of that config from `.seedfall/history.jsonl` ([reports.md](reports.md)) |
 | `seedfall_cause` | `config`, `seed`, optional `points`, `branches` | The probability of failing from each moment of the run, with the faults between moments, so the agent can see which event made the failure inevitable ([cause.md](cause.md)) |
 
@@ -86,6 +87,7 @@ Every tool has a command, so a person can repeat what the agent did and an agent
 | `seedfall_trace_search` | `seedfall trace grep -seed N -e re [-context 3]` |
 | `seedfall_faults_edit` | `seedfall faults -seed N [-remove 2] [-shift 1=-50ms] [-add '{...}'] [-out file]` |
 | `seedfall_findings` | `seedfall findings [-status new,regressed] [-json]` |
+| `seedfall_doctor` | `seedfall doctor [-json]` |
 
 `seedfall schema` prints the whole surface as JSON: every command with each flag's name, type, default and usage, and every MCP tool with its description and input and output JSON Schemas, plus the prompts and resources. Generate client bindings or check an agent's calls against it:
 
@@ -451,6 +453,16 @@ seedfall run -c seedfall.always.json -seeds 1-100 -json | jq -c 'select(.type ==
 Before the seed lines comes one `{"type": "regression", ...}` line per [pinned regression](verify.md#pinned-regressions) and `-seeds-file` seed, with `source`, `seed` and `passed`, plus `failure`, `reason`, `classification` and `artifacts` when it fails again.
 
 The summary has `passed`, `failed`, `unfinished`, `regressions_failed`, `unmet_properties` and `properties`, the same coverage table `seedfall_run` returns over MCP, with a `problem` on each property that was never reached or never true and a `margin` on each numeric property. With `faults.buggify` on it also has `buggify_sites`: each `sim.Buggify` site with `seeds_reached`, `seeds_enabled`, `seeds_fired`, `fired` and a `problem` of `never reached` or `never fired`, which does not change the exit code. The exit code is 1 if any seed or regression failed or any property is unmet. `-json` cannot be combined with `-report`.
+
+## Time budgets
+
+`seedfall run -timeout 10m` stops starting seeds after ten minutes of wall-clock time, so a CI job can use a wide range and take whatever fits:
+
+```sh
+seedfall run -seeds 1-1000000 -timeout 10m -report .seedfall/report.html
+```
+
+Seeds already running finish, so the sweep can run slightly past the limit, and [pinned regressions](verify.md#pinned-regressions) always run and count toward it. The run prints `stopped: time limit reached after N of M seeds`, the same text is `stopped` in the JSON summary, report and `seedfall_run` result, and the exit code is decided as usual: 0 if every seed that ran passed and every property was met. A property that needs more seeds than fit fails as `never reached`, as it would with a shorter range, so give the sweep enough time, or [pin](verify.md#pinned-regressions) a seed that reaches the rare path. Each seed stays exactly replayable, but which seeds ran depends on the machine's speed, so compare runs by seed and not by count.
 
 ## `go test`
 
@@ -1140,9 +1152,12 @@ seedfall needs Go 1.25 or newer. It runs on Linux, macOS and Windows.
 
 ```sh
 go install github.com/kunalgoesbyken/seedfall/cmd/seedfall@latest
+seedfall doctor
 git clone https://github.com/kunalgoesbyken/seedfall
 cd seedfall/examples/kvlog
 ```
+
+`seedfall doctor` checks the toolchain and prints a fix for anything missing. Homebrew, Scoop, an install script, a Docker image and how to verify a release are in [install.md](install.md); those paths need a release newer than v0.2.0.
 
 ## 2. Look at the world
 
@@ -1567,6 +1582,95 @@ The MCP server exposes the same snapshot as `seedfall_inspect`, with the per-fil
 - The snapshot covers the simulated disk only, not process memory or in-flight network messages. `seedfall debug -at` stops the run at the same moment and also shows the messages in flight, the active faults and each node's live file content ([timeline.md](timeline.md#debugger)).
 - The last tear is recorded per file. A later write over the same range does not clear it.
 - `-cat` prints the whole file. Pipe it through `tail` for large files.
+
+
+<!-- docs/install.md -->
+
+# Installing seedfall
+
+seedfall ships as a single binary, and it builds your nodes with Go. Replaying results, reading reports and serving MCP need only the binary; running a simulation needs Go 1.25 or newer.
+
+**Which of these work today.** The Homebrew, Scoop, install script and Docker paths install from a release built by `.github/workflows/release.yml`. v0.2.0 predates that workflow and has only bare binaries, with no archives or `checksums.txt`, so until a newer release is cut use `go install`. The pipeline's signing, SBOM, formula, manifest and image steps have not run yet, so the commands below that depend on them are what the configuration is set up to produce, not something checked against a published release.
+
+## Homebrew
+
+```sh
+brew install kunalgoesbyken/tap/seedfall
+```
+
+The formula depends on Go.
+
+## Scoop (Windows)
+
+```powershell
+scoop bucket add seedfall https://github.com/kunalgoesbyken/homebrew-tap
+scoop install seedfall
+```
+
+The manifest depends on Go.
+
+## Install script (Linux and macOS)
+
+```sh
+curl -fsSL https://seedfall-lemon.vercel.app/install.sh | sh
+```
+
+It picks the archive for your OS and architecture, checks its SHA-256 against the release's `checksums.txt`, and installs to `~/.local/bin`. Set `SEEDFALL_VERSION=v0.3.0` to pin a release, `SEEDFALL_INSTALL_DIR` to change where it goes, and `SEEDFALL_BASE_URL` to download from a mirror. It stops with an error on a checksum mismatch. The script is `scripts/install.sh`; read it first if you prefer.
+
+## Docker
+
+```sh
+docker run --rm -v "$PWD:/work" ghcr.io/kunalgoesbyken/seedfall run -seeds 1-200
+```
+
+The image is built on the official `golang` image, so it can build your nodes with no local Go. Files the container writes, including `.seedfall/`, belong to root unless you pass `--user`.
+
+## go install
+
+```sh
+go install github.com/kunalgoesbyken/seedfall/cmd/seedfall@latest
+```
+
+This needs Go 1.25 or newer and always works, including for releases before the automated pipeline.
+
+## Check the install
+
+```sh
+seedfall version
+seedfall doctor
+```
+
+`seedfall version` (or `--version`, with `-json` for a script) prints the release, commit, build date, Go version and platform. A build without VCS data, such as `go install` of a tagged module, has no commit or date lines. The same version goes into `report.json`, each `.seedfall/history.jsonl` entry, failure artifacts, pinned regressions and the `seedfall verify` proof block, so a bug report can name the exact build.
+
+`seedfall doctor` checks the Go version, that `GOOS=wasip1` builds, that `net_overlay` patches and builds against the installed Go, that the Go build cache and the current directory are writable, and the free memory. It prints a fix for anything wrong and exits 1 only if a check fails; a warning, such as low memory or an unsupported `net_overlay`, leaves it at 0. `-json` prints the same checks, as does the `seedfall_doctor` MCP tool. Free memory is measured on Linux and Windows and reported as `skip` elsewhere.
+
+`seedfall help` lists every command, and `seedfall help run` prints one command's flags and defaults. `-h` and `--help` work too and all of these exit 0.
+
+## Verifying a release
+
+Each automated release publishes `checksums.txt`, a Sigstore bundle `checksums.txt.sigstore.json` signed keylessly by the release workflow, an SBOM per archive, and a GitHub build provenance attestation.
+
+Verify the signature on the checksums, then an archive against them:
+
+```sh
+cosign verify-blob checksums.txt \
+  --bundle checksums.txt.sigstore.json \
+  --certificate-identity-regexp '^https://github.com/kunalgoesbyken/seedfall/\.github/workflows/release\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+sha256sum --ignore-missing -c checksums.txt
+```
+
+Or check provenance with the GitHub CLI:
+
+```sh
+gh attestation verify seedfall_linux_amd64.tar.gz --repo kunalgoesbyken/seedfall
+```
+
+The install script checks SHA-256 only, which catches a corrupted download but not a tampered release; use one of the commands above for that.
+
+## Cutting a release
+
+Pushing a `v*` tag runs the release workflow, which builds linux, darwin and windows on amd64 and arm64 with GoReleaser, signs, attests, publishes the GitHub release and pushes the formula, the Scoop manifest and the image. The repository needs a `HOMEBREW_TAP_TOKEN` secret with write access to `kunalgoesbyken/homebrew-tap`, which holds both the Homebrew formula and the Scoop `bucket/`. Release notes are grouped from commit subjects starting with `Add` or `feat` and `Fix` or `fix`.
 
 
 <!-- docs/mutate.md -->
@@ -2181,6 +2285,18 @@ The report also lists every property with how many seeds reached it and how many
 ## Exploration and throughput
 
 A report from `seedfall run -until-novelty` or `seedfall explore -report` has an **Exploration** section: one row per batch or round with the runs so far, the new signals and functions it added, and the corpus size, so you can see where coverage flattened out, plus why it stopped. Every report's header and JSON (`seeds_per_second`, `virtual_seconds_per_wall_second`) also state throughput. A finding that needs a schedule to reproduce, as `seedfall explore` findings do, carries `schedule_file` in its example and its replay and shrink commands use it; `seedfall verify -report` replays that schedule instead of the bare seed ([explore.md](explore.md)).
+
+## Utilization
+
+A report from `seedfall run` has a **Utilization** section (`utilization` in `report.json`, in the `-json` summary and in the `seedfall_run` result) that answers whether to keep sweeping:
+
+- `batches` splits the seeds that ran into up to ten equal ranges, with how many new property outcomes each added. An outcome is a property being reached, being true or being false, and it counts toward the lowest seed that showed it, so the table is the same whatever order parallel runs finished in.
+- `speedup_min`, `speedup_median` and `speedup_max` are virtual seconds per real second for one seed, including time spent waiting for a CPU under `-j`.
+- `advice` is one sentence, also printed as `utilization:` at the end of the run, saying whether the last batches still added outcomes. It is a heuristic over property outcomes only: it cannot see a bug no property or invariant catches, so read `No new property outcome` as "this config has stopped widening coverage", not as "no bugs remain".
+
+`seedfall explore` reports have the Exploration section instead, because its runs are branches of earlier runs rather than a seed range.
+
+On a terminal, `seedfall run` also shows a progress line on stderr, updated every second and erased when the sweep ends: seeds done, seeds per second, failures, estimated time left and virtual speedup. With `-until-novelty` the estimate is an upper bound, since the sweep can stop early. It is off with `-json`, with `-v`, and when stderr is not a terminal, so piped output and CI logs stay clean.
 
 ## Failure artifacts
 
@@ -2798,6 +2914,7 @@ seedfall builds each node (a Go `main` package) for `GOOS=wasip1`, runs every no
 
 ```sh
 go install github.com/kunalgoesbyken/seedfall/cmd/seedfall@latest
+seedfall doctor   # Go version, wasip1 builds, net_overlay, caches, memory; over MCP, seedfall_doctor
 ```
 
 ## 2. Inspect and scaffold

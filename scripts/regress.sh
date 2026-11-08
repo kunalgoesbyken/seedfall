@@ -24,6 +24,17 @@ expect() {
   fi
 }
 
+expect_command() {
+  local name="$1"
+  shift
+  if "$bin" "$@" >/dev/null 2>&1; then
+    printf 'PASS  %-8s\n' "$name"
+  else
+    printf 'FAIL  %-8s\n' "$name"
+    failures=$((failures + 1))
+  fi
+}
+
 expect_replay() {
   local dir="$1" config="$2" seed="$3" faults="$4" want="$5"
   local got="pass"
@@ -324,6 +335,10 @@ deterministic metapage "seedfall.json -profile reorder" 16
 deterministic raftkv seedfall.lin.json    3
 deterministic raftkv netfaults.json       3
 deterministic wals   rosedb.json             1
+expect kvlog "seedfall.fixed.json -timeout 1h" 1-20 pass
+expect_command version --version
+expect_command help help run
+expect_command doctor doctor
 
 echo
 [ $failures -eq 0 ] && echo "regression: all checks passed" || echo "regression: $failures check(s) failed"

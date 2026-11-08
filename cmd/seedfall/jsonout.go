@@ -41,6 +41,7 @@ type summaryLine struct {
 	VirtualPerWall float64              `json:"virtual_seconds_per_wall_second"`
 	Stopped        string               `json:"stopped,omitempty"`
 	Growth         []engine.GrowthPoint `json:"exploration,omitempty"`
+	Utilization    *engine.Utilization  `json:"utilization,omitempty"`
 }
 
 func runJSON(r *engine.Runner, config string, regs []engine.RegressionResult, lo, hi uint64, opts engine.SweepOptions) error {
@@ -77,7 +78,7 @@ func seedJSON(res engine.Result) seedLine {
 
 func printSummaryJSON(enc *json.Encoder, sum engine.Summary, regressionsFailed int) error {
 	unmet := len(sum.Coverage.Unmet())
-	line := summaryLine{Type: "summary", Passed: sum.Passed, Failed: len(sum.Failures), Unfinished: sum.Unfinished, Regressions: regressionsFailed, Unmet: unmet, Properties: properties(sum.Coverage), Buggify: buggifySites(sum.Buggify), SeedsPerSecond: sum.SeedsPerSecond(), VirtualPerWall: sum.VirtualPerWall(), Stopped: sum.Stopped, Growth: sum.Growth}
+	line := summaryLine{Type: "summary", Passed: sum.Passed, Failed: len(sum.Failures), Unfinished: sum.Unfinished, Regressions: regressionsFailed, Unmet: unmet, Properties: properties(sum.Coverage), Buggify: buggifySites(sum.Buggify), SeedsPerSecond: sum.SeedsPerSecond(), VirtualPerWall: sum.VirtualPerWall(), Stopped: sum.Stopped, Growth: sum.Growth, Utilization: sum.Utilization()}
 	if err := enc.Encode(line); err != nil {
 		return err
 	}

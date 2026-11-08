@@ -247,15 +247,19 @@ func printEfficiency(sum engine.Summary) {
 	if sum.Elapsed > 0 {
 		fmt.Printf("efficiency: %.1f runs/s, %.0fx virtual time per wall second\n", sum.SeedsPerSecond(), sum.VirtualPerWall())
 	}
+	if u := sum.Utilization(); u != nil {
+		fmt.Printf("utilization: %s\n", u.Advice)
+	}
 }
 
 func printGrowth(sum engine.Summary) {
-	if len(sum.Growth) == 0 {
-		return
+	if len(sum.Growth) > 0 {
+		fmt.Println("round  runs  new signals  signals  new functions  functions")
 	}
-	fmt.Println("round  runs  new signals  signals  new functions  functions")
 	for _, p := range sum.Growth {
 		fmt.Printf("  %-5d %-5d %-12d %-8d %-14d %d\n", p.Round, p.Runs, p.NewSignals, p.Signals, p.NewFunctions, p.Functions)
 	}
-	fmt.Printf("stopped: %s\n\n", sum.Stopped)
+	if sum.Stopped != "" {
+		fmt.Printf("stopped: %s\n\n", sum.Stopped)
+	}
 }

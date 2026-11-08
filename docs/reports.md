@@ -91,6 +91,18 @@ The report also lists every property with how many seeds reached it and how many
 
 A report from `seedfall run -until-novelty` or `seedfall explore -report` has an **Exploration** section: one row per batch or round with the runs so far, the new signals and functions it added, and the corpus size, so you can see where coverage flattened out, plus why it stopped. Every report's header and JSON (`seeds_per_second`, `virtual_seconds_per_wall_second`) also state throughput. A finding that needs a schedule to reproduce, as `seedfall explore` findings do, carries `schedule_file` in its example and its replay and shrink commands use it; `seedfall verify -report` replays that schedule instead of the bare seed ([explore.md](explore.md)).
 
+## Utilization
+
+A report from `seedfall run` has a **Utilization** section (`utilization` in `report.json`, in the `-json` summary and in the `seedfall_run` result) that answers whether to keep sweeping:
+
+- `batches` splits the seeds that ran into up to ten equal ranges, with how many new property outcomes each added. An outcome is a property being reached, being true or being false, and it counts toward the lowest seed that showed it, so the table is the same whatever order parallel runs finished in.
+- `speedup_min`, `speedup_median` and `speedup_max` are virtual seconds per real second for one seed, including time spent waiting for a CPU under `-j`.
+- `advice` is one sentence, also printed as `utilization:` at the end of the run, saying whether the last batches still added outcomes. It is a heuristic over property outcomes only: it cannot see a bug no property or invariant catches, so read `No new property outcome` as "this config has stopped widening coverage", not as "no bugs remain".
+
+`seedfall explore` reports have the Exploration section instead, because its runs are branches of earlier runs rather than a seed range.
+
+On a terminal, `seedfall run` also shows a progress line on stderr, updated every second and erased when the sweep ends: seeds done, seeds per second, failures, estimated time left and virtual speedup. With `-until-novelty` the estimate is an upper bound, since the sweep can stop early. It is off with `-json`, with `-v`, and when stderr is not a terminal, so piped output and CI logs stay clean.
+
 ## Failure artifacts
 
 Every failure seedfall reports gets a folder you can attach to an issue or upload from CI:

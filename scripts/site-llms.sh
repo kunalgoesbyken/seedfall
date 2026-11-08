@@ -56,4 +56,6 @@ body() { awk 'NR == 1 && $0 == "---" { skip = 1; next } skip && $0 == "---" { sk
   done
 } > "$site/llms-full.txt"
 
+cp "$root/scripts/install.sh" "$site/install.sh"
+
 echo "wrote ${site#"$root"/}/llms.txt ($(wc -l < "$site/llms.txt") lines) and ${site#"$root"/}/llms-full.txt ($(wc -c < "$site/llms-full.txt") bytes)"

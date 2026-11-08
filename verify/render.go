@@ -19,7 +19,7 @@ type row struct {
 
 func (p Proof) Text() string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "verify %s\n", p.Config)
+	fmt.Fprintf(&b, "verify %s (seedfall %s)\n", p.Config, p.Version)
 	rows := p.rows()
 	width := 0
 	for _, r := range rows {
@@ -35,7 +35,7 @@ func (p Proof) Text() string {
 func (p Proof) Markdown() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "### seedfall verify: %s\n\n", verdict(p.Passed))
-	fmt.Fprintf(&b, "Config `%s`, reproduce with `%s`\n\n", p.Config, p.Command)
+	fmt.Fprintf(&b, "Config `%s`, seedfall `%s`, reproduce with `%s`\n\n", p.Config, p.Version, p.Command)
 	fmt.Fprintln(&b, "| | Check | Result |")
 	fmt.Fprintln(&b, "|---|---|---|")
 	for _, r := range p.rows() {

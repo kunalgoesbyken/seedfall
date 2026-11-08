@@ -40,7 +40,7 @@ func TestProofRendering(t *testing.T) {
 	sweep := &Sweep{Seeds: "1-299", Count: 299, Passed: 299, Rate: 0.0167, Detectable: report.DetectableRate(299)}
 	proofs := map[string]Proof{
 		"pass": {
-			Config: "seedfall.json", Command: "seedfall verify -seed 9", Passed: true,
+			Config: "seedfall.json", Version: "v0.2.0", Command: "seedfall verify -seed 9", Passed: true,
 			Replays:     []Replay{{Target: "seed 9", Seed: 9}},
 			Sweep:       sweep,
 			Determinism: &Sweep{Seeds: "1-20", Count: 20, Passed: 20},
@@ -50,7 +50,7 @@ func TestProofRendering(t *testing.T) {
 			},
 		},
 		"mutant-survives": {
-			Config: "seedfall.json", Command: "seedfall verify -seed 9 -mutate",
+			Config: "seedfall.json", Version: "v0.2.0", Command: "seedfall verify -seed 9 -mutate",
 			Replays:     []Replay{{Target: "seed 9", Seed: 9}},
 			Sweep:       sweep,
 			Determinism: &Sweep{Seeds: "1-20", Count: 20, Passed: 20},
@@ -61,18 +61,18 @@ func TestProofRendering(t *testing.T) {
 			},
 		},
 		"mutant-error": {
-			Config: "seedfall.json", Command: "seedfall verify -seed 9 -app-mutants 3",
+			Config: "seedfall.json", Version: "v0.2.0", Command: "seedfall verify -seed 9 -app-mutants 3",
 			Replays:     []Replay{{Target: "seed 9", Seed: 9}},
 			Sweep:       sweep,
 			Determinism: &Sweep{Seeds: "1-20", Count: 20, Passed: 20},
 			MutantError: "go list ./server: exit status 1",
 		},
 		"replay-fails": {
-			Config: "seedfall.json", Command: "seedfall verify -seed 9",
+			Config: "seedfall.json", Version: "v0.2.0", Command: "seedfall verify -seed 9",
 			Replays: []Replay{{Target: "seed 9", Seed: 9, Failure: bug(9, "client#1: acknowledged write lost | k3")}},
 		},
 		"sweep-fails": {
-			Config: "seedfall.json", Command: "seedfall verify -seed 9",
+			Config: "seedfall.json", Version: "v0.2.0", Command: "seedfall verify -seed 9",
 			Replays: []Replay{{Target: "seed 9", Seed: 9}},
 			Sweep:   &Sweep{Seeds: "1-299", Count: 299, Passed: 40, Failure: bug(41, "server#2 crashed: panic")},
 		},

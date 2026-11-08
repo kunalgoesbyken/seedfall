@@ -59,6 +59,7 @@ type Mutant struct {
 type Proof struct {
 	Config      string   `json:"config"`
 	Command     string   `json:"command"`
+	Version     string   `json:"seedfall_version"`
 	Passed      bool     `json:"passed"`
 	Replays     []Replay `json:"replays"`
 	Sweep       *Sweep   `json:"sweep,omitempty"`
@@ -78,7 +79,7 @@ func SeedsNeeded(targets []Target) (int, float64) {
 }
 
 func Run(r *engine.Runner, p Plan) Proof {
-	proof := Proof{Replays: replay(r, p.Targets, p.Jobs)}
+	proof := Proof{Version: engine.Version(), Replays: replay(r, p.Targets, p.Jobs)}
 	if failed(proof.Replays) {
 		return proof
 	}

@@ -328,3 +328,30 @@ func TestInitNamesTheShimForEachDependency(t *testing.T) {
 		t.Fatalf("blockers = %+v", blockers)
 	}
 }
+
+func TestMCPDoctorAndRunTimeout(t *testing.T) {
+	cs := connect(t)
+	ctx := context.Background()
+	res, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "seedfall_doctor", Arguments: map[string]any{}})
+	if err != nil || res.IsError {
+		t.Fatalf("%v %+v", err, res)
+	}
+	var view doctorView
+	b, err := json.Marshal(res.StructuredContent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(b, &view); err != nil {
+		t.Fatal(err)
+	}
+	if view.Version.Version != engine.Version() || len(view.Checks) == 0 {
+		t.Fatalf("%+v", view)
+	}
+	bad, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "seedfall_run", Arguments: map[string]any{"config": "seedfall.json", "seeds": "1-2", "timeout": "soon"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bad.IsError || !strings.Contains(bad.Content[0].(*mcp.TextContent).Text, "timeout") {
+		t.Fatalf("%+v", bad)
+	}
+}
