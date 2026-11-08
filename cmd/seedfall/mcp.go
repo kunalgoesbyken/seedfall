@@ -18,7 +18,7 @@ import (
 
 const mcpTraceTail = 60
 
-const mcpInstructions = "seedfall runs Go services as wasip1 guests under simulated crashes, torn writes, fsync errors, partitions, clogs and slow nodes, with exact replay from a seed. In a module without a seedfall.json, call seedfall_init first. Read seedfall://docs/properties before writing checks and seedfall://schema/config before editing seedfall.json. The prompts seedfall-setup, seedfall-properties, seedfall-triage and seedfall-fix-and-prove walk through each stage."
+const mcpInstructions = "seedfall runs Go services as wasip1 guests under simulated crashes, torn writes, fsync errors, disk corruption, full disks, partitions, clogs and slow nodes, with exact replay from a seed. In a module without a seedfall.json, call seedfall_init first. Read seedfall://docs/properties before writing checks and seedfall://schema/config before editing seedfall.json. The prompts seedfall-setup, seedfall-properties, seedfall-triage and seedfall-fix-and-prove walk through each stage."
 
 type runArgs struct {
 	Config string `json:"config" jsonschema:"path to seedfall.json"`
@@ -150,7 +150,7 @@ func newMCPServer() (*mcp.Server, error) {
 	}, toolInit)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "seedfall_run",
-		Description: "Sweep a seed range under simulated crashes, torn writes, fsync errors, partitions, clogs and slow nodes. Returns the lowest failing seed with its fault schedule and trace tail, plus property coverage and, with faults.buggify on, how often each sim.Buggify site was reached, enabled and fired.",
+		Description: "Sweep a seed range under simulated crashes, torn writes, fsync errors, disk corruption, full disks, partitions, clogs and slow nodes. Returns the lowest failing seed with its fault schedule and trace tail, plus property coverage and, with faults.buggify on, how often each sim.Buggify site was reached, enabled and fired.",
 	}, toolRun)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "seedfall_replay",
@@ -170,7 +170,7 @@ func newMCPServer() (*mcp.Server, error) {
 	}, toolVerify)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "seedfall_inspect",
-		Description: "Replay a seed and snapshot every node's simulated disk at the failure or at a virtual time. Returns each file's size, durable size, the byte ranges a crash would lose, directory entries that are not durable yet, removed entries a crash would bring back, the last torn write, and under reorder_writes which pending writes the last crash kept. Optionally returns one file's durable content.",
+		Description: "Replay a seed and snapshot every node's simulated disk at the failure or at a virtual time. Returns each file's size, durable size, the byte ranges a crash would lose, directory entries that are not durable yet, removed entries a crash would bring back, the last torn write, under reorder_writes which pending writes the last crash kept, the ranges disk faults corrupted, and with disk_bytes how full each disk is. Optionally returns one file's durable content.",
 	}, toolInspect)
 	if err := addResources(server); err != nil {
 		return nil, err

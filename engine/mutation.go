@@ -8,13 +8,14 @@ import (
 type Mutation string
 
 const (
-	NoMutation   Mutation = ""
-	FsyncNoop    Mutation = "fsync_noop"
-	DirsyncNoop  Mutation = "dirsync_noop"
-	OsyncIgnored Mutation = "osync_ignored"
+	NoMutation    Mutation = ""
+	FsyncNoop     Mutation = "fsync_noop"
+	DirsyncNoop   Mutation = "dirsync_noop"
+	OsyncIgnored  Mutation = "osync_ignored"
+	FsyncCorrupts Mutation = "fsync_corrupts"
 )
 
-var Mutations = []Mutation{FsyncNoop, DirsyncNoop, OsyncIgnored}
+var Mutations = []Mutation{FsyncNoop, DirsyncNoop, OsyncIgnored, FsyncCorrupts}
 
 func (m Mutation) Describe() string {
 	switch m {
@@ -24,6 +25,8 @@ func (m Mutation) Describe() string {
 		return "directory fsync does nothing (matters with strict_dirs)"
 	case OsyncIgnored:
 		return "writes to O_SYNC and O_DSYNC files are no longer synchronous"
+	case FsyncCorrupts:
+		return "file fsync makes the data durable with one bit flipped, so it reads back wrong after a crash"
 	}
 	return "no mutation"
 }

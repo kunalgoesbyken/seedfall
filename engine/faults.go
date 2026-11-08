@@ -9,20 +9,30 @@ import (
 )
 
 const (
-	FaultCrash     = "crash"
-	FaultPartition = "partition"
-	FaultCrashIO   = "crash_io"
-	FaultFsyncEIO  = "fsync_eio"
-	FaultPause     = "pause"
-	FaultClockJump = "clock_jump"
-	FaultBuggify   = "buggify"
-	FaultClog      = "clog"
-	FaultReset     = "net_reset"
-	FaultSlow      = "slow"
+	FaultCrash       = "crash"
+	FaultPartition   = "partition"
+	FaultCrashIO     = "crash_io"
+	FaultFsyncEIO    = "fsync_eio"
+	FaultPause       = "pause"
+	FaultClockJump   = "clock_jump"
+	FaultBuggify     = "buggify"
+	FaultClog        = "clog"
+	FaultReset       = "net_reset"
+	FaultSlow        = "slow"
+	FaultWriteEIO    = "write_eio"
+	FaultENOSPC      = "write_enospc"
+	FaultReadEIO     = "read_eio"
+	FaultReadCorrupt = "read_corrupt"
+	FaultLostWrite   = "lost_write"
+	FaultMisdirected = "misdirected_write"
+	FaultBitrot      = "bitrot"
+	DamageCrash      = "corrupt_on_crash"
 )
 
+var runtimeKinds = []string{FaultCrashIO, FaultFsyncEIO, FaultBuggify, FaultWriteEIO, FaultENOSPC, FaultReadEIO, FaultReadCorrupt, FaultLostWrite, FaultMisdirected}
+
 func observedAtRuntime(kind string) bool {
-	return kind == FaultCrashIO || kind == FaultFsyncEIO || kind == FaultBuggify
+	return slices.Contains(runtimeKinds, kind)
 }
 
 type Fault struct {
@@ -41,6 +51,9 @@ type Fault struct {
 	Until  Duration   `json:"until"`
 	Op     int64      `json:"op,omitempty"`
 	Shift  Duration   `json:"shift,omitempty"`
+	Path   string     `json:"path,omitempty"`
+	Offset int64      `json:"offset,omitempty"`
+	Target int64      `json:"target,omitempty"`
 }
 
 func uniform(r *rand.Rand, rg Range) time.Duration {
@@ -73,6 +86,14 @@ func (s FaultSpec) forSeed(seed uint64) FaultSpec {
 	s.SwizzlePerSec = swarmRate(r, s.SwizzlePerSec)
 	s.ResetPerSec = swarmRate(r, s.ResetPerSec)
 	s.SlowPerSec = swarmRate(r, s.SlowPerSec)
+	s.WriteEIO = swarmRate(r, s.WriteEIO)
+	s.WriteENOSPC = swarmRate(r, s.WriteENOSPC)
+	s.ReadEIO = swarmRate(r, s.ReadEIO)
+	s.ReadCorrupt = swarmRate(r, s.ReadCorrupt)
+	s.LostWrite = swarmRate(r, s.LostWrite)
+	s.MisdirectedWrite = swarmRate(r, s.MisdirectedWrite)
+	s.CorruptOnCrash = s.CorruptOnCrash && r.IntN(2) == 0
+	s.BitrotPerSec = swarmRate(r, s.BitrotPerSec)
 	return s
 }
 
@@ -115,6 +136,9 @@ func generateFaults(cfg *Config, spec FaultSpec, r *rand.Rand) []Fault {
 		return Fault{At: Duration(t), Kind: FaultClockJump, Node: n, Shift: Duration(shift)}, t
 	})...)
 	out = append(out, netFaults(cfg, spec, r)...)
+	out = append(out, perNode(cfg, spec.BitrotPerSec, r, func(n string, t time.Duration) (Fault, time.Duration) {
+		return Fault{At: Duration(t), Kind: FaultBitrot, Node: n, Until: Duration(t)}, t
+	})...)
 	out = slices.DeleteFunc(out, func(f Fault) bool { return time.Duration(f.At) >= horizon })
 	slices.SortStableFunc(out, func(a, b Fault) int { return int(a.At - b.At) })
 	return out
@@ -190,6 +214,9 @@ func randomSide(r *rand.Rand, names []string) []string {
 
 func (f Fault) Describe() string {
 	at := func(d Duration) time.Duration { return time.Duration(d).Round(time.Microsecond) }
+	if text := f.diskText(); text != "" {
+		return fmt.Sprintf("%8s  %s", at(f.At), text)
+	}
 	switch f.Kind {
 	case FaultFsyncEIO:
 		return fmt.Sprintf("%8s  fsync on %s fails with EIO at disk op #%d, unsynced writes dropped", at(f.At), f.Node, f.Op)

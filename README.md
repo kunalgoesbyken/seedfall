@@ -136,6 +136,7 @@ The [getting started guide](docs/getting-started.md) walks through finding, shri
 
 - **Stock toolchain.** No `linkname`, no source rewriting, no forked runtime. Works on Linux, macOS and Windows. [How it works](docs/how-it-works.md)
 - **A real disk model.** Plain `os.File` with fsync durability, torn writes, out-of-order page writeback, crashes in the middle of a disk operation, fsync `EIO` with Linux "fsyncgate" semantics, and strict POSIX directory durability. [Faults](docs/faults.md)
+- **A disk that misbehaves.** A full disk that returns `ENOSPC`, read and write `EIO`, corrupted reads, lost and misdirected writes that fsync reports as done, bits flipped by a crash or by bit rot, and slow fsyncs. Every one replays and shrinks, and `seedfall inspect` shows the corrupted ranges. [Disk faults](docs/faults.md#disk-faults)
 - **Storage engines that need `mmap`.** bbolt, pebble and badger run unmodified via `compat_overlay`, which swaps their platform files for `wasip1` versions. [Compat](docs/compat.md)
 - **A real network.** Partitions in Jepsen's topologies (half, one, majority, majorities ring, random groups), one-way clogs that stop, jam or slow a link, FoundationDB-style swizzles, connection resets without a crash, per-link latency, through `sim` or with zero code changes via `net_overlay`, including `net/http` and hashicorp/raft's stock TCP transport. [Networking](docs/networking.md), [network faults](docs/faults.md#network-faults)
 - **Real processes.** Every node is its own wasm instance. A crash kills the process; a restart boots fresh over the surviving disk. `supervise` restarts nodes that exit, like systemd.
@@ -148,22 +149,22 @@ The [getting started guide](docs/getting-started.md) walks through finding, shri
 - **Linearizability.** Record concurrent `sim.Put` / `sim.Get` operations and get a Porcupine check with an HTML timeline.
 - **Exact replay and shrinking.** Same seed, same run, byte for byte. Shrunk schedules replay exactly.
 - **Causality analysis.** `seedfall cause` replays a failing seed to many moments, re-randomizes everything after each one, and plots the probability of failing over time. The fault where it jumps is the cause. [Cause](docs/cause.md)
-- **Disk inspection.** `seedfall inspect` snapshots every node's simulated disk at the failure or any virtual time: which bytes are durable, which a crash would lose, which directory entries are not durable yet, and where the last crash tore a write. `-out` exports the durable image for the library's own tools. [Inspect](docs/inspect.md)
-- **Mutation testing.** `seedfall mutate` silently breaks fsync, directory fsync and `O_SYNC` under your nodes and checks that your sweep notices. A surviving mutant is a blind spot in your checks. [Mutate](docs/mutate.md)
+- **Disk inspection.** `seedfall inspect` snapshots every node's simulated disk at the failure or any virtual time: which bytes are durable, which a crash would lose, which directory entries are not durable yet, where the last crash tore a write, and which ranges a disk fault corrupted. `-out` exports the durable image for the library's own tools. [Inspect](docs/inspect.md)
+- **Mutation testing.** `seedfall mutate` silently breaks fsync, directory fsync and `O_SYNC`, or corrupts what fsync writes, under your nodes and checks that your sweep notices. A surviving mutant is a blind spot in your checks. [Mutate](docs/mutate.md)
 - **Triage reports.** `-report` groups every failing seed into findings, writes an HTML and JSON report, and tracks each finding across runs as new, ongoing, resolved (with 95% confidence) or regressed. [Reports](docs/reports.md)
 - **Runs Antithesis SDK code.** Programs instrumented with the Antithesis Go SDK run unchanged: `assert.Always`, `Sometimes`, `Reachable` and `lifecycle.SetupComplete` become seedfall properties and setup. [Antithesis compatibility](docs/antithesis.md)
 - **Failure classification.** Every reported failure is classed as a `bug`, `nondeterministic` (with the first diverging trace line) or `timeout`, so CI and agents block only on real bugs. [Reports](docs/reports.md#classification)
 - **Proof of fix.** `seedfall verify` replays the failing schedules, sweeps enough fresh seeds for 95% confidence, checks determinism and mutants, and writes a Markdown proof block for the pull request. [Verify](docs/verify.md)
 - **AI-agent native.** `seedfall mcp` lets Claude Code, Cursor and other agents run, replay and shrink on their own, and prove a fix before opening a PR. [Agents](docs/agents.md)
 - **CI ready.** A GitHub Action, a `go test` helper, and `run -json` for one JSON object per seed. [CI](docs/ci.md)
-- **Tested itself.** Unit tests pin down the crash, torn-write, writeback, fsync `EIO`, `strict_dirs`, scheduler, network, shrink and confidence models, and an end-to-end guest proves byte-identical replay. CI runs them with `-race` on Linux, macOS and Windows, plus staticcheck, govulncheck and CodeQL, and every example nightly. [Testing](docs/testing.md)
+- **Tested itself.** Unit tests pin down the crash, torn-write, writeback, fsync `EIO`, disk fault, `strict_dirs`, scheduler, network, shrink and confidence models, and an end-to-end guest proves byte-identical replay. CI runs them with `-race` on Linux, macOS and Windows, plus staticcheck, govulncheck and CodeQL, and every example nightly. [Testing](docs/testing.md)
 - **Gostman collections as workloads.** Run the API checks you already keep in a [Gostman](https://github.com/kunalgoesbyken/gostman) collection while seedfall crashes and partitions the service behind them. [Gostman](docs/gostman.md)
 
 ## Examples
 
 | Example | What it shows |
 |---|---|
-| [`examples/kvlog`](examples/kvlog) | A log-structured store: ack-before-fsync, the torn-tail recovery bug that survives "fsync before ack", the fsyncgate hole, and their fixes |
+| [`examples/kvlog`](examples/kvlog) | A log-structured store: ack-before-fsync, the torn-tail recovery bug that survives "fsync before ack", the fsyncgate hole, and their fixes, then corrupted reads fixed by checksums, a full disk, and the lost writes, misdirected writes and bit rot that one copy cannot survive |
 | [`examples/metapage`](examples/metapage) | A store that commits records through a meta page: passes under torn writes, and `reorder_writes` finds the meta page reaching the disk before the record it commits |
 | [`examples/raftkv`](examples/raftkv) | hashicorp/raft v1.8 with linearizability checking, over a `sim` stream layer or the stock TCP transport |
 | [`examples/etcdraft`](examples/etcdraft) | etcd-io/raft v3 with a raftexample-style WAL and snapshots, linearizability checked |

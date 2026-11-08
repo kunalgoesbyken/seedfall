@@ -21,6 +21,9 @@ func faultConfig() *Config {
 	cfg.Faults.FsyncEIO = 0.01
 	cfg.Faults.TornWrites = true
 	cfg.Faults.ReorderWrites = true
+	cfg.Faults.BitrotPerSec = 0.2
+	cfg.Faults.ReadCorrupt = 0.01
+	cfg.Faults.LostWrite = 0.01
 	return &cfg
 }
 
@@ -70,12 +73,12 @@ func TestGenerateFaultsRespectsTheHorizonAndOrder(t *testing.T) {
 			}
 		}
 	}
-	for _, k := range []string{FaultCrash, FaultPartition, FaultPause, FaultClockJump} {
+	for _, k := range []string{FaultCrash, FaultPartition, FaultPause, FaultClockJump, FaultBitrot} {
 		if !kinds[k] {
 			t.Errorf("no seed scheduled a %s", k)
 		}
 	}
-	for _, k := range []string{FaultCrashIO, FaultFsyncEIO} {
+	for _, k := range runtimeKinds {
 		if kinds[k] {
 			t.Errorf("%s is observed at runtime and must not be planned", k)
 		}
@@ -130,6 +133,9 @@ func TestForSeedVariesOnlyUnderSwarm(t *testing.T) {
 		}
 		if a.ClogPerSec > 2*spec.ClogPerSec || a.SlowPerSec > 2*spec.SlowPerSec || a.ResetPerSec > 2*spec.ResetPerSec || a.SwizzlePerSec > 2*spec.SwizzlePerSec {
 			t.Fatalf("seed %d: swarm raised a network rate beyond twice the configured one: %+v", seed, a)
+		}
+		if a.BitrotPerSec > 2*spec.BitrotPerSec || a.ReadCorrupt > 2*spec.ReadCorrupt || a.LostWrite > 2*spec.LostWrite || a.DiskBytes != spec.DiskBytes || a.DiskLatency != spec.DiskLatency {
+			t.Fatalf("seed %d: swarm changed a disk setting it does not own or raised a disk rate beyond twice the configured one: %+v", seed, a)
 		}
 		mixes[fmt.Sprint(a)] = true
 	}

@@ -14,6 +14,7 @@ verify seedfall.fixed.json
   pass  mutant fsync_noop                                killed by seed 2
   pass  mutant dirsync_noop                              not exercised
   pass  mutant osync_ignored                             not exercised
+  pass  mutant fsync_corrupts                            killed by seed 2
 PASS
 ```
 
@@ -77,6 +78,7 @@ Config `seedfall.fixed.json`, reproduce with `seedfall verify -c seedfall.fixed.
 | pass | mutant fsync_noop | killed by seed 2 |
 | pass | mutant dirsync_noop | not exercised |
 | pass | mutant osync_ignored | not exercised |
+| pass | mutant fsync_corrupts | killed by seed 2 |
 ```
 
 ## Flags

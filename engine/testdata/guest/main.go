@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"flag"
 	"fmt"
 	"net"
@@ -10,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/kunalgoesbyken/seedfall/sim"
@@ -59,6 +61,7 @@ func store(durable bool) {
 			defer mu.Unlock()
 			if strings.TrimSpace(req) == "PUT" {
 				if _, err := f.WriteString("x\n"); err != nil {
+					sim.Sometimes(errors.Is(err, syscall.ENOSPC), "a write failed with ENOSPC")
 					return
 				}
 				if durable && f.Sync() != nil {

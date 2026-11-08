@@ -155,8 +155,8 @@ func (r *Runner) run(seed uint64, faults []Fault, explicit bool, b *branch, p *p
 	defer cancel()
 	w := &world{
 		cfg: r.cfg, seed: seed, ctx: ctx, cancel: cancel, rt: r.rt,
-		sched: streams(seed, "sched"), netRand: streams(seed, "net"), diskRand: streams(seed, "disk"),
-		events: make(chan event), faults: faults, trace: &tracer{}, compiled: r.compiled,
+		sched: streams(seed, "sched"), netRand: streams(seed, "net"), diskRand: streams(seed, "disk"), latRand: streams(seed, "disklatency"),
+		events: make(chan event), faults: slices.Clone(faults), trace: &tracer{}, compiled: r.compiled,
 		explicit: explicit, ioRand: streams(seed, "io"), props: properties{}, spec: r.cfg.Faults.forSeed(seed), branch: b, probe: p,
 		mutation: r.Mutation, weakened: func() { r.weakened.Add(1) },
 	}
@@ -193,6 +193,7 @@ func (w *world) setup() {
 			n.fs.mutated = func() { w.onDiskOp(n) }
 			n.fs.syncFails = func() bool { return w.fsyncFails(n) }
 			n.fs.weaken, n.fs.onWeakened = w.mutation, w.weakened
+			w.wireDisk(n)
 		}
 		n.skew = w.clockSkew(n)
 		n.fs.special = func(p string) (fsapi.File, fsapi.Errno, bool) { return w.openSpecial(n, p) }

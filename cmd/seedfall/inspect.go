@@ -128,6 +128,9 @@ func printTotals(d engine.Disk) {
 		}
 	}
 	fmt.Printf("  %d dirs, %d files: %d bytes durable, %d bytes pending, %d entries lost on crash, %d removed entries that come back\n", len(d.Dirs), len(d.Files), durable, pending, lost, len(d.Ghosts))
+	if d.Bytes > 0 {
+		fmt.Printf("  disk_bytes: %d of %d bytes used\n", d.Used, d.Bytes)
+	}
 }
 
 type diskTree struct {
@@ -169,7 +172,38 @@ func (t diskTree) print(dir string, depth int) {
 		if f.Writeback != nil {
 			printWriteback(indent, *f.Writeback)
 		}
+		printDamage(indent, f.Damage)
 	}
+}
+
+func printDamage(indent string, damage []engine.Damage) {
+	if len(damage) == 0 {
+		return
+	}
+	fmt.Printf("%s  ^ corrupted ranges:\n", indent)
+	if extra := len(damage) - shownWrites; extra > 0 {
+		fmt.Printf("%s    %d earlier ones not shown\n", indent, extra)
+	}
+	for _, d := range damage[max(len(damage)-shownWrites, 0):] {
+		fmt.Printf("%s    t=%s %s\n", indent, time.Duration(d.At), damageText(d))
+	}
+}
+
+func damageText(d engine.Damage) string {
+	at := fmt.Sprintf("[%d,%d)", d.Offset, d.Offset+d.Size)
+	switch d.Kind {
+	case engine.FaultLostWrite:
+		return fmt.Sprintf("lost write: %s was acknowledged by fsync but kept its old content on disk", at)
+	case engine.FaultMisdirected:
+		return fmt.Sprintf("misdirected write: %s kept its old content on disk, and its page landed at offset %d instead", at, d.Target)
+	case engine.FaultBitrot:
+		return fmt.Sprintf("bit rot: one bit flipped on disk in %s", at)
+	case engine.DamageCrash:
+		return fmt.Sprintf("crash corruption: one bit flipped in %s, which was being written when the node crashed", at)
+	case engine.FaultReadCorrupt:
+		return fmt.Sprintf("corrupted read: one bit of %s came back flipped, the disk holds the right bytes", at)
+	}
+	return d.Kind + " " + at
 }
 
 func printWriteback(indent string, wb engine.Writeback) {

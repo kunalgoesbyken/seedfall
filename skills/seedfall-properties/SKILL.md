@@ -63,6 +63,7 @@ The baseline must pass first. Then each mutant weakens one disk guarantee under 
 | `fsync_noop` | Nothing checks that acknowledged data survives a crash, or crashes never land between a write and its fsync | Read back every acknowledged write after crashes. Raise `crash_on_io` and set `torn_writes` |
 | `dirsync_noop` | Directory fsyncs are untested | Add `"strict_dirs": true` to `faults`, then check data that depends on a create or rename |
 | `osync_ignored` | Writes to `O_SYNC` files are untested | Check the data written through those files |
+| `fsync_corrupts` | Nothing compares the data read back after a crash with what was acknowledged | Read back every acknowledged value after crashes and compare it byte for byte, not only its presence |
 
 `not exercised` means the operation never ran, or had no effect in this config. That is fine when the service never uses it, such as `dirsync_noop` without `strict_dirs`.
 
@@ -70,4 +71,4 @@ Repeat steps 2 to 4 until every exercised mutant is killed, or until you can sta
 
 ## 5. Widen the fault model
 
-Once the basic sweep and the mutants pass, add one fault class at a time and sweep again: `fsync_eio` (around 0.01), `strict_dirs`, `partition_per_sec`, then `pause_per_sec` and `clock_jump_per_sec` for lease and timeout logic, and for consensus or leader election `partition_topologies`, `clog_per_sec` and `slow_per_sec` (one-way links, jammed links and slow leaders). Set `swarm` for long CI sweeps. A fault class that breaks the service is a finding, not noise: triage it.
+Once the basic sweep and the mutants pass, add one fault class at a time and sweep again: `fsync_eio` (around 0.01), `strict_dirs`, `partition_per_sec`, then `pause_per_sec` and `clock_jump_per_sec` for lease and timeout logic, and for consensus or leader election `partition_topologies`, `clog_per_sec` and `slow_per_sec` (one-way links, jammed links and slow leaders). For storage code, add the disk faults next: `disk_bytes` and `write_eio` for write error paths, `read_corrupt` and `corrupt_on_crash` for checksums, and on replicated systems `lost_write`, `misdirected_write` and `bitrot_per_sec` (see the MCP resource `seedfall://docs/faults`, section Disk faults). Set `swarm` for long CI sweeps. A fault class that breaks the service is a finding, not noise: triage it.

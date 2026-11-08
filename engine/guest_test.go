@@ -246,3 +246,65 @@ func TestGuestNetworkFaultsReplayExactly(t *testing.T) {
 		}
 	}
 }
+
+func diskKinds(res Result) map[string]bool {
+	kinds := map[string]bool{}
+	for _, f := range res.FaultsApplied() {
+		kinds[f.Kind] = true
+	}
+	return kinds
+}
+
+func TestGuestDiskFaultsReplayExactly(t *testing.T) {
+	r := guestRunner(t, true)
+	f := &r.cfg.Faults
+	f.WriteEIO, f.WriteENOSPC, f.ReadEIO, f.ReadCorrupt, f.LostWrite, f.BitrotPerSec = 0.03, 0.03, 0.05, 0.3, 0.05, 1
+	f.CorruptOnCrash, f.DiskLatency = true, Range{Duration(time.Millisecond), Duration(5 * time.Millisecond)}
+	kinds := map[string]bool{}
+	for seed := range uint64(6) {
+		a := r.Run(seed, nil)
+		if diff, diverged := divergence(a.Trace, r.Run(seed, nil).Trace); diverged {
+			t.Fatalf("seed %d: two runs diverge at %s", seed, diff)
+		}
+		if diff, diverged := divergence(a.Trace, r.Run(seed, a.Faults).Trace); diverged {
+			t.Fatalf("seed %d: replaying the recorded schedule diverges at %s", seed, diff)
+		}
+		for k := range diskKinds(a) {
+			kinds[k] = true
+		}
+		if p := a.Properties["a write failed with ENOSPC"]; diskKinds(a)[FaultENOSPC] && (p == nil || p.True == 0) {
+			t.Fatalf("seed %d: a write_enospc fault did not reach the guest as ENOSPC", seed)
+		}
+	}
+	for _, k := range []string{FaultWriteEIO, FaultENOSPC, FaultReadEIO, FaultReadCorrupt, FaultLostWrite, FaultBitrot} {
+		if !kinds[k] {
+			t.Errorf("no seed recorded a %s", k)
+		}
+	}
+}
+
+func TestGuestDiskFullReachesTheProgramAsENOSPC(t *testing.T) {
+	r := guestRunner(t, true)
+	r.cfg.Faults = defaultConfig().Faults
+	r.cfg.Faults.DiskBytes = 40
+	res := r.Run(1, nil)
+	if p := res.Properties["a write failed with ENOSPC"]; p == nil || p.True == 0 {
+		t.Fatalf("the guest never saw ENOSPC: %+v (%s)", p, res.Reason)
+	}
+	if res.Failed {
+		t.Fatalf("a full disk failed the run: %s", res.Reason)
+	}
+}
+
+func TestGuestLostWriteShrinksToTheLostWrite(t *testing.T) {
+	r := guestRunner(t, true)
+	r.cfg.Faults.LostWrite = 0.2
+	failed := firstFailure(t, r)
+	best := Shrink(r, failed, func(int) {})
+	if !best.sameFailure(failed) || !diskKinds(best)[FaultLostWrite] {
+		t.Fatalf("shrunk to %v failing with %q", best.Faults, best.Reason)
+	}
+	if again := r.Run(best.Seed, best.Faults); !reflect.DeepEqual(again.Trace, best.Trace) {
+		t.Fatal("the shrunk schedule does not replay exactly")
+	}
+}

@@ -88,6 +88,9 @@ func TestMCPListsInitPromptsAndResources(t *testing.T) {
 	if _, ok := schema.Properties["links"]; !ok {
 		t.Error("schema has no links field")
 	}
+	if _, ok := schema.Properties["faults"].Properties["read_corrupt"]; !ok {
+		t.Error("schema has no faults.read_corrupt field")
+	}
 	if _, err := cs.ReadResource(ctx, &mcp.ReadResourceParams{URI: "seedfall://docs/properties"}); err != nil {
 		t.Error(err)
 	}

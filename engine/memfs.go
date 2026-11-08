@@ -18,8 +18,9 @@ import (
 const pageSize = 4096
 
 type crashModel struct {
-	torn  bool
-	pages *rand.Rand
+	torn    bool
+	pages   *rand.Rand
+	corrupt *rand.Rand
 }
 
 type pendingWrite struct {
@@ -37,6 +38,8 @@ type inode struct {
 	mtime   int64
 	tear    *Tear
 	wb      *Writeback
+	damage  []Damage
+	stale   map[int64]bool
 }
 
 type memFS struct {
@@ -44,6 +47,13 @@ type memFS struct {
 	clock      func() int64
 	mutated    func()
 	syncFails  func() bool
+	writeFails func(path string) fsapi.Errno
+	readFault  func(path string, off int64, n int) (fsapi.Errno, int, byte)
+	syncDamage func(path string, dirty []int64, pages int64) (Damage, bool)
+	syncWait   func()
+	diskFull   func(path string, kept, size int)
+	capacity   int64
+	noSpace    bool
 	weaken     Mutation
 	onWeakened func()
 	special    func(string) (fsapi.File, fsapi.Errno, bool)
@@ -232,38 +242,51 @@ func (m *memFS) Rename(from, to string) fsapi.Errno {
 func (m *memFS) Utimens(string, int64, int64) fsapi.Errno { return 0 }
 func (m *memFS) Chmod(string, fs.FileMode) fsapi.Errno    { return 0 }
 
-func (m *memFS) crash(r *rand.Rand, c crashModel) {
+type fileDamage struct {
+	path string
+	Damage
+}
+
+func (m *memFS) crash(r *rand.Rand, c crashModel) []fileDamage {
 	if m.ns != nil {
-		m.crashStrict(r, c)
-		return
+		return m.crashStrict(r, c)
 	}
+	var damaged []fileDamage
 	at := m.crashTime()
 	for _, p := range sortedKeys(m.files) {
 		in := m.files[p]
-		in.recover(r, c, at)
+		if d, ok := in.recover(r, c, at); ok {
+			damaged = append(damaged, fileDamage{p, d})
+		}
 		if !in.synced {
 			delete(m.files, p)
 		}
 	}
+	return damaged
 }
 
-func (m *memFS) crashStrict(r *rand.Rand, c crashModel) {
+func (m *memFS) crashStrict(r *rand.Rand, c crashModel) []fileDamage {
+	var damaged []fileDamage
 	seen := map[*inode]bool{}
 	at := m.crashTime()
 	for _, files := range []map[string]*inode{m.files, m.ns.files} {
 		for _, p := range sortedKeys(files) {
 			if in := files[p]; !seen[in] {
 				seen[in] = true
-				in.recover(r, c, at)
+				if d, ok := in.recover(r, c, at); ok {
+					damaged = append(damaged, fileDamage{p, d})
+				}
 			}
 		}
 	}
 	m.files, m.dirs = m.ns.recover(r, c.torn)
+	return damaged
 }
 
 func (m *memFS) crashTime() time.Duration { return time.Duration(m.clock() - epochNanos) }
 
-func (in *inode) recover(r *rand.Rand, c crashModel, at time.Duration) {
+func (in *inode) recover(r *rand.Rand, c crashModel, at time.Duration) (Damage, bool) {
+	pending := in.pending
 	data := append([]byte(nil), in.durable...)
 	switch {
 	case c.pages != nil && len(in.pending) > 0:
@@ -281,6 +304,63 @@ func (in *inode) recover(r *rand.Rand, c crashModel, at time.Duration) {
 	in.data = data
 	in.durable = append([]byte(nil), data...)
 	in.pending = nil
+	in.stale = nil
+	if c.corrupt == nil {
+		return Damage{}, false
+	}
+	return in.corruptWritten(c.corrupt, pending, at)
+}
+
+func (in *inode) corruptWritten(r *rand.Rand, pending []pendingWrite, at time.Duration) (Damage, bool) {
+	var spans []ByteRange
+	var total int64
+	for _, w := range pending {
+		if end := min(w.off+int64(len(w.data)), int64(len(in.durable))); !w.truncate && end > w.off {
+			spans = append(spans, ByteRange{Start: w.off, End: end})
+			total += end - w.off
+		}
+	}
+	if total == 0 {
+		return Damage{}, false
+	}
+	i := r.Int64N(total)
+	for _, s := range spans {
+		if i < s.End-s.Start {
+			return in.flip(s.Start+i, byte(1)<<r.IntN(8), DamageCrash, at), true
+		}
+		i -= s.End - s.Start
+	}
+	return Damage{}, false
+}
+
+func (in *inode) flip(off int64, mask byte, kind string, at time.Duration) Damage {
+	if off < int64(len(in.data)) && in.data[off] == in.durable[off] {
+		in.data[off] ^= mask
+	}
+	in.durable[off] ^= mask
+	d := Damage{At: Duration(at), Kind: kind, Offset: off, Size: 1}
+	in.damage = append(in.damage, d)
+	return d
+}
+
+func (m *memFS) rot(r *rand.Rand) (string, Damage, bool) {
+	paths := sortedKeys(m.files)
+	var total int64
+	for _, p := range paths {
+		total += int64(len(m.files[p].durable))
+	}
+	if total == 0 {
+		return "", Damage{}, false
+	}
+	i := r.Int64N(total)
+	for _, p := range paths {
+		in := m.files[p]
+		if i < int64(len(in.durable)) {
+			return p, in.flip(i, byte(1)<<r.IntN(8), FaultBitrot, m.crashTime()), true
+		}
+		i -= int64(len(in.durable))
+	}
+	return "", Damage{}, false
 }
 
 type pageChunk struct {
@@ -409,10 +489,22 @@ func (f *memFile) Pread(buf []byte, off int64) (int, fsapi.Errno) {
 	if f.in == nil {
 		return 0, fsapi.EISDIR
 	}
-	if off >= int64(len(f.in.data)) {
-		return 0, 0
+	n := 0
+	if off < int64(len(f.in.data)) {
+		n = copy(buf, f.in.data[off:])
 	}
-	return copy(buf, f.in.data[off:]), 0
+	if f.fs.readFault == nil {
+		return n, 0
+	}
+	errno, i, mask := f.fs.readFault(f.path, off, n)
+	if errno != 0 {
+		return 0, errno
+	}
+	if mask != 0 {
+		buf[i] ^= mask
+		f.in.damage = append(f.in.damage, Damage{At: Duration(f.fs.crashTime()), Kind: FaultReadCorrupt, Offset: off + int64(i), Size: 1})
+	}
+	return n, 0
 }
 
 func (f *memFile) Seek(offset int64, whence int) (int64, fsapi.Errno) {
@@ -467,10 +559,45 @@ func (f *memFile) Pwrite(buf []byte, off int64) (int, fsapi.Errno) {
 	if f.in == nil {
 		return 0, fsapi.EISDIR
 	}
-	if errno := f.record(pendingWrite{off: off, data: append([]byte(nil), buf...)}); errno != 0 {
+	if f.fs.writeFails != nil {
+		if errno := f.fs.writeFails(f.path); errno != 0 {
+			f.fs.notify()
+			return 0, errno
+		}
+	}
+	n := f.fs.room(f.in, off, len(buf))
+	if n < len(buf) && f.fs.diskFull != nil {
+		f.fs.diskFull(f.path, n, len(buf))
+	}
+	if n == 0 && len(buf) > 0 {
+		f.fs.notify()
+		return 0, f.fs.noSpaceLeft()
+	}
+	if errno := f.record(pendingWrite{off: off, data: append([]byte(nil), buf[:n]...)}); errno != 0 {
 		return 0, errno
 	}
-	return len(buf), 0
+	return n, 0
+}
+
+func (m *memFS) room(in *inode, off int64, n int) int {
+	if m.capacity <= 0 {
+		return n
+	}
+	limit := int64(len(in.data)) + max(m.capacity-m.used(), 0)
+	return int(min(int64(n), max(limit-off, 0)))
+}
+
+func (m *memFS) noSpaceLeft() fsapi.Errno {
+	m.noSpace = true
+	return fsapi.EIO
+}
+
+func (m *memFS) used() int64 {
+	var total int64
+	for _, in := range m.files {
+		total += int64(len(in.data))
+	}
+	return total
 }
 
 func (f *memFile) Truncate(size int64) fsapi.Errno {
@@ -498,14 +625,16 @@ func (m *memFS) notify() {
 }
 
 func (f *memFile) Sync() fsapi.Errno {
+	f.fs.notify()
+	if f.fs.syncWait != nil {
+		f.fs.syncWait()
+	}
 	if f.in == nil {
-		f.fs.notify()
 		if f.fs.ns != nil && !f.weakenedTo(DirsyncNoop) {
 			f.fs.ns.commit(f.path)
 		}
 		return 0
 	}
-	f.fs.notify()
 	if f.fs.syncFails != nil && f.fs.syncFails() {
 		f.in.pending = nil
 		return fsapi.EIO
@@ -513,12 +642,109 @@ func (f *memFile) Sync() fsapi.Errno {
 	if f.weakenedTo(FsyncNoop) {
 		return 0
 	}
-	for _, w := range f.in.pending {
-		f.in.durable = w.apply(f.in.durable)
-	}
-	f.in.pending = nil
-	f.in.synced = true
+	f.persist()
 	return 0
+}
+
+func (f *memFile) persist() {
+	in := f.in
+	size := syncedSize(int64(len(in.durable)), in.pending)
+	dirty := dirtyPages(in.pending, size)
+	d, damaged := f.damage(dirty, size)
+	var old []byte
+	if damaged {
+		old = pageBytes(in.durable, d.Offset)
+	}
+	for _, w := range in.pending {
+		in.durable = w.apply(in.durable)
+	}
+	in.rewrite(dirty)
+	if w, ok := lastWrite(in.pending, int64(len(in.durable))); ok && f.weakenedTo(FsyncCorrupts) {
+		in.durable[w.off] ^= 1
+	}
+	if damaged {
+		in.misplace(d, old)
+	}
+	in.pending = nil
+	in.synced = true
+}
+
+func (f *memFile) damage(dirty []int64, size int64) (Damage, bool) {
+	if f.fs.syncDamage == nil || len(dirty) == 0 {
+		return Damage{}, false
+	}
+	d, ok := f.fs.syncDamage(f.path, dirty, (size+pageSize-1)/pageSize)
+	d.At, d.Size = Duration(f.fs.crashTime()), min(pageSize, size-d.Offset)
+	return d, ok
+}
+
+func syncedSize(size int64, pending []pendingWrite) int64 {
+	for _, w := range pending {
+		if w.truncate {
+			size = w.off
+			continue
+		}
+		size = max(size, w.off+int64(len(w.data)))
+	}
+	return size
+}
+
+func dirtyPages(pending []pendingWrite, size int64) []int64 {
+	var pages []int64
+	for _, w := range pending {
+		if w.truncate {
+			continue
+		}
+		for p := w.off / pageSize; p*pageSize < min(w.off+int64(len(w.data)), size); p++ {
+			pages = append(pages, p)
+		}
+	}
+	slices.Sort(pages)
+	return slices.Compact(pages)
+}
+
+func lastWrite(pending []pendingWrite, size int64) (pendingWrite, bool) {
+	for _, w := range slices.Backward(pending) {
+		if !w.truncate && len(w.data) > 0 && w.off < size {
+			return w, true
+		}
+	}
+	return pendingWrite{}, false
+}
+
+func pageBytes(data []byte, off int64) []byte {
+	page := make([]byte, pageSize)
+	if off < int64(len(data)) {
+		copy(page, data[off:])
+	}
+	return page
+}
+
+func (in *inode) misplace(d Damage, old []byte) {
+	moved := pageBytes(in.durable, d.Offset)
+	copy(in.durable[d.Offset:d.Offset+d.Size], old)
+	if in.stale == nil {
+		in.stale = map[int64]bool{}
+	}
+	in.stale[d.Offset/pageSize] = true
+	if d.Kind == FaultMisdirected {
+		copy(in.durable[d.Target:min(d.Target+pageSize, int64(len(in.durable)))], moved)
+		in.stale[d.Target/pageSize] = true
+	}
+	in.damage = append(in.damage, d)
+}
+
+func (in *inode) rewrite(dirty []int64) {
+	for _, p := range dirty {
+		if !in.stale[p] {
+			continue
+		}
+		start, end := p*pageSize, min((p+1)*pageSize, int64(len(in.durable)), int64(len(in.data)))
+		if start < end {
+			copy(in.durable[start:end], in.data[start:end])
+		}
+		delete(in.stale, p)
+	}
 }
 
 func (f *memFile) Datasync() fsapi.Errno            { return f.Sync() }

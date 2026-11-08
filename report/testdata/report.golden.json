@@ -51,7 +51,20 @@
     ],
     "clock_jump_per_sec": 0,
     "clock_jump_max": "0s",
-    "buggify": false
+    "buggify": false,
+    "disk_bytes": 0,
+    "write_eio": 0,
+    "write_enospc": 0,
+    "read_eio": 0,
+    "read_corrupt": 0,
+    "lost_write": 0,
+    "misdirected_write": 0,
+    "corrupt_on_crash": false,
+    "bitrot_per_sec": 0,
+    "disk_latency": [
+      "0s",
+      "0s"
+    ]
   },
   "findings": [
     {

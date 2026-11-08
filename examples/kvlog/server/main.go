@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"hash/crc32"
 	"io"
 	"log"
 	"net"
@@ -18,12 +19,15 @@ import (
 	"github.com/kunalgoesbyken/seedfall/sim"
 )
 
+const readAttempts = 5
+
 type store struct {
-	mu     sync.Mutex
-	file   *os.File
-	values map[string]string
-	always bool
-	rewind bool
+	mu       sync.Mutex
+	file     *os.File
+	values   map[string]string
+	always   bool
+	rewind   bool
+	checksum bool
 }
 
 func main() {
@@ -32,12 +36,13 @@ func main() {
 	syncMode := flag.String("sync", "batch", "batch: fsync every 200ms, always: fsync before every ack")
 	repair := flag.Bool("repair", false, "truncate a torn log tail during recovery")
 	rewind := flag.Bool("rewind", false, "after a failed fsync, truncate the unsynced record instead of leaving it in the page cache")
+	checksum := flag.Bool("checksum", false, "end every record with a CRC32, re-read the log when a record fails it, and treat a tail that keeps failing as torn")
 	flag.Parse()
 
 	if err := os.MkdirAll(*dir, 0o755); err != nil {
 		log.Fatal(err)
 	}
-	s, err := open(*dir+"/kv.log", *repair)
+	s, err := open(*dir+"/kv.log", *repair, *checksum)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -64,22 +69,24 @@ func main() {
 	}
 }
 
-func open(path string, repair bool) (*store, error) {
-	data, err := os.ReadFile(path)
-	if err != nil && !os.IsNotExist(err) {
-		return nil, err
-	}
-	values := map[string]string{}
-	complete := 0
-	for {
-		i := bytes.IndexByte(data[complete:], '\n')
-		if i < 0 {
+func open(path string, repair, checksum bool) (*store, error) {
+	var data []byte
+	var values map[string]string
+	var complete int
+	for attempt := 1; ; attempt++ {
+		var err error
+		data, err = os.ReadFile(path)
+		if err != nil && !os.IsNotExist(err) {
+			return nil, err
+		}
+		var bad, tail bool
+		values, complete, bad, tail = parse(data, checksum)
+		if !bad || attempt == readAttempts && tail {
 			break
 		}
-		if k, v, ok := strings.Cut(string(data[complete:complete+i]), "="); ok {
-			values[k] = v
+		if attempt == readAttempts {
+			return nil, fmt.Errorf("%s: the record at offset %d fails its checksum in %d reads", path, complete, attempt)
 		}
-		complete += i + 1
 	}
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0o644)
 	if err != nil {
@@ -94,7 +101,42 @@ func open(path string, repair bool) (*store, error) {
 			return nil, err
 		}
 	}
-	return &store{file: f, values: values}, nil
+	return &store{file: f, values: values, checksum: checksum}, nil
+}
+
+func parse(data []byte, checksum bool) (map[string]string, int, bool, bool) {
+	values := map[string]string{}
+	complete := 0
+	for {
+		i := bytes.IndexByte(data[complete:], '\n')
+		if i < 0 {
+			return values, complete, false, false
+		}
+		record, ok := string(data[complete:complete+i]), true
+		if checksum {
+			record, ok = verify(record)
+		}
+		if !ok {
+			return values, complete, true, complete+i+1 == len(data)
+		}
+		if k, v, ok := strings.Cut(record, "="); ok {
+			values[k] = v
+		}
+		complete += i + 1
+	}
+}
+
+func verify(line string) (string, bool) {
+	record, sum, ok := strings.Cut(line, "#")
+	return record, ok && sum == fmt.Sprintf("%08x", crc32.ChecksumIEEE([]byte(record)))
+}
+
+func (s *store) encode(k, v string) string {
+	record := k + "=" + v
+	if s.checksum {
+		record += fmt.Sprintf("#%08x", crc32.ChecksumIEEE([]byte(record)))
+	}
+	return record + "\n"
 }
 
 func (s *store) flushEvery(d time.Duration) {
@@ -112,7 +154,7 @@ func (s *store) put(k, v string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(s.file, "%s=%s\n", k, v); err != nil {
+	if _, err := s.file.WriteString(s.encode(k, v)); err != nil {
 		return err
 	}
 	if s.always {

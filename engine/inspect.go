@@ -32,6 +32,14 @@ type Writeback struct {
 	Writes []WriteFate `json:"writes"`
 }
 
+type Damage struct {
+	At     Duration `json:"at"`
+	Kind   string   `json:"kind"`
+	Offset int64    `json:"offset"`
+	Size   int64    `json:"size"`
+	Target int64    `json:"target,omitempty"`
+}
+
 type FileState struct {
 	Path         string      `json:"path"`
 	Size         int64       `json:"size"`
@@ -40,6 +48,7 @@ type FileState struct {
 	EntryDurable bool        `json:"entry_durable"`
 	Tear         *Tear       `json:"last_tear,omitempty"`
 	Writeback    *Writeback  `json:"last_writeback,omitempty"`
+	Damage       []Damage    `json:"damage,omitempty"`
 	Durable      []byte      `json:"-"`
 }
 
@@ -61,6 +70,8 @@ type Disk struct {
 	Strict  bool        `json:"strict_dirs"`
 	Torn    bool        `json:"torn_writes"`
 	Reorder bool        `json:"reorder_writes"`
+	Bytes   int64       `json:"disk_bytes,omitempty"`
+	Used    int64       `json:"used_bytes"`
 	Dirs    []DirState  `json:"dirs"`
 	Files   []FileState `json:"files"`
 	Ghosts  []FileState `json:"ghosts,omitempty"`
@@ -131,7 +142,7 @@ func (w *world) capture() {
 }
 
 func (m *memFS) snapshot(node string) Disk {
-	d := Disk{Node: node, Strict: m.ns != nil}
+	d := Disk{Node: node, Strict: m.ns != nil, Bytes: m.capacity, Used: m.used()}
 	for _, p := range sortedKeys(m.dirs) {
 		if p != "." {
 			d.Dirs = append(d.Dirs, DirState{Path: p, Durable: m.dirDurable(p)})
@@ -169,7 +180,7 @@ func fileState(p string, in *inode, entryDurable bool) FileState {
 	f := FileState{
 		Path: p, Size: int64(len(in.data)), DurableSize: int64(len(in.durable)),
 		Volatile: diffRanges(in.data, in.durable), EntryDurable: entryDurable,
-		Durable: slices.Clone(in.durable),
+		Durable: slices.Clone(in.durable), Damage: slices.Clone(in.damage),
 	}
 	if in.tear != nil {
 		t := *in.tear

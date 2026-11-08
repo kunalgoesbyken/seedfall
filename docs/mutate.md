@@ -30,6 +30,7 @@ That run is NATS JetStream (`examples/natsjs`). Both guarantees NATS relies on a
 | `fsync_noop` | File `fsync` reports success but makes nothing durable |
 | `dirsync_noop` | Directory `fsync` does nothing. Only observable with `strict_dirs`, where directory entries need it to survive a crash |
 | `osync_ignored` | Writes to files opened with `O_SYNC` or `O_DSYNC` stop being synchronous |
+| `fsync_corrupts` | File `fsync` makes the data durable with one bit flipped: the first byte of the last write it covers. Reads see the right data until a crash, then the flipped one |
 
 Mutants apply to nodes only, never to the workload, and need no changes to your code.
 

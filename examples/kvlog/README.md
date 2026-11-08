@@ -10,10 +10,17 @@ A log-structured key-value server that appends `key=value` lines to `data/kv.log
 | `seedfall.strict.json` | as fixed, plus `strict_dirs` | passes |
 | `seedfall.fsyncgate.json` | as fixed, plus `fsync_eio` | **fails again** on seed 1. A failed fsync leaves the record in the page cache but not on disk, later fsyncs succeed, and recovery truncates at the hole, dropping every later acknowledged write. Shrinks from 37 faults to 2 |
 | `seedfall.rewind.json` | adds `-rewind` (truncate the unsynced record when fsync fails) | passes (400 seeds tested) |
+| `seedfall.readcorrupt.json` | as fixed, plus `read_corrupt` | **fails** on seed 1. A read during recovery returns one flipped bit, and the server rebuilds its index from it: an acknowledged key goes missing or holds the wrong value. Shrinks to 3 faults, saved in `readcorrupt.faults.json` |
+| `seedfall.checksum.json` | adds `-checksum` (a CRC32 on every record, re-read the log when one fails), plus `corrupt_on_crash` | passes (80 seeds tested), and passes `readcorrupt.faults.json`. A record that keeps failing at the tail is a torn write and is truncated; one that keeps failing in the middle stops the server |
+| `seedfall.diskerrors.json` | as checksum, plus `disk_bytes`, `write_eio`, `write_enospc`, `read_eio` and `disk_latency`, supervised | passes (60 seeds tested). Writes are refused once the 1500-byte disk is full and the client is told; a failed read at startup exits, and the supervisor restarts the server |
+| `seedfall.lostwrite.json` | as checksum, plus `lost_write` | **fails** on seed 9. An fsync reports success but the page keeps its older content, so after a crash the records appended since read as zeros; recovery takes them for a torn tail and drops acknowledged records. A checksum cannot tell, and one copy cannot bring them back |
+| `seedfall.misdirected.json` | as checksum, plus `misdirected_write`, 400 writes so the log spans two pages | **fails** on seed 4: after a crash the checksum catches the page that landed on the wrong offset and the server refuses to start rather than serve wrong data |
+| `seedfall.bitrot.json` | as fixed, plus `bitrot_per_sec` | **fails** on seed 1. A bit flips in a stored record, and after the next restart the server answers `VAL vs` for `v3` |
 
 ```sh
 seedfall run -c seedfall.always.json -seeds 1-100
 seedfall shrink -c seedfall.always.json -seed 1
+seedfall inspect -c seedfall.misdirected.json -seed 4 -node server   # the corrupted ranges
 go test ./...    # seedfall_test.go sweeps the fixed config from go test
 ```
 

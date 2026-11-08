@@ -510,6 +510,16 @@ All faults come from the seed. Faults that depend on what the program does, such
 | `reorder_writes` | `false` | A crash keeps any subset of the dirty 4 KiB pages of each file, keeping writes in order within a page. This finds a commit record or header that reaches the disk before the data it points to. Combine with `torn_writes` to also tear the last write kept in each page. See [how-it-works.md](how-it-works.md#disk) |
 | `crash_on_io` | `0` | Probability that a node crashes *during* each disk operation. This is how you hit the window between a write and its fsync |
 | `fsync_eio` | `0` | Probability that a file fsync fails with `EIO`. The unsynced writes stay readable but are dropped from durable storage, and the next fsync succeeds (Linux "fsyncgate" semantics) |
+| `disk_bytes` | `0` | Size of each node's disk in bytes; `0` means unlimited. A write that does not fit writes what fits and returns the short count, and the next write fails with `ENOSPC`. See [Disk faults](#disk-faults) |
+| `write_eio` | `0` | Probability that a file write fails with `EIO` and writes nothing |
+| `write_enospc` | `0` | Probability that a file write fails with `ENOSPC` and writes nothing, however much space is free, as with a quota or a thin-provisioned volume |
+| `read_eio` | `0` | Probability that a file read fails with `EIO` |
+| `read_corrupt` | `0` | Probability that a file read returns one flipped bit. The disk holds the right bytes, so reading again returns them |
+| `lost_write` | `0` | Probability that a file fsync succeeds but one 4 KiB page it should have written keeps its old content on disk. The program keeps reading the new content until a crash |
+| `misdirected_write` | `0` | Probability that a file fsync succeeds but one page lands at another page offset of the same file, overwriting what was there, while the intended page keeps its old content |
+| `corrupt_on_crash` | `false` | Each crash flips one bit in every file that had pending writes, somewhere in the bytes being written, as a sector half-written when the power failed |
+| `bitrot_per_sec` | `0` | Rate of bit rot per node: one bit of durable data, in a random file at a random offset, flips |
+| `disk_latency` | `["0s", "0s"]` | Extra time each fsync takes, drawn per fsync. Slow nodes stretch it |
 | `strict_dirs` | `false` | Directory entries survive a crash only after the parent directory is fsynced (strict POSIX) |
 | `clock_skew` | `0` | Each node's wall clock is offset by a seeded amount in `[-skew, +skew]`. The monotonic clock is untouched, so timers and `time.Since` are unaffected |
 | `pause_per_sec` | `0` | Rate of process pauses per node. A paused node stops running, like a long GC pause or a stalled VM, then resumes without crashing. Its connections stay open and messages queue up |
@@ -551,9 +561,66 @@ In a fault schedule, the new kinds look like this:
 
 Not modelled: dropped or duplicated packets. The simulated network carries TCP byte streams, where the kernel retransmits and deduplicates, so a program never sees either. UDP is not simulated (see [networking.md](networking.md)).
 
+## Disk faults
+
+Crashes, torn writes, `reorder_writes` and `fsync_eio` test what survives a crash. The faults below test what a storage engine does when the disk itself misbehaves: it fills up, it fails an operation, or it hands back or keeps the wrong bytes. These are the paths that WAL recovery and checksum code exist for, and the ones that are hardest to reach with a real disk.
+
+```json
+"faults": {
+  "crash_per_sec": 0.5,
+  "torn_writes": true,
+  "disk_bytes": 1048576,
+  "write_eio": 0.01,
+  "read_eio": 0.01,
+  "read_corrupt": 0.05,
+  "lost_write": 0.01,
+  "misdirected_write": 0.01,
+  "corrupt_on_crash": true,
+  "bitrot_per_sec": 0.2,
+  "disk_latency": ["1ms", "20ms"]
+}
+```
+
+| Fault | What the program sees | What is on disk afterwards |
+|---|---|---|
+| `disk_bytes` | A short write, then `ENOSPC` on the next write. Overwrites inside a file always fit, and space comes back when files shrink or are removed | What fitted |
+| `write_eio`, `write_enospc` | The write fails | Nothing from that write |
+| `read_eio` | The read fails | Unchanged |
+| `read_corrupt` | One bit flipped in the bytes returned by one read | Unchanged |
+| `lost_write` | fsync succeeds, and reads return the new content | One page has its old content; zeros if the page is new. The next fsync that rewrites the page writes it in full |
+| `misdirected_write` | fsync succeeds, and reads return the new content | The intended page has its old content, and another page of the file holds the new one |
+| `corrupt_on_crash` | After the restart, one flipped bit per file among the bytes that were being written | Same |
+| `bitrot_per_sec` | The flipped bit, from the moment it happens, unless that byte has a pending write | One flipped bit |
+| `disk_latency` | fsync takes longer | Unchanged |
+
+How each one is modelled, and where it stops:
+
+- **Disk usage** is the sum of every file's size on the node. Holes left by `Truncate` or by writing past the end count in full, so sparse files use more space than on ext4 or XFS. Directories and metadata use none. A `Truncate` that grows a file is never refused.
+- **`ENOSPC` reaches your code as `ENOSPC`.** wazero's WASI layer has no `ENOSPC` and reports `EIO` for it, so seedfall rewrites the result of `fd_write` and `fd_pwrite` when the simulated disk was full, and `errors.Is(err, syscall.ENOSPC)` works in the guest.
+- **Read and write errors** apply to file reads and writes only. Directory listings, `stat`, `open` and `Truncate` never fail.
+- **Corrupted reads** flip one bit in the buffer of one read, as a bad cable or controller would. A checksum plus a retry handles them; a checksum alone turns them into an error.
+- **Lost and misdirected writes** pick one dirty page of the file being fsynced. The page cache keeps the right content, because the drive acknowledged the write, so the program only notices after a crash, or never if the page is rewritten first. A misdirected write stays inside the file; writes landing in another file are not modelled. A file needs at least two pages for a misdirected write.
+- **Crash corruption** damages only bytes that were being written when the node crashed. With plain crashes, unsynced writes are dropped, so it matters only where they survive: with `torn_writes`, `reorder_writes` or `crash_on_io`. If the damaged range overlapped older durable data, that data is what flips.
+- **Bit rot** picks a byte uniformly over all durable data on the node, so large files are hit more often.
+- **Latency** applies to file and directory fsyncs only, not to reads or writes, which go to the page cache. The whole node waits, because a wasip1 guest runs every goroutine on one thread.
+
+Every one of them comes from the seed and replays exactly. The rates are drawn per operation, like `crash_on_io`, and each firing is recorded with its node and operation number: `disk op #N` counts the node's writes, truncates and fsyncs, and `disk read #N` counts its reads. Which page or bit is hit comes from a stream keyed by the seed, the fault kind, the node and that number, so it does not change when shrinking removes other faults. Bit rot is planned in time like a crash. In a fault schedule they look like this:
+
+```json
+{ "at": "1.942589003s", "kind": "read_corrupt", "node": "server", "op": 3, "path": "data/kv.log", "offset": 70, "until": "0s" }
+{ "at": "912.496ms", "kind": "write_eio", "node": "server", "op": 67, "path": "data/kv.log", "until": "0s" }
+{ "at": "2.601158s", "kind": "lost_write", "node": "server", "op": 232, "path": "data/kv.log", "until": "0s" }
+{ "at": "5.259168s", "kind": "misdirected_write", "node": "server", "op": 558, "path": "data/kv.log", "offset": 4096, "until": "0s" }
+{ "at": "657.015787ms", "kind": "bitrot", "node": "server", "path": "data/kv.log", "offset": 22, "until": "657.015787ms" }
+```
+
+The other kinds are `write_enospc` and `read_eio`. A recorded fault fires at the operation its `kind`, `node` and `op` name, and bit rot fires at `at`. `path`, `offset` and `target` are filled in by the run so that you can read the schedule, and are left out when they are 0. `seedfall inspect` lists every damaged range of a file under `corrupted ranges`, and with `disk_bytes` shows how full each disk is. Disk usage and latency are settings, not faults, so swarm testing leaves them alone and toggles the rest.
+
+[`examples/kvlog`](../examples/kvlog) shows each one: a corrupted read changes an acknowledged value, a checksum with a re-read fixes it, and a lost write, a misdirected write or bit rot breaks a store that keeps one copy, with or without checksums.
+
 ## Choosing rates
 
-Start with crashes and torn writes, then add `crash_on_io` around `0.005`, so a few hundred disk operations per run produce one or two mid-operation crashes. Add `fsync_eio`, `strict_dirs` and `reorder_writes` once the basic durability path passes. For consensus and leader-election code, add `partition_topologies` beyond `half`, then `clog_per_sec` and `slow_per_sec`: one-way links and slow leaders are the gray failures that break leases and stale-read checks. Turn on `buggify` once you have marked sites in your code that should sometimes take the rare path. Turn on `swarm` for long CI sweeps. Use property coverage ([properties.md](properties.md)) to confirm the faults are actually reaching the code you care about.
+Start with crashes and torn writes, then add `crash_on_io` around `0.005`, so a few hundred disk operations per run produce one or two mid-operation crashes. Add `fsync_eio`, `strict_dirs` and `reorder_writes` once the basic durability path passes. For consensus and leader-election code, add `partition_topologies` beyond `half`, then `clog_per_sec` and `slow_per_sec`: one-way links and slow leaders are the gray failures that break leases and stale-read checks. For a storage engine, add `disk_bytes` and `write_eio` to test the error paths of every write, then `read_corrupt` and `corrupt_on_crash` to test checksums. `lost_write`, `misdirected_write` and `bitrot_per_sec` lose data that a single copy cannot get back, so use them on replicated systems, or to check that a single node notices and stops instead of serving wrong data. Turn on `buggify` once you have marked sites in your code that should sometimes take the rare path. Turn on `swarm` for long CI sweeps. Use property coverage ([properties.md](properties.md)) to confirm the faults are actually reaching the code you care about.
 
 ## Durations
 
@@ -753,6 +820,8 @@ Each node gets an in-memory file system mounted at `/` with an explicit durabili
 - `Sync` and `Datasync` behave the same: both make every pending write to the file durable, and neither makes the file's directory entry durable, which is what `strict_dirs` models.
 - With `strict_dirs`, creating, renaming or unlinking a file survives a crash only after its parent directory is fsynced. This is strict POSIX, the model used by ALICE and CrashMonkey. Without it, directory entries are durable as soon as they are made, which matches ext4 and XFS in practice.
 - With `fsync_eio`, a file `Sync` can fail with `EIO`. The unsynced writes stay readable but are dropped from durable storage, and the next `Sync` succeeds. These are Linux's post-2018 "fsyncgate" semantics.
+- With `disk_bytes`, each node's disk has a fixed size. A write that does not fit is cut short and the next one fails with `ENOSPC`.
+- `write_eio`, `write_enospc`, `read_eio` and `read_corrupt` fail or corrupt single reads and writes. `lost_write` and `misdirected_write` make a successful fsync leave one page with its old content, or put it at the wrong offset, while the page cache keeps the right bytes. `corrupt_on_crash` flips a bit in the bytes being written at a crash, `bitrot_per_sec` flips durable bits over time, and `disk_latency` makes every fsync wait. Each per-operation fault is recorded with the node's disk operation or disk read number, so it replays and shrinks like `crash_on_io`. See [Disk faults](faults.md#disk-faults).
 
 See [faults.md](faults.md) for every fault type.
 
@@ -856,6 +925,14 @@ A `^ torn by the crash at t=...` line under a file says the last crash kept only
 
 With `reorder_writes`, a `^ the crash at t=... wrote back pages out of order` line lists the writes that were pending at the last crash, numbered in program order, and says which of them reached the disk: `kept`, `lost`, or `partial` when only some of its pages did. A later write marked `kept` above an earlier one marked `lost` is the reordering your recovery code has to survive. The same list is in `last_writeback` in the MCP inspect output.
 
+With the [disk faults](faults.md#disk-faults), a `^ corrupted ranges` list under a file shows every range that does not hold what the program wrote: a `lost write` or `misdirected write` that a successful fsync left with its old content, a bit flipped by `bit rot` or by `crash corruption`, and each `corrupted read` that returned a flipped bit while the disk held the right bytes. The last 8 are shown, and the full list is in `damage` in the MCP inspect output. With `disk_bytes`, a `disk_bytes: N of M bytes used` line follows the totals.
+
+```
+    kv.log                                               5727       5727  durable
+      ^ corrupted ranges:
+        t=5.259168049s misdirected write: [4096,5005) kept its old content on disk, and its page landed at offset 0 instead
+```
+
 With `strict_dirs`, a file that was unlinked or renamed away while its parent directory was not fsynced is listed separately as an entry that a crash brings back. Renaming a temporary file over an existing one without fsyncing the directory shows up as the new name `NOT DURABLE` and the old content coming back.
 
 The durable image is the disk a crash would leave without `torn_writes` or `reorder_writes`. With `torn_writes`, a crash can also keep an in-order prefix of the pending writes and, with `strict_dirs`, of the pending directory operations. With `reorder_writes`, it can keep any subset of the dirty pages.
@@ -939,6 +1016,7 @@ That run is NATS JetStream (`examples/natsjs`). Both guarantees NATS relies on a
 | `fsync_noop` | File `fsync` reports success but makes nothing durable |
 | `dirsync_noop` | Directory `fsync` does nothing. Only observable with `strict_dirs`, where directory entries need it to survive a crash |
 | `osync_ignored` | Writes to files opened with `O_SYNC` or `O_DSYNC` stop being synchronous |
+| `fsync_corrupts` | File `fsync` makes the data durable with one bit flipped: the first byte of the last write it covers. Reads see the right data until a crash, then the flipped one |
 
 Mutants apply to nodes only, never to the workload, and need no changes to your code.
 
@@ -1199,6 +1277,7 @@ seedfall is only useful if its own model of crashes, faults and replay is right,
 | Torn writes | `engine/memfs_test.go` | A torn crash keeps an in-order prefix of the pending writes, the last one possibly cut mid-way, and records the tear |
 | Out-of-order writeback | `engine/memfs_test.go` | Writes split at 4 KiB page boundaries, pages persist independently (a later page can survive without an earlier one), and writes to one page persist in order |
 | fsync `EIO` | `engine/memfs_test.go` | A failed fsync drops the pending writes while they stay readable, and a retried fsync does not bring them back |
+| Disk faults | `engine/diskfaults_test.go` | `disk_bytes` cuts a write short and then refuses it, flagged so the guest gets `ENOSPC`, while overwrites still fit; a failed write writes nothing but counts as a disk operation; a corrupted read flips the returned buffer and never the stored data; a lost write keeps the old page on disk (zeros for a new page) and a misdirected write puts the page at another offset, while the page cache keeps the new content, and rewriting the page later writes it in full; crash corruption flips exactly one bit inside the bytes that were being written; bit rot flips one stored bit; `fsync_corrupts` flips only the durable copy; a misdirected write is chosen from the seed and operation number and replays from its recorded fault |
 | File system calls | `engine/memfs_test.go` | `OpenFile` flags, `Mkdir`, `Rename`, `Unlink`, `Rmdir` and `Readdir` return the POSIX errors and results |
 | `strict_dirs` | `engine/namespace_test.go` | New entries need the parent directory fsynced to survive, a rename reverts without a directory fsync, and a torn crash recovers an in-order prefix of directory operations |
 | Fault schedules | `engine/faults_test.go` | Schedules are identical for the same seed and differ across seeds, stay inside the time horizon and in order, never crash the workload, and never plan runtime-only faults; swarm rates stay in `[0, 2 x rate)`, swarm mixes are deterministic per seed, and partition sides are never empty |
@@ -1207,7 +1286,7 @@ seedfall is only useful if its own model of crashes, faults and replay is right,
 | Shrinking | `engine/shrink_test.go` | Against a fake runner, `Shrink` keeps the original failure, ignores a different failure, and returns a 1-minimal schedule; failure matching ignores numbers only |
 | Network | `engine/net_test.go` | Messages on one connection arrive in order under random latency, reads wait for arrival, a partition holds messages until it heals, close delivers EOF after data, and a crash resets every connection |
 | Linearizability | `engine/history_test.go` | The key-value model accepts and rejects known histories, including unknown, pending and failed operations |
-| End to end | `engine/guest_test.go` | A small guest in `engine/testdata/guest` runs under crashes, partitions, torn writes, out-of-order writeback, crashes during disk operations and pauses: two runs of a seed give byte-identical traces, `-check` passes, a sweep finds the same failing seeds with 1 or 4 jobs, a failure replays exactly from its saved fault schedule, and a shrunk schedule keeps the failure, replays exactly and is 1-minimal. Under clogs, swizzles, resets, slow nodes and partition topologies, two runs of a seed and a replay of its fault schedule give byte-identical traces |
+| End to end | `engine/guest_test.go` | A small guest in `engine/testdata/guest` runs under crashes, partitions, torn writes, out-of-order writeback, crashes during disk operations and pauses: two runs of a seed give byte-identical traces, `-check` passes, a sweep finds the same failing seeds with 1 or 4 jobs, a failure replays exactly from its saved fault schedule, and a shrunk schedule keeps the failure, replays exactly and is 1-minimal. Under clogs, swizzles, resets, slow nodes and partition topologies, two runs of a seed and a replay of its fault schedule give byte-identical traces. Under every disk fault the same holds, a full disk and `write_enospc` reach the guest as `syscall.ENOSPC`, and a failure caused by a lost write shrinks to a schedule that keeps the lost write and replays exactly |
 | Confidence math | `report/report_test.go` | `SeedsToConfirm` and the detectable failure rate against known values, findings moving through new, ongoing, not seen, resolved and regressed across runs, and the JSON report against a golden file |
 | Proof rendering | `verify/verify_test.go` | How many seeds a proof needs, and the text and Markdown proof blocks against golden files |
 
@@ -1256,6 +1335,7 @@ verify seedfall.fixed.json
   pass  mutant fsync_noop                                killed by seed 2
   pass  mutant dirsync_noop                              not exercised
   pass  mutant osync_ignored                             not exercised
+  pass  mutant fsync_corrupts                            killed by seed 2
 PASS
 ```
 
@@ -1319,6 +1399,7 @@ Config `seedfall.fixed.json`, reproduce with `seedfall verify -c seedfall.fixed.
 | pass | mutant fsync_noop | killed by seed 2 |
 | pass | mutant dirsync_noop | not exercised |
 | pass | mutant osync_ignored | not exercised |
+| pass | mutant fsync_corrupts | killed by seed 2 |
 ```
 
 ## Flags
@@ -1457,6 +1538,7 @@ The baseline must pass first. Then each mutant weakens one disk guarantee under 
 | `fsync_noop` | Nothing checks that acknowledged data survives a crash, or crashes never land between a write and its fsync | Read back every acknowledged write after crashes. Raise `crash_on_io` and set `torn_writes` |
 | `dirsync_noop` | Directory fsyncs are untested | Add `"strict_dirs": true` to `faults`, then check data that depends on a create or rename |
 | `osync_ignored` | Writes to `O_SYNC` files are untested | Check the data written through those files |
+| `fsync_corrupts` | Nothing compares the data read back after a crash with what was acknowledged | Read back every acknowledged value after crashes and compare it byte for byte, not only its presence |
 
 `not exercised` means the operation never ran, or had no effect in this config. That is fine when the service never uses it, such as `dirsync_noop` without `strict_dirs`.
 
@@ -1464,7 +1546,7 @@ Repeat steps 2 to 4 until every exercised mutant is killed, or until you can sta
 
 ## 5. Widen the fault model
 
-Once the basic sweep and the mutants pass, add one fault class at a time and sweep again: `fsync_eio` (around 0.01), `strict_dirs`, `partition_per_sec`, then `pause_per_sec` and `clock_jump_per_sec` for lease and timeout logic, and for consensus or leader election `partition_topologies`, `clog_per_sec` and `slow_per_sec` (one-way links, jammed links and slow leaders). Set `swarm` for long CI sweeps. A fault class that breaks the service is a finding, not noise: triage it.
+Once the basic sweep and the mutants pass, add one fault class at a time and sweep again: `fsync_eio` (around 0.01), `strict_dirs`, `partition_per_sec`, then `pause_per_sec` and `clock_jump_per_sec` for lease and timeout logic, and for consensus or leader election `partition_topologies`, `clog_per_sec` and `slow_per_sec` (one-way links, jammed links and slow leaders). For storage code, add the disk faults next: `disk_bytes` and `write_eio` for write error paths, `read_corrupt` and `corrupt_on_crash` for checksums, and on replicated systems `lost_write`, `misdirected_write` and `bitrot_per_sec` (see the MCP resource `seedfall://docs/faults`, section Disk faults). Set `swarm` for long CI sweeps. A fault class that breaks the service is a finding, not noise: triage it.
 
 
 <!-- skills/seedfall-setup/SKILL.md -->

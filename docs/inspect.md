@@ -59,6 +59,14 @@ A `^ torn by the crash at t=...` line under a file says the last crash kept only
 
 With `reorder_writes`, a `^ the crash at t=... wrote back pages out of order` line lists the writes that were pending at the last crash, numbered in program order, and says which of them reached the disk: `kept`, `lost`, or `partial` when only some of its pages did. A later write marked `kept` above an earlier one marked `lost` is the reordering your recovery code has to survive. The same list is in `last_writeback` in the MCP inspect output.
 
+With the [disk faults](faults.md#disk-faults), a `^ corrupted ranges` list under a file shows every range that does not hold what the program wrote: a `lost write` or `misdirected write` that a successful fsync left with its old content, a bit flipped by `bit rot` or by `crash corruption`, and each `corrupted read` that returned a flipped bit while the disk held the right bytes. The last 8 are shown, and the full list is in `damage` in the MCP inspect output. With `disk_bytes`, a `disk_bytes: N of M bytes used` line follows the totals.
+
+```
+    kv.log                                               5727       5727  durable
+      ^ corrupted ranges:
+        t=5.259168049s misdirected write: [4096,5005) kept its old content on disk, and its page landed at offset 0 instead
+```
+
 With `strict_dirs`, a file that was unlinked or renamed away while its parent directory was not fsynced is listed separately as an entry that a crash brings back. Renaming a temporary file over an existing one without fsyncing the directory shows up as the new name `NOT DURABLE` and the old content coming back.
 
 The durable image is the disk a crash would leave without `torn_writes` or `reorder_writes`. With `torn_writes`, a crash can also keep an in-order prefix of the pending writes and, with `strict_dirs`, of the pending directory operations. With `reorder_writes`, it can keep any subset of the dirty pages.

@@ -27,6 +27,8 @@ const (
 	eventSize        = 32
 	errnoSuccess     = 0
 	errnoFault       = 21
+	errnoIO          = 29
+	errnoNoSpace     = 51
 	clockAbstime     = 1
 )
 
@@ -40,6 +42,9 @@ type subscription struct {
 func wasiModule(ctx context.Context, rt wazero.Runtime) error {
 	b := rt.NewHostModuleBuilder(wasi_snapshot_preview1.ModuleName)
 	wasi_snapshot_preview1.NewFunctionExporter().ExportFunctions(b)
+	if err := reportNoSpace(ctx, rt, b); err != nil {
+		return err
+	}
 	i32 := api.ValueTypeI32
 	b.NewFunctionBuilder().
 		WithGoModuleFunction(api.GoModuleFunc(func(ctx context.Context, m api.Module, stack []uint64) { worldOf(ctx).pollOneoff(ctx, m, stack) }), []api.ValueType{i32, i32, i32, i32}, []api.ValueType{i32}).

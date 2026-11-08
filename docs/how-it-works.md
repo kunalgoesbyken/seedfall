@@ -36,6 +36,8 @@ Each node gets an in-memory file system mounted at `/` with an explicit durabili
 - `Sync` and `Datasync` behave the same: both make every pending write to the file durable, and neither makes the file's directory entry durable, which is what `strict_dirs` models.
 - With `strict_dirs`, creating, renaming or unlinking a file survives a crash only after its parent directory is fsynced. This is strict POSIX, the model used by ALICE and CrashMonkey. Without it, directory entries are durable as soon as they are made, which matches ext4 and XFS in practice.
 - With `fsync_eio`, a file `Sync` can fail with `EIO`. The unsynced writes stay readable but are dropped from durable storage, and the next `Sync` succeeds. These are Linux's post-2018 "fsyncgate" semantics.
+- With `disk_bytes`, each node's disk has a fixed size. A write that does not fit is cut short and the next one fails with `ENOSPC`.
+- `write_eio`, `write_enospc`, `read_eio` and `read_corrupt` fail or corrupt single reads and writes. `lost_write` and `misdirected_write` make a successful fsync leave one page with its old content, or put it at the wrong offset, while the page cache keeps the right bytes. `corrupt_on_crash` flips a bit in the bytes being written at a crash, `bitrot_per_sec` flips durable bits over time, and `disk_latency` makes every fsync wait. Each per-operation fault is recorded with the node's disk operation or disk read number, so it replays and shrinks like `crash_on_io`. See [Disk faults](faults.md#disk-faults).
 
 See [faults.md](faults.md) for every fault type.
 

@@ -72,6 +72,16 @@ All faults come from the seed. Faults that depend on what the program does, such
 | `reorder_writes` | `false` | A crash keeps any subset of the dirty 4 KiB pages of each file, keeping writes in order within a page. This finds a commit record or header that reaches the disk before the data it points to. Combine with `torn_writes` to also tear the last write kept in each page. See [how-it-works.md](how-it-works.md#disk) |
 | `crash_on_io` | `0` | Probability that a node crashes *during* each disk operation. This is how you hit the window between a write and its fsync |
 | `fsync_eio` | `0` | Probability that a file fsync fails with `EIO`. The unsynced writes stay readable but are dropped from durable storage, and the next fsync succeeds (Linux "fsyncgate" semantics) |
+| `disk_bytes` | `0` | Size of each node's disk in bytes; `0` means unlimited. A write that does not fit writes what fits and returns the short count, and the next write fails with `ENOSPC`. See [Disk faults](#disk-faults) |
+| `write_eio` | `0` | Probability that a file write fails with `EIO` and writes nothing |
+| `write_enospc` | `0` | Probability that a file write fails with `ENOSPC` and writes nothing, however much space is free, as with a quota or a thin-provisioned volume |
+| `read_eio` | `0` | Probability that a file read fails with `EIO` |
+| `read_corrupt` | `0` | Probability that a file read returns one flipped bit. The disk holds the right bytes, so reading again returns them |
+| `lost_write` | `0` | Probability that a file fsync succeeds but one 4 KiB page it should have written keeps its old content on disk. The program keeps reading the new content until a crash |
+| `misdirected_write` | `0` | Probability that a file fsync succeeds but one page lands at another page offset of the same file, overwriting what was there, while the intended page keeps its old content |
+| `corrupt_on_crash` | `false` | Each crash flips one bit in every file that had pending writes, somewhere in the bytes being written, as a sector half-written when the power failed |
+| `bitrot_per_sec` | `0` | Rate of bit rot per node: one bit of durable data, in a random file at a random offset, flips |
+| `disk_latency` | `["0s", "0s"]` | Extra time each fsync takes, drawn per fsync. Slow nodes stretch it |
 | `strict_dirs` | `false` | Directory entries survive a crash only after the parent directory is fsynced (strict POSIX) |
 | `clock_skew` | `0` | Each node's wall clock is offset by a seeded amount in `[-skew, +skew]`. The monotonic clock is untouched, so timers and `time.Since` are unaffected |
 | `pause_per_sec` | `0` | Rate of process pauses per node. A paused node stops running, like a long GC pause or a stalled VM, then resumes without crashing. Its connections stay open and messages queue up |
@@ -113,9 +123,66 @@ In a fault schedule, the new kinds look like this:
 
 Not modelled: dropped or duplicated packets. The simulated network carries TCP byte streams, where the kernel retransmits and deduplicates, so a program never sees either. UDP is not simulated (see [networking.md](networking.md)).
 
+## Disk faults
+
+Crashes, torn writes, `reorder_writes` and `fsync_eio` test what survives a crash. The faults below test what a storage engine does when the disk itself misbehaves: it fills up, it fails an operation, or it hands back or keeps the wrong bytes. These are the paths that WAL recovery and checksum code exist for, and the ones that are hardest to reach with a real disk.
+
+```json
+"faults": {
+  "crash_per_sec": 0.5,
+  "torn_writes": true,
+  "disk_bytes": 1048576,
+  "write_eio": 0.01,
+  "read_eio": 0.01,
+  "read_corrupt": 0.05,
+  "lost_write": 0.01,
+  "misdirected_write": 0.01,
+  "corrupt_on_crash": true,
+  "bitrot_per_sec": 0.2,
+  "disk_latency": ["1ms", "20ms"]
+}
+```
+
+| Fault | What the program sees | What is on disk afterwards |
+|---|---|---|
+| `disk_bytes` | A short write, then `ENOSPC` on the next write. Overwrites inside a file always fit, and space comes back when files shrink or are removed | What fitted |
+| `write_eio`, `write_enospc` | The write fails | Nothing from that write |
+| `read_eio` | The read fails | Unchanged |
+| `read_corrupt` | One bit flipped in the bytes returned by one read | Unchanged |
+| `lost_write` | fsync succeeds, and reads return the new content | One page has its old content; zeros if the page is new. The next fsync that rewrites the page writes it in full |
+| `misdirected_write` | fsync succeeds, and reads return the new content | The intended page has its old content, and another page of the file holds the new one |
+| `corrupt_on_crash` | After the restart, one flipped bit per file among the bytes that were being written | Same |
+| `bitrot_per_sec` | The flipped bit, from the moment it happens, unless that byte has a pending write | One flipped bit |
+| `disk_latency` | fsync takes longer | Unchanged |
+
+How each one is modelled, and where it stops:
+
+- **Disk usage** is the sum of every file's size on the node. Holes left by `Truncate` or by writing past the end count in full, so sparse files use more space than on ext4 or XFS. Directories and metadata use none. A `Truncate` that grows a file is never refused.
+- **`ENOSPC` reaches your code as `ENOSPC`.** wazero's WASI layer has no `ENOSPC` and reports `EIO` for it, so seedfall rewrites the result of `fd_write` and `fd_pwrite` when the simulated disk was full, and `errors.Is(err, syscall.ENOSPC)` works in the guest.
+- **Read and write errors** apply to file reads and writes only. Directory listings, `stat`, `open` and `Truncate` never fail.
+- **Corrupted reads** flip one bit in the buffer of one read, as a bad cable or controller would. A checksum plus a retry handles them; a checksum alone turns them into an error.
+- **Lost and misdirected writes** pick one dirty page of the file being fsynced. The page cache keeps the right content, because the drive acknowledged the write, so the program only notices after a crash, or never if the page is rewritten first. A misdirected write stays inside the file; writes landing in another file are not modelled. A file needs at least two pages for a misdirected write.
+- **Crash corruption** damages only bytes that were being written when the node crashed. With plain crashes, unsynced writes are dropped, so it matters only where they survive: with `torn_writes`, `reorder_writes` or `crash_on_io`. If the damaged range overlapped older durable data, that data is what flips.
+- **Bit rot** picks a byte uniformly over all durable data on the node, so large files are hit more often.
+- **Latency** applies to file and directory fsyncs only, not to reads or writes, which go to the page cache. The whole node waits, because a wasip1 guest runs every goroutine on one thread.
+
+Every one of them comes from the seed and replays exactly. The rates are drawn per operation, like `crash_on_io`, and each firing is recorded with its node and operation number: `disk op #N` counts the node's writes, truncates and fsyncs, and `disk read #N` counts its reads. Which page or bit is hit comes from a stream keyed by the seed, the fault kind, the node and that number, so it does not change when shrinking removes other faults. Bit rot is planned in time like a crash. In a fault schedule they look like this:
+
+```json
+{ "at": "1.942589003s", "kind": "read_corrupt", "node": "server", "op": 3, "path": "data/kv.log", "offset": 70, "until": "0s" }
+{ "at": "912.496ms", "kind": "write_eio", "node": "server", "op": 67, "path": "data/kv.log", "until": "0s" }
+{ "at": "2.601158s", "kind": "lost_write", "node": "server", "op": 232, "path": "data/kv.log", "until": "0s" }
+{ "at": "5.259168s", "kind": "misdirected_write", "node": "server", "op": 558, "path": "data/kv.log", "offset": 4096, "until": "0s" }
+{ "at": "657.015787ms", "kind": "bitrot", "node": "server", "path": "data/kv.log", "offset": 22, "until": "657.015787ms" }
+```
+
+The other kinds are `write_enospc` and `read_eio`. A recorded fault fires at the operation its `kind`, `node` and `op` name, and bit rot fires at `at`. `path`, `offset` and `target` are filled in by the run so that you can read the schedule, and are left out when they are 0. `seedfall inspect` lists every damaged range of a file under `corrupted ranges`, and with `disk_bytes` shows how full each disk is. Disk usage and latency are settings, not faults, so swarm testing leaves them alone and toggles the rest.
+
+[`examples/kvlog`](../examples/kvlog) shows each one: a corrupted read changes an acknowledged value, a checksum with a re-read fixes it, and a lost write, a misdirected write or bit rot breaks a store that keeps one copy, with or without checksums.
+
 ## Choosing rates
 
-Start with crashes and torn writes, then add `crash_on_io` around `0.005`, so a few hundred disk operations per run produce one or two mid-operation crashes. Add `fsync_eio`, `strict_dirs` and `reorder_writes` once the basic durability path passes. For consensus and leader-election code, add `partition_topologies` beyond `half`, then `clog_per_sec` and `slow_per_sec`: one-way links and slow leaders are the gray failures that break leases and stale-read checks. Turn on `buggify` once you have marked sites in your code that should sometimes take the rare path. Turn on `swarm` for long CI sweeps. Use property coverage ([properties.md](properties.md)) to confirm the faults are actually reaching the code you care about.
+Start with crashes and torn writes, then add `crash_on_io` around `0.005`, so a few hundred disk operations per run produce one or two mid-operation crashes. Add `fsync_eio`, `strict_dirs` and `reorder_writes` once the basic durability path passes. For consensus and leader-election code, add `partition_topologies` beyond `half`, then `clog_per_sec` and `slow_per_sec`: one-way links and slow leaders are the gray failures that break leases and stale-read checks. For a storage engine, add `disk_bytes` and `write_eio` to test the error paths of every write, then `read_corrupt` and `corrupt_on_crash` to test checksums. `lost_write`, `misdirected_write` and `bitrot_per_sec` lose data that a single copy cannot get back, so use them on replicated systems, or to check that a single node notices and stops instead of serving wrong data. Turn on `buggify` once you have marked sites in your code that should sometimes take the rare path. Turn on `swarm` for long CI sweeps. Use property coverage ([properties.md](properties.md)) to confirm the faults are actually reaching the code you care about.
 
 ## Durations
 

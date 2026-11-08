@@ -52,6 +52,14 @@ expect kvlog  seedfall.fixed.json    1-300  pass
 expect kvlog  seedfall.strict.json   1-200  pass
 expect kvlog  seedfall.fsyncgate.json 1-50  fail
 expect kvlog  seedfall.rewind.json   1-200  pass
+expect kvlog  seedfall.readcorrupt.json 1-20 fail
+expect kvlog  seedfall.checksum.json 1-80   pass
+expect kvlog  seedfall.diskerrors.json 1-60 pass
+expect kvlog  seedfall.lostwrite.json 1-20  fail
+expect kvlog  seedfall.misdirected.json 1-20 fail
+expect kvlog  seedfall.bitrot.json   1-20   fail
+expect_replay kvlog seedfall.readcorrupt.json 1 readcorrupt.faults.json fail
+expect_replay kvlog seedfall.checksum.json    1 readcorrupt.faults.json pass
 expect raftkv seedfall.json          1-40   pass
 expect raftkv seedfall.nofsync.json  1-120  fail
 expect raftkv seedfall.lin.json      1-30   pass
@@ -145,6 +153,7 @@ expect aikv configs/haiku-1.reorder.json 1     fail
 expect aikv configs/opus-2.harsh.json    99    fail
 expect aikv configs/sonnet-3.reorder.json 1-10 pass
 deterministic kvlog  seedfall.always.json 1
+deterministic kvlog  seedfall.diskerrors.json 3
 deterministic metapage seedfall.reorder.json 16
 deterministic raftkv seedfall.lin.json    3
 deterministic raftkv netfaults.json       3

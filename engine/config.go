@@ -65,6 +65,16 @@ type FaultSpec struct {
 	ClockJumpPerSec     float64  `json:"clock_jump_per_sec"`
 	ClockJumpMax        Duration `json:"clock_jump_max"`
 	Buggify             bool     `json:"buggify"`
+	DiskBytes           int64    `json:"disk_bytes"`
+	WriteEIO            float64  `json:"write_eio"`
+	WriteENOSPC         float64  `json:"write_enospc"`
+	ReadEIO             float64  `json:"read_eio"`
+	ReadCorrupt         float64  `json:"read_corrupt"`
+	LostWrite           float64  `json:"lost_write"`
+	MisdirectedWrite    float64  `json:"misdirected_write"`
+	CorruptOnCrash      bool     `json:"corrupt_on_crash"`
+	BitrotPerSec        float64  `json:"bitrot_per_sec"`
+	DiskLatency         Range    `json:"disk_latency"`
 }
 
 type Link struct {
@@ -145,6 +155,9 @@ func (c *Config) validate() error {
 		if s.Pkg == "" && s.Wasm == "" {
 			return fmt.Errorf("config: node %q needs pkg or wasm", s.Name)
 		}
+	}
+	if c.Faults.DiskBytes < 0 {
+		return errors.New("config: faults.disk_bytes is negative")
 	}
 	return c.validateNetwork(seen)
 }

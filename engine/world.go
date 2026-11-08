@@ -35,6 +35,7 @@ type node struct {
 	live       *instance
 	starts     int
 	ops        int64
+	reads      int64
 	restartAt  int64
 	skew       int64
 	pausedTo   int64
@@ -71,6 +72,7 @@ type world struct {
 	sched       *rand.Rand
 	netRand     *rand.Rand
 	diskRand    *rand.Rand
+	latRand     *rand.Rand
 	nodes       []*node
 	workload    *node
 	net         *network
@@ -87,6 +89,7 @@ type world struct {
 	explicit    bool
 	ioRand      *rand.Rand
 	ioFaults    []Fault
+	scheduled   map[string]bool
 	spec        FaultSpec
 	compiled    map[string]wazero.CompiledModule
 	history     history
@@ -310,7 +313,7 @@ func (w *world) kill(inst *instance) {
 	w.handle(<-w.events)
 }
 
-func (w *world) applyFault(f Fault) {
+func (w *world) applyFault(f *Fault) {
 	if w.faultsSuppressed() {
 		w.trace.add(w.now, "fault %s suppressed by a quiet period", f.Kind)
 		return
@@ -339,14 +342,14 @@ func (w *world) applyFault(f Fault) {
 		n.skew += int64(f.Shift)
 		w.trace.add(w.now, "fault %s's wall clock jumps %s", f.Node, fmtSigned(int64(f.Shift)))
 	case FaultPartition:
-		w.applyNetFault(f)
+		w.applyNetFault(*f)
 		if len(f.Groups) > 0 {
 			w.trace.add(w.now, "fault partition %s, heals at %s", fmtGroups(f.Groups), fmtTime(int64(f.Until)))
 			return
 		}
 		w.trace.add(w.now, "fault partition %v | rest, heals at %s", f.Side, fmtTime(int64(f.Until)))
 	case FaultClog:
-		w.applyNetFault(f)
+		w.applyNetFault(*f)
 		w.trace.add(w.now, "fault clog %s, lifts at %s", f.clogTarget(), fmtTime(int64(f.Until)))
 	case FaultReset:
 		n := w.nodeByName(f.Node)
@@ -361,6 +364,8 @@ func (w *world) applyFault(f Fault) {
 		}
 		n.slowUntil, n.slowFactor = int64(f.Until), f.Factor
 		w.trace.add(w.now, "fault slow %s down %.1fx until %s", f.Node, f.Factor, fmtTime(n.slowUntil))
+	case FaultBitrot:
+		w.rot(f)
 	}
 }
 
@@ -369,7 +374,10 @@ func (w *world) crashDisk(n *node, until int64, crash string) {
 	if w.spec.ReorderWrites {
 		c.pages = streams(w.seed, "writeback/"+n.name()+"/"+crash)
 	}
-	n.fs.crash(w.diskRand, c)
+	if w.spec.CorruptOnCrash {
+		c.corrupt = streams(w.seed, "corrupt/"+n.name()+"/"+crash)
+	}
+	w.traceDamage(n, n.fs.crash(w.diskRand, c))
 	n.restartAt = until
 }
 
@@ -461,7 +469,7 @@ func (w *world) loop() {
 		switch s.kind {
 		case stepFault:
 			w.now = max(w.now, s.at)
-			w.applyFault(w.faults[w.nextFault])
+			w.applyFault(&w.faults[w.nextFault])
 			w.nextFault++
 		case stepRestart:
 			w.now = max(w.now, s.at)
