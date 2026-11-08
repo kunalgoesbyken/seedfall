@@ -1,0 +1,17 @@
+{
+  "nodes": [
+    { "name": "server", "pkg": "../server", "args": ["-impl", "haiku-3"] }
+  ],
+  "workload": { "name": "client", "pkg": "../client", "args": ["-ops", "5000", "-size", "8192", "-gap", "5ms"] },
+  "duration": "120s",
+  "supervise": true,
+  "latency": ["1ms", "5ms"],
+  "faults": {
+    "crash_per_sec": 0.5,
+    "restart_after": ["10ms", "500ms"],
+    "torn_writes": true,
+    "crash_on_io": 0.02,
+    "strict_dirs": true,
+    "fsync_eio": 0.01
+  }
+}

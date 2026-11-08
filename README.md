@@ -66,6 +66,8 @@ Details: [docs/agents.md](docs/agents.md).
 | **bbolt** | `Open` never fsyncs the directory of the file it creates, so under strict POSIX one crash can lose the whole database. Found by running bbolt unmodified through `compat_overlay`. Not filed yet. |
 | **jmsadair/raft** | Four ways one crash or one clock step back leaves a node that can never restart: an unsynced term/vote file, an untruncated torn log tail, a leftover temp snapshot directory, and snapshots ordered by wall clock. Not filed: the repository is no longer public. |
 
+**AI-written storage.** We asked Claude for a crash-safe key-value store nine times, with one prompt and fresh sessions; every sample's own tests passed. seedfall found two that can refuse to open forever after a specific crash: one after a failed fsync during recovery, one after out-of-order page writeback. The other seven pass 260 seeds each. [examples/aikv](examples/aikv)
+
 hashicorp/raft (600 seeds) and etcd-io/raft (100 seeds) pass cleanly, with linearizability checked, and their negative controls are caught. Details, replay commands and verified fixes: [docs/findings](docs/findings/README.md).
 
 ## Quickstart
@@ -132,7 +134,8 @@ The [getting started guide](docs/getting-started.md) walks through finding, shri
 - **Storage engines that need `mmap`.** bbolt, pebble and badger run unmodified via `compat_overlay`, which swaps their platform files for `wasip1` versions. [Compat](docs/compat.md)
 - **A real network.** Partitions, latency, resets, through `sim` or with zero code changes via `net_overlay`, including `net/http` and hashicorp/raft's stock TCP transport. [Networking](docs/networking.md)
 - **Real processes.** Every node is its own wasm instance. A crash kills the process; a restart boots fresh over the surviving disk. `supervise` restarts nodes that exit, like systemd.
-- **Pauses, clock skew and clock jumps.** Freeze a node like a long GC pause, offset or jump its wall clock. These catch stale reads and lease bugs: a raft store that reads without `VerifyLeader` fails on seed 13.
+- **Goroutine interleavings.** Spinning goroutines are preempted after a counted number of function calls, and `"preempt": {"interleave": true}` preempts at seeded points, so a check-then-act race inside one process fails on a seed and replays exactly. [How it works](docs/how-it-works.md#preemption)
+- **Pauses, clock skew and clock jumps.** Freeze a node like a long GC pause, offset or jump its wall clock. These catch stale reads and lease bugs: a raft store that reads without `VerifyLeader` fails on seed 35.
 - **Swarm testing.** Per-seed random fault mixes in the style of TigerBeetle's VOPR.
 - **Properties with coverage.** `Always`, `Sometimes`, `Reachable` and `Unreachable`, cataloged from your source and aggregated across the sweep, so a property that never ran fails the build instead of passing silently. [Properties](docs/properties.md)
 - **Liveness checks.** `sim.QuietFor` stops the faults and heals partitions so you can assert the system recovers; `sim.SetupComplete` holds faults until bootstrap is done.
@@ -171,6 +174,7 @@ The [getting started guide](docs/getting-started.md) walks through finding, shri
 | [`examples/pebblekv`](examples/pebblekv) | Unmodified pebble v2 through `compat_overlay`, with `Sync` and `NoSync` writes |
 | [`examples/badgerkv`](examples/badgerkv) | Unmodified badger v4 through `compat_overlay`, its writable `mmap` emulated |
 | [`examples/interleave`](examples/interleave) | A check-then-act race between goroutines in one process, found only with seeded preemption (`preempt.interleave`) |
+| [`examples/aikv`](examples/aikv) | Nine key-value stores written by Claude from one prompt, each under five fault profiles and two durability mutants |
 | [`examples/gostman`](examples/gostman) | A [Gostman](https://github.com/kunalgoesbyken/gostman) collection as the workload: its checks must pass after every fault window |
 
 `bash scripts/regress.sh` runs every example against its expected result.

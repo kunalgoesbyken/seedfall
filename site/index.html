@@ -151,6 +151,21 @@ property       seeds reached  seeds true
         <h4>Shrink to the cause</h4>
         <p><code>seedfall shrink</code> drops faults while the failure persists and saves a schedule that replays exactly. 37 faults became 2 on the fsyncgate bug.</p>
       </div>
+      <div>
+        <p class="kicker">Page cache</p>
+        <h4>Out-of-order writeback</h4>
+        <p>Turn on <code>reorder_writes</code> and unsynced writes reach the disk page by page, in any order, so a crash can keep a later page and lose an earlier one. It found a store that refuses to open after one such crash.</p>
+      </div>
+      <div>
+        <p class="kicker">Goroutines</p>
+        <h4>Seeded preemption</h4>
+        <p>A goroutine that spins is preempted after a counted number of function calls, and <code>"preempt": {"interleave": true}</code> preempts at seeded points, so a check-then-act race inside one process fails on a seed and replays exactly.</p>
+      </div>
+      <div>
+        <p class="kicker">Dependencies</p>
+        <h4>bbolt, pebble and badger</h4>
+        <p>With <code>compat_overlay</code>, stores that need <code>mmap</code> or <code>flock</code> build for <code>wasip1</code> unmodified. seedfall swaps in small shims for the calls WASI lacks, and every durability point is still a real fsync on the simulated disk.</p>
+      </div>
     </div>
   </div>
 </section>
@@ -310,6 +325,16 @@ n2#2 | panic: log not found
           <tr><td>jmsadair/raft v0.2.0</td><td><a href="proof/jmsadair-raft-state-file-fsync.html">The term and vote file is renamed in unsynced; one crash and the node never restarts</a></td><td class="bad">1 crash</td></tr>
           <tr><td>jmsadair/raft v0.2.0</td><td><a href="proof/jmsadair-raft-log-torn-tail.html">A torn log tail is never truncated, so restarts fail now or later</a></td><td class="bad">1 crash</td></tr>
           <tr><td>jmsadair/raft v0.2.0</td><td><a href="proof/jmsadair-raft-snapshot-wall-clock-order.html">Snapshots ordered by wall clock: a clock step back bricks the node</a></td><td class="bad">clock jump · 2 crashes</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="ledger-wrap">
+      <p class="case-k">Nine crash-safe key-value stores written by Claude, one prompt, every test suite green</p>
+      <table class="ledger">
+        <tbody>
+          <tr><td>Opus, sample 2</td><td><a href="https://github.com/kunalgoesbyken/seedfall/tree/main/examples/aikv#finding-1-opus-2-corrupts-itself-after-a-failed-fsync-during-recovery">A failed fsync during recovery leaves a header that only exists in memory; the store never opens again</a></td><td class="bad">7 faults · EIO</td></tr>
+          <tr><td>Haiku, sample 1</td><td><a href="https://github.com/kunalgoesbyken/seedfall/tree/main/examples/aikv#finding-2-haiku-1-refuses-to-open-after-out-of-order-writeback">Out-of-order page writeback reads as corruption; the store never opens again</a></td><td class="bad">3 crashes · reorder</td></tr>
+          <tr><td>The other seven</td><td><a href="https://github.com/kunalgoesbyken/seedfall/tree/main/examples/aikv">Haiku, Sonnet and Opus samples, both durability mutants caught in all but one</a></td><td class="ok">260 seeds each</td></tr>
         </tbody>
       </table>
     </div>
