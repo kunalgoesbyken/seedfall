@@ -654,7 +654,7 @@ func (in *inode) keepPrefix(c crashModel, at time.Duration, chunks []pageChunk) 
 
 func (in *inode) survivingChunks(c crashModel, at time.Duration, size int64) []pageChunk {
 	var kept []pageChunk
-	pages := map[int64][]pageChunk{}
+	var pages map[int64][]pageChunk
 	if c.model == FSModelExt4 {
 		var journal []pageChunk
 		journal, pages = orderedChunks(in.pending, size)

@@ -72,8 +72,8 @@ func TestMCPFaultsEditRemovesShiftsAndAdds(t *testing.T) {
 	if err != nil || written.Seed != 3 || len(written.Faults) != 3 || written.ShrunkFrom != nil || written.ShrinkRuns != 0 {
 		t.Fatalf("written schedule %+v %v", written, err)
 	}
-	if !strings.Contains(v.Replay, "-seed 3 -faults "+filepath.ToSlash(out)) {
-		t.Fatalf("replay command %q", v.Replay)
+	if want := engine.ReplayCommand(engine.ConfigRef{Path: config}.String(), 3, out); v.Replay != want {
+		t.Fatalf("replay command %q, want %q", v.Replay, want)
 	}
 	listed, res := callEdit(t, cs, map[string]any{"config": config, "seed": 3, "faults": schedule})
 	if res.IsError || listed.Wrote || len(listed.Faults) != 3 || listed.Faults[1].N != 2 {

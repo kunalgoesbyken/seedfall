@@ -187,7 +187,7 @@ func runInit(a initArgs) (initView, error) {
 func goList(dir string, env []string, args ...string) ([]listedPackage, error) {
 	cmd := exec.Command("go", append([]string{"list", "-e", "-json"}, args...)...)
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), env...)
+	cmd.Env = append(cmd.Environ(), env...)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()

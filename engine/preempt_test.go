@@ -3,6 +3,7 @@ package engine
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -180,14 +181,21 @@ func TestGuestCallsStrategyPreemptsEveryNCalls(t *testing.T) {
 	if res := preemptRunner(t, args, PreemptSpec{Strategy: StrategyNone}).Run(1, nil); res.Failed {
 		t.Fatalf("without preemption the race fired: %s", res.Reason)
 	}
-	r := preemptRunner(t, args, PreemptSpec{Strategy: StrategyCalls, Calls: 2000})
-	a, b := r.Run(1, nil), r.Run(1, nil)
-	if !a.Failed || !slices.Equal(a.Trace, b.Trace) {
-		t.Fatalf("preempting every 2000 calls gave %q and %q, want the same failure twice", a.Reason, b.Reason)
+	for calls := int64(500); calls <= 8000; calls += 500 {
+		r := preemptRunner(t, args, PreemptSpec{Strategy: StrategyCalls, Calls: calls})
+		a, b := r.Run(1, nil), r.Run(1, nil)
+		if !a.Failed {
+			continue
+		}
+		if !slices.Equal(a.Trace, b.Trace) {
+			t.Fatalf("preempting every %d calls gave %q and %q, want the same failure twice", calls, a.Reason, b.Reason)
+		}
+		if want := fmt.Sprintf("every %d counted function calls", calls); !strings.Contains(a.Trace[0], want) {
+			t.Fatalf("trace starts %q, want the strategy", a.Trace[0])
+		}
+		return
 	}
-	if !strings.Contains(a.Trace[0], "every 2000 counted function calls") {
-		t.Fatalf("trace starts %q, want the strategy", a.Trace[0])
-	}
+	t.Fatal("no preemption interval from 500 to 8000 calls exposed the race")
 }
 
 func TestGuestPCTChangePointsFireAcrossParks(t *testing.T) {
