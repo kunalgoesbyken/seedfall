@@ -1,0 +1,44 @@
+name: Test a new system
+description: Suggest a Go project that seedfall should run, or report what happened when you tried.
+labels: [new system]
+body:
+  - type: input
+    id: project
+    attributes:
+      label: Project
+      description: Repository URL and the version or commit to test.
+      placeholder: https://github.com/owner/project v1.2.3
+    validations:
+      required: true
+  - type: textarea
+    id: guarantee
+    attributes:
+      label: What it promises
+      description: The durability, consistency or recovery guarantee a test should check, with a link to where the project states it. For example, a write acknowledged with fsync survives a crash.
+    validations:
+      required: true
+  - type: textarea
+    id: shape
+    attributes:
+      label: How it runs
+      description: Single process or a cluster, how clients talk to it (TCP, HTTP, gRPC, UDP), and what it stores on disk.
+    validations:
+      required: true
+  - type: textarea
+    id: init
+    attributes:
+      label: seedfall init output
+      description: If you ran `seedfall init` in the project, paste its output. It lists what blocks a `wasip1` build (compile errors and cgo packages, with the import chain to each) and the compat shims it would use. See https://github.com/kunalgoesbyken/seedfall/blob/main/docs/compat.md
+      render: text
+  - type: textarea
+    id: tried
+    attributes:
+      label: What you tried
+      description: Configs, workloads or results so far, if any.
+  - type: checkboxes
+    id: upstream
+    attributes:
+      label: Upstream
+      options:
+        - label: I understand that a bug found this way is reported to the project before it is published in docs/findings.
+          required: true

@@ -1,0 +1,17 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Getting started
+    url: https://github.com/kunalgoesbyken/seedfall/blob/main/docs/getting-started.md
+    about: Find, shrink and fix a real bug in five minutes.
+  - name: Troubleshooting
+    url: https://github.com/kunalgoesbyken/seedfall/blob/main/docs/troubleshooting.md
+    about: The errors seedfall prints, what causes each one, and the fix.
+  - name: FAQ
+    url: https://github.com/kunalgoesbyken/seedfall/blob/main/docs/faq.md
+    about: How seedfall compares with other tools, and what it cannot test.
+  - name: Documentation index
+    url: https://github.com/kunalgoesbyken/seedfall/blob/main/docs/README.md
+    about: Every docs page, grouped into tutorials, how-to guides, reference and explanation.
+  - name: Report a security vulnerability
+    url: https://github.com/kunalgoesbyken/seedfall/security/advisories/new
+    about: Report privately through a GitHub security advisory, not in a public issue.

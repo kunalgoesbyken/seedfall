@@ -1,0 +1,68 @@
+name: Bug in seedfall
+description: seedfall crashes, prints a wrong result, replays differently, or a command does not do what its docs say.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For a failure that seedfall reports in your system but you believe is not a bug in it, use the false positive form instead. Report security problems privately: https://github.com/kunalgoesbyken/seedfall/security/advisories/new
+  - type: textarea
+    id: version
+    attributes:
+      label: seedfall version
+      description: Paste the full output of `seedfall version`.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: seedfall doctor
+      description: Paste the output of `seedfall doctor`, which includes the Go version and platform.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command
+      description: The exact command you ran and the directory you ran it in, including any `-profile` and `-set` flags.
+      render: sh
+      placeholder: seedfall replay -c seedfall.json -seed 9 -faults .seedfall/seed-9.faults.json
+    validations:
+      required: true
+  - type: input
+    id: seed
+    attributes:
+      label: Seed
+      description: The seed or seed range that shows the problem. Write "none" if it does not depend on a seed.
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: Config
+      description: The `seedfall.json`, with any config it `extends`. Attach the fault schedule (`.seedfall/seed-N.faults.json`) if you used `-faults`.
+      render: json
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output
+      description: The full output of the command. For a reported failure, the `.seedfall/failures/<config>-seed-N/` folder can be zipped and attached.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: What should have happened instead, and the doc that says so if there is one.
+    validations:
+      required: true
+  - type: textarea
+    id: code
+    attributes:
+      label: Code to reproduce
+      description: A link to a repository, or the smallest node and workload that reproduce it, unless one of the examples in this repository already does.

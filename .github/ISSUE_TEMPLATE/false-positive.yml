@@ -1,0 +1,53 @@
+name: False positive
+description: seedfall reports a failure that is not a bug in the system under test.
+labels: [false positive]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A false positive is a failure that cannot happen on a real machine: the disk, network, clock or scheduler model produced an outcome a real kernel or network would not, or a check fired for a reason outside the system. Before filing, check the fault and file system models in https://github.com/kunalgoesbyken/seedfall/blob/main/docs/faults.md and the shim limits in https://github.com/kunalgoesbyken/seedfall/blob/main/docs/compat.md. Failures classified `nondeterministic` or `timeout` are covered in https://github.com/kunalgoesbyken/seedfall/blob/main/docs/troubleshooting.md
+  - type: textarea
+    id: version
+    attributes:
+      label: seedfall version
+      description: Paste the full output of `seedfall version`.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Replay command
+      description: The command that reproduces the failure and the directory you ran it in.
+      render: sh
+      placeholder: seedfall replay -c seedfall.json -seed 9 -faults .seedfall/seed-9.faults.json
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: Config and schedule
+      description: The `seedfall.json`, and the shrunk schedule from `seedfall shrink` if you have one.
+      render: json
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Failure output
+      description: The failure line, its classification, and the relevant part of the trace. For a disk outcome, `seedfall inspect -seed N` output helps.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why this cannot happen on a real system
+      description: Which fault or model produced the outcome, and the real behavior it contradicts (a file system guarantee, a POSIX rule, a TCP or UDP property), with a source if you have one.
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: System under test
+      description: Repository and version, or the example's name.
