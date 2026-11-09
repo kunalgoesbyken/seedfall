@@ -228,6 +228,10 @@ The [getting started guide](docs/getting-started.md) walks through finding, shri
 - `fs_model` covers ext4 `data=ordered`, an aggressive independent-pages model, and ext2 or btrfs directory reordering, not every file system: XFS, `data=journal` and `nodelalloc` have no model of their own. A single directory operation is always atomic, unlike on ext2. `Chmod` is not modelled, because WASI has no such call.
 - Real time is spent on guest CPU and node boots, never on idle virtual time. A busy 3-node NATS JetStream cluster under faults simulates about 2.5-3x faster than real time and a mostly idle JetStream node about 7x, but short seeds of large guests are dominated by booting each node (0.1-0.3s per start for nats-server). Sweeps add one core per seed. See [how it works](docs/how-it-works.md#speed).
 
+## Docs and contributing
+
+The [docs index](docs/README.md) lists every page as tutorials, how-to guides, reference and explanation. When something fails to build or a run fails for a reason outside your system, start with [troubleshooting](docs/troubleshooting.md); the [FAQ](docs/faq.md) compares seedfall with Antithesis, gosim, `testing/synctest`, `-race` and Jepsen. [CONTRIBUTING](CONTRIBUTING.md) covers the tests, adding an example or compat shim and writing up a finding, and the [roadmap](ROADMAP.md) lists what is not done yet. Report vulnerabilities privately as described in [SECURITY](SECURITY.md).
+
 ## License
 
 Apache-2.0
