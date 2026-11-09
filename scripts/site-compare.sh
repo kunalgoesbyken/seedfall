@@ -58,6 +58,7 @@ $(cat "$work/header")
   </div>
 </main>
 $(cat "$work/footer")
+<script src="stars.js" defer></script>
 </body>
 </html>
 EOF

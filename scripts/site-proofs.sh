@@ -66,6 +66,7 @@ $body
   </div>
 </main>
 $footer
+<script src="../stars.js" defer></script>
 </body>
 </html>
 EOF

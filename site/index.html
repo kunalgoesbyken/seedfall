@@ -24,7 +24,7 @@
       <a href="proof/">Bugs found</a>
       <a href="/docs/">Docs</a>
     </nav>
-    <a class="gh" href="https://github.com/kunalgoesbyken/seedfall" aria-label="seedfall on GitHub"><svg><use href="#gh"/></svg></a>
+    <a class="gh" href="https://github.com/kunalgoesbyken/seedfall" aria-label="seedfall on GitHub"><svg aria-hidden="true"><use href="#gh"/></svg><span class="gh-stat" hidden><span class="gh-star">Star</span><span class="gh-count"></span></span></a>
   </div>
 </header>
 
@@ -96,7 +96,6 @@
           <button class="install" data-copy="npx skills add kunalgoesbyken/seedfall"><span class="prompt" aria-hidden="true"></span><span class="cmd">npx skills add kunalgoesbyken/seedfall</span><span class="copy" aria-hidden="true"></span></button>
         </div>
       </div>
-      <p class="get-meta">Free and open source (Apache-2.0). Linux, macOS and Windows.</p>
     </div>
     <figure class="demo">
       <video autoplay muted loop playsinline preload="metadata" poster="media/seedfall-demo.jpg" width="1128" height="940" aria-describedby="demo-caption">
@@ -112,34 +111,47 @@
   <div class="wrap">
     <p class="eyebrow center">How it works</p>
     <h2 class="center">Three steps from install to a replayable bug</h2>
-    <div class="cols steps">
-      <div>
-        <p class="kicker">1. Describe your system</p>
-        <p>List your services, a small program that checks they behave, and how rough the simulated world should be.</p>
-<pre class="code">{
-  "nodes": [
-    { "name": "server", "pkg": "./server" }
-  ],
-  "workload": {
-    "name": "client", "pkg": "./client"
-  },
-  "faults": {
-    "crash_per_sec": 0.5,
-    "torn_writes": true,
-    "fsync_eio": 0.01
-  }
-}</pre>
+    <div class="stepper">
+      <div class="step-tabs" role="tablist" aria-label="Three steps from install to a replayable bug" aria-orientation="vertical">
+        <button class="step-tab" role="tab" id="step-tab-1" aria-controls="step-pane-1" aria-selected="true"><span class="step-n">1</span><span class="step-t">Describe your system</span><span class="step-d">List your services, a small program that checks they behave, and how rough the simulated world should be.</span><span class="step-bar" aria-hidden="true"><i></i></span></button>
+        <button class="step-tab" role="tab" id="step-tab-2" aria-controls="step-pane-2" aria-selected="false" tabindex="-1"><span class="step-n">2</span><span class="step-t">Hunt for failures</span><span class="step-d">seedfall runs thousands of simulated worlds. Each has a <strong>seed</strong>, a number that decides every crash, delay and network split in it. A crash keeps only what your code had <strong>fsynced</strong> (forced onto the disk), so bugs that skip it show up. Any failure prints its seed.</span><span class="step-bar" aria-hidden="true"><i></i></span></button>
+        <button class="step-tab" role="tab" id="step-tab-3" aria-controls="step-pane-3" aria-selected="false" tabindex="-1"><span class="step-n">3</span><span class="step-t">Replay and shrink</span><span class="step-d">The same seed gives the same failure every time. Shrinking cuts it down to the few injected failures that actually matter.</span><span class="step-bar" aria-hidden="true"><i></i></span></button>
       </div>
-      <div>
-        <p class="kicker">2. Hunt for failures</p>
-        <p>seedfall runs thousands of simulated worlds. Each has a <strong>seed</strong>, a number that decides every crash, delay and network split in it. A crash keeps only what your code had <strong>fsynced</strong> (forced onto the disk), so bugs that skip it show up. Any failure prints its seed.</p>
-<pre class="code">$ seedfall run -seeds 1-5000</pre>
-      </div>
-      <div>
-        <p class="kicker">3. Replay and shrink</p>
-        <p>The same seed gives the same failure every time. Shrinking cuts it down to the few injected failures that actually matter.</p>
-<pre class="code">$ seedfall replay -seed 9
-$ seedfall shrink -seed 9</pre>
+      <div class="term">
+        <div class="term-bar" aria-hidden="true"><i></i><i></i><i></i><span>examples/kvlog</span></div>
+        <div class="term-pane" role="tabpanel" id="step-pane-1" aria-labelledby="step-tab-1">
+          <span class="ln"><s>$</s> <span class="type">cat seedfall.always.json</span></span>
+          <span class="ln">{</span>
+          <span class="ln">  "nodes": [</span>
+          <span class="ln">    { "name": "server", "pkg": "./server",</span>
+          <span class="ln">      "args": ["-sync", "always"] }</span>
+          <span class="ln">  ],</span>
+          <span class="ln">  "workload": {</span>
+          <span class="ln">    "name": "client", "pkg": "./client"</span>
+          <span class="ln">  },</span>
+          <span class="ln">  "faults": {</span>
+          <span class="ln">    "crash_per_sec": 0.5,</span>
+          <span class="ln">    "torn_writes": true,</span>
+          <span class="ln">    "crash_on_io": 0.005</span>
+          <span class="ln">  }</span>
+          <span class="ln">}</span>
+        </div>
+        <div class="term-pane" role="tabpanel" id="step-pane-2" aria-labelledby="step-tab-2" hidden>
+          <span class="ln"><s>$</s> <span class="type">seedfall run -c seedfall.always.json -seeds 1-100</span></span>
+          <span class="ln"><span class="bad">FAIL</span> seed <i>1</i> at t=2.891820635s (737 scheduler steps, 445ms real)</span>
+          <span class="ln">  client#1: acknowledged write lost: k96=v96, server now answers "NONE"</span>
+        </div>
+        <div class="term-pane" role="tabpanel" id="step-pane-3" aria-labelledby="step-tab-3" hidden>
+          <span class="ln"><s>$</s> <span class="type">seedfall replay -c seedfall.always.json -seed 1</span></span>
+          <span class="ln"><span class="bad">FAIL</span> seed <i>1</i> at t=2.891820635s (737 scheduler steps, 445ms real)</span>
+          <span class="ln">  client#1: acknowledged write lost: k96=v96, server now answers "NONE"</span>
+          <span class="ln"><s>$</s> <span class="type">seedfall shrink -c seedfall.always.json -seed 1</span></span>
+          <span class="ln">faults before the failure (2):</span>
+          <span class="ln">  427.268ms  crash server during disk op #56, restart at 761.268ms</span>
+          <span class="ln">     802ms  crash server, restart at 802ms</span>
+          <span class="ln">shrunk from 33 faults, 1m0s, 200 workload ops</span>
+          <span class="ln">         to <b class="ok">2 faults</b>, 991ms, 63 workload ops</span>
+        </div>
       </div>
     </div>
     <p class="note center">Your code stays as it is: one config line, <code>"net_overlay": true</code>, runs its normal networking inside the simulation. No forked Go, no rewritten source. <a href="/docs/how-it-works.html">How it works</a> &middot; <a href="/docs/faults.html">Everything it can break</a></p>
@@ -152,11 +164,11 @@ $ seedfall shrink -seed 9</pre>
     <h2>Real code, real bugs</h2>
     <p class="sub dim">Each finding replays from its seed and has a report with the root cause and a verified fix.</p>
     <ul class="finds">
-      <li><p class="case-k"><svg class="logo" aria-hidden="true"><use href="#nats"/></svg>NATS JetStream</p><p><a href="proof/nats-stream-meta-checksum-crash.html">A crash while a stream is created makes it forget every message it confirmed, after the next restart.</a></p><a class="up" href="https://github.com/nats-io/nats-server/issues/8872">issue</a></li>
-      <li><p class="case-k">rosedblabs/wal</p><p><a href="proof/rosedblabs-wal-torn-tail.html">After one crash mid-write, new writes land behind the damaged data and can never be read back.</a></p><a class="up" href="https://github.com/rosedblabs/wal/issues/51">issue</a></li>
-      <li><p class="case-k">tidwall/buntdb</p><p><a href="proof/tidwall-buntdb-shrink-fsync.html">Its automatic file shrink never syncs the new file, so a crash can bring the database back without writes it confirmed.</a></p><a class="up" href="https://github.com/tidwall/buntdb/issues/126">issue, fixed</a></li>
-      <li><p class="case-k">tidwall/wal</p><p><a href="proof/tidwall-wal-torn-tail.html">One crash during a write and the log can never be opened again. The pending upstream fix is incomplete.</a></p><a class="up" href="https://github.com/tidwall/wal/issues/43">issue</a></li>
-      <li><p class="case-k"><svg class="logo" aria-hidden="true"><use href="#hashicorp"/></svg>hashicorp/raft</p><p><a href="proof/hashicorp-raft-snapshot-dir-fsync.html">On strict POSIX filesystems, one crash leaves a node that panics on every restart.</a></p><a class="up" href="https://github.com/hashicorp/raft/issues/744">issue</a></li>
+      <li><p class="case-k"><span class="proj"><svg aria-hidden="true"><use href="#nats"/></svg></span>NATS JetStream</p><p><a href="proof/nats-stream-meta-checksum-crash.html">A crash while a stream is created makes it forget every message it confirmed, after the next restart.</a></p><a class="up" href="https://github.com/nats-io/nats-server/issues/8872">issue</a></li>
+      <li><p class="case-k"><span class="proj"><img src="media/logos/rosedblabs.png" alt="" width="28" height="28" loading="lazy"></span>rosedblabs/wal</p><p><a href="proof/rosedblabs-wal-torn-tail.html">After one crash mid-write, new writes land behind the damaged data and can never be read back.</a></p><a class="up" href="https://github.com/rosedblabs/wal/issues/51">issue</a></li>
+      <li><p class="case-k"><span class="proj"><img src="media/logos/tidwall.jpg" alt="" width="28" height="28" loading="lazy"></span>tidwall/buntdb</p><p><a href="proof/tidwall-buntdb-shrink-fsync.html">Its automatic file shrink never syncs the new file, so a crash can bring the database back without writes it confirmed.</a></p><a class="up" href="https://github.com/tidwall/buntdb/issues/126">issue, fixed</a></li>
+      <li><p class="case-k"><span class="proj"><img src="media/logos/tidwall.jpg" alt="" width="28" height="28" loading="lazy"></span>tidwall/wal</p><p><a href="proof/tidwall-wal-torn-tail.html">One crash during a write and the log can never be opened again. The pending upstream fix is incomplete.</a></p><a class="up" href="https://github.com/tidwall/wal/issues/43">issue</a></li>
+      <li><p class="case-k"><span class="proj"><svg aria-hidden="true"><use href="#hashicorp"/></svg></span>hashicorp/raft</p><p><a href="proof/hashicorp-raft-snapshot-dir-fsync.html">On strict POSIX filesystems, one crash leaves a node that panics on every restart.</a></p><a class="up" href="https://github.com/hashicorp/raft/issues/744">issue</a></li>
     </ul>
     <p class="finds-more">More in nutsdb, bitcask, diskv, jmsadair/raft and bbolt. hashicorp/raft and etcd-io/raft pass cleanly, and a deliberately broken copy of each is caught, so a pass means something.</p>
     <a class="textlink" href="proof/">All findings &rarr;</a>
@@ -166,8 +178,14 @@ $ seedfall shrink -seed 9</pre>
 <section class="light alt gostman">
   <div class="wrap">
     <p class="eyebrow">Also from the same author</p>
-    <h2><img class="g-icon" src="gostman.svg" alt="" width="36" height="36">Gostman</h2>
-    <p class="sub left">An open-source API client. Run the API checks you already keep in a Gostman collection while seedfall crashes and partitions the service behind them. <a href="https://gostman.com">gostman.com</a> &middot; <a href="/docs/gostman.html">Use it as a seedfall workload</a></p>
+    <div class="g-card">
+      <span class="proj"><img src="gostman.svg" alt="" width="48" height="48"></span>
+      <div class="g-body">
+        <h2>Gostman</h2>
+        <p>An open-source API client. Run the API checks you already keep in a Gostman collection while seedfall crashes and partitions the service behind them.</p>
+      </div>
+      <p class="g-links"><a href="https://gostman.com">gostman.com &rarr;</a><a href="/docs/gostman.html">Use it as a seedfall workload &rarr;</a></p>
+    </div>
   </div>
 </section>
 
@@ -231,10 +249,10 @@ $ seedfall shrink -seed 9</pre>
         <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
       </nav>
     </div>
-    <p class="foot-by">Built by <a href="https://github.com/kunalgoesbyken">Kunal Roy Choudhury</a> &middot; Apache-2.0 &middot; also by Kunal: <a class="promo" href="https://gostman.com"><img src="gostman.svg" alt="" width="16" height="16">Gostman</a>, an open-source API client whose collections run as <a href="/docs/gostman.html">seedfall workloads</a></p>
   </div>
 </footer>
 
 <script src="motion.js" defer></script>
+<script src="stars.js" defer></script>
 </body>
 </html>
