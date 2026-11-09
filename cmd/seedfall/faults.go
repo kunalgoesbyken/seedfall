@@ -132,7 +132,7 @@ func editFaults(a faultsEditArgs) (faultsView, error) {
 	}
 	path := cmp.Or(a.Out, source)
 	out := faultsView{File: filepath.ToSlash(path), From: from, Ops: file.Ops, Faults: []faultEntry{}}
-	out.Replay = fmt.Sprintf("seedfall replay -c %s -seed %d -faults %s", a.ref().String(), a.Seed, out.File)
+	out.Replay = engine.ReplayCommand(a.ref().String(), a.Seed, out.File)
 	if file.Duration > 0 {
 		out.Duration = time.Duration(file.Duration).String()
 	}

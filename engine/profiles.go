@@ -71,6 +71,11 @@ func resolveLayers(ref ConfigRef) (map[string]any, error) {
 	return doc, nil
 }
 
+func fits(doc map[string]any) bool {
+	b, err := json.Marshal(doc)
+	return err == nil && decodeConfig(b, &Config{}) == nil
+}
+
 func normalizeFaults(doc map[string]any) {
 	if name, ok := doc["faults"].(string); ok {
 		doc["faults"] = map[string]any{"preset": name}
@@ -211,6 +216,21 @@ func setPath(doc map[string]any, expr string) error {
 	if decodeJSON([]byte(raw), &value) != nil {
 		value = raw
 	}
+	if err := assign(doc, key, value); err != nil || fits(doc) {
+		return err
+	}
+	if _, isString := value.(string); !isString {
+		if err := assign(doc, key, raw); err != nil {
+			return err
+		}
+		if !fits(doc) {
+			return assign(doc, key, value)
+		}
+	}
+	return nil
+}
+
+func assign(doc map[string]any, key string, value any) error {
 	segs := strings.Split(key, ".")
 	var cur any = doc
 	for i, seg := range segs {

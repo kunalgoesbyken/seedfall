@@ -74,7 +74,7 @@ func (r *Runner) SaveArtifacts(seed uint64, s Schedule, opts ArtifactOptions) (A
 		Dir: dir, Seed: seed, Reproduced: res.sameFailure(*original), Classification: class, Failure: res.Failure, Finding: res.Failure.Key(),
 		Reason: res.Reason, At: res.At.String(), Steps: res.Steps, HostCalls: res.HostCalls, Hash: res.Hash(),
 		ScheduleFile: opts.ScheduleFile, Config: opts.Config, Version: Version(), GoVersion: runtime.Version(),
-		Commit: Commit(r.cfg.Dir), Created: time.Now().UTC(), Replay: replayCommand(opts.Config, seed, dir),
+		Commit: Commit(r.cfg.Dir), Created: time.Now().UTC(), Replay: ReplayCommand(opts.Config, seed, filepath.Join(dir, ArtifactFaults)),
 	}
 	a.ConfigSHA256 = r.cfg.Digest()
 	if err := os.RemoveAll(a.Dir); err != nil {
@@ -86,8 +86,8 @@ func (r *Runner) SaveArtifacts(seed uint64, s Schedule, opts ArtifactOptions) (A
 	return a, res, a.write(res, in.Result.Timeline, s, in.Disks, fmt.Sprintf("%s seed %d", r.cfg.Stem(), seed))
 }
 
-func replayCommand(config string, seed uint64, dir string) string {
-	return fmt.Sprintf("seedfall replay -c %s -seed %d -faults %s", config, seed, filepath.ToSlash(filepath.Join(dir, ArtifactFaults)))
+func ReplayCommand(config string, seed uint64, faults string) string {
+	return fmt.Sprintf("seedfall replay -c %s -seed %d -faults %s", config, seed, shellQuote(filepath.ToSlash(faults)))
 }
 
 func (a *Artifact) write(res Result, tl *Timeline, s Schedule, disks []Disk, title string) error {

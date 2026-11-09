@@ -110,7 +110,7 @@ func schemaOptions() *jsonschema.ForOptions {
 	two := 2
 	return &jsonschema.ForOptions{TypeSchemas: map[reflect.Type]*jsonschema.Schema{
 		reflect.TypeFor[engine.Duration](): duration,
-		reflect.TypeFor[engine.Range]():    {Type: "array", Items: duration, MinItems: &two, MaxItems: &two, Description: "inclusive range of two durations"},
+		reflect.TypeFor[engine.Range]():    {Type: "array", Items: duration, MinItems: &two, MaxItems: &two, Description: "inclusive range of two durations, [min, max] with 0 <= min <= max"},
 	}}
 }
 
@@ -140,6 +140,13 @@ func configSchema() (string, error) {
 	faults := s.Properties["faults"]
 	for _, name := range engine.PresetNames() {
 		faults.Properties["preset"].Enum = append(faults.Properties["preset"].Enum, name)
+	}
+	zero, one := 0.0, 1.0
+	for _, name := range engine.ProbabilityFields() {
+		faults.Properties[name].Minimum, faults.Properties[name].Maximum = &zero, &one
+	}
+	for _, name := range engine.RateFields() {
+		faults.Properties[name].Minimum = &zero
 	}
 	faults.Type, faults.Types = "", []string{"object", "string"}
 	faults.AnyOf = []*jsonschema.Schema{{Type: "object"}, {Type: "string", Enum: faults.Properties["preset"].Enum, Description: "shorthand for {\"preset\": name}"}}

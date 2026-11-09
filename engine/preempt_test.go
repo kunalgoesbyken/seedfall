@@ -73,11 +73,11 @@ func TestInstrumentedLoopsCompile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	calls, err := instrument(raw, false, false)
+	calls, err := instrument(raw, false, false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	loops, err := instrument(raw, true, false)
+	loops, err := instrument(raw, false, true, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -226,5 +226,16 @@ func TestGuestPCTChangePointsFireAcrossSleeps(t *testing.T) {
 	replay := r.Run(1, res.Faults)
 	if !reflect.DeepEqual(preemptFaults(replay.Faults), points) {
 		t.Fatalf("replay fired %v, want %v", preemptFaults(replay.Faults), points)
+	}
+}
+
+func TestInstrumentRefusesAModuleItCannotInstrumentOnlyWhenAskedTo(t *testing.T) {
+	module := []byte{0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00}
+	got, err := instrument(module, false, false, false)
+	if err != nil || !bytes.Equal(got, module) {
+		t.Fatalf("a module nothing needs instrumented: %x, %v", got, err)
+	}
+	if _, err := instrument(module, true, false, false); err == nil || !strings.Contains(err.Error(), "cannot be instrumented") {
+		t.Fatalf("a requested instrumentation of a foreign module gave %v", err)
 	}
 }

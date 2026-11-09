@@ -199,7 +199,7 @@ func viewExplore(r *engine.Runner, conf string, out engine.Exploration) exploreV
 		s := out.First.Schedule(engine.Schedule{})
 		opts := exploreArtifact(conf, out.First)
 		withArtifacts(r, v.Failure, s, opts)
-		v.Failure.Replay = fmt.Sprintf("seedfall replay -c %s -seed %d -faults %s", conf, out.First.Seed, filepath.ToSlash(filepath.Join(v.Failure.Artifacts, engine.ArtifactFaults)))
+		v.Failure.Replay = engine.ReplayCommand(conf, out.First.Seed, filepath.Join(v.Failure.Artifacts, engine.ArtifactFaults))
 	}
 	return v
 }

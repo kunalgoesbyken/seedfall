@@ -99,7 +99,11 @@ func (w *world) sockShutdown(ctx context.Context, stack []uint64) {
 }
 
 func (w *world) readSubscriptions(m api.Module, in, count uint32, n *node) ([]subscription, bool) {
-	buf, ok := m.Memory().Read(in, count*subscriptionSize)
+	size := uint64(count) * subscriptionSize
+	if size > math.MaxUint32 {
+		return nil, false
+	}
+	buf, ok := m.Memory().Read(in, uint32(size))
 	if !ok {
 		return nil, false
 	}

@@ -65,6 +65,7 @@ func NewRunner(cfg *Config) (*Runner, error) {
 	paths, upgrades := map[string]string{}, map[string]string{}
 	var order []string
 	modules := map[string][]byte{}
+	required := cfg.Preempt.Strategy != StrategyNone || cfg.Preempt.Loops || cfg.Feedback
 	add := func(name, wasm string) (string, error) {
 		path := resolve(cfg.Dir, wasm)
 		if _, ok := modules[path]; ok {
@@ -74,7 +75,7 @@ func NewRunner(cfg *Config) (*Runner, error) {
 		if err != nil {
 			return "", fmt.Errorf("node %s: %w", name, err)
 		}
-		if modules[path], err = instrument(b, cfg.Preempt.Loops, cfg.Feedback); err != nil {
+		if modules[path], err = instrument(b, required, cfg.Preempt.Loops, cfg.Feedback); err != nil {
 			return "", fmt.Errorf("node %s: %w", name, err)
 		}
 		order = append(order, path)

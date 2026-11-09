@@ -241,7 +241,7 @@ func TestConfigValidatesWorkloadsAndLiveness(t *testing.T) {
 }
 
 func TestHistoryCountsOpenOperationsPerInstance(t *testing.T) {
-	h := &history{}
+	h := &history{model: defaultModel}
 	put := []byte(`{"client":1,"f":"put","key":"x","value":"1"}`)
 	done, _ := h.call(0, put, "client#1")
 	h.call(1, put, "client#1")
@@ -279,5 +279,18 @@ func TestSupervisorNeverRestartsAFailedWorkload(t *testing.T) {
 	}
 	if w.supervised(&node{crashable: true, workload: true}, exit) {
 		t.Fatal("a faulted workload that exits 1 was restarted instead of failing the run")
+	}
+}
+
+func TestUnfinishedNeverIndexesPastTheNodes(t *testing.T) {
+	done := &node{spec: NodeSpec{Name: "client"}, workload: true, done: true}
+	w := &world{nodes: []*node{done}}
+	if got := w.unfinished(); got != done {
+		t.Errorf("unfinished() = %v with every workload done, want the first node", got)
+	}
+	running := &node{spec: NodeSpec{Name: "other"}, workload: true}
+	w.nodes = []*node{done, running}
+	if got := w.unfinished(); got != running {
+		t.Errorf("unfinished() = %v, want the workload that has not finished", got)
 	}
 }
