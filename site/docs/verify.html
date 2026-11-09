@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Proving a fix with seedfall verify · seedfall docs</title>
+<meta name="description" content="After you fix a bug you need evidence that the fix works. seedfall verify replays the failing run, sweeps many fresh seeds, checks that the run is repeatable and writes a proof for your pull request.…">
+<meta property="og:title" content="Proving a fix with seedfall verify">
+<meta property="og:description" content="After you fix a bug you need evidence that the fix works. seedfall verify replays the failing run, sweeps many fresh seeds, checks that the run is repeatable and writes a proof for your pull request.…">
+<link rel="alternate" type="text/markdown" href="verify.md">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../style.css">
+<link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+<header class="nav docs-nav">
+  <div class="wrap nav-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <nav class="links" aria-label="Site">
+      <a href="../">Home</a>
+      <a href="./" aria-current="true">Docs</a>
+      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="docs">
+  <div class="wrap docs-grid">
+    <aside class="docs-side">
+      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
+      <label class="docs-menu" for="docs-menu">Docs menu</label>
+      <nav class="docs-index" aria-label="Documentation">
+        <h2>Start here</h2>
+        <ul>
+          <li><a href="getting-started.html">Getting started</a></li>
+          <li><a href="install.html">Installing seedfall</a></li>
+          <li><a href="faq.html">FAQ</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+        </ul>
+        <h2>Find a bug</h2>
+        <ul>
+          <li><a href="networking.html">Networking</a></li>
+          <li><a href="properties.html">Properties and checks</a></li>
+          <li><a href="compat.html">Storage engines that need mmap or flock</a></li>
+          <li><a href="config.html">Config files, profiles and seeded disks</a></li>
+          <li><a href="explore.html">Feedback-guided exploration</a></li>
+          <li><a href="buggify.html">BUGGIFY</a></li>
+          <li><a href="mutate.html">Mutation testing your checks</a></li>
+          <li><a href="antithesis.html">Running Antithesis SDK code</a></li>
+          <li><a href="gostman.html">Use your Gostman collections as workloads</a></li>
+        </ul>
+        <h2>Understand a failure</h2>
+        <ul>
+          <li><a href="timeline.html">Timelines, logs and time-travel debugging</a></li>
+          <li><a href="cause.html">Causality analysis</a></li>
+          <li><a href="inspect.html">Inspecting the disk at the moment of failure</a></li>
+          <li><a href="verify.html" aria-current="page">Proving a fix with seedfall verify</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+        </ul>
+        <h2>Use in CI</h2>
+        <ul>
+          <li><a href="ci.html">Running seedfall in CI</a></li>
+          <li><a href="agents.html">Using seedfall from AI coding agents</a></li>
+        </ul>
+        <h2>Reference</h2>
+        <ul>
+          <li><a href="faults.html">Configuration and faults</a></li>
+          <li><a href="properties.html">Properties, linearizability and determinism</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          <li><a href="how-it-works.html">How seedfall works</a></li>
+          <li><a href="testing.html">Testing seedfall itself</a></li>
+          <li><a href="findings/">Findings</a></li>
+        </ul>
+        <h2>About the project</h2>
+        <ul>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
+        </ul>
+      </nav>
+    </aside>
+    <main class="docs-main">
+      <p class="docs-meta">
+        <a href="verify.md" type="text/markdown">View as Markdown, for AI agents</a>
+        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/verify.md">Edit on GitHub</a>
+      </p>
+      <article class="prose">
+<h1 id="proving-a-fix-with-seedfall-verify">Proving a fix with <code>seedfall verify</code></h1>
+<p>After you fix a bug you need evidence that the fix works. <code>seedfall verify</code> replays the failing run, sweeps many fresh seeds, checks that the run is repeatable and writes a proof for your pull request. Pinned regressions then keep the bug from coming back. Use it as the last step before you open a pull request.</p>
+<p><code>seedfall verify</code> is the definition of done for a change that fixes a seedfall failure, whether a person or an AI agent wrote it. It answers one question with evidence: is the failure gone, and how sure are we?</p>
+<pre><code class="language-sh">seedfall verify -c seedfall.fixed.json -seed 1 -faults .seedfall/seed-1.faults.json -mutate -md proof.md
+</code></pre>
+<pre><code>verify seedfall.fixed.json (seedfall v1.2.3)
+  pass  replay seed 1 with .seedfall/seed-1.faults.json  passes, twice, with identical host calls and traces
+  pass  fresh sweep, seeds 2-300                         299 of 299 pass: 95% confidence that a failure with rate &gt;= 0.997% would have shown up
+  pass  determinism, seeds 2-11                          every seed ran twice with identical host calls and traces
+  pass  mutant fsync_noop                                killed by seed 2
+  pass  mutant dirsync_noop                              not exercised
+  pass  mutant osync_ignored                             not exercised
+  pass  mutant fsync_corrupts                            killed by seed 2
+PASS
+</code></pre>
+<p>Against the unfixed config the same command stops at the first check and exits 1:</p>
+<pre><code>verify seedfall.always.json (seedfall v1.2.3)
+  FAIL  replay seed 1 with .seedfall/seed-1.faults.json  seed 1 FAILS [bug]: client#1: acknowledged write lost: k60=v60, server now answers &quot;NONE&quot;
+  skip  fresh sweep                                      an earlier check failed
+  skip  determinism                                      an earlier check failed
+FAIL
+</code></pre>
+<h2 id="what-it-checks">What it checks</h2>
+<p>In order, stopping at the first stage that fails:</p>
+<ol>
+<li><strong>Replay.</strong> Every failing schedule you name is replayed and must pass now. Each replay runs twice and must produce identical host calls and traces, so a pass cannot be luck.</li>
+<li><strong>Fresh sweep.</strong> New seeds, starting after the highest seed already known, must all pass. By default verify runs as many as needed for 95% confidence that a failure with the historical rate would have shown up: <em>n = ⌈ln(0.05) / ln(1 − p)⌉</em>, the same rule the <a href="reports.html">triage report</a> uses to call a finding resolved. A finding that failed 27.5% of seeds needs 10 clean seeds; when no rate is known, verify assumes a rare failure (1%) and runs 299. <code>-seeds</code> overrides the range.</li>
+<li><strong>Determinism.</strong> The first <code>-check</code> fresh seeds (default 10) run twice and must produce identical host calls and traces, as with <code>run -check</code>.</li>
+<li><strong>Mutants</strong> (with <code>-mutate</code>). The <a href="mutate.html">mutants</a> run over the fresh seeds, and every exercised mutant must still be killed. This catches a &quot;fix&quot; that passes by weakening the checks. With <code>-app-mutants N</code>, N <a href="mutate.html#source-mutants">source mutants</a> of the node packages run too, each as a row naming its line and change, and each one that builds must be killed. If the node packages cannot be read to list the source mutants, a <code>source mutants</code> row fails the proof.</li>
+</ol>
+<p>Any failure is printed with its <a href="reports.html#classification">classification</a>, so a determinism leak is not mistaken for the bug coming back.</p>
+<h2 id="what-to-verify">What to verify</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Flags</th>
+<th>Replays</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>-seed N</code></td>
+<td>seed N with its generated faults</td>
+</tr>
+<tr>
+<td><code>-seed N -faults file.json</code></td>
+<td>seed N under a saved schedule, for example one written by <code>seedfall shrink</code>. Its faults and <code>ops</code> cap are kept, but it runs for the config's full <code>duration</code>: a shrunk schedule's shorter duration could end the run before the workload checks anything</td>
+</tr>
+<tr>
+<td><code>-report .seedfall/report.html</code></td>
+<td>every example seed of every finding in a <a href="reports.html">triage report</a>, plus any schedule <code>shrink</code> saved for those seeds in <code>.seedfall/</code>. The findings' failure rates set the sweep size</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>-seed</code> and <code>-report</code> can be combined. Point <code>-c</code> at the config of the code you changed; the report can come from an earlier run of the same or another config.</p>
+<p>Every schedule <a href="#pinned-regressions">pinned</a> for the config is replayed too, as a <code>replay pinned seed N with seedfall-regressions/...</code> row, without being named.</p>
+<pre><code>$ seedfall verify -c seedfall.fixed.json -report .seedfall/report.html
+verify seedfall.fixed.json (seedfall v1.2.3)
+  pass  replay assert · client seed 1                                     passes, twice, with identical host calls and traces
+  pass  replay assert · client seed 1 with .seedfall/seed-1.faults.json   passes, twice, with identical host calls and traces
+  pass  replay assert · client seed 12                                    passes, twice, with identical host calls and traces
+  ...
+  pass  fresh sweep, seeds 41-50                                          10 of 10 pass: 95% confidence that a failure with rate &gt;= 25.9% would have shown up (historical rate 27.5%)
+  pass  determinism, seeds 41-50                                          every seed ran twice with identical host calls and traces
+PASS
+</code></pre>
+<h2 id="pinned-regressions">Pinned regressions</h2>
+<p>A fixed bug should stay fixed. <code>seedfall pin</code> copies a failing seed's schedule into <code>seedfall-regressions/</code>, next to the config, a directory you commit:</p>
+<pre><code class="language-sh">seedfall pin -c seedfall.fixed.json -seed 1 -faults torntail.faults.json
+</code></pre>
+<pre><code>pinned seed 1 (2 faults, from torntail.faults.json) to seedfall-regressions/seedfall.fixed-seed-1.json
+it passes now; seedfall run, verify and seedfalltest replay it first and fail if it fails again
+</code></pre>
+<p>Without <code>-faults</code>, pin takes the schedule <code>seedfall shrink</code> saved in <code>.seedfall/seed-N.faults.json</code>, or else the seed's own faults, recorded fault by fault so the pinned faults stay the same if the fault rates change later. The file is a schedule in the usual format with a <code>pinned</code> block: the config it belongs to, the finding and reason if it fails now, where it came from, the seedfall version and the date. It is named <code>&lt;config&gt;-seed-N.json</code>, so two configs in one directory can pin the same seed; <code>&lt;config&gt;</code> carries the profile and a hash of any <code>-set</code> overrides, as artifact folders do (<a href="config.html#profiles">config</a>). Pinning a schedule that still fails is allowed, and the commands below fail until the bug is fixed, the way a test written before its fix does.</p>
+<p>A pinned schedule keeps its faults and <code>ops</code> cap but runs for the config's full <code>duration</code>, as <code>-faults</code> does in verify, so a shrunk schedule's short duration cannot end the run before the workload checks anything. The same file replays exactly with <code>seedfall replay -c C -seed N -faults seedfall-regressions/&lt;file&gt;</code>.</p>
+<p>Pinned schedules are replayed, in parallel, before anything else by:</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Where</th>
+<th>What happens</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>seedfall run</code></td>
+<td>A <code>regressions</code> table comes first. One that fails again stops the run before the sweep with its failure, classification, <a href="reports.html#failure-artifacts">artifacts</a> and replay command, and exit code 1</td>
+</tr>
+<tr>
+<td><code>seedfall run -report</code></td>
+<td>The sweep still runs, the report gets a <strong>Regressions</strong> section, and a failing regression fails the run</td>
+</tr>
+<tr>
+<td><code>seedfall run -json</code></td>
+<td>One <code>{&quot;type&quot;: &quot;regression&quot;, ...}</code> line per regression before the seed lines, with <code>source</code>, <code>seed</code>, <code>passed</code>, and on a failure <code>failure</code>, <code>reason</code>, <code>classification</code> and <code>artifacts</code>; the summary counts <code>regressions_failed</code></td>
+</tr>
+<tr>
+<td><code>seedfall verify</code></td>
+<td>A <code>replay pinned</code> row each, which must pass twice</td>
+</tr>
+<tr>
+<td><code>seedfalltest.Sweep</code> and <code>seedfalltest.Pinned</code></td>
+<td>The test fails with the regression's failure (<a href="ci.html#go-test">ci.md</a>)</td>
+</tr>
+<tr>
+<td><code>seedfall hook</code> and <code>seedfall_run</code> over MCP</td>
+<td>The regression's failure is reported before any sweep</td>
+</tr>
+</tbody>
+</table></div>
+<p>A file in <code>seedfall-regressions/</code> without a <code>pinned.config</code>, for example a schedule copied in by hand, is replayed for every config in that directory. <code>run -pinned=false</code> skips them; over MCP, <code>skip_pinned</code>.</p>
+<p><code>run -seeds-file known-bad.txt</code> replays a list of seeds, each with its own faults, the same way before the sweep. The file holds seeds separated by spaces or lines, with <code>#</code> comments.</p>
+<h2 id="the-proof-block">The proof block</h2>
+<p><code>-md proof.md</code> writes the result as Markdown for the pull request description:</p>
+<pre><code class="language-markdown">### seedfall verify: PASS
+
+Config `seedfall.fixed.json`, seedfall `v1.2.3`, reproduce with `seedfall verify -c seedfall.fixed.json -seed 1 -faults .seedfall/seed-1.faults.json -mutate`
+
+| | Check | Result |
+|---|---|---|
+| pass | replay seed 1 with .seedfall/seed-1.faults.json | passes, twice, with identical host calls and traces |
+| pass | fresh sweep, seeds 2-300 | 299 of 299 pass: 95% confidence that a failure with rate &gt;= 0.997% would have shown up |
+| pass | determinism, seeds 2-11 | every seed ran twice with identical host calls and traces |
+| pass | mutant fsync_noop | killed by seed 2 |
+| pass | mutant dirsync_noop | not exercised |
+| pass | mutant osync_ignored | not exercised |
+| pass | mutant fsync_corrupts | killed by seed 2 |
+</code></pre>
+<h2 id="flags">Flags</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>-c</code></td>
+<td><code>seedfall.json</code></td>
+<td>Config of the code under test</td>
+</tr>
+<tr>
+<td><code>-seed</code></td>
+<td></td>
+<td>Failing seed to replay</td>
+</tr>
+<tr>
+<td><code>-faults</code></td>
+<td></td>
+<td>Fault schedule for <code>-seed</code></td>
+</tr>
+<tr>
+<td><code>-report</code></td>
+<td></td>
+<td>Triage report (<code>.html</code> or <code>.json</code>) whose findings to replay</td>
+</tr>
+<tr>
+<td><code>-seeds</code></td>
+<td>enough for 95% confidence</td>
+<td>Fresh seed range to sweep</td>
+</tr>
+<tr>
+<td><code>-check</code></td>
+<td><code>10</code></td>
+<td>Fresh seeds to run twice for the determinism check</td>
+</tr>
+<tr>
+<td><code>-mutate</code></td>
+<td>off</td>
+<td>Also require every exercised mutant to be killed</td>
+</tr>
+<tr>
+<td><code>-app-mutants</code></td>
+<td><code>0</code></td>
+<td>Also rebuild the nodes with this many <a href="mutate.html#source-mutants">source mutants</a>, picked from the first fresh seed, and require every one that builds to be killed</td>
+</tr>
+<tr>
+<td><code>-md</code></td>
+<td></td>
+<td>Write the Markdown proof block to this file</td>
+</tr>
+<tr>
+<td><code>-j</code></td>
+<td>all CPUs</td>
+<td>Parallel runs</td>
+</tr>
+</tbody>
+</table></div>
+<p>The exit status is 0 only when every check passes.</p>
+<h2 id="from-an-agent">From an agent</h2>
+<p>The MCP tool <code>seedfall_verify</code> takes the same inputs (<code>config</code>, <code>seed</code>, <code>faults</code>, <code>report</code>, <code>seeds</code>, <code>check_seeds</code>, <code>mutate</code>) and returns each check as structured JSON, the overall <code>passed</code> verdict, and the proof block as <code>markdown</code>. See <a href="agents.html">agents.md</a>.</p>
+
+      </article>
+    </main>
+  </div>
+</div>
+<footer class="foot">
+  <div class="wrap foot-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../llms.txt">llms.txt</a></p>
+  </div>
+</footer>
+</body>
+</html>

@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FileSnapshotStore doesn&#39;t fsync the snapshot directory before rename, so a crash can leave an empty snapshot after logs were compacted · seedfall docs</title>
+<meta name="description" content="Upstream: hashicorp/raft#744">
+<meta property="og:title" content="FileSnapshotStore doesn&#39;t fsync the snapshot directory before rename, so a crash can leave an empty snapshot after logs were compacted">
+<meta property="og:description" content="Upstream: hashicorp/raft#744">
+<link rel="alternate" type="text/markdown" href="hashicorp-raft-snapshot-dir-fsync.md">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../style.css">
+<link rel="stylesheet" href="../../docs.css">
+</head>
+<body>
+<header class="nav docs-nav">
+  <div class="wrap nav-row">
+    <a class="brand" href="../../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <nav class="links" aria-label="Site">
+      <a href="../../">Home</a>
+      <a href="../" aria-current="true">Docs</a>
+      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="docs">
+  <div class="wrap docs-grid">
+    <aside class="docs-side">
+      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
+      <label class="docs-menu" for="docs-menu">Docs menu</label>
+      <nav class="docs-index" aria-label="Documentation">
+        <h2>Start here</h2>
+        <ul>
+          <li><a href="../getting-started.html">Getting started</a></li>
+          <li><a href="../install.html">Installing seedfall</a></li>
+          <li><a href="../faq.html">FAQ</a></li>
+          <li><a href="../troubleshooting.html">Troubleshooting</a></li>
+        </ul>
+        <h2>Find a bug</h2>
+        <ul>
+          <li><a href="../networking.html">Networking</a></li>
+          <li><a href="../properties.html">Properties and checks</a></li>
+          <li><a href="../compat.html">Storage engines that need mmap or flock</a></li>
+          <li><a href="../config.html">Config files, profiles and seeded disks</a></li>
+          <li><a href="../explore.html">Feedback-guided exploration</a></li>
+          <li><a href="../buggify.html">BUGGIFY</a></li>
+          <li><a href="../mutate.html">Mutation testing your checks</a></li>
+          <li><a href="../antithesis.html">Running Antithesis SDK code</a></li>
+          <li><a href="../gostman.html">Use your Gostman collections as workloads</a></li>
+        </ul>
+        <h2>Understand a failure</h2>
+        <ul>
+          <li><a href="../timeline.html">Timelines, logs and time-travel debugging</a></li>
+          <li><a href="../cause.html">Causality analysis</a></li>
+          <li><a href="../inspect.html">Inspecting the disk at the moment of failure</a></li>
+          <li><a href="../verify.html">Proving a fix with seedfall verify</a></li>
+          <li><a href="../reports.html">Triage reports</a></li>
+        </ul>
+        <h2>Use in CI</h2>
+        <ul>
+          <li><a href="../ci.html">Running seedfall in CI</a></li>
+          <li><a href="../agents.html">Using seedfall from AI coding agents</a></li>
+        </ul>
+        <h2>Reference</h2>
+        <ul>
+          <li><a href="../faults.html">Configuration and faults</a></li>
+          <li><a href="../properties.html">Properties, linearizability and determinism</a></li>
+          <li><a href="../reports.html">Triage reports</a></li>
+          <li><a href="../troubleshooting.html">Troubleshooting</a></li>
+          <li><a href="../how-it-works.html">How seedfall works</a></li>
+          <li><a href="../testing.html">Testing seedfall itself</a></li>
+          <li><a href="./">Findings</a></li>
+        </ul>
+        <h2>About the project</h2>
+        <ul>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
+        </ul>
+      </nav>
+    </aside>
+    <main class="docs-main">
+      <p class="docs-meta"><a href="./">&larr; Findings</a>
+        <a href="hashicorp-raft-snapshot-dir-fsync.md" type="text/markdown">View as Markdown, for AI agents</a>
+        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/findings/hashicorp-raft-snapshot-dir-fsync.md">Edit on GitHub</a>
+      </p>
+      <article class="prose">
+<h1 id="filesnapshotstore-doesnt-fsync-the-snapshot-directory-before-rename-so-a-crash-can-leave-an-empty-snapshot-after-logs-were-compacted">FileSnapshotStore doesn't fsync the snapshot directory before rename, so a crash can leave an empty snapshot after logs were compacted</h1>
+<p><strong>Upstream:</strong> <a href="https://github.com/hashicorp/raft/issues/744">hashicorp/raft#744</a></p>
+<p><strong>Repo:</strong> hashicorp/raft (tested on v1.8.0)
+<strong>Severity:</strong> a node can't restart (it panics in <code>NewRaft</code>). This needs strict POSIX directory-durability semantics.</p>
+<h2 id="summary">Summary</h2>
+<p><code>FileSnapshotSink</code> fsyncs <code>state.bin</code> and <code>meta.json</code>, renames the temporary snapshot directory into place, and then fsyncs the parent directory (<code>file_snapshot.go</code>, <code>Close</code> → <code>finalize</code>/<code>writeMeta</code> → <code>os.Rename</code> → <code>parentFH.Sync()</code>). It never fsyncs the <strong>snapshot directory itself</strong>. POSIX only makes the directory entries for <code>state.bin</code> and <code>meta.json</code> durable once their containing directory is fsynced. Fsyncing the files makes their <em>contents</em> durable, not their names.</p>
+<p>After the snapshot is finalized, raft compacts the log (<code>DeleteRange</code> up to the snapshot minus trailing logs). If the machine crashes before the filesystem makes those entries durable, then after reboot:</p>
+<ol>
+<li><code>data/snapshots/snapshots/&lt;term&gt;-&lt;index&gt;-&lt;ts&gt;/</code> exists, because the rename and the parent fsync are durable, but it is <strong>empty</strong>.</li>
+<li><code>FileSnapshotStore.getSnapshots</code> can't read <code>meta.json</code>, so it skips the snapshot, and <code>restoreSnapshot</code> restores nothing (<code>snapshotIndex = 0</code>).</li>
+<li>The log store's first index is now past 1 because of the compaction, so <code>NewRaft</code> panics in the configuration scan:</li>
+</ol>
+<pre><code>[ERROR] n2: failed to get log: index=1 error=&quot;log not found&quot;
+panic: log not found
+github.com/hashicorp/raft.NewRaft(...)  api.go:617
+</code></pre>
+<p>The node panics on every restart until an operator intervenes.</p>
+<h2 id="reproduction">Reproduction</h2>
+<p>Reproduced deterministically with <a href="https://github.com/kunalgoesbyken/seedfall">seedfall</a>. It runs a 3-node cluster built on hashicorp/raft v1.8.0 (<code>NetworkTransport</code>, <code>FileSnapshotStore</code>, and an fsyncing file log store that also fsyncs its directories) on a simulated disk with strict POSIX directory semantics:</p>
+<pre><code>cd examples/raftkv
+seedfall replay -c strict.lin.json -seed 7
+</code></pre>
+<p>The failure needs one fault: crash n2 once after its first snapshot. A diagnostic listing at restart shows <code>snapshot 2-72-1767225601464 contains []</code>. The same seed passes when directory entries are treated as durable at creation (<code>seedfall.lin.json</code>).</p>
+<h2 id="real-world-exposure">Real-world exposure</h2>
+<p>On ext4 (data=ordered), XFS and btrfs, fsyncing a newly created file in practice also persists its directory entry, so typical Linux deployments are probably not affected. POSIX doesn't guarantee that behavior, though. Filesystems that don't provide it, or future changes to these filesystems, would expose the bug. This is the bug class the ALICE study (&quot;All File Systems Are Not Created Equal&quot;, OSDI 2014) found in LevelDB and other systems, and it's why PostgreSQL fsyncs directories explicitly.</p>
+<h2 id="suggested-fix">Suggested fix</h2>
+<p>Before the rename in <code>FileSnapshotSink.Close</code>, open <code>s.dir</code> and <code>Sync()</code> it, skipping this on Windows the same way the existing parent-directory sync does (#242). It's about five lines and has the same platform handling as the existing code.</p>
+<h2 id="fix-verified">Fix verified</h2>
+<p>I patched a local copy of v1.8.0 to open and <code>Sync()</code> <code>s.dir</code> before the <code>os.Rename</code> in <code>FileSnapshotSink.Close</code>:</p>
+<ul>
+<li>seed 7 passes;</li>
+<li>seeds 1–120 under strict directory semantics pass.</li>
+</ul>
+<p>Without the patch, the sweep failed on seed 7.</p>
+
+      </article>
+    </main>
+  </div>
+</div>
+<footer class="foot">
+  <div class="wrap foot-row">
+    <a class="brand" href="../../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../../llms.txt">llms.txt</a></p>
+  </div>
+</footer>
+</body>
+</html>

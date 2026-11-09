@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Troubleshooting · seedfall docs</title>
+<meta name="description" content="This page lists the errors and failure messages seedfall prints, with what causes each one and how to fix it. Find yours by its exact text. Parts in angle brackets, such as &lt;pkg&gt;, change from case to…">
+<meta property="og:title" content="Troubleshooting">
+<meta property="og:description" content="This page lists the errors and failure messages seedfall prints, with what causes each one and how to fix it. Find yours by its exact text. Parts in angle brackets, such as &lt;pkg&gt;, change from case to…">
+<link rel="alternate" type="text/markdown" href="troubleshooting.md">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../style.css">
+<link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+<header class="nav docs-nav">
+  <div class="wrap nav-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <nav class="links" aria-label="Site">
+      <a href="../">Home</a>
+      <a href="./" aria-current="true">Docs</a>
+      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="docs">
+  <div class="wrap docs-grid">
+    <aside class="docs-side">
+      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
+      <label class="docs-menu" for="docs-menu">Docs menu</label>
+      <nav class="docs-index" aria-label="Documentation">
+        <h2>Start here</h2>
+        <ul>
+          <li><a href="getting-started.html">Getting started</a></li>
+          <li><a href="install.html">Installing seedfall</a></li>
+          <li><a href="faq.html">FAQ</a></li>
+          <li><a href="troubleshooting.html" aria-current="page">Troubleshooting</a></li>
+        </ul>
+        <h2>Find a bug</h2>
+        <ul>
+          <li><a href="networking.html">Networking</a></li>
+          <li><a href="properties.html">Properties and checks</a></li>
+          <li><a href="compat.html">Storage engines that need mmap or flock</a></li>
+          <li><a href="config.html">Config files, profiles and seeded disks</a></li>
+          <li><a href="explore.html">Feedback-guided exploration</a></li>
+          <li><a href="buggify.html">BUGGIFY</a></li>
+          <li><a href="mutate.html">Mutation testing your checks</a></li>
+          <li><a href="antithesis.html">Running Antithesis SDK code</a></li>
+          <li><a href="gostman.html">Use your Gostman collections as workloads</a></li>
+        </ul>
+        <h2>Understand a failure</h2>
+        <ul>
+          <li><a href="timeline.html">Timelines, logs and time-travel debugging</a></li>
+          <li><a href="cause.html">Causality analysis</a></li>
+          <li><a href="inspect.html">Inspecting the disk at the moment of failure</a></li>
+          <li><a href="verify.html">Proving a fix with seedfall verify</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+        </ul>
+        <h2>Use in CI</h2>
+        <ul>
+          <li><a href="ci.html">Running seedfall in CI</a></li>
+          <li><a href="agents.html">Using seedfall from AI coding agents</a></li>
+        </ul>
+        <h2>Reference</h2>
+        <ul>
+          <li><a href="faults.html">Configuration and faults</a></li>
+          <li><a href="properties.html">Properties, linearizability and determinism</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+          <li><a href="troubleshooting.html" aria-current="page">Troubleshooting</a></li>
+          <li><a href="how-it-works.html">How seedfall works</a></li>
+          <li><a href="testing.html">Testing seedfall itself</a></li>
+          <li><a href="findings/">Findings</a></li>
+        </ul>
+        <h2>About the project</h2>
+        <ul>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
+        </ul>
+      </nav>
+    </aside>
+    <main class="docs-main">
+      <p class="docs-meta">
+        <a href="troubleshooting.md" type="text/markdown">View as Markdown, for AI agents</a>
+        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/troubleshooting.md">Edit on GitHub</a>
+      </p>
+      <article class="prose">
+<h1 id="troubleshooting">Troubleshooting</h1>
+<p>This page lists the errors and failure messages seedfall prints, with what causes each one and how to fix it. Find yours by its exact text. Parts in angle brackets, such as <code>&lt;pkg&gt;</code>, change from case to case. Commands print errors as <code>seedfall: &lt;message&gt;</code> and exit with code 1.</p>
+<p>Do this first:</p>
+<ol>
+<li>Run <code>seedfall doctor</code>. It checks the Go version, a <code>wasip1</code> build, <code>net_overlay</code>, the build cache, the working directory and free memory. For every check that is not <code>ok</code> it prints a fix.</li>
+<li>In a new project, run <code>seedfall init</code>. It lists every package that will not build for <code>wasip1</code> (the WebAssembly target seedfall compiles your code for) and shows the chain of imports that pulls each one in.</li>
+</ol>
+<h2 id="setup-and-go-version">Setup and Go version</h2>
+<h3 id="go-is-too-old">Go is too old</h3>
+<pre><code>  fail  go            &lt;installed&gt; is older than go&lt;version&gt;
+        fix: install go&lt;version&gt; or newer from https://go.dev/dl/
+</code></pre>
+<p><code>seedfall doctor</code> prints this when your Go is older than the version in seedfall's own <code>go.mod</code> (currently <code>go1.25.0</code>). Install that version or newer.</p>
+<h3 id="no-go-command">No go command</h3>
+<pre><code>  fail  go            no working go command on PATH: &lt;error&gt;
+</code></pre>
+<p>seedfall builds each node with your Go toolchain, so <code>go</code> must be on your <code>PATH</code>.</p>
+<ol>
+<li>Install Go from <a href="https://go.dev/dl/">https://go.dev/dl/</a>.</li>
+<li>Open a new terminal and run <code>go version</code> to check.</li>
+<li>Run <code>seedfall doctor</code> again.</li>
+</ol>
+<p>Until this passes, <code>seedfall doctor</code> skips the <code>wasip1 build</code>, <code>net_overlay</code> and <code>build cache</code> checks. If you use <code>net_overlay</code> or the generic compat shim, the same problem shows up as <code>go env GOROOT: &lt;error&gt;</code>.</p>
+<h3 id="the-net-overlay-does-not-support-this-go-version">The net overlay does not support this Go version</h3>
+<pre><code>net overlay: expected one &quot;&lt;anchor&gt;&quot; in &lt;file&gt;, found &lt;n&gt;; this Go version is not supported yet
+</code></pre>
+<p>With <code>&quot;net_overlay&quot;: true</code>, seedfall patches a few functions in Go's own <code>net</code> package for <code>wasip1</code> (<code>net_fake.go</code>, <code>fd_fake.go</code> and <code>sockopt_fake.go</code>). Each patch looks for one exact line in <code>$GOROOT/src/net</code>. If a new Go release changed that line, seedfall refuses to patch instead of patching the wrong place. <code>seedfall doctor</code> shows this as a <code>warn</code> on the <code>net_overlay</code> check.</p>
+<p>Fix it in one of two ways:</p>
+<ul>
+<li>Use a Go version that seedfall supports.</li>
+<li>Turn off <code>net_overlay</code> and call <code>sim.Listen</code> and <code>sim.Dial</code> in your code instead. They need no patch (<a href="networking.html">networking</a>).</li>
+</ul>
+<pre><code>net overlay: &lt;error&gt;
+</code></pre>
+<p>seedfall could not read the files it patches from <code>$GOROOT/src/net</code>. Your Go install is missing its standard library source. Reinstall Go from <a href="https://go.dev/dl/">https://go.dev/dl/</a>.</p>
+<h2 id="building-nodes-for-wasip1">Building nodes for wasip1</h2>
+<h3 id="a-node-does-not-build">A node does not build</h3>
+<pre><code>build &lt;pkg&gt;: exit status 1
+</code></pre>
+<p>For every <code>pkg</code> in the config, seedfall runs <code>GOOS=wasip1 GOARCH=wasm go build</code>. The compiler's own errors are printed above this line. The usual causes:</p>
+<ul>
+<li><strong>cgo.</strong> cgo (Go code that calls C) is off under <code>wasip1</code>, so a package with cgo files does not build. <code>seedfall init</code> lists these under <code>cgo packages</code>, with a <code>cgo files: &lt;files&gt;</code> line and the chain <code>via &lt;main&gt; -&gt; ... -&gt; &lt;pkg&gt;</code>. Replace each with a pure-Go library, or stub it behind a build tag. Libraries such as RocksDB bindings or <code>mattn/go-sqlite3</code> cannot run under seedfall.</li>
+<li><strong><code>mmap</code>, <code>flock</code> and other unix calls.</strong> An error such as an undefined <code>syscall.Mmap</code>, <code>unix.Mmap</code> or <code>syscall.Flock</code> means the code uses operating system calls that WASI does not have. (<code>mmap</code> maps a file into memory. <code>flock</code> locks a file.) <code>seedfall init</code> lists each one under <code>wasip1 blockers</code> with a <code>shim:</code> line.
+<ul>
+<li>If the line names a shim, set <code>&quot;compat_overlay&quot;: true</code> (<a href="compat.html">compat</a>).</li>
+<li>If it says <code>none: needs a shim, see docs/compat.md</code>, the dependency needs a hand-written shim, an upgrade, or a <code>go.mod</code> replace with an in-process version, as <code>examples/flockshim</code> does for <code>gofrs/flock</code>.</li>
+</ul>
+</li>
+<li><strong>Platform-specific code in your own packages.</strong> Move it behind build tags so that a <code>wasip1</code> version builds. <code>compat_overlay</code> never changes your own module.</li>
+</ul>
+<h3 id="a-compat-shim-does-not-match-the-library-version">A compat shim does not match the library version</h3>
+<pre><code>compat overlay: &lt;pkg&gt;/&lt;file&gt; declares &lt;names&gt;, which the wasip1 shim does not provide; this version is not supported yet
+</code></pre>
+<p>A shim replaces whole files, and only if it provides every top-level name those files declare. The version of the library you use declares something the shim does not, so seedfall stops instead of building a half replacement. Either pin the library to the version listed in <a href="compat.html">compat</a>, or add the missing declarations to the shim under <code>engine/compat</code> (<a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md#adding-a-compat-shim">CONTRIBUTING</a>).</p>
+<h3 id="golangorgxsys-is-not-downloaded">golang.org/x/sys is not downloaded</h3>
+<pre><code>compat overlay: golang.org/x/sys is not downloaded; run go mod download golang.org/x/sys
+</code></pre>
+<p>The generic shim adds <code>wasip1</code> versions of <code>Mmap</code> and <code>Flock</code> to a copy of <code>golang.org/x/sys/unix</code>, so that module must be in your module cache. Run the command from the message in the folder that holds your <code>go.mod</code>.</p>
+<pre><code>compat overlay: finding golang.org/x/sys: &lt;error&gt;
+</code></pre>
+<p><code>go list -m golang.org/x/sys</code> failed in the config's folder. Run it yourself to see why. Usually your <code>go.mod</code> does not require <code>golang.org/x/sys</code>, or a module download fails.</p>
+<h3 id="not-inside-a-module">Not inside a module</h3>
+<pre><code>compat overlay: &lt;dir&gt; is not inside a Go module
+compat overlay: &lt;pkg&gt; is not part of a module
+</code></pre>
+<p><code>compat_overlay</code> builds with a copy of your <code>go.mod</code> that adds a <code>replace</code> for each shimmed module. So the config's folder must be inside a Go module, and every shimmed package must come from one. Run seedfall from a folder with a <code>go.mod</code>, with module mode on (not <code>GO111MODULE=off</code>).</p>
+<pre><code>compat overlay: go mod edit: &lt;error&gt;: &lt;output&gt;
+</code></pre>
+<p>seedfall could not write the <code>replace</code> lines into its copy of <code>go.mod</code> under <code>.seedfall/compat</code>. The text after the colon comes from <code>go mod edit</code>. Check that <code>.seedfall</code> is writable and that your <code>go.mod</code> is valid.</p>
+<h3 id="preemptloops-cannot-instrument-the-binary">preempt.loops cannot instrument the binary</h3>
+<pre><code>preempt.loops: function &lt;n&gt;: unsupported wasm opcode 0x&lt;op&gt;
+preempt.loops: function &lt;n&gt;: unsupported wasm opcode 0xfc &lt;sub&gt;
+</code></pre>
+<p>With <code>&quot;preempt&quot;: {&quot;loops&quot;: true}</code>, seedfall reads every function of the compiled program and adds a counter after each <code>loop</code>. It hit an instruction it does not know, which a newer Go compiler may produce. Turn <code>preempt.loops</code> off and report your Go version in an issue.</p>
+<h2 id="config">Config</h2>
+<p>These errors come from a check that runs before anything is built.</p>
+<pre><code>config: workload.name is required
+config: every node needs a name
+config: duplicate node name &quot;&lt;name&gt;&quot;
+config: node &quot;&lt;name&gt;&quot; needs pkg or wasm
+config: node &quot;&lt;name&gt;&quot; has an invalid pkg &quot;&lt;pkg&gt;&quot;
+</code></pre>
+<p>The workload and every node need a unique <code>name</code>. Every node also needs either a <code>pkg</code> (a Go package path, which seedfall builds for you) or a <code>wasm</code> file. <a href="faults.html">Configuration and faults</a> lists every field.</p>
+<pre><code>config: node &quot;&lt;name&gt;&quot; sets both pkg and wasm, use one
+&lt;file&gt;: json: unknown field &quot;&lt;name&gt;&quot;
+</code></pre>
+<p>A node names either a <code>pkg</code>, which seedfall builds into a <code>wasm</code> file, or a prebuilt <code>wasm</code>, never both. An &quot;unknown field&quot; is a key that is not part of the config. Look for a typo in the file, in a profile or in a <code>-set</code>.</p>
+<pre><code>config: faults.&lt;name&gt; must be between 0 and 1, got &lt;value&gt;
+config: faults.&lt;name&gt; must not be negative, got &lt;value&gt;
+config: &lt;range&gt; must be [min, max] with 0 &lt;= min &lt;= max, got [&lt;min&gt;, &lt;max&gt;]
+config: duration must be positive, got &lt;value&gt;
+config: watchdog must be positive, got &lt;value&gt;
+config: faults.clock_jump_max must not be negative, got &lt;value&gt;
+</code></pre>
+<p>A number is out of range. A probability is outside 0 to 1, a <code>_per_sec</code> rate is negative, a range has a negative or reversed end, or a duration is not positive. <a href="config.html">Config</a> says which rule covers which field.</p>
+<pre><code>config: no profile &quot;&lt;name&gt;&quot;, have &lt;profiles&gt;
+config: no profile &quot;&lt;name&gt;&quot;, the config has no profiles
+</code></pre>
+<p><code>-profile</code> named a profile that is not in the config's <code>profiles</code>. The first form lists the ones that exist (<a href="config.html#profiles">config</a>).</p>
+<pre><code>config: -set &quot;&lt;expr&gt;&quot; is not path=value
+config: -set &lt;key&gt;: &lt;path&gt; is not an object or a list
+</code></pre>
+<p><code>-set</code> takes <code>path=value</code>. The path walks objects by key and lists by element name or index. The value is JSON or a bare string (<a href="config.html#-set">config</a>).</p>
+<pre><code>config: &lt;file&gt; extends itself
+&lt;file&gt;: extends must be the path of another config file
+</code></pre>
+<p><code>extends</code> must name a different config file (<a href="config.html#extends">config</a>).</p>
+<pre><code>config: preempt: unknown strategy &quot;&lt;name&gt;&quot;, want one of &lt;strategies&gt;
+config: preempt: interleave is shorthand for strategy random, but strategy is &lt;name&gt;
+</code></pre>
+<p><code>preempt.strategy</code> is not one of the strategies listed, or <code>interleave</code> was combined with a different strategy (<a href="how-it-works.html#strategies">how it works</a>).</p>
+<pre><code>bad seed range &quot;&lt;range&gt;&quot;: seed 18446744073709551615 is the largest uint64, so the count of seeds or the next seed would wrap around, end the range at 18446744073709551614 or lower
+</code></pre>
+<p>A <code>-seeds</code> range cannot end at the largest 64-bit number. The sweep could not tell the end of the range from a wrap-around to seed 0.</p>
+<pre><code>the module cannot be instrumented for preemption or feedback: &lt;reason&gt;
+</code></pre>
+<p><code>preempt.strategy</code>, <code>preempt.loops</code> and the feedback used by <code>explore</code> need a call counter that seedfall adds to Go <code>wasip1</code> programs. A prebuilt <code>wasm</code> from another toolchain, or one that does not import <code>sched_yield</code>, cannot take it. Build the node from Go, or turn those settings off.</p>
+<pre><code>-json and -report cannot be combined
+timeout cannot be negative
+</code></pre>
+<p><code>run</code> writes either one JSON object per seed or an HTML report, not both. <code>-timeout</code> must be zero (no limit) or positive.</p>
+<pre><code>report path &lt;path&gt; ends in .json, which is where the JSON report goes; use a .html path
+</code></pre>
+<p><code>-report</code> names the HTML report. The JSON version is written next to it, with <code>.json</code> in place of the extension. An HTML report cannot go to a <code>.json</code> path, because it would be overwritten.</p>
+<pre><code>&lt;file&gt; line &lt;n&gt;: &lt;json error&gt;
+</code></pre>
+<p>A line of <code>.seedfall/history.jsonl</code> is not valid JSON, for example because an editor or a merge damaged it. <code>report</code>, <code>findings</code> and <code>report notify</code> refuse to read a history they cannot trust. Delete or repair the line named in the message (<a href="reports.html#history-new-ongoing-resolved-regressed">history</a>).</p>
+<pre><code>listen &lt;network&gt;: the simulator supports only tcp, tcp4, tcp6
+listen &lt;network&gt;: the simulator supports only udp, udp4, udp6
+dial &lt;network&gt;: the simulator supports only tcp, tcp4, tcp6
+</code></pre>
+<p><code>sim.Listen</code>, <code>sim.ListenPacket</code> or <code>sim.Dial</code> was given a network type the simulator does not have, such as <code>unix</code>. Use <code>tcp</code> or <code>udp</code> (<a href="networking.html#option-1-simlisten-and-simdial">networking</a>).</p>
+<h2 id="failures-that-are-not-your-systems-bug">Failures that are not your system's bug</h2>
+<p>Every reported failure is classed as <code>bug</code>, <code>nondeterministic</code> or <code>timeout</code> (<a href="reports.html#classification">reports</a>). The last two need a different fix from a bug.</p>
+<h3 id="watchdog">Watchdog</h3>
+<pre><code>watchdog: &lt;node&gt;#&lt;n&gt; ran for more than 30s of real time without yielding (livelock or busy loop)
+</code></pre>
+<p>Classed as <code>timeout</code>. One node ran for longer than <code>watchdog</code> (default <code>30s</code>) of real time without ever waiting. Only one node runs at a time, and virtual time barely moves while it runs, so a loop that never waits freezes the whole simulation. The usual cause is a loop with no function call, which the default preemption cannot interrupt, or a very long calculation. The result depends on how fast and how busy your machine is, so the same seed may pass on a faster machine or with a lower <code>-j</code>.</p>
+<p>To fix it:</p>
+<ol>
+<li>Set <code>&quot;preempt&quot;: {&quot;loops&quot;: true}</code>. Loops with no function call are then interrupted and use up virtual time. A spin that never ends then fails as <code>liveness</code>, which does not depend on your machine (<a href="how-it-works.html#loops">how it works</a>, <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/examples/busyloop"><code>examples/busyloop</code></a>).</li>
+<li>If the node really needs more real time, raise <code>watchdog</code>.</li>
+<li>Or lower <code>-j</code>, so fewer nodes share the CPU.</li>
+</ol>
+<h3 id="nondeterminism">Nondeterminism</h3>
+<pre><code>nondeterminism: two runs of seed &lt;n&gt; diverge at host call &lt;n&gt;: &lt;call&gt; vs &lt;call&gt;, after &lt;call&gt;; host calls &lt;a&gt;-&lt;b&gt; (...)
+nondeterminism: two runs of seed &lt;n&gt; diverge at trace line &lt;n&gt;: &quot;&lt;line&gt;&quot; vs &quot;&lt;line&gt;&quot;
+</code></pre>
+<p>With <code>-check</code> (and in <code>verify</code>), every seed runs twice. The two runs made a different host call or wrote a different trace line. The first form names the first call that differs, with the node instance, call, target, argument and virtual time (<a href="properties.html#determinism-check">properties</a>).</p>
+<pre><code>nondeterministic (replay diverges at trace line &lt;n&gt;: &quot;&lt;line&gt;&quot; vs &quot;&lt;line&gt;&quot;)
+nondeterministic (replay diverges at outcome: &quot;&lt;reason&gt;&quot; vs &quot;&lt;reason&gt;&quot;)
+</code></pre>
+<p>seedfall replays a failure to classify it, and the replay did not match the original run.</p>
+<p>seedfall controls everything a program normally reads: time, randomness, scheduling, disk and network. All of it replays exactly. So a difference means something from outside got in. Check these, in order:</p>
+<ol>
+<li>Did your program's binary change between the runs? A rebuilt package, another Go toolchain or a different source tree makes a different binary and can change the run.</li>
+<li>Did input from the host change? Examples are seeded disk images or fixture files that the config reads.</li>
+<li>Did the watchdog or a <code>-timeout</code> limit fire in one run and not the other? Both depend on real time.</li>
+</ol>
+<p>If none of these applies, it is a bug in seedfall. Open a bug report with the <code>-check</code> output, the config and the seed.</p>
+<h3 id="deadlock">Deadlock</h3>
+<pre><code>deadlock: every node is blocked with no timer or pending message
+deadlock: every node has exited
+</code></pre>
+<p>Classed as <code>bug</code>. In the first message every node is waiting and nothing can wake one. In the second, no node is left to run before the workload finished.</p>
+<p>The first is often a real bug. For example, a retry loop waits for a reply after a partition dropped the connection, and it never set a deadline. It is also what you see when nodes cannot reach each other at all. Without <code>net_overlay</code> or <code>sim.Listen</code>, Go's <code>net</code> package on <code>wasip1</code> is a fake that lives inside one process, so a listener on one node cannot be reached from another (<a href="networking.html#without-either">networking</a>).</p>
+<p>The second usually means the nodes exited and nothing restarts them.</p>
+<h3 id="liveness">Liveness</h3>
+<pre><code>liveness: &lt;node&gt; did not finish within &lt;within&gt; of the recovery phase starting at &lt;time&gt;
+</code></pre>
+<p>With <code>liveness</code> on, faults stop at the recovery phase, the network heals and crashed nodes restart. The workload or the <code>finally</code> check then has <code>liveness.within</code> to finish. A system that never recovers has a real bug. If it recovers but slowly, raise <code>within</code> (<a href="properties.html#liveness-recovery-and-finally-checks">properties</a>).</p>
+<h3 id="a-node-exits-or-panics">A node exits or panics</h3>
+<pre><code>&lt;node&gt;#&lt;n&gt; exited
+&lt;node&gt;#&lt;n&gt; crashed: &lt;error&gt;
+</code></pre>
+<p>The first line means a node, other than the workload or the <code>finally</code> check, exited with status 0. A server that returns from <code>main</code> counts as a failure. The second means a node exited with an error or panicked. With <code>&quot;supervise&quot;: true</code>, seedfall restarts a node that exits with an error after <code>restart_after</code>, as systemd would. A Go panic (exit code 2) always fails the run (<a href="faults.html#world">faults</a>).</p>
+
+      </article>
+    </main>
+  </div>
+</div>
+<footer class="foot">
+  <div class="wrap foot-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../llms.txt">llms.txt</a></p>
+  </div>
+</footer>
+</body>
+</html>

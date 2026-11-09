@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Networking · seedfall docs</title>
+<meta name="description" content="Nodes in seedfall talk over a simulated network, so seedfall can delay, drop and cut messages between them. This page explains the two ways to connect your code to it: call seedfall&#39;s sim.Listen and…">
+<meta property="og:title" content="Networking">
+<meta property="og:description" content="Nodes in seedfall talk over a simulated network, so seedfall can delay, drop and cut messages between them. This page explains the two ways to connect your code to it: call seedfall&#39;s sim.Listen and…">
+<link rel="alternate" type="text/markdown" href="networking.md">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../style.css">
+<link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+<header class="nav docs-nav">
+  <div class="wrap nav-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <nav class="links" aria-label="Site">
+      <a href="../">Home</a>
+      <a href="./" aria-current="true">Docs</a>
+      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="docs">
+  <div class="wrap docs-grid">
+    <aside class="docs-side">
+      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
+      <label class="docs-menu" for="docs-menu">Docs menu</label>
+      <nav class="docs-index" aria-label="Documentation">
+        <h2>Start here</h2>
+        <ul>
+          <li><a href="getting-started.html">Getting started</a></li>
+          <li><a href="install.html">Installing seedfall</a></li>
+          <li><a href="faq.html">FAQ</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+        </ul>
+        <h2>Find a bug</h2>
+        <ul>
+          <li><a href="networking.html" aria-current="page">Networking</a></li>
+          <li><a href="properties.html">Properties and checks</a></li>
+          <li><a href="compat.html">Storage engines that need mmap or flock</a></li>
+          <li><a href="config.html">Config files, profiles and seeded disks</a></li>
+          <li><a href="explore.html">Feedback-guided exploration</a></li>
+          <li><a href="buggify.html">BUGGIFY</a></li>
+          <li><a href="mutate.html">Mutation testing your checks</a></li>
+          <li><a href="antithesis.html">Running Antithesis SDK code</a></li>
+          <li><a href="gostman.html">Use your Gostman collections as workloads</a></li>
+        </ul>
+        <h2>Understand a failure</h2>
+        <ul>
+          <li><a href="timeline.html">Timelines, logs and time-travel debugging</a></li>
+          <li><a href="cause.html">Causality analysis</a></li>
+          <li><a href="inspect.html">Inspecting the disk at the moment of failure</a></li>
+          <li><a href="verify.html">Proving a fix with seedfall verify</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+        </ul>
+        <h2>Use in CI</h2>
+        <ul>
+          <li><a href="ci.html">Running seedfall in CI</a></li>
+          <li><a href="agents.html">Using seedfall from AI coding agents</a></li>
+        </ul>
+        <h2>Reference</h2>
+        <ul>
+          <li><a href="faults.html">Configuration and faults</a></li>
+          <li><a href="properties.html">Properties, linearizability and determinism</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          <li><a href="how-it-works.html">How seedfall works</a></li>
+          <li><a href="testing.html">Testing seedfall itself</a></li>
+          <li><a href="findings/">Findings</a></li>
+        </ul>
+        <h2>About the project</h2>
+        <ul>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
+        </ul>
+      </nav>
+    </aside>
+    <main class="docs-main">
+      <p class="docs-meta">
+        <a href="networking.md" type="text/markdown">View as Markdown, for AI agents</a>
+        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/networking.md">Edit on GitHub</a>
+      </p>
+      <article class="prose">
+<h1 id="networking">Networking</h1>
+<p>Nodes in seedfall talk over a simulated network, so seedfall can delay, drop and cut messages between them. This page explains the two ways to connect your code to it: call seedfall's <code>sim.Listen</code> and <code>sim.Dial</code>, or leave your code alone and turn on <code>net_overlay</code>. Read it when nodes cannot reach each other or you are wiring up a new project.</p>
+<p>seedfall gives every node a simulated network: ordered TCP byte streams and unordered UDP datagrams with seeded latency, per-link latency overrides, partitions that hold TCP traffic until they heal and drop UDP datagrams, one-way clogs that stop, jam or slow a link, slow nodes, and connection resets when a peer crashes or a reset fault fires. Node names are host names, so a node named <code>server</code> is reachable at <code>server:7000</code>.</p>
+<p>How each network fault behaves and how to configure it is in <a href="faults.html#network-faults">faults.md</a>.</p>
+<p>There are two ways to connect your code to the simulated network.</p>
+<h2 id="option-1-simlisten-and-simdial">Option 1: <code>sim.Listen</code> and <code>sim.Dial</code></h2>
+<pre><code class="language-go">import &quot;github.com/kunalgoesbyken/seedfall/sim&quot;
+
+ln, err := sim.Listen(&quot;tcp&quot;, &quot;:7000&quot;)
+conn, err := sim.Dial(&quot;tcp&quot;, &quot;server:7000&quot;)
+pc, err := sim.ListenPacket(&quot;udp&quot;, &quot;:7100&quot;)
+</code></pre>
+<p><code>sim.Listen</code> and <code>sim.Dial</code> take <code>tcp</code>, <code>tcp4</code> or <code>tcp6</code>, and <code>sim.ListenPacket</code> takes <code>udp</code>, <code>udp4</code> or <code>udp6</code>; any other network, such as <code>unix</code>, is an error in the simulator and outside it, so a node does not behave differently in production. They return a standard <code>net.Listener</code>, <code>net.Conn</code> and <code>net.PacketConn</code>. Outside the simulator they call <code>net.Listen</code>, <code>net.Dial</code> and <code>net.ListenPacket</code>, so production builds are unaffected. This works on every Go version seedfall supports, and it is how most of the examples are written. A connection also has <code>CloseRead</code> and <code>CloseWrite</code>, reached with a type assertion to an interface that declares them.</p>
+<p>If a library takes a custom dialer or listener, pass these in. hashicorp/raft's <code>NewNetworkTransport</code> accepts a <code>StreamLayer</code> built on them, and NATS clients accept <code>nats.SetCustomDialer</code>.</p>
+<h2 id="option-2-zero-code-changes-with-net-overlay">Option 2: zero code changes with <code>net_overlay</code></h2>
+<pre><code class="language-json">{ &quot;net_overlay&quot;: true }
+</code></pre>
+<p>With <code>net_overlay</code>, unmodified programs that call <code>net.Listen</code>, <code>net.Dial</code>, <code>net.ListenPacket</code>, <code>net.ListenUDP</code> and <code>net.DialUDP</code> use the simulated network, and so do <code>net/http</code> servers and clients, and libraries such as hashicorp/raft's stock <code>NewTCPTransport</code> and hashicorp/memberlist. <code>examples/httpkv</code> is a plain <code>net/http</code> server and client with no seedfall imports in the server, and <code>examples/memberlist</code> is an unmodified memberlist cluster gossiping over simulated UDP.</p>
+<p>How it works: on <code>wasip1</code>, Go's <code>net</code> package uses an in-process fake network. At build time, seedfall reads that package from your own <code>GOROOT</code> and builds an overlay with <code>go build -overlay</code>. It makes four exact-text patches: <code>socket()</code> is renamed so a seedfall version can wrap it, <code>accept()</code> gets a hook for seedfall listeners, and <code>setReadBuffer</code> and <code>setWriteBuffer</code> accept any size for simulated sockets, because the simulated queues have no size. Then it adds one file to package <code>net</code> that sends TCP and UDP sockets to the simulator. Node names resolve through a simulated <code>/etc/hosts</code>, and <code>localhost</code> means the node itself.</p>
+<p>If a future Go release changes those internals, the build fails with a clear &quot;this Go version is not supported yet&quot; error instead of misbehaving. Verified on Go 1.27.</p>
+<h2 id="addresses-port-0-and-half-close">Addresses, port 0 and half-close</h2>
+<p>Both options behave the same way:</p>
+<ul>
+<li>Listening or binding on port 0 picks a free port from <code>49152</code>..<code>65535</code>, in a sequence kept per node, and <code>Addr()</code> or <code>LocalAddr()</code> returns the real port.</li>
+<li>Every dial takes its own port from the same range, so an accepted connection's <code>RemoteAddr()</code> is the dialer's real address and matches the dialer's <code>LocalAddr()</code>. Under <code>net_overlay</code> an address is the node's IP from the simulated <code>/etc/hosts</code>, such as <code>10.77.0.2:49152</code>. Through <code>sim</code> it is the node name, such as <code>client:49152</code>.</li>
+<li><code>CloseWrite</code> sends EOF to the peer after the data already written, and the other direction keeps working. Writing after <code>CloseWrite</code> fails with <code>EPIPE</code>. <code>CloseRead</code> makes every later read return EOF.</li>
+</ul>
+<h2 id="udp">UDP</h2>
+<p>A UDP socket on one node talks to any other through the same link table as TCP, and every datagram draws its own latency, so datagrams overtake each other whenever the latency range allows it.</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Condition</th>
+<th>What happens to a datagram</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Partition, or clog <code>stop</code> or <code>jam</code>, in the sending direction</td>
+<td>Dropped. Nothing holds it for the heal</td>
+</tr>
+<tr>
+<td>Clog <code>slow</code></td>
+<td>Arrives <code>clog_delay</code> later</td>
+</tr>
+<tr>
+<td>Slow node</td>
+<td>Latency is stretched, as for TCP</td>
+</tr>
+<tr>
+<td>No socket bound to the address when it is sent, or one connected to a different address</td>
+<td>Dropped. A connected sender gets the equivalent of ICMP port unreachable: unless a partition or clog cuts the path back, its next read or send after a round trip fails with <code>ECONNREFUSED</code>, once. An unconnected sender hears nothing</td>
+</tr>
+<tr>
+<td><code>udp_loss</code></td>
+<td>Dropped, recorded as a <code>udp_drop</code> fault</td>
+</tr>
+<tr>
+<td><code>udp_dup</code></td>
+<td>Delivered twice with independent latencies, recorded as a <code>udp_dup</code> fault</td>
+</tr>
+</tbody>
+</table></div>
+<p>Datagram boundaries are kept: a read returns one datagram and discards whatever does not fit in the buffer. A socket's queue has no limit, so <code>SetReadBuffer</code> and <code>SetWriteBuffer</code> succeed and change nothing, and a sender is never blocked. A crash closes the node's sockets and drops what was queued for them, and <code>net_reset</code> faults do not touch UDP, because a datagram socket has no connection to reset. Multicast is not simulated, and <code>WriteMsgUDP</code> with out-of-band data and raw reads with flags return <code>ENOTSUP</code>.</p>
+<h2 id="seeing-the-traffic">Seeing the traffic</h2>
+<p><code>-net-trace</code> on <code>run</code>, <code>replay</code>, <code>logs</code> or <code>debug</code> adds every dial, accept, message sent and message read to the trace, with its connection, size, send and arrival time, and whether a partition or clog held it. UDP sockets show up as <code>binds udp</code>, each datagram as <code>udp &lt;socket&gt;</code> lines, and a lost one says why. Every failure's <code>timeline.html</code> draws the same messages as arrows between nodes. See <a href="timeline.html">timelines and logs</a>.</p>
+<h2 id="without-either">Without either</h2>
+<p>Go's unmodified <code>net</code> package on <code>wasip1</code> is an in-process fake. A <code>net.Listen</code> succeeds but can never be reached from another node. If nodes cannot reach each other, enable <code>net_overlay</code> or switch to <code>sim</code>.</p>
+
+      </article>
+    </main>
+  </div>
+</div>
+<footer class="foot">
+  <div class="wrap foot-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../llms.txt">llms.txt</a></p>
+  </div>
+</footer>
+</body>
+</html>

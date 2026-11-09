@@ -28,6 +28,11 @@ jobs:
         run: |
           bash scripts/site-llms.sh
           git diff --exit-code site/llms.txt site/llms-full.txt
+      - name: site docs are current
+        run: |
+          bash scripts/site-docs.sh
+          git add --intent-to-add site/docs
+          git diff --exit-code site/docs
       - uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6
         with:
           distribution: goreleaser

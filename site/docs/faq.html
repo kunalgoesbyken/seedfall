@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FAQ · seedfall docs</title>
+<meta name="description" content="Short answers to the questions people ask most, with links to the pages that go into detail. Start with the first section if you are comparing seedfall to something you already know.">
+<meta property="og:title" content="FAQ">
+<meta property="og:description" content="Short answers to the questions people ask most, with links to the pages that go into detail. Start with the first section if you are comparing seedfall to something you already know.">
+<link rel="alternate" type="text/markdown" href="faq.md">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../style.css">
+<link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+<header class="nav docs-nav">
+  <div class="wrap nav-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <nav class="links" aria-label="Site">
+      <a href="../">Home</a>
+      <a href="./" aria-current="true">Docs</a>
+      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="docs">
+  <div class="wrap docs-grid">
+    <aside class="docs-side">
+      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
+      <label class="docs-menu" for="docs-menu">Docs menu</label>
+      <nav class="docs-index" aria-label="Documentation">
+        <h2>Start here</h2>
+        <ul>
+          <li><a href="getting-started.html">Getting started</a></li>
+          <li><a href="install.html">Installing seedfall</a></li>
+          <li><a href="faq.html" aria-current="page">FAQ</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+        </ul>
+        <h2>Find a bug</h2>
+        <ul>
+          <li><a href="networking.html">Networking</a></li>
+          <li><a href="properties.html">Properties and checks</a></li>
+          <li><a href="compat.html">Storage engines that need mmap or flock</a></li>
+          <li><a href="config.html">Config files, profiles and seeded disks</a></li>
+          <li><a href="explore.html">Feedback-guided exploration</a></li>
+          <li><a href="buggify.html">BUGGIFY</a></li>
+          <li><a href="mutate.html">Mutation testing your checks</a></li>
+          <li><a href="antithesis.html">Running Antithesis SDK code</a></li>
+          <li><a href="gostman.html">Use your Gostman collections as workloads</a></li>
+        </ul>
+        <h2>Understand a failure</h2>
+        <ul>
+          <li><a href="timeline.html">Timelines, logs and time-travel debugging</a></li>
+          <li><a href="cause.html">Causality analysis</a></li>
+          <li><a href="inspect.html">Inspecting the disk at the moment of failure</a></li>
+          <li><a href="verify.html">Proving a fix with seedfall verify</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+        </ul>
+        <h2>Use in CI</h2>
+        <ul>
+          <li><a href="ci.html">Running seedfall in CI</a></li>
+          <li><a href="agents.html">Using seedfall from AI coding agents</a></li>
+        </ul>
+        <h2>Reference</h2>
+        <ul>
+          <li><a href="faults.html">Configuration and faults</a></li>
+          <li><a href="properties.html">Properties, linearizability and determinism</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          <li><a href="how-it-works.html">How seedfall works</a></li>
+          <li><a href="testing.html">Testing seedfall itself</a></li>
+          <li><a href="findings/">Findings</a></li>
+        </ul>
+        <h2>About the project</h2>
+        <ul>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
+        </ul>
+      </nav>
+    </aside>
+    <main class="docs-main">
+      <p class="docs-meta">
+        <a href="faq.md" type="text/markdown">View as Markdown, for AI agents</a>
+        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/faq.md">Edit on GitHub</a>
+      </p>
+      <article class="prose">
+<h1 id="faq">FAQ</h1>
+<p>Short answers to the questions people ask most, with links to the pages that go into detail. Start with the first section if you are comparing seedfall to something you already know.</p>
+<p>Two words come up a lot. A <strong>seed</strong> is a number that decides everything random in one run, so the same seed always gives the same run. A <strong>fault</strong> is something that goes wrong on purpose, such as a crash or a lost message.</p>
+<h2 id="how-is-seedfall-different-from-antithesis">How is seedfall different from Antithesis?</h2>
+<p>Antithesis runs any kind of program, in any language, inside a special virtual machine that can replay everything exactly. seedfall only runs Go programs, inside one process, with a simulated disk and network. In exchange, seedfall runs on your laptop and in CI with no service and no account, and it is open source.</p>
+<p>If your program already uses the Antithesis Go SDK (a library for writing checks in your code), it runs under seedfall unchanged. The SDK's <code>assert.Always</code>, <code>Sometimes</code>, <code>Reachable</code>, the numeric and grouped variants, <code>lifecycle.SetupComplete</code> and <code>lifecycle.SendEvent</code> become seedfall properties (checks), setup and trace events. <code>seedfall cause</code> uses the same idea as Antithesis's multiverse debugging: it looks at how likely the failure was from each moment of the run. Instead of VM snapshots it replays exactly from the start. See <a href="antithesis.html">Antithesis compatibility</a>.</p>
+<h2 id="how-is-it-different-from-gosim">How is it different from gosim?</h2>
+<p><a href="https://github.com/jellevandenhooff/gosim">gosim</a> is also deterministic simulation testing for Go, with simulated machines, a network, a file system and crashes. Deterministic means the same input always gives the same run. gosim rewrites your program and its dependencies so they run on its own simulated runtime, at the level of system calls.</p>
+<p>seedfall does not rewrite code. It compiles your program with the normal Go toolchain for <code>GOOS=wasip1</code> (a WebAssembly target, explained <a href="#why-wasip1">below</a>) and controls everything random at that boundary: time, randomness and waiting, plus its own file system and network calls. Each node is a separate WebAssembly instance, so a crash kills the whole process and a restart boots a fresh one over the disk that survived. Check gosim's own documentation for its current features instead of relying on this page.</p>
+<h2 id="why-not-testingsynctest">Why not <code>testing/synctest</code>?</h2>
+<p><code>testing/synctest</code> is part of Go's standard library. It runs a test's goroutines (Go's lightweight threads) in a &quot;bubble&quot; with a fake clock. The clock jumps ahead whenever every goroutine in the bubble is waiting. This makes time-based unit tests fast and repeatable inside one <code>go test</code> process.</p>
+<p>It does not simulate a disk or a network, crash or restart processes, inject faults, or record a run you can replay and shrink. The order in which goroutines interleave still comes from the real scheduler.</p>
+<p>seedfall is for whole services: several nodes as separate processes on one virtual clock, with crashes, torn writes (a write that a crash leaves half saved), fsync errors (fsync is the call that forces data onto the disk), partitions (nodes that cannot reach each other) and clock faults. Any failure replays from its seed. The two fit together: use <code>synctest</code> for the timing logic of one component, and seedfall for what your service does when the machine fails under it.</p>
+<h2 id="does-seedfall-replace-go-test--race">Does seedfall replace <code>go test -race</code>?</h2>
+<p>No. On <code>wasip1</code> the Go runtime runs one thing at a time, so goroutines never really run in parallel. The overlapping memory accesses that the race detector looks for never happen there. seedfall's <code>random</code>, <code>pct</code> and <code>calls</code> preemption strategies do find ordering bugs, such as a check-then-act race between goroutines, but they do not detect data races the way <code>-race</code> does. Keep running <code>-race</code> on your unit tests. seedfall's own CI does.</p>
+<h2 id="how-does-it-compare-with-jepsen">How does it compare with Jepsen?</h2>
+<p>Jepsen tests real deployments of a database, on real or virtual machines, in any language. It injects faults into the real operating system and network, then checks the recorded history for consistency problems. It finds bugs in the system as shipped, but a failing run cannot be replayed exactly.</p>
+<p>seedfall borrows from Jepsen. Its network partition shapes follow Jepsen's &quot;nemeses&quot;. It records histories in Jepsen's invoke and completion shape. It checks <code>sim.Txn</code> histories for the same Elle anomalies (<code>G0</code>, <code>G1a</code>, <code>G1b</code>, <code>G1c</code>, <code>G-single</code>, <code>G2</code>, which are named kinds of transaction inconsistency).</p>
+<p>The difference is that every seedfall run is deterministic. A failure comes with a seed, an exact fault schedule and a trace, and <code>seedfall shrink</code> cuts the schedule down to the faults that matter. The cost is that seedfall tests a Go program on a simulated disk and network, not the real kernel and the real binary. The checker for <strong>linearizability</strong> (the rule that concurrent operations must look as if they happened one at a time, in an order that fits real time) is described in <a href="properties.html#linearizability">properties</a>.</p>
+<h2 id="why-wasip1">Why <code>wasip1</code>?</h2>
+<p><code>wasip1</code> is a Go build target: <code>GOOS=wasip1</code> compiles your program to WebAssembly that talks to the outside world through WASI, a small, standard system interface. For seedfall this has a useful property. The Go runtime on <code>wasip1</code> is single-threaded and has no asynchronous preemption, and a program reaches the outside world for time, randomness and waiting through only three WASI calls: <code>clock_time_get</code>, <code>random_get</code> and <code>poll_oneoff</code>.</p>
+<p>seedfall implements those three calls itself. So the seed decides map iteration order, <code>select</code> choices, <code>math/rand</code>, crypto randomness and every clock read. File and network calls are seedfall's too. The result is exact replay with the standard toolchain: no forked Go runtime, no <code>linkname</code> tricks and no source rewriting outside the opt-in overlays, so new Go releases keep working. Each node runs as its own <a href="https://wazero.io">wazero</a> instance, so a crash is a real process death. See <a href="how-it-works.html">how it works</a>.</p>
+<h2 id="does-seedfall-change-my-code">Does seedfall change my code?</h2>
+<p>Not by default. Two opt-in settings change how things are built, never your files:</p>
+<ul>
+<li><code>net_overlay</code> adds <code>wasip1</code> files to the standard library's <code>net</code> package at build time, so unmodified code can use the simulated network.</li>
+<li><code>compat_overlay</code> swaps a dependency's <code>mmap</code> and <code>flock</code> files for stand-ins, in a copy under <code>.seedfall/compat</code>.</li>
+</ul>
+<p>Neither touches your source, <code>go.mod</code>, <code>go.sum</code> or module cache. Instead of <code>net_overlay</code> you can call <code>sim.Listen</code> and <code>sim.Dial</code>, which fall back to <code>net.Listen</code> and <code>net.Dial</code> outside the simulator. See <a href="networking.html">networking</a> and <a href="compat.html">compat</a>.</p>
+<h2 id="what-cant-seedfall-test">What can't seedfall test?</h2>
+<p>The README has a short version of this list under <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/README.md#when-its-not-a-fit">When it's not a fit</a>. The full list:</p>
+<ul>
+<li><strong>Code that does not build for <code>wasip1</code>.</strong> There is no cgo (Go code that calls C). Dependencies that need <code>mmap</code> or <code>flock</code> work through <code>compat_overlay</code>, but files named <code>_linux.go</code> and code that uses other unix calls still need a hand-written stand-in. Libraries that need cgo, such as RocksDB bindings or <code>mattn/go-sqlite3</code>, cannot run.</li>
+<li><strong>Time-based preemption.</strong> seedfall counts function calls instead of time. A goroutine that spins is interrupted after about four million calls. A loop that makes no function call is interrupted only with <code>preempt.loops</code>. Even then the runtime switches goroutines only when a function is entered, so a call-free loop keeps the node's other goroutines from running until it makes a call.</li>
+<li><strong>Every possible ordering of goroutines.</strong> Inside a node, the ordering comes from the Go scheduler under a seeded random source. The preemption strategies sample orderings rather than list all of them. <code>pct</code>'s probability bound is a guide, not a guarantee. None of them detects data races.</li>
+<li><strong>Every file system.</strong> <code>fs_model</code> covers ext4 <code>data=ordered</code>, an aggressive independent-pages model, and ext2 or btrfs directory reordering. XFS, <code>data=journal</code> and <code>nodelalloc</code> have no model of their own. A single directory operation is always atomic, and <code>Chmod</code> is not modelled.</li>
+<li><strong>Some network features.</strong> UDP multicast is not simulated, and <code>WriteMsgUDP</code> with out-of-band data returns <code>ENOTSUP</code> (<a href="networking.html#udp">networking</a>).</li>
+<li><strong>Memory shared between processes.</strong> A memory mapping is consistent only with its own node's writes (<a href="compat.html#not-covered">compat</a>).</li>
+</ul>
+<p>Speed is a limit too. Idle virtual time is free, but the CPU time your code uses and the time to start each node are real. Short runs of large programs are dominated by start-up cost (<a href="how-it-works.html#speed">how it works</a>).</p>
+<h2 id="which-platforms-does-it-run-on">Which platforms does it run on?</h2>
+<p>Linux, macOS and Windows. seedfall's tests run on all three in CI.</p>
+<h2 id="how-many-seeds-should-i-run">How many seeds should I run?</h2>
+<p>Enough that a failure at the rate you care about would have shown up. <code>seedfall verify</code> works this out for 95% confidence. With no known failure rate it asks for 299 seeds. A sweep's utilization section tells you whether more seeds are likely to find anything new (<a href="verify.html">verify</a>, <a href="reports.html#utilization">reports</a>). For bugs that need two rare events in one run, <code>seedfall explore</code> is better than more plain seeds (<a href="explore.html">explore</a>).</p>
+<h2 id="a-failure-looks-wrong-is-it-a-seedfall-bug">A failure looks wrong. Is it a seedfall bug?</h2>
+<p>First check the failure's classification. Failures marked <code>nondeterministic</code> or <code>timeout</code> are explained in <a href="troubleshooting.html#failures-that-are-not-your-systems-bug">troubleshooting</a>. If seedfall produced an outcome that a real machine could not, open a false positive issue and include the replay command and the fault schedule.</p>
+
+      </article>
+    </main>
+  </div>
+</div>
+<footer class="foot">
+  <div class="wrap foot-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../llms.txt">llms.txt</a></p>
+  </div>
+</footer>
+</body>
+</html>

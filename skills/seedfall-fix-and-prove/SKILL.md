@@ -57,5 +57,5 @@ Paste `proof.md`, or the MCP `markdown` field, into the pull request description
   git add seedfall-regressions/
   ```
 
-  Pin takes `S` (or `-faults` another file) and writes `seedfall-regressions/<config>-seed-N.json`. Over MCP, `seedfall_pin` with `{"config": "C", "seed": N}`. It reports whether the schedule passes now; after a real fix it must. From then on `seedfall run`, `seedfall verify`, the Stop hook and `seedfalltest.Sweep` replay it before every sweep and fail if the bug comes back.
+  Pin takes `S` (or `-faults` another file) and writes `seedfall-regressions/<config>-seed-N.json`. Over MCP, `seedfall_pin` with `{"config": "C", "seed": N}`. It reports whether the schedule passes now; after a real fix it must. From then on `seedfall run`, `seedfall verify`, `seedfall hook` and `seedfalltest.Sweep` replay it before every sweep and fail if the bug comes back.
 - Run the sweep from `go test` with `seedfalltest.Sweep(t, "seedfall.json", "1-100")`, and the pinned schedules alone with `seedfalltest.Pinned(t, "seedfall.json")`, from `github.com/kunalgoesbyken/seedfall/seedfalltest`, or in CI with the `kunalgoesbyken/seedfall` GitHub Action, whose `command: verify` input runs the same proof on a pull request.

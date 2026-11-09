@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Using seedfall from AI coding agents · seedfall docs</title>
+<meta name="description" content="This page is for people who let an AI coding agent, such as Claude Code, Cursor or Codex, do the testing work. seedfall can talk to the agent directly through an MCP server (a standard way for an…">
+<meta property="og:title" content="Using seedfall from AI coding agents">
+<meta property="og:description" content="This page is for people who let an AI coding agent, such as Claude Code, Cursor or Codex, do the testing work. seedfall can talk to the agent directly through an MCP server (a standard way for an…">
+<link rel="alternate" type="text/markdown" href="agents.md">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../style.css">
+<link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+<header class="nav docs-nav">
+  <div class="wrap nav-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <nav class="links" aria-label="Site">
+      <a href="../">Home</a>
+      <a href="./" aria-current="true">Docs</a>
+      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="docs">
+  <div class="wrap docs-grid">
+    <aside class="docs-side">
+      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
+      <label class="docs-menu" for="docs-menu">Docs menu</label>
+      <nav class="docs-index" aria-label="Documentation">
+        <h2>Start here</h2>
+        <ul>
+          <li><a href="getting-started.html">Getting started</a></li>
+          <li><a href="install.html">Installing seedfall</a></li>
+          <li><a href="faq.html">FAQ</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+        </ul>
+        <h2>Find a bug</h2>
+        <ul>
+          <li><a href="networking.html">Networking</a></li>
+          <li><a href="properties.html">Properties and checks</a></li>
+          <li><a href="compat.html">Storage engines that need mmap or flock</a></li>
+          <li><a href="config.html">Config files, profiles and seeded disks</a></li>
+          <li><a href="explore.html">Feedback-guided exploration</a></li>
+          <li><a href="buggify.html">BUGGIFY</a></li>
+          <li><a href="mutate.html">Mutation testing your checks</a></li>
+          <li><a href="antithesis.html">Running Antithesis SDK code</a></li>
+          <li><a href="gostman.html">Use your Gostman collections as workloads</a></li>
+        </ul>
+        <h2>Understand a failure</h2>
+        <ul>
+          <li><a href="timeline.html">Timelines, logs and time-travel debugging</a></li>
+          <li><a href="cause.html">Causality analysis</a></li>
+          <li><a href="inspect.html">Inspecting the disk at the moment of failure</a></li>
+          <li><a href="verify.html">Proving a fix with seedfall verify</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+        </ul>
+        <h2>Use in CI</h2>
+        <ul>
+          <li><a href="ci.html">Running seedfall in CI</a></li>
+          <li><a href="agents.html" aria-current="page">Using seedfall from AI coding agents</a></li>
+        </ul>
+        <h2>Reference</h2>
+        <ul>
+          <li><a href="faults.html">Configuration and faults</a></li>
+          <li><a href="properties.html">Properties, linearizability and determinism</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          <li><a href="how-it-works.html">How seedfall works</a></li>
+          <li><a href="testing.html">Testing seedfall itself</a></li>
+          <li><a href="findings/">Findings</a></li>
+        </ul>
+        <h2>About the project</h2>
+        <ul>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
+        </ul>
+      </nav>
+    </aside>
+    <main class="docs-main">
+      <p class="docs-meta">
+        <a href="agents.md" type="text/markdown">View as Markdown, for AI agents</a>
+        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/agents.md">Edit on GitHub</a>
+      </p>
+      <article class="prose">
+<h1 id="using-seedfall-from-ai-coding-agents">Using seedfall from AI coding agents</h1>
+<p>This page is for people who let an AI coding agent, such as Claude Code, Cursor or Codex, do the testing work. seedfall can talk to the agent directly through an MCP server (a standard way for an agent to call tools) and ships skills (step-by-step instructions the agent follows). Use it to let the agent find a bug, shrink it, fix it and prove the fix.</p>
+<p><code>seedfall mcp</code> serves seedfall's core operations over the <a href="https://modelcontextprotocol.io">Model Context Protocol</a> on stdio. An agent such as Claude Code, Cursor or Codex can then sweep seeds, replay a failure and shrink it on its own, then use the exact fault schedule and trace to fix the bug and prove the fix. No API key and no hosted service are involved: the agent you already use does the reasoning.</p>
+<h2 id="setup">Setup</h2>
+<p>Install the binary first. Every integration below runs it:</p>
+<pre><code class="language-sh">go install github.com/kunalgoesbyken/seedfall/cmd/seedfall@latest
+</code></pre>
+<h3 id="skills">Skills</h3>
+<p>The skills follow the <a href="https://agentskills.io/specification">Agent Skills</a> format, so any agent that reads <code>SKILL.md</code> files can use them. To install them with the <a href="https://github.com/vercel-labs/skills"><code>skills</code> CLI</a>:</p>
+<pre><code class="language-sh">npx skills add kunalgoesbyken/seedfall
+</code></pre>
+<h3 id="mcp-server">MCP server</h3>
+<p>Claude Code:</p>
+<pre><code class="language-sh">claude mcp add seedfall -- seedfall mcp
+</code></pre>
+<p>Cursor, or any client that reads an <code>mcpServers</code> file:</p>
+<pre><code class="language-json">{
+  &quot;mcpServers&quot;: {
+    &quot;seedfall&quot;: { &quot;command&quot;: &quot;seedfall&quot;, &quot;args&quot;: [&quot;mcp&quot;] }
+  }
+}
+</code></pre>
+<p>Config paths in tool calls are resolved against the server's working directory, which is normally your project root. Every tool that takes <code>config</code> also takes an optional <code>profile</code> and a <code>set</code> list of <code>path=value</code> overrides, the same as <code>-profile</code> and <code>-set</code> on the command line (<a href="config.html">config.md</a>).</p>
+<h2 id="tools">Tools</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Arguments</th>
+<th>Returns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>seedfall_init</code></td>
+<td>optional <code>dir</code>, <code>config</code>, <code>nodes</code>, <code>workload</code>, <code>dry_run</code></td>
+<td>The module's <code>main</code> packages and which become nodes, the packages that block a <code>GOOS=wasip1</code> build (compile errors and cgo, each with its import chain and the shim that covers it), <code>compat_shims</code> for every dependency <code>compat_overlay</code> would swap, the starter config and its starter profiles, the files written, and the next steps. See <a href="#onboarding-a-new-module">onboarding</a></td>
+</tr>
+<tr>
+<td><code>seedfall_run</code></td>
+<td><code>config</code>, <code>seeds</code> (for example <code>1-200</code>), optional <code>rotate</code>, <code>check</code>, <code>skip_pinned</code>, <code>until_novelty</code>, <code>batch</code>, <code>timeout</code></td>
+<td>First the <a href="verify.html#pinned-regressions">pinned regressions</a>, stopping at one that fails again. Then seeds passed, the lowest failing seed with its reason, <a href="reports.html#classification">classification</a>, the faults before the failure, the trace tail, a replay command and <code>artifacts_dir</code> (<a href="reports.html#failure-artifacts">failure artifacts</a>), plus property coverage, <code>seeds_per_second</code>, <code>virtual_seconds_per_wall_second</code> and <code>utilization</code> (<a href="reports.html#utilization">reports.md</a>), and, with <code>faults.buggify</code> on, <code>buggify_sites</code> (<a href="buggify.html#coverage">buggify</a>). With <code>until_novelty</code>, <code>stopped</code> and the <code>exploration</code> growth table (<a href="explore.html#stopping-a-plain-sweep">explore.md</a>)</td>
+</tr>
+<tr>
+<td><code>seedfall_explore</code></td>
+<td><code>config</code>, optional <code>seeds</code>, <code>rounds</code>, <code>batch</code>, <code>until_novelty</code>, <code>budget</code>, <code>explore_seed</code>, <code>keep_going</code>, <code>corpus</code></td>
+<td>Feedback-guided search: every round with the new signals and functions it added, the stop reason, the corpus size, property coverage, throughput, and the first failure with <code>artifacts_dir</code> and a replay command (<a href="explore.html">explore.md</a>)</td>
+</tr>
+<tr>
+<td><code>seedfall_replay</code></td>
+<td><code>config</code>, <code>seed</code>, optional <code>faults</code> file</td>
+<td>The same failure view for one seed, or the trace tail if it passes, with a <code>note</code> when a shrunk schedule's shorter duration ended the run before the workload finished. A failure view of a run that recorded operations also names its <code>history_file</code> and, on a linearizability violation, its <code>timeline_file</code>. Every result has the run's <code>determinism_hash</code> and its <code>events</code> from <code>sim.Event</code> or <code>lifecycle.SendEvent</code></td>
+</tr>
+<tr>
+<td><code>seedfall_logs</code></td>
+<td><code>config</code>, <code>seed</code>, optional <code>faults</code>, <code>node</code>, <code>grep</code>, <code>from</code>, <code>to</code>, <code>net_trace</code>, <code>limit</code></td>
+<td>The run's trace lines filtered by node, regular expression and virtual time, each with its node, instance and time, and a node's slog JSON output parsed into <code>fields</code>, plus how many lines matched (<a href="timeline.html#logs">timeline.md</a>)</td>
+</tr>
+<tr>
+<td><code>seedfall_trace_search</code></td>
+<td><code>config</code>, <code>seed</code>, <code>pattern</code>, optional <code>faults</code>, <code>context</code> (default 3), <code>node</code>, <code>from</code>, <code>to</code>, <code>net_trace</code>, <code>limit</code></td>
+<td>Each line that matches the regular expression (on the given nodes, inside the virtual time window) with <code>context</code> trace lines of every node before and after it, as windows of numbered lines with their virtual time, node and instance, overlapping windows merged, plus how many lines matched (<a href="timeline.html#searching-the-trace">timeline.md</a>)</td>
+</tr>
+<tr>
+<td><code>seedfall_debug</code></td>
+<td><code>config</code>, <code>seed</code>, optional <code>faults</code>, <code>at</code>, <code>net_trace</code>, <code>commands</code></td>
+<td>Replays to <code>at</code>, runs each debugger command (<code>where</code>, <code>net</code>, <code>faults</code>, <code>ls</code>, <code>stat</code>, <code>cat</code>, <code>step</code>, <code>until &lt;regex&gt;</code>, <code>to &lt;time&gt;</code>, <code>branch</code>, <code>log</code>, <code>grep</code>) and returns each output and the final state of every node (<a href="timeline.html#debugger">timeline.md</a>)</td>
+</tr>
+<tr>
+<td><code>seedfall_shrink</code></td>
+<td><code>config</code>, <code>seed</code>, optional <code>faults</code> (a schedule file, for a failure found by <code>seedfall_explore</code>), <code>budget</code> (runs such as <code>300</code>, or time such as <code>10m</code>)</td>
+<td>The original and minimal sizes (faults, duration and, with <a href="properties.html#workload-size"><code>sim.Budget</code></a>, workload operations), the runs used, whether the budget ran out, the path of the saved schedule, and the failure view under that schedule with its replay command (<a href="how-it-works.html#shrinking">shrinking</a>)</td>
+</tr>
+<tr>
+<td><code>seedfall_faults_edit</code></td>
+<td><code>config</code>, <code>seed</code>, optional <code>faults</code>, <code>remove</code>, <code>shift</code>, <code>add</code>, <code>out</code></td>
+<td>Edits a fault schedule to test a hypothesis: <code>remove</code> takes positions counting from 1, <code>shift</code> takes <code>{&quot;fault&quot;: 2, &quot;by&quot;: &quot;-50ms&quot;}</code> (a count such as <code>&quot;+2&quot;</code> for a fault that fires at a disk operation, read, buggify hit, counted call or udp datagram), <code>add</code> takes faults in the <a href="faults.html#editing-a-schedule">schedule format</a>. Starts from <code>faults</code>, else <code>.seedfall/seed-N.faults.json</code>, else the seed's own faults, checks every fault against the config and writes nothing if one is wrong. Returns the numbered schedule, the file written (<code>out</code>, or the file it came from) and the replay command</td>
+</tr>
+<tr>
+<td><code>seedfall_inspect</code></td>
+<td><code>config</code>, <code>seed</code>, optional <code>faults</code>, <code>at</code>, <code>node</code>, <code>path</code></td>
+<td>Every node's disk at the failure or at virtual time <code>at</code>: per file the live and durable sizes, the byte ranges a crash would lose, whether its directory entry is durable, the last torn write, and removed entries a crash would bring back. With <code>path</code>, one file's durable content as text or a hex dump (<a href="inspect.html">inspect.md</a>)</td>
+</tr>
+<tr>
+<td><code>seedfall_check</code></td>
+<td><code>history</code>, optional <code>model</code></td>
+<td>Re-checks a recorded history file against a model: the verdict, each anomaly with its cycle, and on a linearizability violation the HTML timeline file (<a href="properties.html#history-files">properties.md</a>)</td>
+</tr>
+<tr>
+<td><code>seedfall_verify</code></td>
+<td><code>config</code>, <code>seed</code> and optional <code>faults</code>, and/or <code>report</code>; optional <code>seeds</code>, <code>check_seeds</code>, <code>mutate</code>, <code>app_mutants</code></td>
+<td>Whether the fix holds: each replayed schedule, the fresh sweep with its confidence, the determinism check and the mutants, plus a Markdown proof block for the PR (<a href="verify.html">verify.md</a>)</td>
+</tr>
+<tr>
+<td><code>seedfall_mutate</code></td>
+<td><code>config</code>, optional <code>seeds</code> (default <code>1-100</code>), <code>only</code>, <code>app</code>, <code>mutants</code></td>
+<td>Sweeps the seeds unmutated, then once per <a href="mutate.html">mutant</a> (disk, rename, truncate, network and clock guarantees), or with <code>app</code> once per <a href="mutate.html#source-mutants">source mutant</a> of the node packages: each mutant's <code>outcome</code> (<code>killed</code>, <code>survived</code>, <code>not exercised</code> or <code>did not build</code>), its <code>location</code> and change for source mutants, the seed and reason that killed it, and how often the operation was weakened</td>
+</tr>
+<tr>
+<td><code>seedfall_pin</code></td>
+<td><code>config</code>, <code>seed</code>, optional <code>faults</code></td>
+<td>Pins the seed's schedule (the one <code>seedfall_shrink</code> saved, the given file, or else the seed's own faults) into <code>seedfall-regressions/</code> as a permanent regression, and returns the file and whether it passes now, with the failure view if not (<a href="verify.html#pinned-regressions">verify.md</a>)</td>
+</tr>
+<tr>
+<td><code>seedfall_doctor</code></td>
+<td>none</td>
+<td>Checks the Go version, <code>GOOS=wasip1</code> builds, <code>net_overlay</code> against the installed Go, a writable build cache and working directory, and free memory, returning the seedfall build and each check as <code>ok</code>, <code>warn</code>, <code>fail</code> or <code>skip</code> with a fix (<a href="install.html#check-the-install">install.md</a>)</td>
+</tr>
+<tr>
+<td><code>seedfall_findings</code></td>
+<td>optional <code>report</code> (default <code>.seedfall/report.html</code>), <code>history</code>, <code>status</code> (comma separated: <code>new</code>, <code>ongoing</code>, <code>regressed</code>, <code>resolved</code>, <code>not seen</code>)</td>
+<td>Reads a triage report from <code>seedfall run -report</code> without running anything, the same as <code>seedfall findings</code>: each finding with the given statuses with its status, failing seeds, rate, classification and example failure with replay and shrink commands, findings not seen this time, unmet properties, and the run history of that config from <code>.seedfall/history.jsonl</code> (<a href="reports.html">reports.md</a>)</td>
+</tr>
+<tr>
+<td><code>seedfall_cause</code></td>
+<td><code>config</code>, <code>seed</code>, optional <code>points</code>, <code>branches</code></td>
+<td>The probability of failing from each moment of the run, with the faults between moments, so the agent can see which event made the failure inevitable (<a href="cause.html">cause.md</a>)</td>
+</tr>
+</tbody>
+</table></div>
+<p>Every result is structured JSON, so the agent can read the seed, the faults and the trace directly.</p>
+<h3 id="the-same-operations-on-the-command-line">The same operations on the command line</h3>
+<p>Every tool has a command, so a person can repeat what the agent did and an agent without MCP can shell out:</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Command</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>seedfall_init</code>, <code>seedfall_run</code>, <code>seedfall_explore</code>, <code>seedfall_replay</code>, <code>seedfall_logs</code>, <code>seedfall_debug</code>, <code>seedfall_shrink</code>, <code>seedfall_cause</code>, <code>seedfall_inspect</code>, <code>seedfall_check</code>, <code>seedfall_verify</code>, <code>seedfall_mutate</code>, <code>seedfall_pin</code></td>
+<td><code>seedfall init</code>, <code>run</code>, <code>explore</code>, <code>replay</code>, <code>logs</code>, <code>debug</code>, <code>shrink</code>, <code>cause</code>, <code>inspect</code>, <code>check</code>, <code>verify</code>, <code>mutate</code>, <code>pin</code></td>
+</tr>
+<tr>
+<td><code>seedfall_trace_search</code></td>
+<td><code>seedfall trace grep -seed N -e re [-context 3]</code></td>
+</tr>
+<tr>
+<td><code>seedfall_faults_edit</code></td>
+<td><code>seedfall faults -seed N [-remove 2] [-shift 1=-50ms] [-add '{...}'] [-out file]</code></td>
+</tr>
+<tr>
+<td><code>seedfall_findings</code></td>
+<td><code>seedfall findings [-status new,regressed] [-json]</code></td>
+</tr>
+<tr>
+<td><code>seedfall_doctor</code></td>
+<td><code>seedfall doctor [-json]</code></td>
+</tr>
+</tbody>
+</table></div>
+<p><code>seedfall schema</code> prints the whole surface as JSON: every command with each flag's name, type, default and usage, and every MCP tool with its description and input and output JSON Schemas, plus the prompts and resources. Generate client bindings or check an agent's calls against it:</p>
+<pre><code class="language-sh">seedfall schema | jq '.commands[] | select(.command == &quot;seedfall faults&quot;) | .flags[].name'
+seedfall schema | jq '.mcp_tools[] | select(.name == &quot;seedfall_faults_edit&quot;) | .inputSchema'
+</code></pre>
+<h2 id="prompts-and-resources">Prompts and resources</h2>
+<p>The server also serves what an agent needs in order to work without guessing:</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Kind</th>
+<th>Name</th>
+<th>Contents</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Prompt</td>
+<td><code>seedfall-setup</code>, <code>seedfall-properties</code>, <code>seedfall-triage</code>, <code>seedfall-fix-and-prove</code></td>
+<td>The four <a href="#skills">skills</a>, so MCP clients without skill support get the same workflows</td>
+</tr>
+<tr>
+<td>Resource</td>
+<td><code>seedfall://schema/config</code></td>
+<td>JSON Schema of <code>seedfall.json</code>, generated from the config types, with every field's default</td>
+</tr>
+<tr>
+<td>Resource</td>
+<td><code>seedfall://docs/&lt;name&gt;</code></td>
+<td>Each page of these docs, for example <code>seedfall://docs/properties</code> for the property API and <code>seedfall://docs/faults</code> for what each fault does</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="onboarding-a-new-module">Onboarding a new module</h2>
+<p><code>seedfall init</code> (MCP: <code>seedfall_init</code>) is the first step in a repository that has never run seedfall:</p>
+<pre><code class="language-sh">seedfall init -n                     # report only
+seedfall init                        # write seedfall.json and seedfall/workload/main.go
+seedfall init -node ./cmd/server     # choose the nodes yourself; repeatable
+seedfall init -json                  # the same report as JSON
+</code></pre>
+<p>It runs <code>go list</code> twice. The first run uses <code>GOOS=wasip1 -export -deps</code>, so every package is compiled for wasip1, and any package that fails is reported with its compiler error and the import chain from the node that pulls it in. The second uses <code>GOOS=linux CGO_ENABLED=1</code> and lists the dependencies that contain cgo files. Every <code>main</code> package that imports <code>net</code> becomes a node. <code>net_overlay</code> is turned on unless every node already uses <code>sim</code>.</p>
+<p>The scaffolded workload follows the pattern every example shares: write keys, remember which ones were acknowledged, then read each one back after the faults. Its <code>put</code> and <code>get</code> return <code>errors.ErrUnsupported</code> until the agent implements them against the service's API. Until then the sweep fails with <code>the workload got acknowledged writes</code> never true, so an unwired workload can never pass. Existing files are never overwritten.</p>
+<p>On a fresh copy of <code>examples/kvlog</code> with its configs removed, <code>seedfall init -node ./server</code> writes a config and a workload. Wiring <code>put</code> and <code>get</code> to kvlog's line protocol takes about twenty lines. The first sweep then fails on seed 1 with <code>acknowledged write lost</code>, and shrink brings it down to the same two faults as the <a href="getting-started.html">getting started guide</a>.</p>
+<h2 id="skills-1">Skills</h2>
+<p>The <code>skills/</code> directory holds four skills. They follow the order of a real adoption, and every command in them runs as written:</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Skill</th>
+<th>Use it to</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>seedfall-setup</code></td>
+<td>Install, run <code>seedfall init</code>, clear the wasip1 blockers, wire the workload and run the first sweep</td>
+</tr>
+<tr>
+<td><code>seedfall-properties</code></td>
+<td>Read the storage and replication code, write <code>sim</code> properties for its durability and consistency promises, and grade them with <code>seedfall mutate</code> until every exercised mutant is killed</td>
+</tr>
+<tr>
+<td><code>seedfall-triage</code></td>
+<td>Classify, shrink, find the decisive fault with <code>cause</code>, inspect the disk, and confirm the explanation with a replay of an edited schedule</td>
+</tr>
+<tr>
+<td><code>seedfall-fix-and-prove</code></td>
+<td>Fix the cause, replay the saved schedule, sweep, run <code>seedfall verify -mutate -md proof.md</code> and paste the proof into the pull request</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="the-seedfall-hook-command">The <code>seedfall hook</code> command</h2>
+<p><code>seedfall hook</code> is a small command that reads a Claude Code hook payload (JSON with <code>cwd</code> and <code>stop_hook_active</code>) from stdin. It does nothing unless <code>SEEDFALL_HOOK_SEEDS</code> is set, for example to <code>1-20</code>. It is not installed for you; you only get it by pointing your own hook setup at it.</p>
+<p>When the variable is set and <code>seedfall.json</code> exists in the payload's <code>cwd</code> (or the file named by <code>SEEDFALL_HOOK_CONFIG</code>), the command replays the <a href="verify.html#pinned-regressions">pinned regressions</a>, then sweeps those seeds, under the profile named by <code>SEEDFALL_HOOK_PROFILE</code> if it is set. On a failure, or a property that was never reached or never true, it prints the seed with the replay and shrink commands to stderr and exits with code 2. If <code>stop_hook_active</code> is true it exits 0 without running, so it cannot loop.</p>
+<h2 id="docs-for-models">Docs for models</h2>
+<p>The site serves <a href="https://seedfall-lemon.vercel.app/llms.txt"><code>llms.txt</code></a>, an index of these docs and the skills, and <a href="https://seedfall-lemon.vercel.app/llms-full.txt"><code>llms-full.txt</code></a>, their full text. <code>bash scripts/site-llms.sh</code> generates both from <code>docs/</code> and <code>skills/</code>.</p>
+<h2 id="a-verification-loop">A verification loop</h2>
+<p>Ask the agent to treat a seed sweep as the definition of done for storage or replication changes:</p>
+<ol>
+<li>Run <code>seedfall_run</code> over a few hundred seeds before changing anything, to record the baseline.</li>
+<li>When a seed fails, run <code>seedfall_shrink</code> and read the minimal fault schedule. It usually names the exact window: &quot;crash during disk op #56&quot;, then &quot;crash&quot;. <code>seedfall_cause</code> shows which of those faults made the failure likely, and <code>seedfall_faults_edit</code> with <code>out</code> plus <code>seedfall_replay</code> tests a guess, such as dropping a fault or moving a crash one disk operation earlier.</li>
+<li>Fix the code, then <code>seedfall_replay</code> the saved schedule until it passes.</li>
+<li>Run <code>seedfall_verify</code> with the seed and schedule and paste its <code>markdown</code> proof block into the pull request.</li>
+</ol>
+<p>Shrunk schedules are small enough that an agent can reason about them step by step. <code>examples/kvlog</code> is a good first exercise: its <code>seedfall.always.json</code> shrinks to two faults.</p>
+
+      </article>
+    </main>
+  </div>
+</div>
+<footer class="foot">
+  <div class="wrap foot-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../llms.txt">llms.txt</a></p>
+  </div>
+</footer>
+</body>
+</html>

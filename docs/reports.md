@@ -1,5 +1,7 @@
 # Triage reports
 
+A big sweep can find many failing seeds that come from only a few bugs. Reports group them into findings, label each one as new or old, remember history between runs, and can post to Slack, Discord or GitHub. Use this page when you run seedfall at scale or in CI and want to triage instead of reading one failure at a time.
+
 ```sh
 seedfall run -c seedfall.json -seeds 1-500 -report .seedfall/report.html
 ```

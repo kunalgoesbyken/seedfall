@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A crash during stream creation leaves meta.inf without meta.sum, and the stream then disappears on every later restart · seedfall docs</title>
+<meta name="description" content="Upstream: nats-io/nats-server#8872">
+<meta property="og:title" content="A crash during stream creation leaves meta.inf without meta.sum, and the stream then disappears on every later restart">
+<meta property="og:description" content="Upstream: nats-io/nats-server#8872">
+<link rel="alternate" type="text/markdown" href="nats-stream-meta-checksum-crash.md">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../style.css">
+<link rel="stylesheet" href="../../docs.css">
+</head>
+<body>
+<header class="nav docs-nav">
+  <div class="wrap nav-row">
+    <a class="brand" href="../../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <nav class="links" aria-label="Site">
+      <a href="../../">Home</a>
+      <a href="../" aria-current="true">Docs</a>
+      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="docs">
+  <div class="wrap docs-grid">
+    <aside class="docs-side">
+      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
+      <label class="docs-menu" for="docs-menu">Docs menu</label>
+      <nav class="docs-index" aria-label="Documentation">
+        <h2>Start here</h2>
+        <ul>
+          <li><a href="../getting-started.html">Getting started</a></li>
+          <li><a href="../install.html">Installing seedfall</a></li>
+          <li><a href="../faq.html">FAQ</a></li>
+          <li><a href="../troubleshooting.html">Troubleshooting</a></li>
+        </ul>
+        <h2>Find a bug</h2>
+        <ul>
+          <li><a href="../networking.html">Networking</a></li>
+          <li><a href="../properties.html">Properties and checks</a></li>
+          <li><a href="../compat.html">Storage engines that need mmap or flock</a></li>
+          <li><a href="../config.html">Config files, profiles and seeded disks</a></li>
+          <li><a href="../explore.html">Feedback-guided exploration</a></li>
+          <li><a href="../buggify.html">BUGGIFY</a></li>
+          <li><a href="../mutate.html">Mutation testing your checks</a></li>
+          <li><a href="../antithesis.html">Running Antithesis SDK code</a></li>
+          <li><a href="../gostman.html">Use your Gostman collections as workloads</a></li>
+        </ul>
+        <h2>Understand a failure</h2>
+        <ul>
+          <li><a href="../timeline.html">Timelines, logs and time-travel debugging</a></li>
+          <li><a href="../cause.html">Causality analysis</a></li>
+          <li><a href="../inspect.html">Inspecting the disk at the moment of failure</a></li>
+          <li><a href="../verify.html">Proving a fix with seedfall verify</a></li>
+          <li><a href="../reports.html">Triage reports</a></li>
+        </ul>
+        <h2>Use in CI</h2>
+        <ul>
+          <li><a href="../ci.html">Running seedfall in CI</a></li>
+          <li><a href="../agents.html">Using seedfall from AI coding agents</a></li>
+        </ul>
+        <h2>Reference</h2>
+        <ul>
+          <li><a href="../faults.html">Configuration and faults</a></li>
+          <li><a href="../properties.html">Properties, linearizability and determinism</a></li>
+          <li><a href="../reports.html">Triage reports</a></li>
+          <li><a href="../troubleshooting.html">Troubleshooting</a></li>
+          <li><a href="../how-it-works.html">How seedfall works</a></li>
+          <li><a href="../testing.html">Testing seedfall itself</a></li>
+          <li><a href="./">Findings</a></li>
+        </ul>
+        <h2>About the project</h2>
+        <ul>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
+        </ul>
+      </nav>
+    </aside>
+    <main class="docs-main">
+      <p class="docs-meta"><a href="./">&larr; Findings</a>
+        <a href="nats-stream-meta-checksum-crash.md" type="text/markdown">View as Markdown, for AI agents</a>
+        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/findings/nats-stream-meta-checksum-crash.md">Edit on GitHub</a>
+      </p>
+      <article class="prose">
+<h1 id="a-crash-during-stream-creation-leaves-metainf-without-metasum-and-the-stream-then-disappears-on-every-later-restart">A crash during stream creation leaves meta.inf without meta.sum, and the stream then disappears on every later restart</h1>
+<p><strong>Upstream:</strong> <a href="https://github.com/nats-io/nats-server/issues/8872">nats-io/nats-server#8872</a></p>
+<p><strong>Repo:</strong> nats-io/nats-server (tested on v2.15.2, single server, JetStream file storage, <code>sync_always: true</code>)
+<strong>Severity:</strong> acknowledged messages become invisible after a restart. The stream accepts and acknowledges publishes normally after the first restart, and is silently skipped on every restart after that. No strict-POSIX assumptions needed: this reproduces with ordinary &quot;a rename and an fsynced file are durable&quot; semantics.</p>
+<h2 id="summary">Summary</h2>
+<p><code>fileStore.writeStreamMeta</code> (<code>server/filestore.go:1011</code>) writes the stream config and its checksum as two separate atomic writes: first <code>meta.inf</code>, then <code>meta.sum</code>. A crash between the two leaves <code>meta.inf</code> on disk with no <code>meta.sum</code>.</p>
+<p>On restart, the account's stream recovery (<code>server/jetstream.go:1453</code>) skips the stream:</p>
+<pre><code>[WRN]   Missing stream checksum file &quot;data/jetstream/$G/streams/EVENTS/meta.sum&quot;
+</code></pre>
+<p>The client sees no stream and creates it again. <code>newFileStoreWithCreated</code> (<code>server/filestore.go:636-643</code>) only rewrites the metadata when <code>meta.inf</code> is missing or empty:</p>
+<pre><code class="language-go">meta := filepath.Join(fcfg.StoreDir, JetStreamMetaFile)
+fi, err := os.Stat(meta)
+if err != nil &amp;&amp; os.IsNotExist(err) || fi != nil &amp;&amp; fi.Size() == 0 {
+    if err := fs.writeStreamMeta(); err != nil {
+</code></pre>
+<p><code>meta.inf</code> exists, so <code>meta.sum</code> is never written. The re-created stream is fully usable: it stores and acknowledges publishes with <code>sync_always</code>. But the store directory still has no checksum, so on the next restart the stream is skipped again, together with every message acknowledged since. The message blocks are still on disk, but the server doesn't load them.</p>
+<h2 id="reproduction">Reproduction</h2>
+<p>Reproduced deterministically with <a href="https://github.com/kunalgoesbyken/seedfall">seedfall</a>: an embedded nats-server 2.15.2 with <code>SyncAlways: true</code> on a simulated disk, and a client that creates a file-backed R1 stream, publishes 300 messages and reads every acknowledged sequence back.</p>
+<pre><code>cd examples/natsjs
+seedfall replay -c seedfall.always.json -seed 40 -faults metasum.faults.json
+</code></pre>
+<p>Two faults are enough:</p>
+<ol>
+<li>The server crashes during stream creation, after <code>meta.inf</code> has been renamed into place and before <code>meta.sum</code> is.</li>
+<li>Later, while the re-created stream is acknowledging publishes, the server crashes once more.</li>
+</ol>
+<pre><code>    0.158s  fault crash node#1 during disk op 9, restart at 0.658s
+    5.000s  fault crash node#2, restart at 5.500s
+   67.397s  FAIL  client#1: stream EVENTS lost after restart, 186 acknowledged messages gone
+</code></pre>
+<p>The same schedule with the first crash at disk op 10, after <code>meta.sum</code> is written, passes. With NATS logging enabled, each restart after the first crash logs <code>[WRN] Missing stream checksum file &quot;.../EVENTS/meta.sum&quot;</code> and skips the stream.</p>
+<p>Only the first crash has to land at a precise moment. In practice that moment is any process kill, OOM kill or power loss while a stream is being created; after that the stream is a time bomb that goes off on the next restart.</p>
+<h2 id="suggested-fix">Suggested fix</h2>
+<p>Treat a missing checksum like a missing config when opening a store, so the re-created stream rewrites both files:</p>
+<pre><code class="language-go">fi, err := os.Stat(meta)
+_, sumErr := os.Stat(filepath.Join(fcfg.StoreDir, JetStreamMetaFileSum))
+if err != nil &amp;&amp; os.IsNotExist(err) || fi != nil &amp;&amp; fi.Size() == 0 || os.IsNotExist(sumErr) {
+    if err := fs.writeStreamMeta(); err != nil {
+</code></pre>
+<p>An alternative is for recovery to recompute and rewrite <code>meta.sum</code> when <code>meta.inf</code> parses cleanly, which would also bring back streams already in this state.</p>
+<p><strong>Fix verified:</strong> with this change applied to a local copy of v2.15.2, the failing schedule above passes, and so do 150 random seeds of the same configuration (crashes, torn writes, crash during disk I/O).</p>
+<h2 id="related-strict-posix-only-lower-priority-could-be-a-follow-up">Related, strict-POSIX only (lower priority, could be a follow-up)</h2>
+<p>Under strict POSIX directory semantics, where a new name is durable only after its parent directory is fsynced, two more gaps show up. Both lose the whole stream or a whole message block after one crash:</p>
+<ul>
+<li>New directories are created with <code>os.MkdirAll</code> and their parents are never fsynced: the store directory at <code>filestore.go:439</code>, <code>msgs/</code> and <code>obs/</code> at <code>filestore.go:487</code> and <code>:490</code>, and in <code>jetstream.go:449</code> and <code>:1291</code>.</li>
+<li>New message block files are created at <code>filestore.go</code> in <code>newMsgBlockForWrite</code> (<code>os.OpenFile(mb.mfn, os.O_CREATE|os.O_RDWR, ...)</code>) without fsyncing <code>msgs/</code>, even with <code>sync_always</code>. <code>msgs/</code> is only fsynced by the periodic <code>syncBlocks</code> pass, every <code>sync_interval</code>, two minutes by default.</li>
+</ul>
+<p>On ext4, XFS and btrfs, fsyncing a new file in practice also makes its directory entry durable, so typical Linux deployments are probably not affected by these two. That is the same caveat as the ALICE study (OSDI 2014). Repro: <code>seedfall run -c seedfall.strict.json</code> (stock v2.15.2 fails on seed 1). With durable <code>MkdirAll</code> plus a <code>msgs/</code> fsync after block creation in <code>sync_always</code> mode, 150 strict seeds pass.</p>
+
+      </article>
+    </main>
+  </div>
+</div>
+<footer class="foot">
+  <div class="wrap foot-row">
+    <a class="brand" href="../../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../../llms.txt">llms.txt</a></p>
+  </div>
+</footer>
+</body>
+</html>

@@ -1,5 +1,7 @@
 # Feedback-guided exploration
 
+A plain sweep tries seeds one after another, which is slow for a bug that needs two rare things to happen in the same run. `seedfall explore` keeps the runs that reached something new and builds on them. Use it when ordinary sweeps pass but you suspect a deeper bug.
+
 A plain sweep draws a fresh random seed every time. A failure that needs two rare things to happen in the same run, each with odds of one in a thousand, needs on the order of a million seeds. `seedfall explore` looks for that kind of failure with feedback: it keeps the runs that reached something new, and spends further runs going deeper from there instead of starting over.
 
 ```sh

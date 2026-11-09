@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mutation testing your checks · seedfall docs</title>
+<meta name="description" content="A passing sweep only means something if your checks would notice a real problem. seedfall mutate weakens the simulated disk, network or clock one guarantee at a time, or changes your own source code…">
+<meta property="og:title" content="Mutation testing your checks">
+<meta property="og:description" content="A passing sweep only means something if your checks would notice a real problem. seedfall mutate weakens the simulated disk, network or clock one guarantee at a time, or changes your own source code…">
+<link rel="alternate" type="text/markdown" href="mutate.md">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../style.css">
+<link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+<header class="nav docs-nav">
+  <div class="wrap nav-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <nav class="links" aria-label="Site">
+      <a href="../">Home</a>
+      <a href="./" aria-current="true">Docs</a>
+      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="docs">
+  <div class="wrap docs-grid">
+    <aside class="docs-side">
+      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
+      <label class="docs-menu" for="docs-menu">Docs menu</label>
+      <nav class="docs-index" aria-label="Documentation">
+        <h2>Start here</h2>
+        <ul>
+          <li><a href="getting-started.html">Getting started</a></li>
+          <li><a href="install.html">Installing seedfall</a></li>
+          <li><a href="faq.html">FAQ</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+        </ul>
+        <h2>Find a bug</h2>
+        <ul>
+          <li><a href="networking.html">Networking</a></li>
+          <li><a href="properties.html">Properties and checks</a></li>
+          <li><a href="compat.html">Storage engines that need mmap or flock</a></li>
+          <li><a href="config.html">Config files, profiles and seeded disks</a></li>
+          <li><a href="explore.html">Feedback-guided exploration</a></li>
+          <li><a href="buggify.html">BUGGIFY</a></li>
+          <li><a href="mutate.html" aria-current="page">Mutation testing your checks</a></li>
+          <li><a href="antithesis.html">Running Antithesis SDK code</a></li>
+          <li><a href="gostman.html">Use your Gostman collections as workloads</a></li>
+        </ul>
+        <h2>Understand a failure</h2>
+        <ul>
+          <li><a href="timeline.html">Timelines, logs and time-travel debugging</a></li>
+          <li><a href="cause.html">Causality analysis</a></li>
+          <li><a href="inspect.html">Inspecting the disk at the moment of failure</a></li>
+          <li><a href="verify.html">Proving a fix with seedfall verify</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+        </ul>
+        <h2>Use in CI</h2>
+        <ul>
+          <li><a href="ci.html">Running seedfall in CI</a></li>
+          <li><a href="agents.html">Using seedfall from AI coding agents</a></li>
+        </ul>
+        <h2>Reference</h2>
+        <ul>
+          <li><a href="faults.html">Configuration and faults</a></li>
+          <li><a href="properties.html">Properties, linearizability and determinism</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          <li><a href="how-it-works.html">How seedfall works</a></li>
+          <li><a href="testing.html">Testing seedfall itself</a></li>
+          <li><a href="findings/">Findings</a></li>
+        </ul>
+        <h2>About the project</h2>
+        <ul>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
+        </ul>
+      </nav>
+    </aside>
+    <main class="docs-main">
+      <p class="docs-meta">
+        <a href="mutate.md" type="text/markdown">View as Markdown, for AI agents</a>
+        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/mutate.md">Edit on GitHub</a>
+      </p>
+      <article class="prose">
+<h1 id="mutation-testing-your-checks">Mutation testing your checks</h1>
+<p>A passing sweep only means something if your checks would notice a real problem. <code>seedfall mutate</code> weakens the simulated disk, network or clock one guarantee at a time, or changes your own source code, and tells you whether your checks catch it. Use it to find checks that are too weak.</p>
+<p>A sweep that passes is only meaningful if your workload would notice when a guarantee breaks. <code>seedfall mutate</code> tests that directly: it weakens the simulated disk, network or clock under your nodes, one guarantee at a time, and checks whether your sweep catches it.</p>
+<pre><code class="language-sh">seedfall mutate -c seedfall.always.json -seeds 1-30
+</code></pre>
+<pre><code>baseline: seeds 1-30 pass
+
+  fsync_noop     killed     seed 1: client#1: stream EVENTS lost after restart, 133 acknowledged messages gone
+                 file fsync returns success without making anything durable
+
+  dirsync_noop   not exercised (the operation never ran, or has no effect in this configuration)
+                 directory fsync does nothing (matters with strict_dirs)
+
+  osync_ignored  killed     seed 1: client#1: stream EVENTS lost after restart, 133 acknowledged messages gone
+                 writes to O_SYNC and O_DSYNC files are no longer synchronous
+
+every exercised mutant was killed
+</code></pre>
+<p>That run is NATS JetStream (<code>examples/natsjs</code>). Both guarantees NATS relies on are protected by the workload: when either one silently stops working, acknowledged messages are lost and the sweep fails.</p>
+<h2 id="mutants">Mutants</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Mutant</th>
+<th>What breaks</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fsync_noop</code></td>
+<td>File <code>fsync</code> reports success but makes nothing durable</td>
+</tr>
+<tr>
+<td><code>dirsync_noop</code></td>
+<td>Directory <code>fsync</code> does nothing. Only observable with <code>strict_dirs</code>, where directory entries need it to survive a crash</td>
+</tr>
+<tr>
+<td><code>osync_ignored</code></td>
+<td>Writes to files opened with <code>O_SYNC</code> or <code>O_DSYNC</code> stop being synchronous</td>
+</tr>
+<tr>
+<td><code>fsync_corrupts</code></td>
+<td>File <code>fsync</code> makes the data durable with one bit flipped: the first byte of the last write it covers. Reads see the right data until a crash, then the flipped one</td>
+</tr>
+<tr>
+<td><code>rename_not_atomic</code></td>
+<td>A rename over an existing file is not durable until the next successful fsync of any file or directory on that disk. A crash before then loses both names, so neither the old nor the new version exists after the restart. A rename to a new name is unchanged</td>
+</tr>
+<tr>
+<td><code>truncate_not_durable</code></td>
+<td><code>fsync</code> makes writes durable but skips truncations, including <code>O_TRUNC</code>. Reads see the shorter file until a crash, then the old length comes back with the old bytes past the new data</td>
+</tr>
+<tr>
+<td><code>net_drop_after_close</code></td>
+<td>When a connection is closed, the last chunk written to it that the peer has not read yet is dropped, so the peer sees end of file without it</td>
+</tr>
+<tr>
+<td><code>net_dup_chunk</code></td>
+<td>5% of connection writes, chosen from the seed, arrive twice in a row</td>
+</tr>
+<tr>
+<td><code>monotonic_jump</code></td>
+<td><code>clock_jump</code> faults move the monotonic clock along with the wall clock, so <code>time.Since</code> and timers see time run backwards or leap ahead. Needs <code>clock_jump_per_sec</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>Mutants need no changes to your code. Each one weakens only the nodes that take faults: the disk mutants their disks, the network mutants the data they receive, and <code>monotonic_jump</code> their clocks. The workload is affected only with <code>include_workload</code>, and the <code>finally</code> check never. A run with a mutant replays exactly like any other: the duplicated writes come from their own seeded stream.</p>
+<p>Run some of them with <code>-only</code>:</p>
+<pre><code class="language-sh">seedfall mutate -c seedfall.json -seeds 1-20 -only net_dup_chunk,truncate_not_durable
+</code></pre>
+<p><code>-md mutants.md</code> also writes the result as a Markdown table, for a pull request or job summary; the <a href="ci.html#verify-and-mutate">GitHub Action</a> uses it. <code>-only</code> picks among these runtime mutants and cannot be combined with <code>-app</code>. Over MCP the tool is <code>seedfall_mutate</code>, with <code>config</code>, optional <code>seeds</code> (default <code>1-100</code>) and <code>only</code>. It returns each mutant's <code>outcome</code>, the <code>killed_by_seed</code> and <code>reason</code> when killed, the <code>seeds_passed</code> and how many times the operation was <code>weakened</code>.</p>
+<h3 id="the-new-mutants-on-examplesledger">The new mutants on <code>examples/ledger</code></h3>
+<pre><code>$ seedfall mutate -c seedfall.json -seeds 1-20
+baseline: seeds 1-20 pass
+
+  fsync_noop            killed     seed 1: client#1: ledger total covers every acknowledged deposit: {&quot;left&quot;:4660,&quot;right&quot;:5506,&quot;unacked&quot;:1831}
+  ...
+  truncate_not_durable  SURVIVED   20 seeds passed although the operation was weakened 5 times
+                        fsync makes writes durable but not truncations, so a crash brings back the old length and the bytes past it
+
+  net_dup_chunk         killed     seed 18: client#1: ledger total holds no deposit that was never sent: {&quot;left&quot;:8387,&quot;right&quot;:8119}
+                        a seeded 5% of connection writes are delivered twice, which TCP never does
+  ...
+1 mutants survived: your workload does not notice those guarantees disappearing
+</code></pre>
+<p>A duplicated <code>ADD</code> is applied twice and the upper bound on the total catches it. <code>truncate_not_durable</code> survives because the ledger cuts off a torn final entry with <code>Truncate</code> at every start, so a truncation that does not persist only brings back bytes that the next recovery drops again: a survivor you can explain as equivalent. In <code>examples/liveness</code>, <code>rename_not_atomic</code> survives 991 weakenings for a similar reason: when a crash loses the client's progress file, the client resends adds the servers have already deduplicated.</p>
+<h2 id="source-mutants">Source mutants</h2>
+<p>The mutants above break the world under your program. <code>-app</code> breaks the program itself: seedfall parses the Go files of every node package (not the workload or the <code>finally</code> check), lists every place it can make one of three changes, picks <code>-mutants</code> of them (default 10) with the first seed of the range, and rebuilds the node once per mutant through a <code>go build -overlay</code>, so your files are never touched:</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Change</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>flip_comparison</code></td>
+<td>Negates one comparison: <code>&lt;</code> and <code>&gt;=</code>, <code>&gt;</code> and <code>&lt;=</code>, <code>==</code> and <code>!=</code></td>
+</tr>
+<tr>
+<td><code>skip_error_return</code></td>
+<td><code>if x != nil { ...; return ... }</code> becomes <code>if false &amp;&amp; x != nil</code>, so the early return never runs</td>
+</tr>
+<tr>
+<td><code>skip_sync</code></td>
+<td><code>f.Sync()</code> becomes a call that returns <code>nil</code> without syncing</td>
+</tr>
+</tbody>
+</table></div>
+<pre><code>$ seedfall mutate -c seedfall.fixed.json -seeds 1-10 -app -mutants 4
+baseline: seeds 1-10 pass
+
+  server/main.go:95     SURVIVED   10 seeds passed (or the mutated code never ran)
+                        complete &lt; len(data) -&gt; complete &gt;= len(data)
+
+  server/main.go:97     killed     seed 1: server#2 crashed: module closed with exit_code(2)
+                        err != nil -&gt; err == nil
+
+  server/main.go:157    killed     seed 1: client#1: acknowledged write lost: k61=v61, server now answers &quot;NONE&quot;
+                        err != nil -&gt; err == nil
+
+  server/main.go:197    SURVIVED   10 seeds passed (or the mutated code never ran)
+                        cmd[0] == &quot;PUT&quot; -&gt; cmd[0] != &quot;PUT&quot;
+
+2 mutants survived: your workload does not notice those guarantees disappearing
+</code></pre>
+<p>That is <code>examples/kvlog</code>. The survivor at line 197 is a real blind spot: with the comparison flipped, the server answers every <code>PUT</code> with an error, the client counts no write as acknowledged, and nothing asserts that writes are ever acknowledged, so the sweep still passes. The survivor at line 95 only changes the condition of a <code>sim.Sometimes</code>, which records coverage and never fails a seed.</p>
+<p>seedfall cannot tell whether a mutated line ever ran, so a source mutant has no &quot;not exercised&quot; verdict: a survivor may be dead code. A mutant that does not compile (for example a <code>Sync</code> method with no error result) is reported as <code>did not build</code> and does not count as a survivor. The same seed range and <code>-mutants</code> count pick the same mutants every time. Each mutant costs one <code>go build</code> and one sweep, so start with a small count. <code>seedfall verify -app-mutants N</code> adds the same mutants to a proof (<a href="verify.html">verify.md</a>), and over MCP <code>seedfall_mutate</code> takes <code>app</code> and <code>mutants</code>.</p>
+<h2 id="verdicts">Verdicts</h2>
+<ul>
+<li><strong>killed</strong>: some seed failed, so your workload notices this guarantee disappearing. That is the goal.</li>
+<li><strong>SURVIVED</strong>: every seed passed even though the operation was weakened. Either your checks miss the broken guarantee (acknowledged data loss, a duplicated request, a timeout computed from a clock that ran backwards), or your faults never hit the window where it matters. Raise <code>crash_per_sec</code> or <code>crash_on_io</code>, lengthen the run, or strengthen the invariant. <code>seedfall mutate</code> exits non-zero when any mutant survives.</li>
+<li><strong>not exercised</strong>: the weakened operation never ran, or had no effect in this configuration. For example, <code>dirsync_noop</code> without <code>strict_dirs</code>.</li>
+</ul>
+<p>The baseline must pass first; otherwise mutants would be killed by the existing bug.</p>
+
+      </article>
+    </main>
+  </div>
+</div>
+<footer class="foot">
+  <div class="wrap foot-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../llms.txt">llms.txt</a></p>
+  </div>
+</footer>
+</body>
+</html>

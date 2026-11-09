@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Open creates the database file without fsyncing its directory, so one crash can lose the whole database · seedfall docs</title>
+<meta name="description" content="Upstream: not filed yet.">
+<meta property="og:title" content="Open creates the database file without fsyncing its directory, so one crash can lose the whole database">
+<meta property="og:description" content="Upstream: not filed yet.">
+<link rel="alternate" type="text/markdown" href="bbolt-create-dir-fsync.md">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../style.css">
+<link rel="stylesheet" href="../../docs.css">
+</head>
+<body>
+<header class="nav docs-nav">
+  <div class="wrap nav-row">
+    <a class="brand" href="../../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <nav class="links" aria-label="Site">
+      <a href="../../">Home</a>
+      <a href="../" aria-current="true">Docs</a>
+      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="docs">
+  <div class="wrap docs-grid">
+    <aside class="docs-side">
+      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
+      <label class="docs-menu" for="docs-menu">Docs menu</label>
+      <nav class="docs-index" aria-label="Documentation">
+        <h2>Start here</h2>
+        <ul>
+          <li><a href="../getting-started.html">Getting started</a></li>
+          <li><a href="../install.html">Installing seedfall</a></li>
+          <li><a href="../faq.html">FAQ</a></li>
+          <li><a href="../troubleshooting.html">Troubleshooting</a></li>
+        </ul>
+        <h2>Find a bug</h2>
+        <ul>
+          <li><a href="../networking.html">Networking</a></li>
+          <li><a href="../properties.html">Properties and checks</a></li>
+          <li><a href="../compat.html">Storage engines that need mmap or flock</a></li>
+          <li><a href="../config.html">Config files, profiles and seeded disks</a></li>
+          <li><a href="../explore.html">Feedback-guided exploration</a></li>
+          <li><a href="../buggify.html">BUGGIFY</a></li>
+          <li><a href="../mutate.html">Mutation testing your checks</a></li>
+          <li><a href="../antithesis.html">Running Antithesis SDK code</a></li>
+          <li><a href="../gostman.html">Use your Gostman collections as workloads</a></li>
+        </ul>
+        <h2>Understand a failure</h2>
+        <ul>
+          <li><a href="../timeline.html">Timelines, logs and time-travel debugging</a></li>
+          <li><a href="../cause.html">Causality analysis</a></li>
+          <li><a href="../inspect.html">Inspecting the disk at the moment of failure</a></li>
+          <li><a href="../verify.html">Proving a fix with seedfall verify</a></li>
+          <li><a href="../reports.html">Triage reports</a></li>
+        </ul>
+        <h2>Use in CI</h2>
+        <ul>
+          <li><a href="../ci.html">Running seedfall in CI</a></li>
+          <li><a href="../agents.html">Using seedfall from AI coding agents</a></li>
+        </ul>
+        <h2>Reference</h2>
+        <ul>
+          <li><a href="../faults.html">Configuration and faults</a></li>
+          <li><a href="../properties.html">Properties, linearizability and determinism</a></li>
+          <li><a href="../reports.html">Triage reports</a></li>
+          <li><a href="../troubleshooting.html">Troubleshooting</a></li>
+          <li><a href="../how-it-works.html">How seedfall works</a></li>
+          <li><a href="../testing.html">Testing seedfall itself</a></li>
+          <li><a href="./">Findings</a></li>
+        </ul>
+        <h2>About the project</h2>
+        <ul>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
+        </ul>
+      </nav>
+    </aside>
+    <main class="docs-main">
+      <p class="docs-meta"><a href="./">&larr; Findings</a>
+        <a href="bbolt-create-dir-fsync.md" type="text/markdown">View as Markdown, for AI agents</a>
+        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/findings/bbolt-create-dir-fsync.md">Edit on GitHub</a>
+      </p>
+      <article class="prose">
+<h1 id="open-creates-the-database-file-without-fsyncing-its-directory-so-one-crash-can-lose-the-whole-database">Open creates the database file without fsyncing its directory, so one crash can lose the whole database</h1>
+<p><strong>Upstream:</strong> not filed yet.</p>
+<p><strong>Repo:</strong> etcd-io/bbolt (tested on v1.5.0, the latest release)
+<strong>Severity:</strong> low. It needs a filesystem where a new file's name is durable only after the parent directory is fsynced, plus a crash before anything else syncs that directory. On such filesystems every transaction committed with fsync and acknowledged after <code>Open</code> can disappear together with the file.</p>
+<h2 id="summary">Summary</h2>
+<p><code>Open</code> creates the data file with <code>os.O_CREATE</code> (db.go:239). For a new, empty file, <code>init</code> writes the two meta pages, the freelist and an empty leaf, and calls <code>fdatasync</code> (db.go:646, db.go:683). The directory holding the file is never fsynced, there or anywhere else in bbolt. Under POSIX, <code>fdatasync</code> on the file makes its data durable but not its directory entry. After a crash the name can be gone, so the next <code>Open</code> creates a fresh empty database, and every committed transaction is lost even though each <code>Commit</code> fsynced and returned nil.</p>
+<p>Applications that create their database directory themselves usually fsync that directory's parent, but nothing in bbolt's documentation says callers must also fsync the database's own directory after <code>Open</code>.</p>
+<h2 id="reproduction">Reproduction</h2>
+<p>Reproduced deterministically with <a href="https://github.com/kunalgoesbyken/seedfall">seedfall</a>, running the unmodified library on <code>wasip1</code> through <code>compat_overlay</code>. A small server opens <code>data/kv.db</code> with the default options (sync on), fsyncs <code>.</code> after creating <code>data/</code>, and acknowledges <code>SET</code> only after <code>db.Update</code> returns. A client writes 300 keys and then checks that every acknowledged key is still there. With <code>strict_dirs</code>, a directory entry survives a crash only after its directory is fsynced.</p>
+<pre><code>cd examples/bboltkv
+seedfall replay -c seedfall.strict.nodirsync.json -seed 1
+</code></pre>
+<p><code>seedfall shrink</code> reduces the schedule to one fault, saved as <code>createdir.faults.json</code>:</p>
+<pre><code>faults before the failure (1):
+   1.7052s  crash server, restart at 1.942589s
+</code></pre>
+<p>The restarted server recovers 0 keys, and the client reports <code>acknowledged write lost: k0=v0, server now answers &quot;NONE&quot;</code>.</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Config</th>
+<th>Stock v1.5.0</th>
+<th>Patched</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>sync on, crashes, partitions (<code>seedfall.json</code>)</td>
+<td>300/300 pass</td>
+<td>—</td>
+</tr>
+<tr>
+<td>plus torn writes and crashes mid-I/O (<code>seedfall.torn.json</code>)</td>
+<td>300/300 pass</td>
+<td>—</td>
+</tr>
+<tr>
+<td>plus fsync <code>EIO</code>, supervised (<code>seedfall.fsyncgate.json</code>)</td>
+<td>300/300 pass</td>
+<td>—</td>
+</tr>
+<tr>
+<td>strict directories, the server fsyncs <code>data/</code> after <code>Open</code> (<code>seedfall.strict.json</code>)</td>
+<td>300/300 pass</td>
+<td>—</td>
+</tr>
+<tr>
+<td>strict directories, no extra fsync (<code>seedfall.strict.nodirsync.json</code>)</td>
+<td>fails, seed 1</td>
+<td>300/300 pass</td>
+</tr>
+<tr>
+<td><code>NoSync: true</code> (<code>seedfall.nosync.json</code>)</td>
+<td>fails, seed 1 (expected)</td>
+<td>—</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="suggested-fix">Suggested fix</h2>
+<p>After <code>init</code> has written and synced a new file, fsync its directory:</p>
+<pre><code class="language-go">dir, err := os.Open(filepath.Dir(db.path))
+if err != nil {
+	return err
+}
+defer dir.Close()
+return dir.Sync()
+</code></pre>
+<h2 id="fix-verified">Fix verified</h2>
+<p>A local copy of v1.5.0 with the directory fsync at the end of <code>init</code> passes seed 1 and 300 seeds of <code>seedfall.strict.nodirsync.json</code>.</p>
+
+      </article>
+    </main>
+  </div>
+</div>
+<footer class="foot">
+  <div class="wrap foot-row">
+    <a class="brand" href="../../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../../llms.txt">llms.txt</a></p>
+  </div>
+</footer>
+</body>
+</html>

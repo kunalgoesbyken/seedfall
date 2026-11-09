@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tidwall/wal can&#39;t reopen after a crash mid-append, and the pending fix (#22) leaves stale bytes that corrupt the log after the next segment rotation · seedfall docs</title>
+<meta name="description" content="Upstream: tidwall/wal#43, following up on #21 and PR #22">
+<meta property="og:title" content="tidwall/wal can&#39;t reopen after a crash mid-append, and the pending fix (#22) leaves stale bytes that corrupt the log after the next segment rotation">
+<meta property="og:description" content="Upstream: tidwall/wal#43, following up on #21 and PR #22">
+<link rel="alternate" type="text/markdown" href="tidwall-wal-torn-tail.md">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../style.css">
+<link rel="stylesheet" href="../../docs.css">
+</head>
+<body>
+<header class="nav docs-nav">
+  <div class="wrap nav-row">
+    <a class="brand" href="../../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <nav class="links" aria-label="Site">
+      <a href="../../">Home</a>
+      <a href="../" aria-current="true">Docs</a>
+      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="docs">
+  <div class="wrap docs-grid">
+    <aside class="docs-side">
+      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
+      <label class="docs-menu" for="docs-menu">Docs menu</label>
+      <nav class="docs-index" aria-label="Documentation">
+        <h2>Start here</h2>
+        <ul>
+          <li><a href="../getting-started.html">Getting started</a></li>
+          <li><a href="../install.html">Installing seedfall</a></li>
+          <li><a href="../faq.html">FAQ</a></li>
+          <li><a href="../troubleshooting.html">Troubleshooting</a></li>
+        </ul>
+        <h2>Find a bug</h2>
+        <ul>
+          <li><a href="../networking.html">Networking</a></li>
+          <li><a href="../properties.html">Properties and checks</a></li>
+          <li><a href="../compat.html">Storage engines that need mmap or flock</a></li>
+          <li><a href="../config.html">Config files, profiles and seeded disks</a></li>
+          <li><a href="../explore.html">Feedback-guided exploration</a></li>
+          <li><a href="../buggify.html">BUGGIFY</a></li>
+          <li><a href="../mutate.html">Mutation testing your checks</a></li>
+          <li><a href="../antithesis.html">Running Antithesis SDK code</a></li>
+          <li><a href="../gostman.html">Use your Gostman collections as workloads</a></li>
+        </ul>
+        <h2>Understand a failure</h2>
+        <ul>
+          <li><a href="../timeline.html">Timelines, logs and time-travel debugging</a></li>
+          <li><a href="../cause.html">Causality analysis</a></li>
+          <li><a href="../inspect.html">Inspecting the disk at the moment of failure</a></li>
+          <li><a href="../verify.html">Proving a fix with seedfall verify</a></li>
+          <li><a href="../reports.html">Triage reports</a></li>
+        </ul>
+        <h2>Use in CI</h2>
+        <ul>
+          <li><a href="../ci.html">Running seedfall in CI</a></li>
+          <li><a href="../agents.html">Using seedfall from AI coding agents</a></li>
+        </ul>
+        <h2>Reference</h2>
+        <ul>
+          <li><a href="../faults.html">Configuration and faults</a></li>
+          <li><a href="../properties.html">Properties, linearizability and determinism</a></li>
+          <li><a href="../reports.html">Triage reports</a></li>
+          <li><a href="../troubleshooting.html">Troubleshooting</a></li>
+          <li><a href="../how-it-works.html">How seedfall works</a></li>
+          <li><a href="../testing.html">Testing seedfall itself</a></li>
+          <li><a href="./">Findings</a></li>
+        </ul>
+        <h2>About the project</h2>
+        <ul>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
+        </ul>
+      </nav>
+    </aside>
+    <main class="docs-main">
+      <p class="docs-meta"><a href="./">&larr; Findings</a>
+        <a href="tidwall-wal-torn-tail.md" type="text/markdown">View as Markdown, for AI agents</a>
+        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/findings/tidwall-wal-torn-tail.md">Edit on GitHub</a>
+      </p>
+      <article class="prose">
+<h1 id="tidwallwal-cant-reopen-after-a-crash-mid-append-and-the-pending-fix-22-leaves-stale-bytes-that-corrupt-the-log-after-the-next-segment-rotation">tidwall/wal can't reopen after a crash mid-append, and the pending fix (#22) leaves stale bytes that corrupt the log after the next segment rotation</h1>
+<p><strong>Upstream:</strong> <a href="https://github.com/tidwall/wal/issues/43">tidwall/wal#43</a>, following up on #21 and PR #22</p>
+<p><strong>Repo:</strong> tidwall/wal (tested on v1.2.1, default options, <code>NoSync: false</code>)
+<strong>Status upstream:</strong> the first half is known: issue #21, open since June 2023, and PR #22, unmerged. The second and third parts below are not reported.</p>
+<h2 id="1-a-crash-during-one-append-bricks-the-log-known-21">1. A crash during one append bricks the log (known: #21)</h2>
+<p>With <code>NoSync: false</code>, every acknowledged write is fsynced, so a crash can only tear the entry that was being written and hadn't been acknowledged. On restart, <code>load()</code> parses the tail segment with <code>loadSegmentEntries</code> (wal.go:293). <code>loadNextBinaryEntry</code> (wal.go:599-606) returns <code>ErrCorrupt</code> for the partial entry, and <code>Open</code> fails. Every later <code>Open</code> fails the same way until someone edits the file by hand.</p>
+<p>seedfall finds this on seed 1 and shrinks it to <strong>one fault</strong>:</p>
+<pre><code>cd examples/wals
+seedfall replay -c tidwall.json -seed 1
+  366ms  crash server during disk op #56
+  server#2| open wal: log corrupt
+  FAIL server#2 crashed
+</code></pre>
+<h2 id="2-pr-22-recovers-in-memory-but-never-truncates-the-file-new">2. PR #22 recovers in memory but never truncates the file (new)</h2>
+<p>PR #22 adds <code>RecoverCorruptedTail</code>. When it's set, <code>loadSegmentEntries</code> stops at the first corrupt entry and trims <code>s.ebuf</code> to the valid prefix. <code>load()</code> then seeks the write offset back to <code>len(ebuf)</code>, but it <strong>doesn't truncate the file</strong>.</p>
+<p>If the next append is shorter than the torn bytes, the end of the old partial entry stays in the file after the new entry. As long as the segment is the tail, recovery skips those bytes again. Once the segment rotates, it is loaded with <code>loadSegmentEntries(s, false)</code>, and <code>Read</code> of any index in that segment returns <code>ErrCorrupt</code>. One recoverable crash becomes permanent corruption in the middle of the log.</p>
+<p>This was reproduced with PR #22 applied and <code>RecoverCorruptedTail: true</code>, on seed 117 (4 faults after shrinking). A diagnostic listing of segment <code>00000000000000000104</code> showed the following:</p>
+<pre><code>server#4 start: size=583 entries=6 valid=509 tail=&quot;me131-1111…&quot;     (74-byte torn entry)
+server#5 start: size=583 entries=7 valid=552 tail=&quot;1111111…&quot;        (new 43-byte entry written at 509, 31 stale bytes left)
+server#5| read wal: log corrupt
+</code></pre>
+<p>Fix: truncate the file to <code>len(lseg.ebuf)</code> and fsync it before seeking.</p>
+<h2 id="3-cycle-never-fsyncs-the-directory-new-strict-posix-only">3. <code>cycle()</code> never fsyncs the directory (new; strict POSIX only)</h2>
+<p><code>cycle()</code> (wal.go:355-376) creates the next segment with <code>O_CREATE|O_TRUNC</code>. It fsyncs the previous segment and, on later writes, the new one, but it never fsyncs the log directory. POSIX only makes the new file's name durable once the directory is fsynced.</p>
+<p>Under seedfall's <code>strict_dirs</code> model, a crash after a rotation can lose the whole new segment, even though every entry in it was fsynced and acknowledged. Seed 2 shows this: after a single crash, segment <code>…041</code> is missing, and acknowledged entries 41 onward are gone. The server had already fsynced every ancestor directory at startup, so the only gap left is inside the library.</p>
+<p>On ext4, XFS and btrfs, fsyncing the file usually persists its directory entry too, so typical Linux deployments are mostly not exposed. This is the same caveat as the hashicorp/raft snapshot finding.</p>
+<h2 id="verified-fix">Verified fix</h2>
+<p>These are applied to a local copy in <code>.prof/tidwall-wal</code>; the full diff is in <code>.prof/tidwall-full-fix.diff</code>:</p>
+<ol>
+<li>PR #22, with <code>RecoverCorruptedTail: true</code> in the example server</li>
+<li>in <code>load()</code>: <code>l.sfile.Truncate(int64(len(lseg.ebuf)))</code> and <code>l.sfile.Sync()</code> before the <code>Seek</code></li>
+<li>in <code>cycle()</code>: fsync <code>l.path</code> after creating the new segment</li>
+</ol>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Variant</th>
+<th><code>tidwall.json</code></th>
+<th><code>tidwall.strict.json</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>v1.2.1</td>
+<td>FAIL seed 1 (1 fault)</td>
+<td>FAIL</td>
+</tr>
+<tr>
+<td>+ PR #22</td>
+<td>FAIL seed 117 (stale tail, <code>ErrCorrupt</code> mid-log)</td>
+<td>FAIL seed 2 (segment lost)</td>
+</tr>
+<tr>
+<td>+ PR #22 + truncate</td>
+<td>ok, 1500 seeds</td>
+<td>not run separately</td>
+</tr>
+<tr>
+<td>+ PR #22 + truncate + dir fsync</td>
+<td>ok, 1500 seeds</td>
+<td>ok, 1500 seeds</td>
+</tr>
+</tbody>
+</table></div>
+<p>The client also checks that every entry the server returns is a payload it actually sent, so a fix that skipped torn bytes but exposed them as phantom entries would fail too.</p>
+<h2 id="suggested-upstream-action">Suggested upstream action</h2>
+<p>Comment on PR #22 with the truncate fix and the seed 117 reproduction. Then file a separate issue for the directory fsync, with the strict-POSIX caveat.</p>
+
+      </article>
+    </main>
+  </div>
+</div>
+<footer class="foot">
+  <div class="wrap foot-row">
+    <a class="brand" href="../../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../../llms.txt">llms.txt</a></p>
+  </div>
+</footer>
+</body>
+</html>

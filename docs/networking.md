@@ -1,5 +1,7 @@
 # Networking
 
+Nodes in seedfall talk over a simulated network, so seedfall can delay, drop and cut messages between them. This page explains the two ways to connect your code to it: call seedfall's `sim.Listen` and `sim.Dial`, or leave your code alone and turn on `net_overlay`. Read it when nodes cannot reach each other or you are wiring up a new project.
+
 seedfall gives every node a simulated network: ordered TCP byte streams and unordered UDP datagrams with seeded latency, per-link latency overrides, partitions that hold TCP traffic until they heal and drop UDP datagrams, one-way clogs that stop, jam or slow a link, slow nodes, and connection resets when a peer crashes or a reset fault fires. Node names are host names, so a node named `server` is reachable at `server:7000`.
 
 How each network fault behaves and how to configure it is in [faults.md](faults.md#network-faults).

@@ -1,0 +1,769 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Configuration and faults · seedfall docs</title>
+<meta name="description" content="This is the reference for seedfall.json: every field, and every fault seedfall can inject, such as crashes, partly written disk writes, lost network messages and clock jumps. Use it to look up what a…">
+<meta property="og:title" content="Configuration and faults">
+<meta property="og:description" content="This is the reference for seedfall.json: every field, and every fault seedfall can inject, such as crashes, partly written disk writes, lost network messages and clock jumps. Use it to look up what a…">
+<link rel="alternate" type="text/markdown" href="faults.md">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../style.css">
+<link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+<header class="nav docs-nav">
+  <div class="wrap nav-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <nav class="links" aria-label="Site">
+      <a href="../">Home</a>
+      <a href="./" aria-current="true">Docs</a>
+      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="docs">
+  <div class="wrap docs-grid">
+    <aside class="docs-side">
+      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
+      <label class="docs-menu" for="docs-menu">Docs menu</label>
+      <nav class="docs-index" aria-label="Documentation">
+        <h2>Start here</h2>
+        <ul>
+          <li><a href="getting-started.html">Getting started</a></li>
+          <li><a href="install.html">Installing seedfall</a></li>
+          <li><a href="faq.html">FAQ</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+        </ul>
+        <h2>Find a bug</h2>
+        <ul>
+          <li><a href="networking.html">Networking</a></li>
+          <li><a href="properties.html">Properties and checks</a></li>
+          <li><a href="compat.html">Storage engines that need mmap or flock</a></li>
+          <li><a href="config.html">Config files, profiles and seeded disks</a></li>
+          <li><a href="explore.html">Feedback-guided exploration</a></li>
+          <li><a href="buggify.html">BUGGIFY</a></li>
+          <li><a href="mutate.html">Mutation testing your checks</a></li>
+          <li><a href="antithesis.html">Running Antithesis SDK code</a></li>
+          <li><a href="gostman.html">Use your Gostman collections as workloads</a></li>
+        </ul>
+        <h2>Understand a failure</h2>
+        <ul>
+          <li><a href="timeline.html">Timelines, logs and time-travel debugging</a></li>
+          <li><a href="cause.html">Causality analysis</a></li>
+          <li><a href="inspect.html">Inspecting the disk at the moment of failure</a></li>
+          <li><a href="verify.html">Proving a fix with seedfall verify</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+        </ul>
+        <h2>Use in CI</h2>
+        <ul>
+          <li><a href="ci.html">Running seedfall in CI</a></li>
+          <li><a href="agents.html">Using seedfall from AI coding agents</a></li>
+        </ul>
+        <h2>Reference</h2>
+        <ul>
+          <li><a href="faults.html" aria-current="page">Configuration and faults</a></li>
+          <li><a href="properties.html">Properties, linearizability and determinism</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          <li><a href="how-it-works.html">How seedfall works</a></li>
+          <li><a href="testing.html">Testing seedfall itself</a></li>
+          <li><a href="findings/">Findings</a></li>
+        </ul>
+        <h2>About the project</h2>
+        <ul>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
+        </ul>
+      </nav>
+    </aside>
+    <main class="docs-main">
+      <p class="docs-meta">
+        <a href="faults.md" type="text/markdown">View as Markdown, for AI agents</a>
+        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/faults.md">Edit on GitHub</a>
+      </p>
+      <article class="prose">
+<h1 id="configuration-and-faults">Configuration and faults</h1>
+<p>This is the reference for <code>seedfall.json</code>: every field, and every fault seedfall can inject, such as crashes, partly written disk writes, lost network messages and clock jumps. Use it to look up what a setting does or to design the failures you want to test. If you are new, start with <a href="getting-started.html">getting-started.md</a>.</p>
+<p>A world is described in a JSON file, <code>seedfall.json</code> by default. Paths inside it are relative to the file. One file can extend another, hold named profiles selected with <code>-profile</code>, take <code>-set path=value</code> overrides and start from a fault preset such as <code>&quot;faults&quot;: &quot;resilient&quot;</code>; see <a href="config.html">config.md</a>.</p>
+<pre><code class="language-json">{
+  &quot;nodes&quot;: [
+    { &quot;name&quot;: &quot;n1&quot;, &quot;pkg&quot;: &quot;./node&quot;, &quot;args&quot;: [&quot;-id&quot;, &quot;n1&quot;] },
+    { &quot;name&quot;: &quot;n2&quot;, &quot;pkg&quot;: &quot;./node&quot;, &quot;args&quot;: [&quot;-id&quot;, &quot;n2&quot;] }
+  ],
+  &quot;workload&quot;: { &quot;name&quot;: &quot;client&quot;, &quot;pkg&quot;: &quot;./client&quot; },
+  &quot;duration&quot;: &quot;60s&quot;,
+  &quot;latency&quot;: [&quot;1ms&quot;, &quot;5ms&quot;],
+  &quot;supervise&quot;: true,
+  &quot;faults&quot;: {
+    &quot;crash_per_sec&quot;: 0.5,
+    &quot;restart_after&quot;: [&quot;10ms&quot;, &quot;500ms&quot;],
+    &quot;partition_per_sec&quot;: 0.2,
+    &quot;partition_for&quot;: [&quot;50ms&quot;, &quot;1s&quot;],
+    &quot;torn_writes&quot;: true,
+    &quot;crash_on_io&quot;: 0.005,
+    &quot;fsync_eio&quot;: 0.01,
+    &quot;strict_dirs&quot;: true,
+    &quot;clock_skew&quot;: &quot;200ms&quot;,
+    &quot;pause_per_sec&quot;: 0.2,
+    &quot;clock_jump_per_sec&quot;: 0.05,
+    &quot;buggify&quot;: true,
+    &quot;swarm&quot;: true
+  }
+}
+</code></pre>
+<h2 id="world">World</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nodes[]</code></td>
+<td></td>
+<td>Crashable nodes. Each has a <code>name</code>, then either <code>pkg</code> (a Go package, built for wasip1 automatically) or <code>wasm</code> (a prebuilt module), plus optional <code>args</code>, <code>env</code>, <code>faults</code>, <code>disk</code>, <code>files</code> and <code>upgrade_to</code>. <code>disk</code> and <code>files</code> copy a host directory and host files onto the node's disk before it first starts, durable and synced, and <code>upgrade_to</code> names a package the node runs from its first restart on (<a href="config.html#seeded-disks-and-files">seeded disks</a>, <a href="config.html#upgrades">upgrades</a>). <code>&quot;faults&quot;: false</code> keeps every fault away from the node: it is never crashed, paused, slowed or skewed, its disk never fails, and partitions and clogs never cut its links, like Antithesis's fault exclusions. <code>sim.Buggify</code> sites in its own code still fire</td>
+</tr>
+<tr>
+<td><code>workload</code></td>
+<td></td>
+<td>The checker. Same fields as a node. It takes none of the per-node faults (crashes, pauses, clock skew and jumps, slowdowns, resets, disk faults) unless <code>faults.include_workload</code> or its own <code>&quot;faults&quot;: true</code> says so; partitions and clogs reach it like any node. The run passes when it exits 0</td>
+</tr>
+<tr>
+<td><code>workloads[]</code></td>
+<td></td>
+<td>Several workloads instead of, or next to, <code>workload</code>. Each is a client like <code>workload</code>, and the run passes when every one of them has exited 0. See <a href="#faults-on-the-workload">Faults on the workload</a></td>
+</tr>
+<tr>
+<td><code>finally</code></td>
+<td></td>
+<td>A check that starts only after every workload has exited 0, with all faults stopped and the network healed. Same fields as a node; it never takes faults. The run passes when it exits 0, and its properties count like any other. See <a href="properties.html#liveness-recovery-and-finally-checks">properties.md</a></td>
+</tr>
+<tr>
+<td><code>liveness.within</code></td>
+<td><code>0s</code> (off)</td>
+<td>Liveness mode. At <code>duration</code> the faults stop, partitions, clogs, slowdowns and pauses end, and crashed nodes restart at once; then the workload (and the <code>finally</code> check, if any) must finish within <code>within</code>, or the run fails with class <code>liveness</code></td>
+</tr>
+<tr>
+<td><code>duration</code></td>
+<td><code>30s</code></td>
+<td>Virtual-time horizon, and with <code>liveness</code> the end of the fault period. A run that reaches it without failing counts as passed and is reported as &quot;hit the time horizon&quot;; with <code>liveness</code>, reaching it starts the recovery phase instead</td>
+</tr>
+<tr>
+<td><code>latency</code></td>
+<td><code>[&quot;1ms&quot;, &quot;10ms&quot;]</code></td>
+<td>Per-chunk network delay range</td>
+</tr>
+<tr>
+<td><code>links[]</code></td>
+<td></td>
+<td>Per-link latency overrides, each <code>{&quot;from&quot;: &quot;n1&quot;, &quot;to&quot;: &quot;n2&quot;, &quot;latency&quot;: [&quot;20ms&quot;, &quot;80ms&quot;]}</code>. Links are one-way; leave out <code>from</code> or <code>to</code> to match any node, so <code>{&quot;to&quot;: &quot;n3&quot;, ...}</code> slows everything sent to <code>n3</code>. The first matching entry wins. See <a href="#network-faults">Network faults</a></td>
+</tr>
+<tr>
+<td><code>faults_after_setup</code></td>
+<td><code>false</code></td>
+<td>Suppress all faults until a node calls <code>sim.SetupComplete()</code></td>
+</tr>
+<tr>
+<td><code>supervise</code></td>
+<td><code>false</code></td>
+<td>Restart a node that exits with an error, after <code>restart_after</code>. Go panics (exit code 2) still fail the run, and so does a workload that exits with an error, even under <code>include_workload</code></td>
+</tr>
+<tr>
+<td><code>net_overlay</code></td>
+<td><code>false</code></td>
+<td>Route plain <code>net.Listen</code> / <code>net.Dial</code> through the simulated network. See <a href="networking.html">networking.md</a></td>
+</tr>
+<tr>
+<td><code>compat_overlay</code></td>
+<td><code>false</code></td>
+<td>Build dependencies that need <code>mmap</code> or <code>flock</code> with <code>wasip1</code> shims: a shim for bbolt, pebble or badger, or the generic shim for any dependency that calls <code>Mmap</code> or <code>Flock</code>. See <a href="compat.html">compat.md</a></td>
+</tr>
+<tr>
+<td><code>watchdog</code></td>
+<td><code>30s</code></td>
+<td>Real-time limit for one node to run without yielding. Catches busy loops and livelocks. With <code>preempt.loops</code>, a busy loop parks like any other node and a run that never finishes fails on <code>liveness</code> instead, which does not depend on the host</td>
+</tr>
+<tr>
+<td><code>preempt.strategy</code></td>
+<td><code>none</code></td>
+<td>When the running goroutine is preempted inside a node: <code>none</code> only at the end of a 4,194,304-call time slice, <code>random</code> after a seeded 1 to 4,096 counted calls, <code>pct</code> at <code>depth</code> - 1 seeded change points per node, each recorded as a <code>preempt</code> fault, <code>calls</code> every <code>preempt.calls</code> counted calls. See <a href="how-it-works.html#strategies">how-it-works.md</a></td>
+</tr>
+<tr>
+<td><code>preempt.interleave</code></td>
+<td><code>false</code></td>
+<td>Shorthand for <code>&quot;strategy&quot;: &quot;random&quot;</code>. While it is <code>true</code>, <code>strategy</code> can only be <code>random</code> or <code>none</code>, and <code>none</code> still means <code>random</code>, so a profile that switches strategy sets <code>interleave</code> to <code>false</code></td>
+</tr>
+<tr>
+<td><code>preempt.depth</code></td>
+<td><code>3</code></td>
+<td><code>pct</code>: the bug depth d to look for, giving d - 1 change points per node</td>
+</tr>
+<tr>
+<td><code>preempt.steps</code></td>
+<td><code>1048576</code></td>
+<td><code>pct</code>: the change points are drawn over each node's first <code>steps</code> counted calls. The trace's last <code>pct:</code> line shows how many each node ran</td>
+</tr>
+<tr>
+<td><code>preempt.calls</code></td>
+<td><code>4096</code></td>
+<td><code>calls</code>: counted calls between preemptions, at most 4,194,304</td>
+</tr>
+<tr>
+<td><code>preempt.loops</code></td>
+<td><code>false</code></td>
+<td>Count loop iterations as well as function calls, so a loop without calls is preempted, uses virtual time and lets other nodes run. Costs guest CPU. See <a href="how-it-works.html#loops">how-it-works.md</a></td>
+</tr>
+</tbody>
+</table></div>
+<p>Every node sees the environment variables <code>SEEDFALL=1</code> and <code>SEEDFALL_NODE=&lt;name&gt;</code>, so <code>sim.Enabled()</code> and <code>sim.Node()</code> work.</p>
+<h2 id="faults">Faults</h2>
+<p>All faults come from the seed. Faults that depend on what the program does, such as which disk operation a crash lands on, are recorded when they happen so that shrinking and replay are exact.</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>preset</code></td>
+<td></td>
+<td>Start from a built-in fault level, <code>none</code>, <code>durability</code>, <code>resilient</code>, <code>high_availability</code> or <code>everything</code>, each adding to the one before; fields set next to it override it, and <code>&quot;faults&quot;: &quot;resilient&quot;</code> is shorthand for <code>{&quot;preset&quot;: &quot;resilient&quot;}</code>. The values each level sets are in <a href="config.html#fault-presets">config.md</a></td>
+</tr>
+<tr>
+<td><code>crash_per_sec</code></td>
+<td><code>0</code></td>
+<td>Rate of crashes per node, at random points in time</td>
+</tr>
+<tr>
+<td><code>restart_after</code></td>
+<td><code>[&quot;10ms&quot;, &quot;1s&quot;]</code></td>
+<td>Downtime after a crash, and the delay before a supervised restart</td>
+</tr>
+<tr>
+<td><code>partition_per_sec</code></td>
+<td><code>0</code></td>
+<td>Rate of network partitions. A partition splits all nodes, workload included, into groups that cannot reach each other. A new partition replaces the previous one</td>
+</tr>
+<tr>
+<td><code>partition_for</code></td>
+<td><code>[&quot;50ms&quot;, &quot;2s&quot;]</code></td>
+<td>Partition duration. TCP traffic across the cut is held and delivered after the heal; UDP datagrams are dropped</td>
+</tr>
+<tr>
+<td><code>partition_topologies</code></td>
+<td><code>[&quot;half&quot;]</code></td>
+<td>Shapes a partition can take; each partition picks one at random. <code>half</code> (two random sides), <code>one</code> (isolate one node), <code>majority</code> (a random majority against the rest), <code>majorities_ring</code> (every node sees a majority, and no two nodes see the same one) and <code>random_groups</code> (two or more random groups). See <a href="#network-faults">Network faults</a></td>
+</tr>
+<tr>
+<td><code>clog_per_sec</code></td>
+<td><code>0</code></td>
+<td>Rate of clogs. A clog hits one direction of one link, or everything a node sends, receives, or both, and lasts <code>clog_for</code></td>
+</tr>
+<tr>
+<td><code>clog_for</code></td>
+<td><code>[&quot;100ms&quot;, &quot;2s&quot;]</code></td>
+<td>Clog duration, also the length of a swizzle</td>
+</tr>
+<tr>
+<td><code>clog_modes</code></td>
+<td><code>[&quot;stop&quot;, &quot;slow&quot;, &quot;jam&quot;]</code></td>
+<td>Modes a clog can take; each clog picks one at random. <code>stop</code> refuses new connections and holds traffic, <code>jam</code> holds connections and traffic without any error, <code>slow</code> adds <code>clog_delay</code> to every message. <code>stop</code> and <code>jam</code> drop UDP datagrams instead of holding them</td>
+</tr>
+<tr>
+<td><code>clog_delay</code></td>
+<td><code>[&quot;10ms&quot;, &quot;200ms&quot;]</code></td>
+<td>Extra latency per message of a <code>slow</code> clog, drawn once per clog</td>
+</tr>
+<tr>
+<td><code>swizzle_per_sec</code></td>
+<td><code>0</code></td>
+<td>Rate of swizzles (FoundationDB's swizzle-clogging): a random subset of nodes is clogged one node at a time, then unclogged in a different random order</td>
+</tr>
+<tr>
+<td><code>reset_per_sec</code></td>
+<td><code>0</code></td>
+<td>Rate of connection resets per node. Every open connection of the node is reset at once, as if a middlebox dropped them; the process keeps running and both ends see <code>ECONNRESET</code></td>
+</tr>
+<tr>
+<td><code>udp_loss</code></td>
+<td><code>0</code></td>
+<td>Probability that a UDP datagram is dropped. Each loss is recorded as a <code>udp_drop</code> fault with the sender and its datagram number. See <a href="#udp-datagrams">UDP datagrams</a></td>
+</tr>
+<tr>
+<td><code>udp_dup</code></td>
+<td><code>0</code></td>
+<td>Probability that a UDP datagram is delivered twice, the copies with independent latencies. Each one is recorded as a <code>udp_dup</code> fault</td>
+</tr>
+<tr>
+<td><code>slow_per_sec</code></td>
+<td><code>0</code></td>
+<td>Rate of slowdowns per node: a gray failure where the node stays up but everything it does takes longer</td>
+</tr>
+<tr>
+<td><code>slow_for</code></td>
+<td><code>[&quot;500ms&quot;, &quot;5s&quot;]</code></td>
+<td>Slowdown duration</td>
+</tr>
+<tr>
+<td><code>slow_factor</code></td>
+<td><code>10</code></td>
+<td>Largest slowdown. Each slowdown picks a factor between 1 and this value</td>
+</tr>
+<tr>
+<td><code>torn_writes</code></td>
+<td><code>false</code></td>
+<td>A crash keeps a random in-order prefix of unsynced writes, possibly ending in a partial write</td>
+</tr>
+<tr>
+<td><code>reorder_writes</code></td>
+<td><code>false</code></td>
+<td>A crash writes dirty pages back out of order, as the kernel does between fsyncs, within the limits of <code>fs_model</code>. This finds a commit record or header that reaches the disk before the data it points to. Combine with <code>torn_writes</code> to also tear the last write kept in each page. See <a href="#file-system-models">File system models</a></td>
+</tr>
+<tr>
+<td><code>fs_model</code></td>
+<td><code>ext4_ordered</code></td>
+<td>Which crash states <code>reorder_writes</code> may produce: <code>ext4_ordered</code>, <code>page_independent</code> or <code>dir_reorder</code>, which needs <code>strict_dirs</code>. Setting it without <code>reorder_writes</code> is an error. See <a href="#file-system-models">File system models</a></td>
+</tr>
+<tr>
+<td><code>crash_on_io</code></td>
+<td><code>0</code></td>
+<td>Probability that a node crashes <em>during</em> each disk operation. This is how you hit the window between a write and its fsync</td>
+</tr>
+<tr>
+<td><code>fsync_eio</code></td>
+<td><code>0</code></td>
+<td>Probability that a file fsync fails with <code>EIO</code>. The unsynced writes stay readable but are dropped from durable storage, and the next fsync succeeds (Linux &quot;fsyncgate&quot; semantics)</td>
+</tr>
+<tr>
+<td><code>disk_bytes</code></td>
+<td><code>0</code></td>
+<td>Size of each node's disk in bytes; <code>0</code> means unlimited. A write that does not fit writes what fits and returns the short count, and the next write fails with <code>ENOSPC</code>. See <a href="#disk-faults">Disk faults</a></td>
+</tr>
+<tr>
+<td><code>write_eio</code></td>
+<td><code>0</code></td>
+<td>Probability that a file write fails with <code>EIO</code> and writes nothing</td>
+</tr>
+<tr>
+<td><code>write_enospc</code></td>
+<td><code>0</code></td>
+<td>Probability that a file write fails with <code>ENOSPC</code> and writes nothing, however much space is free, as with a quota or a thin-provisioned volume</td>
+</tr>
+<tr>
+<td><code>read_eio</code></td>
+<td><code>0</code></td>
+<td>Probability that a file read fails with <code>EIO</code></td>
+</tr>
+<tr>
+<td><code>read_corrupt</code></td>
+<td><code>0</code></td>
+<td>Probability that a file read returns one flipped bit. The disk holds the right bytes, so reading again returns them</td>
+</tr>
+<tr>
+<td><code>lost_write</code></td>
+<td><code>0</code></td>
+<td>Probability that a file fsync succeeds but one 4 KiB page it should have written keeps its old content on disk. The program keeps reading the new content until a crash</td>
+</tr>
+<tr>
+<td><code>misdirected_write</code></td>
+<td><code>0</code></td>
+<td>Probability that a file fsync succeeds but one page lands at another page offset of the same file, overwriting what was there, while the intended page keeps its old content</td>
+</tr>
+<tr>
+<td><code>corrupt_on_crash</code></td>
+<td><code>false</code></td>
+<td>Each crash flips one bit in every file whose pending writes cover bytes that are on disk after the crash, somewhere in those bytes, as a sector half-written when the power failed</td>
+</tr>
+<tr>
+<td><code>bitrot_per_sec</code></td>
+<td><code>0</code></td>
+<td>Rate of bit rot per node: one bit of durable data, in a random file at a random offset, flips</td>
+</tr>
+<tr>
+<td><code>disk_latency</code></td>
+<td><code>[&quot;0s&quot;, &quot;0s&quot;]</code></td>
+<td>Extra time each fsync takes, drawn per fsync. Slow nodes stretch it</td>
+</tr>
+<tr>
+<td><code>mmap_early_writeback</code></td>
+<td><code>0</code></td>
+<td>Probability that a dirty page of a writable shared mapping is already written back when a node crashes. Needs a shared mapping through <code>compat_overlay</code>. Recorded as a <code>mmap_early_writeback</code> fault. See <a href="compat.html#early-writeback-of-mapped-pages">compat.md</a></td>
+</tr>
+<tr>
+<td><code>strict_dirs</code></td>
+<td><code>false</code></td>
+<td>Directory entries survive a crash only after the parent directory is fsynced (strict POSIX)</td>
+</tr>
+<tr>
+<td><code>clock_skew</code></td>
+<td><code>0</code></td>
+<td>Each node's wall clock is offset by a seeded amount in <code>[-skew, +skew]</code>. The monotonic clock is untouched, so timers and <code>time.Since</code> are unaffected</td>
+</tr>
+<tr>
+<td><code>pause_per_sec</code></td>
+<td><code>0</code></td>
+<td>Rate of process pauses per node. A paused node stops running, like a long GC pause or a stalled VM, then resumes without crashing. Its connections stay open and messages queue up</td>
+</tr>
+<tr>
+<td><code>pause_for</code></td>
+<td><code>[&quot;100ms&quot;, &quot;3s&quot;]</code></td>
+<td>Pause duration</td>
+</tr>
+<tr>
+<td><code>clock_jump_per_sec</code></td>
+<td><code>0</code></td>
+<td>Rate of wall-clock jumps per node. Each jump moves the node's wall clock forward or back by up to <code>clock_jump_max</code>; the monotonic clock is untouched</td>
+</tr>
+<tr>
+<td><code>clock_jump_max</code></td>
+<td><code>10s</code></td>
+<td>Largest clock jump in either direction</td>
+</tr>
+<tr>
+<td><code>buggify</code></td>
+<td><code>false</code></td>
+<td>Let <code>sim.Buggify</code> and <code>sim.BuggifyWithProb</code> sites in your code fire. Each site is enabled in a quarter of runs and then fires at its own rate; every firing is recorded as a <code>buggify</code> fault with its node, site and hit number. See <a href="buggify.html">buggify.md</a></td>
+</tr>
+<tr>
+<td><code>include_workload</code></td>
+<td><code>false</code></td>
+<td>Give the workloads the per-node faults too: crashes, pauses, clock skew and jumps, slowdowns, connection resets and disk faults. A crashed workload restarts as a fresh process after <code>restart_after</code>, with the same name and its disk as the crash left it. See <a href="#faults-on-the-workload">Faults on the workload</a></td>
+</tr>
+<tr>
+<td><code>swarm</code></td>
+<td><code>false</code></td>
+<td>Swarm testing. Each seed turns every fault type on or off and rescales its rate between 0 and 2× the configured value, so faults that hide each other get explored separately</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="faults-on-the-workload">Faults on the workload</h2>
+<p>By default the workload is the one process that never crashes, so a client's own retry, idempotency and session logic is never tested: what happens when a client restarts halfway through a write and sends it again? Set <code>&quot;include_workload&quot;: true</code> to change that:</p>
+<pre><code class="language-json">&quot;workload&quot;: { &quot;name&quot;: &quot;client&quot;, &quot;pkg&quot;: &quot;./client&quot; },
+&quot;faults&quot;: { &quot;include_workload&quot;: true, &quot;crash_per_sec&quot;: 0.3, &quot;pause_per_sec&quot;: 0.3 }
+</code></pre>
+<ul>
+<li>A crashed workload restarts as a fresh process after <code>restart_after</code>, like a node. It keeps its name, so <code>sim.Node()</code> and any client id derived from it stay the same, and it finds its disk as the crash left it. A client that saves its progress there can resume; one that keeps it in memory starts over.</li>
+<li>A workload crash does not end the run. The run passes only when the last incarnation of every workload exits 0.</li>
+<li>Operations the crashed workload had recorded with <code>sim.Put</code>, <code>sim.Get</code>, <code>sim.Invoke</code> or <code>sim.Txn</code> and not yet completed stay open, and the trace says how many (<code>client#1 died with 2 operations in flight, their outcome is unknown</code>). The history check treats an open write as one that may take effect at any time after it started, and drops open reads, so the check stays sound under every <a href="properties.html#other-models">model</a>.</li>
+<li>Per node, <code>&quot;faults&quot;: true</code> or <code>false</code> overrides the default: <code>true</code> on one of several workloads faults only that one, and <code>false</code> on a node keeps it out of every fault, network faults included.</li>
+</ul>
+<p><code>workloads[]</code> runs several clients side by side, each its own process, so one can crash while the others keep going:</p>
+<pre><code class="language-json">&quot;workloads&quot;: [
+  { &quot;name&quot;: &quot;writer&quot;, &quot;pkg&quot;: &quot;./client&quot;, &quot;args&quot;: [&quot;-mode&quot;, &quot;write&quot;], &quot;faults&quot;: true },
+  { &quot;name&quot;: &quot;reader&quot;, &quot;pkg&quot;: &quot;./client&quot;, &quot;args&quot;: [&quot;-mode&quot;, &quot;read&quot;] }
+]
+</code></pre>
+<p><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/examples/liveness"><code>examples/liveness</code></a> has a client that saves its progress and resends the add in flight after a crash. Without request deduplication on the server, one crash during an add applies it twice.</p>
+<h2 id="network-faults">Network faults</h2>
+<p>Every network fault is directional underneath: it decides what happens to traffic from one node to another. A connection needs both directions to open, so a stopped direction either way refuses a dial, and a jammed one holds it.</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>New connections</th>
+<th>Data in flight</th>
+<th>Errors the program sees</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>partition, or clog <code>stop</code></td>
+<td>refused</td>
+<td>held, delivered after the heal</td>
+<td><code>ECONNREFUSED</code> on dial</td>
+</tr>
+<tr>
+<td>clog <code>jam</code></td>
+<td>accepted only after the clog lifts</td>
+<td>held, delivered after the clog lifts</td>
+<td>none, only timeouts</td>
+</tr>
+<tr>
+<td>clog <code>slow</code></td>
+<td>accepted <code>clog_delay</code> later when the slow direction points at the listener</td>
+<td>arrives <code>clog_delay</code> later, in order</td>
+<td>none</td>
+</tr>
+</tbody>
+</table></div>
+<p>A clog targets one of four shapes, chosen at random: one link in one direction (<code>n1 -&gt; n2</code>), or a node's inbound, outbound, or inbound and outbound traffic. A one-way partition, where <code>n1</code> can hear <code>n2</code> but <code>n2</code> cannot hear <code>n1</code>, is a <code>stop</code> clog on one link or an outbound clog on one node. Faults stack: a slow clog over a partition adds its delay to the held traffic.</p>
+<p>Partition topologies follow Jepsen's nemeses. <code>half</code> is the original random split and stays the default, so existing seeds keep their schedules. <code>majority</code> needs at least 3 nodes and <code>majorities_ring</code> at least 4, workload included; the config is rejected otherwise. A ring partition is written as overlapping groups, and two nodes can talk only if some group holds both.</p>
+<p>A slowdown by factor F stretches everything the node waits for: its timers and sleeps take F times as long, every message it sends or receives takes F times its latency, and a goroutine that spins is parked F times as long. The node still reads the true time, so it sees its own timeouts fire late, the way an overloaded machine does. CPU work between two waits stays free, as it is for every node in seedfall.</p>
+<p><code>sim.QuietFor</code> and the recovery phase of <code>liveness</code> heal every partition, clog and slowdown at once.</p>
+<p>In a fault schedule, the new kinds look like this:</p>
+<pre><code class="language-json">{ &quot;at&quot;: &quot;1.2s&quot;, &quot;kind&quot;: &quot;partition&quot;, &quot;groups&quot;: [[&quot;n1&quot;, &quot;n2&quot;], [&quot;n2&quot;, &quot;n3&quot;], [&quot;n3&quot;, &quot;client&quot;], [&quot;client&quot;, &quot;n1&quot;]], &quot;until&quot;: &quot;2s&quot; }
+{ &quot;at&quot;: &quot;1.5s&quot;, &quot;kind&quot;: &quot;clog&quot;, &quot;from&quot;: &quot;n1&quot;, &quot;to&quot;: &quot;n2&quot;, &quot;mode&quot;: &quot;stop&quot;, &quot;until&quot;: &quot;3s&quot; }
+{ &quot;at&quot;: &quot;1.6s&quot;, &quot;kind&quot;: &quot;clog&quot;, &quot;node&quot;: &quot;n3&quot;, &quot;dir&quot;: &quot;out&quot;, &quot;mode&quot;: &quot;slow&quot;, &quot;delay&quot;: &quot;80ms&quot;, &quot;until&quot;: &quot;2.4s&quot; }
+{ &quot;at&quot;: &quot;2.1s&quot;, &quot;kind&quot;: &quot;net_reset&quot;, &quot;node&quot;: &quot;n2&quot;, &quot;until&quot;: &quot;2.1s&quot; }
+{ &quot;at&quot;: &quot;2.5s&quot;, &quot;kind&quot;: &quot;slow&quot;, &quot;node&quot;: &quot;n1&quot;, &quot;factor&quot;: 4.5, &quot;until&quot;: &quot;6s&quot; }
+</code></pre>
+<p><code>dir</code> is <code>in</code>, <code>out</code> or <code>both</code>. A swizzle shows up as a run of <code>both</code> clogs in <code>stop</code> mode. Like every other planned fault, each one replays and shrinks on its own, appears in the trace, <code>seedfall cause</code> and the report, and joins swarm testing.</p>
+<h3 id="udp-datagrams">UDP datagrams</h3>
+<p>TCP traffic is a byte stream, where the kernel retransmits and deduplicates, so a program never sees a packet dropped or repeated on a connection. A UDP program does. <code>udp_loss</code> and <code>udp_dup</code> are probabilities per datagram, drawn from their own stream of the seed, so they take no draws from any other fault:</p>
+<pre><code class="language-json">{ &quot;faults&quot;: { &quot;udp_loss&quot;: 0.05, &quot;udp_dup&quot;: 0.02 } }
+</code></pre>
+<p>A partition or a clog that stops or jams a link also drops a datagram sent across it, rather than holding it for the heal, and a <code>slow</code> clog delays it. Datagrams that a link or a missing socket drops are consequences of the rest of the schedule, so they are not faults of their own: only <code>udp_loss</code> and <code>udp_dup</code> choices are recorded. They count per sender node, from 1, across restarts:</p>
+<pre><code class="language-json">{ &quot;at&quot;: &quot;2.1s&quot;, &quot;kind&quot;: &quot;udp_drop&quot;, &quot;node&quot;: &quot;n1&quot;, &quot;to&quot;: &quot;n2&quot;, &quot;op&quot;: 17, &quot;until&quot;: &quot;0s&quot; }
+{ &quot;at&quot;: &quot;2.2s&quot;, &quot;kind&quot;: &quot;udp_dup&quot;, &quot;node&quot;: &quot;n2&quot;, &quot;to&quot;: &quot;n3&quot;, &quot;op&quot;: 9, &quot;until&quot;: &quot;0s&quot; }
+</code></pre>
+<p><code>op</code> is the number of the datagram the sender sent, and the fault fires on that datagram whatever its destination; <code>to</code> is a record of where it went. Both replay exactly, shrink like any fault recorded at runtime, can be edited with <code>seedfall faults</code>, and join swarm testing. They do not apply when <code>faults</code> is off for either end of the datagram, or during a quiet period or the recovery phase. Semantics of sockets and addresses are in <a href="networking.html#udp">networking.md</a>.</p>
+<h2 id="disk-faults">Disk faults</h2>
+<h2 id="file-system-models">File system models</h2>
+<p><code>reorder_writes</code> turns on out-of-order writeback at a crash. <code>fs_model</code> says which states a crash may then leave behind. A model that is too weak reports bugs your file system cannot produce; one that is too strong misses bugs it can. The models follow Table 1 of ALICE (<a href="https://www.usenix.org/system/files/conference/osdi14/osdi14-paper-pillai.pdf">All File Systems Are Not Created Equal</a>, OSDI '14), which measured these properties on real file systems.</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th><code>fs_model</code></th>
+<th>File contents</th>
+<th>Directory operations (<code>strict_dirs</code>)</th>
+<th>Matches</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ext4_ordered</code> (default)</td>
+<td>Appends and truncates of one file persist as an in-order prefix, split at 4 KiB page boundaries. Overwrites of existing bytes persist per page in any order, independently of the appends. Bytes past the surviving file size are not kept</td>
+<td>An in-order prefix of the pending operations, under <code>torn_writes</code></td>
+<td>ext4 <code>data=ordered</code></td>
+</tr>
+<tr>
+<td><code>page_independent</code></td>
+<td>Any subset of the dirty pages of a file, in order within each page. A later appended page can survive without an earlier one, leaving zeros in the gap</td>
+<td>As <code>ext4_ordered</code></td>
+<td>Aggressive: useful to find code that depends on append order, but it reaches states ext4 <code>data=ordered</code> does not. ALICE records this for ext2, ext3 and ext4 in <code>writeback</code> mode, not for <code>ordered</code></td>
+</tr>
+<tr>
+<td><code>dir_reorder</code></td>
+<td>As <code>page_independent</code></td>
+<td>Each pending operation survives independently, so a rename can persist without the create before it</td>
+<td>ext2 and btrfs, where ALICE found directory operations persist out of order</td>
+</tr>
+</tbody>
+</table></div>
+<p>Details that follow from these rules:</p>
+<ul>
+<li>Models apply per file. Different files are independent, so an append to one file can survive while an earlier append to another is lost. ALICE records <code>Append -&gt; Any op</code> failing on ext4 <code>ordered</code> for this reason (delayed allocation).</li>
+<li>Under <code>ext4_ordered</code> a crash that keeps an overwrite past the surviving file size keeps nothing of it, because that page was never part of the file on disk.</li>
+<li>A single directory operation is atomic in every model, as on btrfs. ext2 can also tear one rename so that both names or neither survive; that is not modelled.</li>
+<li>Plain <code>torn_writes</code> without <code>reorder_writes</code> does not use <code>fs_model</code>: it keeps an in-order prefix of all pending writes.</li>
+</ul>
+<p><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/examples/symswap"><code>examples/symswap</code></a> shows the difference. It publishes each generation by renaming a symlink over <code>current</code>, and fsyncs the new generation's file but not its directory entry first. Under <code>ext4_ordered</code> it passes, because a journal keeps directory operations in order. Under <code>dir_reorder</code> the rename can survive without the create, and <code>current</code> points at nothing.</p>
+<p>Crashes, torn writes, <code>reorder_writes</code> and <code>fsync_eio</code> test what survives a crash. The faults below test what a storage engine does when the disk itself misbehaves: it fills up, it fails an operation, or it hands back or keeps the wrong bytes. These are the paths that WAL recovery and checksum code exist for, and the ones that are hardest to reach with a real disk.</p>
+<pre><code class="language-json">&quot;faults&quot;: {
+  &quot;crash_per_sec&quot;: 0.5,
+  &quot;torn_writes&quot;: true,
+  &quot;disk_bytes&quot;: 1048576,
+  &quot;write_eio&quot;: 0.01,
+  &quot;read_eio&quot;: 0.01,
+  &quot;read_corrupt&quot;: 0.05,
+  &quot;lost_write&quot;: 0.01,
+  &quot;misdirected_write&quot;: 0.01,
+  &quot;corrupt_on_crash&quot;: true,
+  &quot;bitrot_per_sec&quot;: 0.2,
+  &quot;disk_latency&quot;: [&quot;1ms&quot;, &quot;20ms&quot;]
+}
+</code></pre>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Fault</th>
+<th>What the program sees</th>
+<th>What is on disk afterwards</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>disk_bytes</code></td>
+<td>A short write, then <code>ENOSPC</code> on the next write. Overwrites inside a file always fit, and space comes back when files shrink or are removed</td>
+<td>What fitted</td>
+</tr>
+<tr>
+<td><code>write_eio</code>, <code>write_enospc</code></td>
+<td>The write fails</td>
+<td>Nothing from that write</td>
+</tr>
+<tr>
+<td><code>read_eio</code></td>
+<td>The read fails</td>
+<td>Unchanged</td>
+</tr>
+<tr>
+<td><code>read_corrupt</code></td>
+<td>One bit flipped in the bytes returned by one read</td>
+<td>Unchanged</td>
+</tr>
+<tr>
+<td><code>lost_write</code></td>
+<td>fsync succeeds, and reads return the new content</td>
+<td>One page has its old content; zeros if the page is new. The next fsync that rewrites the page writes it in full</td>
+</tr>
+<tr>
+<td><code>misdirected_write</code></td>
+<td>fsync succeeds, and reads return the new content</td>
+<td>The intended page has its old content, and another page of the file holds the new one</td>
+</tr>
+<tr>
+<td><code>corrupt_on_crash</code></td>
+<td>After the restart, one flipped bit per file among the bytes that were being written</td>
+<td>Same</td>
+</tr>
+<tr>
+<td><code>bitrot_per_sec</code></td>
+<td>The flipped bit, from the moment it happens, unless that byte has a pending write</td>
+<td>One flipped bit</td>
+</tr>
+<tr>
+<td><code>disk_latency</code></td>
+<td>fsync takes longer</td>
+<td>Unchanged</td>
+</tr>
+</tbody>
+</table></div>
+<p>How each one is modelled, and where it stops:</p>
+<ul>
+<li><strong>Disk usage</strong> is the sum of every file's size on the node. Holes left by <code>Truncate</code> or by writing past the end count in full, so sparse files use more space than on ext4 or XFS. Directories and metadata use none. A <code>Truncate</code> that grows a file is never refused.</li>
+<li><strong><code>ENOSPC</code> reaches your code as <code>ENOSPC</code>.</strong> wazero's WASI layer has no <code>ENOSPC</code> and reports <code>EIO</code> for it, so seedfall rewrites the result of <code>fd_write</code> and <code>fd_pwrite</code> when the simulated disk was full, and <code>errors.Is(err, syscall.ENOSPC)</code> works in the guest.</li>
+<li><strong>Read and write errors</strong> apply to file reads and writes only. Directory listings, <code>stat</code>, <code>open</code> and <code>Truncate</code> never fail.</li>
+<li><strong>Corrupted reads</strong> flip one bit in the buffer of one read, as a bad cable or controller would. A checksum plus a retry handles them; a checksum alone turns them into an error.</li>
+<li><strong>Lost and misdirected writes</strong> pick one dirty page of the file being fsynced. The page cache keeps the right content, because the drive acknowledged the write, so the program only notices after a crash, or never if the page is rewritten first. A misdirected write stays inside the file; writes landing in another file are not modelled. A file needs at least two pages for a misdirected write.</li>
+<li><strong>Crash corruption</strong> damages only bytes that were being written when the node crashed. With plain crashes, unsynced writes are dropped, so it matters only where they survive: with <code>torn_writes</code>, <code>reorder_writes</code> or <code>crash_on_io</code>. If the damaged range overlapped older durable data, that data is what flips.</li>
+<li><strong>Bit rot</strong> picks a byte uniformly over all durable data on the node, so large files are hit more often.</li>
+<li><strong>Latency</strong> applies to file and directory fsyncs only, not to reads or writes, which go to the page cache. The whole node waits, because a wasip1 guest runs every goroutine on one thread.</li>
+</ul>
+<p>Every one of them comes from the seed and replays exactly. The rates are drawn per operation, like <code>crash_on_io</code>, and each firing is recorded with its node and operation number: <code>disk op #N</code> counts the node's writes, truncates and fsyncs, and <code>disk read #N</code> counts its reads. Which page or bit is hit comes from a stream keyed by the seed, the fault kind, the node and that number, so it does not change when shrinking removes other faults. Bit rot is planned in time like a crash. In a fault schedule they look like this:</p>
+<pre><code class="language-json">{ &quot;at&quot;: &quot;1.942589003s&quot;, &quot;kind&quot;: &quot;read_corrupt&quot;, &quot;node&quot;: &quot;server&quot;, &quot;op&quot;: 3, &quot;path&quot;: &quot;data/kv.log&quot;, &quot;offset&quot;: 70, &quot;until&quot;: &quot;0s&quot; }
+{ &quot;at&quot;: &quot;912.496ms&quot;, &quot;kind&quot;: &quot;write_eio&quot;, &quot;node&quot;: &quot;server&quot;, &quot;op&quot;: 67, &quot;path&quot;: &quot;data/kv.log&quot;, &quot;until&quot;: &quot;0s&quot; }
+{ &quot;at&quot;: &quot;2.601158s&quot;, &quot;kind&quot;: &quot;lost_write&quot;, &quot;node&quot;: &quot;server&quot;, &quot;op&quot;: 232, &quot;path&quot;: &quot;data/kv.log&quot;, &quot;until&quot;: &quot;0s&quot; }
+{ &quot;at&quot;: &quot;5.259168s&quot;, &quot;kind&quot;: &quot;misdirected_write&quot;, &quot;node&quot;: &quot;server&quot;, &quot;op&quot;: 558, &quot;path&quot;: &quot;data/kv.log&quot;, &quot;offset&quot;: 4096, &quot;until&quot;: &quot;0s&quot; }
+{ &quot;at&quot;: &quot;657.015787ms&quot;, &quot;kind&quot;: &quot;bitrot&quot;, &quot;node&quot;: &quot;server&quot;, &quot;path&quot;: &quot;data/kv.log&quot;, &quot;offset&quot;: 22, &quot;until&quot;: &quot;657.015787ms&quot; }
+{ &quot;at&quot;: &quot;36ms&quot;, &quot;kind&quot;: &quot;mmap_early_writeback&quot;, &quot;node&quot;: &quot;server&quot;, &quot;op&quot;: 3, &quot;path&quot;: &quot;data/pages&quot;, &quot;offset&quot;: 65536, &quot;until&quot;: &quot;0s&quot; }
+</code></pre>
+<p>The other kinds are <code>write_enospc</code> and <code>read_eio</code>. A recorded fault fires at the operation its <code>kind</code>, <code>node</code> and <code>op</code> name, and bit rot fires at <code>at</code>. <code>path</code>, <code>offset</code> and <code>target</code> are filled in by the run so that you can read the schedule, and are left out when they are 0. <code>seedfall inspect</code> lists every damaged range of a file under <code>corrupted ranges</code>, and with <code>disk_bytes</code> shows how full each disk is. Disk usage and latency are settings, not faults, so swarm testing leaves them alone and toggles the rest.</p>
+<p><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/examples/kvlog"><code>examples/kvlog</code></a> shows each one: a corrupted read changes an acknowledged value, a checksum with a re-read fixes it, and a lost write, a misdirected write or bit rot breaks a store that keeps one copy, with or without checksums.</p>
+<h2 id="editing-a-schedule">Editing a schedule</h2>
+<p>A fault schedule (<code>.seedfall/seed-N.faults.json</code> from <code>shrink</code>, an artifact's <code>faults.json</code>, or a pinned regression) is a list of faults that a replay applies instead of drawing new ones. Changing one fault and replaying is the quickest way to test an explanation of a failure. <code>seedfall faults</code> makes the change and checks it:</p>
+<pre><code class="language-sh">seedfall faults -c seedfall.always.json -seed 1 -faults torntail.faults.json -remove 1 -out hypothesis.json
+seedfall replay -c seedfall.always.json -seed 1 -faults hypothesis.json
+</code></pre>
+<pre><code>seed 1, 1 faults from torntail.faults.json, wrote hypothesis.json
+  1    802ms  crash server, restart at 802ms
+duration 991ms
+replay: seedfall replay -c seedfall.always.json -seed 1 -faults hypothesis.json
+</code></pre>
+<p>On kvlog's <code>seedfall.always.json</code>, seed 1 fails with <code>torntail.faults.json</code>, still fails with the crash during disk op #56 moved one operation earlier (<code>-shift 1=-1</code>), and passes once that crash is removed. That pass is within the schedule's shrunk 991ms, and the replay prints a note saying so: it shows the crash is necessary for this failure, not that the store is fixed.</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>-faults</code></td>
+<td>The schedule to start from. Without it, <code>.seedfall/seed-N.faults.json</code> next to the config, or, when that file does not exist, the faults seed N draws on its own, which takes one run</td>
+</tr>
+<tr>
+<td><code>-remove N</code></td>
+<td>Remove the fault at position N, counting from 1 as listed. Repeatable</td>
+</tr>
+<tr>
+<td><code>-shift N=AMOUNT</code></td>
+<td>Move fault N. A timed fault moves by a signed duration (<code>2=-50ms</code>), together with its <code>until</code>. A fault that fires at a disk operation, read, buggify hit, counted call or udp datagram (<code>crash_io</code>, <code>fsync_eio</code>, <code>write_eio</code>, <code>write_enospc</code>, <code>read_eio</code>, <code>read_corrupt</code>, <code>lost_write</code>, <code>misdirected_write</code>, <code>buggify</code>, <code>preempt</code>, <code>udp_drop</code>, <code>udp_dup</code>, <code>mmap_early_writeback</code>) moves by a signed count of those (<code>1=+2</code>), because its <code>at</code> only records when it happened. Repeatable</td>
+</tr>
+<tr>
+<td><code>-add JSON</code></td>
+<td>Add a fault in the format shown in this page, for example <code>{&quot;at&quot;:&quot;1s&quot;,&quot;kind&quot;:&quot;pause&quot;,&quot;node&quot;:&quot;server&quot;,&quot;until&quot;:&quot;1.5s&quot;}</code>. Repeatable</td>
+</tr>
+<tr>
+<td><code>-out</code></td>
+<td>Write the result here. Without it, the schedule is written back to the file it came from</td>
+</tr>
+</tbody>
+</table></div>
+<p>Positions in <code>-remove</code> and <code>-shift</code> always refer to the schedule as it was before the edit. An edited schedule drops the <code>shrunk_from</code> and <code>shrink_runs</code> that <code>shrink</code> recorded, since it is no longer what shrink found. The result is sorted by <code>at</code> and checked against the config before anything is written:</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Applies to</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>kind</code> is a fault kind seedfall knows</td>
+<td>every fault</td>
+</tr>
+<tr>
+<td><code>node</code>, <code>from</code>, <code>to</code>, <code>side</code> and <code>groups</code> name nodes of the config</td>
+<td>every fault</td>
+</tr>
+<tr>
+<td><code>at</code> is not negative</td>
+<td>every fault</td>
+</tr>
+<tr>
+<td><code>at</code> is not after the end of the run: the schedule's <code>duration</code>, else the config's</td>
+<td>every fault except those that fire at a disk operation, read, buggify hit, counted call or udp datagram, whose <code>at</code> only records when it happened</td>
+</tr>
+<tr>
+<td><code>until</code> is not before <code>at</code></td>
+<td><code>crash</code>, <code>crash_io</code>, <code>partition</code>, <code>pause</code>, <code>clog</code>, <code>slow</code></td>
+</tr>
+<tr>
+<td><code>side</code> or <code>groups</code>, not both</td>
+<td><code>partition</code></td>
+</tr>
+<tr>
+<td><code>mode</code> is <code>stop</code>, <code>slow</code> or <code>jam</code>; <code>dir</code> is <code>in</code>, <code>out</code> or <code>both</code> with a <code>node</code>, or empty with two different nodes in <code>from</code> and <code>to</code></td>
+<td><code>clog</code></td>
+</tr>
+<tr>
+<td><code>node</code> is set</td>
+<td>every kind except <code>partition</code> and <code>clog</code></td>
+</tr>
+<tr>
+<td><code>factor</code> is at least 1</td>
+<td><code>slow</code></td>
+</tr>
+<tr>
+<td><code>op</code> is at least 1, a <code>buggify</code> fault names its <code>site</code>, and a <code>preempt</code> fault needs <code>preempt.strategy</code> <code>pct</code> in the config</td>
+<td>faults that fire at a disk operation, read, buggify hit, counted call or udp datagram</td>
+</tr>
+</tbody>
+</table></div>
+<p>Without any edit, <code>seedfall faults</code> only lists and checks the schedule, and writes it only when it came from the seed's own faults, so that there is a file to edit. Over MCP, <code>seedfall_faults_edit</code> takes the same edits as JSON (<a href="agents.html#tools">agents.md</a>).</p>
+<p>A schedule file can also hold <code>branches</code>, which <a href="explore.html"><code>seedfall explore</code></a> writes for a failure it found by branching:</p>
+<pre><code class="language-json">&quot;branches&quot;: [{ &quot;at&quot;: &quot;921.003003ms&quot;, &quot;key&quot;: 257366709774643251 }, { &quot;at&quot;: &quot;1.2s&quot;, &quot;key&quot;: 9, &quot;stream&quot;: &quot;sched&quot; }]
+</code></pre>
+<p>Each branch re-keys the seed's random streams at the first scheduler step at or after <code>at</code>, in order. Without <code>stream</code> it re-keys every stream; with one of <code>sched</code>, <code>net</code>, <code>disk</code>, <code>io</code>, <code>udp</code>, <code>disklatency</code>, <code>mutant</code> or <code>random</code> it re-keys only that one. Re-keying <code>io</code> or <code>udp</code> changes nothing in a schedule, because those streams only decide faults and a schedule already fixes them; <code>mutant</code> matters only under <code>seedfall mutate</code>. <code>replay</code>, <code>shrink</code>, <code>inspect</code>, <code>debug</code>, <code>logs</code> and <code>pin</code> all honor them, and <code>at</code> values must not decrease.</p>
+<h2 id="choosing-rates">Choosing rates</h2>
+<p>Start with crashes and torn writes, then add <code>crash_on_io</code> around <code>0.005</code>, so a few hundred disk operations per run produce one or two mid-operation crashes. Add <code>fsync_eio</code>, <code>strict_dirs</code> and <code>reorder_writes</code> once the basic durability path passes. For consensus and leader-election code, add <code>partition_topologies</code> beyond <code>half</code>, then <code>clog_per_sec</code> and <code>slow_per_sec</code>: one-way links and slow leaders are the gray failures that break leases and stale-read checks. For a storage engine, add <code>disk_bytes</code> and <code>write_eio</code> to test the error paths of every write, then <code>read_corrupt</code> and <code>corrupt_on_crash</code> to test checksums. <code>lost_write</code>, <code>misdirected_write</code> and <code>bitrot_per_sec</code> lose data that a single copy cannot get back, so use them on replicated systems, or to check that a single node notices and stops instead of serving wrong data. Turn on <code>buggify</code> once you have marked sites in your code that should sometimes take the rare path. Turn on <code>swarm</code> for long CI sweeps. Use property coverage (<a href="properties.html">properties.md</a>) to confirm the faults are actually reaching the code you care about.</p>
+<h2 id="durations">Durations</h2>
+<p>Every duration is a Go duration string, such as <code>&quot;250ms&quot;</code> or <code>&quot;2s&quot;</code>. Ranges are two-element arrays.</p>
+
+      </article>
+    </main>
+  </div>
+</div>
+<footer class="foot">
+  <div class="wrap foot-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../llms.txt">llms.txt</a></p>
+  </div>
+</footer>
+</body>
+</html>

@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Triage reports · seedfall docs</title>
+<meta name="description" content="A big sweep can find many failing seeds that come from only a few bugs. Reports group them into findings, label each one as new or old, remember history between runs, and can post to Slack, Discord…">
+<meta property="og:title" content="Triage reports">
+<meta property="og:description" content="A big sweep can find many failing seeds that come from only a few bugs. Reports group them into findings, label each one as new or old, remember history between runs, and can post to Slack, Discord…">
+<link rel="alternate" type="text/markdown" href="reports.md">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../style.css">
+<link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+<header class="nav docs-nav">
+  <div class="wrap nav-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <nav class="links" aria-label="Site">
+      <a href="../">Home</a>
+      <a href="./" aria-current="true">Docs</a>
+      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="docs">
+  <div class="wrap docs-grid">
+    <aside class="docs-side">
+      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
+      <label class="docs-menu" for="docs-menu">Docs menu</label>
+      <nav class="docs-index" aria-label="Documentation">
+        <h2>Start here</h2>
+        <ul>
+          <li><a href="getting-started.html">Getting started</a></li>
+          <li><a href="install.html">Installing seedfall</a></li>
+          <li><a href="faq.html">FAQ</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+        </ul>
+        <h2>Find a bug</h2>
+        <ul>
+          <li><a href="networking.html">Networking</a></li>
+          <li><a href="properties.html">Properties and checks</a></li>
+          <li><a href="compat.html">Storage engines that need mmap or flock</a></li>
+          <li><a href="config.html">Config files, profiles and seeded disks</a></li>
+          <li><a href="explore.html">Feedback-guided exploration</a></li>
+          <li><a href="buggify.html">BUGGIFY</a></li>
+          <li><a href="mutate.html">Mutation testing your checks</a></li>
+          <li><a href="antithesis.html">Running Antithesis SDK code</a></li>
+          <li><a href="gostman.html">Use your Gostman collections as workloads</a></li>
+        </ul>
+        <h2>Understand a failure</h2>
+        <ul>
+          <li><a href="timeline.html">Timelines, logs and time-travel debugging</a></li>
+          <li><a href="cause.html">Causality analysis</a></li>
+          <li><a href="inspect.html">Inspecting the disk at the moment of failure</a></li>
+          <li><a href="verify.html">Proving a fix with seedfall verify</a></li>
+          <li><a href="reports.html" aria-current="page">Triage reports</a></li>
+        </ul>
+        <h2>Use in CI</h2>
+        <ul>
+          <li><a href="ci.html">Running seedfall in CI</a></li>
+          <li><a href="agents.html">Using seedfall from AI coding agents</a></li>
+        </ul>
+        <h2>Reference</h2>
+        <ul>
+          <li><a href="faults.html">Configuration and faults</a></li>
+          <li><a href="properties.html">Properties, linearizability and determinism</a></li>
+          <li><a href="reports.html" aria-current="page">Triage reports</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          <li><a href="how-it-works.html">How seedfall works</a></li>
+          <li><a href="testing.html">Testing seedfall itself</a></li>
+          <li><a href="findings/">Findings</a></li>
+        </ul>
+        <h2>About the project</h2>
+        <ul>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
+        </ul>
+      </nav>
+    </aside>
+    <main class="docs-main">
+      <p class="docs-meta">
+        <a href="reports.md" type="text/markdown">View as Markdown, for AI agents</a>
+        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/reports.md">Edit on GitHub</a>
+      </p>
+      <article class="prose">
+<h1 id="triage-reports">Triage reports</h1>
+<p>A big sweep can find many failing seeds that come from only a few bugs. Reports group them into findings, label each one as new or old, remember history between runs, and can post to Slack, Discord or GitHub. Use this page when you run seedfall at scale or in CI and want to triage instead of reading one failure at a time.</p>
+<pre><code class="language-sh">seedfall run -c seedfall.json -seeds 1-500 -report .seedfall/report.html
+</code></pre>
+<p>With <code>-report</code>, a sweep keeps going after the first failure, groups every failing seed into findings, and writes an HTML report plus a JSON version next to it (<code>report.json</code>). The <code>-report</code> path must not end in <code>.json</code>, since that is where the JSON version goes. The terminal prints a summary:</p>
+<pre><code>16 of 60 seeds failed, 1 findings, in 4.867s
+  new       assert · client                             16 seeds  e.g. seed 1  bug
+report: .seedfall/report.html
+</code></pre>
+<h2 id="findings">Findings</h2>
+<p>Failures are grouped by what failed, not by message text: the failure class (<code>property</code>, <code>assert</code>, <code>crash</code>, <code>exit</code>, <code>watchdog</code>, <code>deadlock</code>, <code>liveness</code>, <code>linearizability</code>, <code>isolation</code>, <code>nondeterminism</code>), the node, and, for properties, the property name. Use <code>sim.Always</code> with a constant message to get one finding per invariant.</p>
+<p>For each finding the report shows:</p>
+<ul>
+<li>how many seeds failed and the rate, with findings under 1% marked rare;</li>
+<li>up to ten example seeds;</li>
+<li>ready-to-run <code>replay</code> and <code>shrink</code> commands;</li>
+<li>the faults before the failure and the trace of the lowest failing seed. seedfall re-runs that seed to get them, which works because replays are exact;</li>
+<li>that seed's <a href="timeline.html">timeline</a>, embedded from its artifact folder, with a link to open it on its own.</li>
+</ul>
+<h2 id="classification">Classification</h2>
+<p>Every finding, and the failure <code>seedfall run</code> stops at, gets a class that says whether it is worth blocking on:</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Class</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bug</code></td>
+<td>Replaying the seed fails again with the same trace. A real, reproducible failure of the system under test</td>
+</tr>
+<tr>
+<td><code>nondeterministic</code></td>
+<td>The replay diverges from the original run: something in the harness or the system leaks host nondeterminism. The first diverging trace line is shown</td>
+</tr>
+<tr>
+<td><code>timeout</code></td>
+<td>The real-time watchdog fired. This depends on host speed and load, not only on the seed. With <code>preempt.loops</code> a busy loop fails on <code>liveness</code> instead</td>
+</tr>
+</tbody>
+</table></div>
+<pre><code>FAIL seed 1 at t=2.892s ...
+class: bug
+</code></pre>
+<p>Classification replays only the failure that <code>run</code> reports and one representative seed per finding, so it adds one run per finding, never one per seed. It appears in the terminal summary, in the HTML report, as <code>classification</code> in <code>report.json</code>, and in the MCP <code>seedfall_run</code> and <code>seedfall_replay</code> results, so CI and agents can block on <code>bug</code> and quarantine the rest.</p>
+<h2 id="history-new-ongoing-resolved-regressed">History: new, ongoing, resolved, regressed</h2>
+<p>Every report appends a line to <code>.seedfall/history.jsonl</code>, keyed by config path. Findings are classified against that history:</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>new</code></td>
+<td>Never seen before for this config</td>
+</tr>
+<tr>
+<td><code>ongoing</code></td>
+<td>Seen in earlier runs and still failing</td>
+</tr>
+<tr>
+<td><code>not seen</code></td>
+<td>Absent from this run, but not enough clean seeds yet to be sure it is fixed</td>
+</tr>
+<tr>
+<td><code>resolved</code></td>
+<td>Absent for enough consecutive clean seeds to be 95% confident it is fixed</td>
+</tr>
+<tr>
+<td><code>regressed</code></td>
+<td>Failing again after it was resolved</td>
+</tr>
+</tbody>
+</table></div>
+<p>&quot;Enough&quot; depends on how often the finding used to fail. A finding that failed in a fraction <em>p</em> of seeds needs <em>n ≥ ln(0.05) / ln(1 − p)</em> clean seeds, counted across runs since it was last seen. A bug that failed 1 seed in 4 is resolved after 11 clean seeds; one that failed 1 seed in 100 needs 299.</p>
+<pre><code>  new       assert · client          16 seeds  e.g. seed 1
+  ongoing   assert · client          15 seeds  e.g. seed 61
+  not seen  assert · client          not seen in 5 seeds, but 11 are needed to be 95% sure it is fixed
+  resolved  assert · client          not seen in 20 seeds since it failed 15 of 60
+  regressed assert · client           6 seeds  e.g. seed 1
+</code></pre>
+<p>A line of the file that is not valid JSON is an error that names the file and the line (<code>.seedfall/history.jsonl line 12: ...</code>), not something skipped, since skipping it would make findings look new or resolved by mistake. Delete that line to carry on.</p>
+<p>Keep <code>.seedfall/history.jsonl</code> between CI runs (cache or commit it) to get this classification on every pull request. The <a href="ci.html#history-between-runs">GitHub Action</a> caches it for you.</p>
+<h2 id="reading-findings-back">Reading findings back</h2>
+<p><code>seedfall findings</code> reads the last report and the run history without running anything:</p>
+<pre><code class="language-sh">seedfall findings                          # .seedfall/report.html
+seedfall findings -status new,regressed    # only what needs attention
+seedfall findings -report ci/report.json -json
+</code></pre>
+<pre><code>.seedfall/report.html: 1 of 6 seeds failed (seeds 1-6 of seedfall.always.json), 3 runs in history
+  new       assert · client                              1 seeds  16.67%  e.g. seed 1
+            client#1: acknowledged write lost: k96=v96, server now answers &quot;NONE&quot;
+            replay: seedfall replay -c seedfall.always.json -seed 1
+</code></pre>
+<p>It lists each finding with its status, failing seeds, rate, example seed, reason and replay command, then the earlier findings this run did not see (<code>resolved</code> or <code>not seen</code>) and the properties that were never reached or never true. <code>-status</code> takes a comma-separated list of the statuses above and applies to both lists, <code>-history</code> points at a history file other than the one the report names, and <code>-json</code> prints the same object the <code>seedfall_findings</code> MCP tool returns, with every finding's example failure, trace tail, shrink command and artifacts folder, and every run of that config in the history.</p>
+<h2 id="properties-and-fault-profile">Properties and fault profile</h2>
+<p>The report also lists every property with how many seeds reached it and how many saw it true, flagging properties that were never reached or never true, and the fault profile the sweep ran with. Its header names the seedfall version, the Go version and, when the config is in a git repository, the commit it was run at. Schedules pinned with <code>seedfall pin</code> are replayed before the sweep and listed in a <strong>Regressions</strong> section (<a href="verify.html#pinned-regressions">pinned regressions</a>); a regression that fails again fails the run.</p>
+<h2 id="exploration-and-throughput">Exploration and throughput</h2>
+<p>A report from <code>seedfall run -until-novelty</code> or <code>seedfall explore -report</code> has an <strong>Exploration</strong> section: one row per batch or round with the runs so far, the new signals and functions it added, and the corpus size, so you can see where coverage flattened out, plus why it stopped. Every report's header and JSON (<code>seeds_per_second</code>, <code>virtual_seconds_per_wall_second</code>) also state throughput. A finding that needs a schedule to reproduce, as <code>seedfall explore</code> findings do, carries <code>schedule_file</code> in its example and its replay and shrink commands use it; <code>seedfall verify -report</code> replays that schedule instead of the bare seed (<a href="explore.html">explore.md</a>).</p>
+<h2 id="utilization">Utilization</h2>
+<p>A report from <code>seedfall run</code> has a <strong>Utilization</strong> section (<code>utilization</code> in <code>report.json</code>, in the <code>-json</code> summary and in the <code>seedfall_run</code> result) that answers whether to keep sweeping:</p>
+<ul>
+<li><code>batches</code> splits the seeds that ran into up to ten ranges of nearly equal size, with how many new property outcomes each added. An outcome is a property being reached, being true or being false, and it counts toward the lowest seed that showed it, so the table is the same whatever order parallel runs finished in.</li>
+<li><code>speedup_min</code>, <code>speedup_median</code> and <code>speedup_max</code> are virtual seconds per real second for one seed, including time spent waiting for a CPU under <code>-j</code>.</li>
+<li><code>advice</code> is one sentence, also printed as <code>utilization:</code> at the end of the run, saying whether the last batches still added outcomes: more seeds are likely to help if the last batch did, may help if a new outcome came in the later half, and are unlikely to if the later half was quiet. Under ten seeds it says there are too few to compare. It is a heuristic over property outcomes only: it cannot see a bug no property or invariant catches, so read <code>No new property outcome</code> as &quot;this config has stopped widening coverage&quot;, not as &quot;no bugs remain&quot;.</li>
+</ul>
+<p><code>seedfall explore</code> reports have the Exploration section instead, because its runs are branches of earlier runs rather than a seed range.</p>
+<p>On a terminal, <code>seedfall run</code> also shows a progress line on stderr, updated every second and erased when the sweep ends: seeds done, seeds per second, failures, estimated time left and virtual speedup. With <code>-until-novelty</code> the estimate is an upper bound, since the sweep can stop early. It is off with <code>-json</code>, with <code>-v</code>, and when stderr is not a terminal, so piped output and CI logs stay clean.</p>
+<h2 id="failure-artifacts">Failure artifacts</h2>
+<p>Every failure seedfall reports gets a folder you can attach to an issue or upload from CI:</p>
+<pre><code>.seedfall/failures/seedfall.always-seed-1/
+  report.json            what failed, classification, seedfall and Go versions, config hash, commit, replay command
+  trace.txt              the full trace
+  faults.json            the run's fault schedule, replayable with seedfall replay -faults
+  history.jsonl          the recorded operations, when the workload records any
+  linearizability.html   the timeline, on a linearizability violation
+  timeline.html          a space-time diagram of nodes, messages, faults and operations with a trace explorer
+  timeline.mmd           the same run as a Mermaid sequence diagram
+  disk/&lt;node&gt;/           each node's durable disk image at the failure, as inspect -out exports it
+</code></pre>
+<p><code>timeline.html</code> and <code>timeline.mmd</code> are described in <a href="timeline.html">timelines and logs</a>. The HTML triage report embeds each finding's <code>timeline.html</code> under the finding, linked relative to the report, so keep the report and <code>.seedfall/failures/</code> together when you move or upload them.</p>
+<p>seedfall writes it by replaying the failing seed once more and capturing the disks at the failure, so it costs one run per reported failure, not one per seed. <code>seedfall run</code> writes it for the failure it stops at, <code>run -report</code> for the example seed of each finding (the report links it), <code>replay</code> for a failing replay, <code>shrink</code> for the minimal schedule, and a failing <a href="verify.html#pinned-regressions">pinned regression</a> for itself. The folder is named after the config and the seed, <code>&lt;config&gt;-seed-N</code>, so two configs in one directory keep separate folders. <code>&lt;config&gt;</code> is the file name without <code>.json</code>, then <code>.&lt;profile&gt;</code> for a profile and <code>.set-&lt;hash&gt;</code> for <code>-set</code> overrides, a short hash of the overrides in order, as in <code>seedfall.fixed.set-1a2b3c4d-seed-2</code>. A run from the seed alone goes to <code>&lt;config&gt;-seed-N</code>; a replay from a schedule file to <code>&lt;config&gt;-seed-N-schedule</code>, a shrunk schedule to <code>&lt;config&gt;-seed-N-shrunk</code> and a pinned one to <code>&lt;config&gt;-seed-N-pinned</code>, so they do not overwrite each other. A new failure of the same seed replaces the folder. <code>run -json</code> writes artifacts only for failing regressions, not for every failing seed.</p>
+<p><code>report.json</code> has <code>reproduced</code>, which is false when the replay did not fail the same way as the reported run, <code>classification</code> (<a href="#classification">above</a>), <code>seedfall_version</code> (from the binary's build information), <code>config_sha256</code> (of the resolved config after <code>extends</code>, the profile and <code>-set</code>, plus the bytes of every file seeded onto a node's disk), <code>commit</code> (<code>git rev-parse HEAD</code> in the config's directory, so uncommitted changes are not reflected) and <code>replay</code>, a command that replays <code>faults.json</code> exactly:</p>
+<pre><code class="language-sh">seedfall replay -c seedfall.always.json -seed 1 -faults .seedfall/failures/seedfall.always-seed-1/faults.json
+</code></pre>
+<p>Over MCP, failures from <code>seedfall_run</code>, <code>seedfall_replay</code> and <code>seedfall_shrink</code> carry the folder as <code>artifacts_dir</code>.</p>
+<h2 id="notifications-and-issues">Notifications and issues</h2>
+<p>Two commands turn a report into alerts and issues, so a nightly sweep needs no glue code:</p>
+<pre><code class="language-sh">seedfall report notify -report .seedfall/report.html -webhook &quot;$SEEDFALL_WEBHOOK&quot; -link &quot;$CI_RUN_URL&quot;
+seedfall report issue  -report .seedfall/report.html -repo owner/name
+</code></pre>
+<p><code>report notify</code> posts one message with the report's <code>new</code> and <code>regressed</code> findings, each with its failing seeds, rate, example seed, reason and replay command, to an incoming webhook. The body is <code>{&quot;text&quot;: ..., &quot;content&quot;: ...}</code>, the fields Slack and Discord incoming webhooks read, and the message is cut to Discord's 2000-character limit with a count of the findings left out. <code>-webhook</code> defaults to <code>$SEEDFALL_WEBHOOK</code>, and errors never print the URL, which holds the webhook's secret. Each finding sent is recorded in <code>.seedfall/history.jsonl</code> against the report it came from, so posting the same report twice sends nothing the second time; an <code>ongoing</code> finding is never sent. Because new and regressed come from that history, keep the file between CI runs (see <a href="#history-new-ongoing-resolved-regressed">above</a>), or every run's findings are new and every run notifies. <code>-dry-run</code> prints the message instead.</p>
+<p><code>report issue</code> files one GitHub issue per finding with the <a href="https://cli.github.com"><code>gh</code> CLI</a>, titled <code>seedfall finding: &lt;key&gt;</code>, for example <code>seedfall finding: assert · client</code>. The body has the counts, status and class, the reason, the replay and shrink commands, the example seeds, the faults before the failure, the trace tail, the artifacts folder, and the seedfall version, commit and Go version. Before filing, it reads the titles of the repository's 1000 most recent open issues and skips a finding whose title is among them, so a finding has one open issue whether or not the history is saved, and gets a new one if it comes back after its issue was closed. <code>gh</code> needs to be logged in, or <code>GH_TOKEN</code> set, with permission to write issues. <code>-dry-run</code> prints each issue without calling <code>gh</code>.</p>
+<p>The HTML report has a <strong>Copy issue markdown</strong> button on every finding with the same body, and the text itself under it, for filing by hand in any tracker.</p>
+<h2 id="github">GitHub</h2>
+<p>Two more commands read a report for GitHub, and the <a href="ci.html#github-actions">GitHub Action</a> runs both:</p>
+<pre><code class="language-sh">seedfall report github  -report .seedfall/report.html
+seedfall report comment -report .seedfall/report.html -repo owner/name -pr 12 -marker storage -link &quot;$RUN_URL&quot;
+</code></pre>
+<p><code>report github</code> prints one <code>::error</code> workflow command per problem, most urgent first: pinned regressions that fail again, regressed, new and ongoing findings, then properties that were never reached or never true. A finding from a <a href="properties.html">property</a> with a constant message, and an unmet property, carry the <code>file</code> and <code>line</code> of the call, as a path relative to the working directory. Run it from the repository root. A location outside that directory, such as a dependency in the module cache, is left off. It then appends <code>failing-seed</code> and <code>findings</code> to <code>-output</code>, default <code>$GITHUB_OUTPUT</code>, or prints them when neither is set. <code>-md file</code> also writes the Markdown that <code>report comment</code> would post, for a job summary or a later <code>report comment -body file</code>.</p>
+<p><code>report comment</code> posts the report to a pull request as a <a href="https://cli.github.com"><code>gh</code></a> comment, or <code>-body file</code> posts a Markdown file instead, such as a <code>verify -md</code> proof, with <code>-link</code> added at the end. It lists new, regressed, resolved and ongoing findings with replay commands, failing pinned regressions and unmet properties, with the most urgent sections first. Each comment starts with a hidden marker from <code>-marker</code>, and a later call with the same marker edits that comment instead of adding one, so give each job in a matrix its own. Failure text sits inside code spans so it cannot mention anyone or inject Markdown, and a comment too long for GitHub is cut with a note. <code>-dry-run</code> prints the comment.</p>
+
+      </article>
+    </main>
+  </div>
+</div>
+<footer class="foot">
+  <div class="wrap foot-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../llms.txt">llms.txt</a></p>
+  </div>
+</footer>
+</body>
+</html>

@@ -26,7 +26,7 @@ In scope:
 - the GitHub Action (`action.yml`, `scripts/action-install.sh`, `scripts/action-run.sh`), including how it handles the GitHub token, release downloads and checksums, and pull request comments;
 - the install script (`scripts/install.sh`), release artifacts, signatures and checksums ([docs/install.md](docs/install.md));
 - `seedfall report notify`, `report issue` and `report comment`, which send findings to webhooks and GitHub;
-- the Claude Code plugin, skills and Stop hook in this repository.
+- the MCP server, skills and `seedfall hook` in this repository.
 
 seedfall is a testing tool, not a sandbox. It runs `go build` on the host for the packages a config names, and the simulator gives guests host-backed file mappings and fixture files from the config. Treat a `seedfall.json` and the code it points at like any code you build and run. A guest reaching the host is still worth reporting, but seedfall makes no isolation guarantee for untrusted code.
 

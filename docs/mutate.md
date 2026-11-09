@@ -1,5 +1,7 @@
 # Mutation testing your checks
 
+A passing sweep only means something if your checks would notice a real problem. `seedfall mutate` weakens the simulated disk, network or clock one guarantee at a time, or changes your own source code, and tells you whether your checks catch it. Use it to find checks that are too weak.
+
 A sweep that passes is only meaningful if your workload would notice when a guarantee breaks. `seedfall mutate` tests that directly: it weakens the simulated disk, network or clock under your nodes, one guarantee at a time, and checks whether your sweep catches it.
 
 ```sh

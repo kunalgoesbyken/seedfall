@@ -1,5 +1,7 @@
 # Config files, profiles and seeded disks
 
+One `seedfall.json` can hold many variations of your test: a base setup, named profiles, ready-made fault presets and one-off command-line overrides. This page also covers starting nodes from an existing disk and restarting them into a new version of your program. Use it when you want to test more than one scenario without copying files around.
+
 One `seedfall.json` can hold every variant you test: a base config, named profiles that change a few fields, fault presets instead of hand-tuned rates, and one-off overrides from the command line. Nodes can start from an existing disk instead of an empty one, get files from the host, and restart into a new version of their program.
 
 ## Layers
@@ -65,9 +67,9 @@ A profile is part of the config's identity everywhere seedfall prints or saves i
 - failure artifacts go to `.seedfall/failures/seedfall.fixed-seed-2/`, the same folder a separate `seedfall.fixed.json` would use
 - `seedfall pin` records the profile and `-set` overrides in the pinned file (`"profile": "fixed"`), and a pinned schedule is replayed only by runs with the same config file, profile and overrides
 - `-set` overrides add a short hash of the overrides to artifact folder and pinned file names, `seedfall.fixed.set-1a2b3c4d-seed-2`, so a run with overrides never replaces the files of a run without them
-- reports, proofs and the hook print the full config reference
+- reports, proofs and `seedfall hook` print the full config reference
 
-The Claude Code hook reads the profile from `$SEEDFALL_HOOK_PROFILE`.
+`seedfall hook` reads the profile from `$SEEDFALL_HOOK_PROFILE` ([agents.md](agents.md#the-seedfall-hook-command)).
 
 ### -set
 

@@ -1,5 +1,7 @@
 # Properties, linearizability and determinism
 
+A property is something your system must always (or eventually) get right, such as "an acknowledged write is never lost". This page covers how to write properties with the `sim` package, how to check recovery, and how to check a recorded history of operations for linearizability (concurrent operations behaving as if they happened one at a time, in some order). Use it when you write or improve your workload.
+
 ## Failing a run
 
 ```go

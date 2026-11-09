@@ -1,5 +1,7 @@
 # How seedfall works
 
+This page explains why the same seed always gives the same run: seedfall controls the clock, the randomness and the scheduling for every node, and simulates the disk and the network. Read it to understand what seedfall can and cannot find, or to decide how far to trust a result. You do not need it to run your first sweep.
+
 ## One process, one clock, many nodes
 
 seedfall compiles every node with the stock Go toolchain for `GOOS=wasip1` and runs each one as its own [wazero](https://wazero.io) module instance. On `wasip1` the Go runtime is single-threaded and has no async preemption, and every source of nondeterminism reaches the outside world through three WASI calls. seedfall implements all three in the host, and adds a deterministic preemption point of its own (below):

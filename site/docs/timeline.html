@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Timelines, logs and time-travel debugging · seedfall docs</title>
+<meta name="description" content="After a failure you want to see what happened. This page covers the four views seedfall gives you of one run: a timeline diagram, a sequence diagram, filtered logs and a step-by-step debugger. Use it…">
+<meta property="og:title" content="Timelines, logs and time-travel debugging">
+<meta property="og:description" content="After a failure you want to see what happened. This page covers the four views seedfall gives you of one run: a timeline diagram, a sequence diagram, filtered logs and a step-by-step debugger. Use it…">
+<link rel="alternate" type="text/markdown" href="timeline.md">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../style.css">
+<link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+<header class="nav docs-nav">
+  <div class="wrap nav-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <nav class="links" aria-label="Site">
+      <a href="../">Home</a>
+      <a href="./" aria-current="true">Docs</a>
+      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="docs">
+  <div class="wrap docs-grid">
+    <aside class="docs-side">
+      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
+      <label class="docs-menu" for="docs-menu">Docs menu</label>
+      <nav class="docs-index" aria-label="Documentation">
+        <h2>Start here</h2>
+        <ul>
+          <li><a href="getting-started.html">Getting started</a></li>
+          <li><a href="install.html">Installing seedfall</a></li>
+          <li><a href="faq.html">FAQ</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+        </ul>
+        <h2>Find a bug</h2>
+        <ul>
+          <li><a href="networking.html">Networking</a></li>
+          <li><a href="properties.html">Properties and checks</a></li>
+          <li><a href="compat.html">Storage engines that need mmap or flock</a></li>
+          <li><a href="config.html">Config files, profiles and seeded disks</a></li>
+          <li><a href="explore.html">Feedback-guided exploration</a></li>
+          <li><a href="buggify.html">BUGGIFY</a></li>
+          <li><a href="mutate.html">Mutation testing your checks</a></li>
+          <li><a href="antithesis.html">Running Antithesis SDK code</a></li>
+          <li><a href="gostman.html">Use your Gostman collections as workloads</a></li>
+        </ul>
+        <h2>Understand a failure</h2>
+        <ul>
+          <li><a href="timeline.html" aria-current="page">Timelines, logs and time-travel debugging</a></li>
+          <li><a href="cause.html">Causality analysis</a></li>
+          <li><a href="inspect.html">Inspecting the disk at the moment of failure</a></li>
+          <li><a href="verify.html">Proving a fix with seedfall verify</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+        </ul>
+        <h2>Use in CI</h2>
+        <ul>
+          <li><a href="ci.html">Running seedfall in CI</a></li>
+          <li><a href="agents.html">Using seedfall from AI coding agents</a></li>
+        </ul>
+        <h2>Reference</h2>
+        <ul>
+          <li><a href="faults.html">Configuration and faults</a></li>
+          <li><a href="properties.html">Properties, linearizability and determinism</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          <li><a href="how-it-works.html">How seedfall works</a></li>
+          <li><a href="testing.html">Testing seedfall itself</a></li>
+          <li><a href="findings/">Findings</a></li>
+        </ul>
+        <h2>About the project</h2>
+        <ul>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
+        </ul>
+      </nav>
+    </aside>
+    <main class="docs-main">
+      <p class="docs-meta">
+        <a href="timeline.md" type="text/markdown">View as Markdown, for AI agents</a>
+        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/timeline.md">Edit on GitHub</a>
+      </p>
+      <article class="prose">
+<h1 id="timelines-logs-and-time-travel-debugging">Timelines, logs and time-travel debugging</h1>
+<p>After a failure you want to see what happened. This page covers the four views seedfall gives you of one run: a timeline diagram, a sequence diagram, filtered logs and a step-by-step debugger. Use it when the failure message alone does not explain the problem.</p>
+<p>A failing seed replays exactly, so you can look at it as many times and in as many ways as you like. seedfall gives you four views of one run:</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>View</th>
+<th>Command</th>
+<th>What it shows</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Timeline</td>
+<td><code>seedfall replay -html timeline.html</code>, and <code>timeline.html</code> in every <a href="reports.html#failure-artifacts">failure artifact</a> folder</td>
+<td>A space-time diagram: one lane per node, every connection and message as an arrow, fault intervals shaded, recorded operations as bars, properties and events as markers, next to a filterable trace</td>
+</tr>
+<tr>
+<td>Sequence diagram</td>
+<td><code>seedfall replay -html timeline.mmd</code>, and <code>timeline.mmd</code> in every artifact folder</td>
+<td>The same run as a Mermaid <code>sequenceDiagram</code>, for an issue or a pull request</td>
+</tr>
+<tr>
+<td>Logs</td>
+<td><code>seedfall logs -seed N -node server -grep re -from 1s -to 2s</code></td>
+<td>The trace filtered by node, pattern and virtual time, with app output interleaved with engine events and slog JSON parsed into fields</td>
+</tr>
+<tr>
+<td>Debugger</td>
+<td><code>seedfall debug -seed N -at 1.7s</code></td>
+<td>A prompt paused at a moment of the run: node states, the live disk, in-flight messages and active faults, then step, run until a pattern, or branch into a different future</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>seedfall trace grep</code> finds a pattern and shows the lines of every node around each match, and <code>seedfall trace diff</code> compares two traces and shows where they first part ways. Logs, trace search and the debugger are also MCP tools, and the timeline is in every artifact folder the MCP tools name.</p>
+<h2 id="the-trace">The trace</h2>
+<p>Every run already traces node starts, crashes, faults and checks, plus every line each node writes to stdout or stderr, stamped with the virtual time it was written:</p>
+<pre><code>    0.000s  start server#1
+    0.000s  server#1| serving 0 keys on :7000
+    0.292s  fault partition [client] | rest, heals at 0.627s
+    0.757s  fault crash server#1 during disk op 56, restart at 1.121s
+</code></pre>
+<p><code>server#2</code> is the second process started on node <code>server</code>, after its first crash. With <code>-net-trace</code> on <code>run</code>, <code>replay</code>, <code>logs</code> or <code>debug</code>, the trace also has every connection, message sent and message read:</p>
+<pre><code>    1.120s  net client#1 dials server:7000, refused
+    1.121s  start server#2
+    1.121s  server#2| serving 26 keys on :7000
+    1.130s  net client#1 dials server:7000 conn 57, arrives 1.132s
+    1.130s  net client#1 -&gt; server#2 conn 57: 12 bytes, arrives 1.132s
+    1.132s  net server#2 accepts conn 57 from client#1
+    1.132s  net server#2 &lt;- client#1 conn 57: 12 bytes sent at 1.130s
+    1.132s  net server#2 -&gt; client#1 conn 57: 3 bytes, arrives 1.137s
+</code></pre>
+<p>A message sent while a partition or a clog holds the link says <code>held by a partition or clog</code>, and a duplicate from the <code>net_dup_chunk</code> mutant says <code>a duplicate</code>. UDP datagrams appear as <code>udp &lt;socket&gt;</code> lines, and one that never arrived says <code>lost</code> and why: a partition or clog, no socket bound to the address, a socket connected to another address, or a <code>udp_drop</code> fault. <code>-net-trace</code> adds lines to the trace only: it does not change the schedule, the determinism hash or the result, so a seed fails the same way with and without it. A failure replayed with <code>-net-trace</code> writes those lines into its artifact <code>trace.txt</code> as well.</p>
+<h2 id="timeline">Timeline</h2>
+<pre><code class="language-sh">seedfall replay -c seedfall.always.json -seed 1 -html timeline.html
+</code></pre>
+<p><code>timeline.html</code> is one self-contained file with no network fetches, so it opens from a CI artifact or an email attachment. Every failure seedfall reports also gets one in its artifact folder, next to <code>trace.txt</code>, and the <a href="reports.html">triage report</a> embeds it under each finding.</p>
+<p>The diagram has one column per node with virtual time flowing down:</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Mark</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Green line</td>
+<td>A process of the node is alive, from its start to its crash or exit, labelled with its instance (<code>server#2</code>)</td>
+</tr>
+<tr>
+<td>Arrow</td>
+<td>A connection (<code>connect</code>, purple) or a message (data, blue; EOF, yellow; reset, red) from the sender at the time it was sent to the receiver at the time it was first read. A dashed arrow was never read: it was dropped by a crash, a reset or the end of the run. Hover for the connection, size and times</td>
+</tr>
+<tr>
+<td>Shaded box</td>
+<td>A fault interval over the nodes it hits: a crash until the restart, a pause, a slowdown, a clog, a clock jump, or a partition over every lane</td>
+</tr>
+<tr>
+<td>Bar</td>
+<td>An operation recorded with <code>sim.Put</code>, <code>sim.Get</code>, <code>sim.Invoke</code> or <code>sim.Txn</code>, from invocation to completion, green when ok, red when failed, yellow when unknown. Concurrent operations of one node sit side by side</td>
+</tr>
+<tr>
+<td>Dot</td>
+<td>A <code>sim.Event</code>, the first time a <code>Sometimes</code> or <code>Reachable</code> property is true, or the first time an <code>Always</code> or <code>Eventually</code> property is checked</td>
+</tr>
+<tr>
+<td>Red line</td>
+<td>The failure, with its reason</td>
+</tr>
+</tbody>
+</table></div>
+<p>Rows are the distinct moments something happened, labelled with their virtual time, so a run with long idle stretches stays compact; the spacing is not proportional to time.</p>
+<p>The trace explorer beside it lists every trace line. Above both are a node toggle per node (plus <code>engine</code> for lines that belong to no node), toggles for lives, messages, operations, faults and marks, a <code>from</code> and <code>to</code> window in Go duration syntax (<code>1.5s</code>, <code>200ms</code>), and a <code>grep</code> box that filters trace lines with a JavaScript regular expression. Clicking a trace line scrolls the diagram to its moment.</p>
+<h2 id="sequence-diagram">Sequence diagram</h2>
+<pre><code class="language-sh">seedfall replay -c seedfall.always.json -seed 1 -html timeline.mmd
+</code></pre>
+<p>A path ending in <code>.mmd</code> writes Mermaid instead of HTML:</p>
+<pre><code>sequenceDiagram
+  participant p0 as server
+  participant p1 as client
+  Note over p0: 0.000s start server#35;1
+  p1-&gt;&gt;p0: 0.000s conn 2 connect, read 0.003s
+  p1-&gt;&gt;p0: 0.000s conn 2 10 bytes, read 0.003s
+  p0-&gt;&gt;p1: 0.003s conn 2 3 bytes, read 0.007s
+  p1--&gt;&gt;p0: 0.007s conn 2 eof, read 0.009s
+</code></pre>
+<p>It has the node lives, messages (<code>-&gt;&gt;</code> read, <code>--&gt;&gt;</code> an EOF or reset, <code>-x</code> never read or a lost datagram), faults, events, properties and the failure, in time order. Recorded operations are only in the HTML timeline. GitHub renders a <code>```mermaid</code> block in issues and pull requests; a run with thousands of messages makes a diagram too tall to read there, so cut it to the moments around the failure first.</p>
+<h2 id="logs">Logs</h2>
+<pre><code class="language-sh">seedfall logs -c seedfall.always.json -seed 1 -node server
+</code></pre>
+<pre><code>    0.000s  start server#1
+    0.000s  server#1| serving 0 keys on :7000
+    0.757s  fault crash server#1 during disk op 56, restart at 1.121s
+    1.121s  start server#2
+    1.121s  server#2| serving 26 keys on :7000
+    1.705s  fault crash server#2, restart at 1.943s
+    1.943s  start server#3
+    1.943s  server#3| serving 60 keys on :7000
+8 of 12 trace lines; seed 1: FAIL client#1: acknowledged write lost: k96=v96, server now answers &quot;NONE&quot;
+</code></pre>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>-seed</code>, <code>-faults</code></td>
+<td>The run to replay, as for <code>replay</code></td>
+</tr>
+<tr>
+<td><code>-node</code></td>
+<td>Only lines that belong to these nodes, comma separated: their output, starts, crashes, faults aimed at them and, with <code>-net-trace</code>, the messages they send and read. Lines about the whole run, such as a partition or the end of the workload, belong to no node and are left out</td>
+</tr>
+<tr>
+<td><code>-grep</code></td>
+<td>Only lines matching this Go regular expression</td>
+</tr>
+<tr>
+<td><code>-from</code>, <code>-to</code></td>
+<td>Only lines in this virtual time window, for example <code>-from 1.5s -to 2s</code></td>
+</tr>
+<tr>
+<td><code>-json</code></td>
+<td>One JSON object per line instead of text</td>
+</tr>
+<tr>
+<td><code>-net-trace</code></td>
+<td>Add connections and messages to the trace first</td>
+</tr>
+</tbody>
+</table></div>
+<p>The summary line goes to stderr, so <code>seedfall logs ... &gt; server.log</code> keeps only the trace. With <code>-json</code>, each line has <code>at</code>, <code>at_ns</code>, <code>node</code>, <code>instance</code>, the full trace <code>line</code> and, for a node's own output, <code>output</code>. When that output is a JSON object, such as a line from <code>slog.NewJSONHandler</code>, it is parsed into <code>fields</code>:</p>
+<pre><code class="language-json">{&quot;at&quot;:&quot;100.000013ms&quot;,&quot;at_ns&quot;:100000013,&quot;node&quot;:&quot;app&quot;,&quot;instance&quot;:&quot;app#1&quot;,&quot;line&quot;:&quot;    0.100s  app#1   | {\&quot;time\&quot;:\&quot;2026-01-01T00:00:00.100000012Z\&quot;,\&quot;level\&quot;:\&quot;INFO\&quot;,\&quot;msg\&quot;:\&quot;put\&quot;,\&quot;key\&quot;:1}&quot;,&quot;output&quot;:&quot;{\&quot;time\&quot;:\&quot;2026-01-01T00:00:00.100000012Z\&quot;,\&quot;level\&quot;:\&quot;INFO\&quot;,\&quot;msg\&quot;:\&quot;put\&quot;,\&quot;key\&quot;:1}&quot;,&quot;fields&quot;:{&quot;key&quot;:1,&quot;level&quot;:&quot;INFO&quot;,&quot;msg&quot;:&quot;put&quot;,&quot;time&quot;:&quot;2026-01-01T00:00:00.100000012Z&quot;}}
+</code></pre>
+<p>slog's <code>time</code> field is the guest's wall clock, which seedfall simulates from 2026-01-01 (and skews or jumps under clock faults); <code>at</code> is the virtual time the line was written. Other slog handlers' text output comes through as <code>output</code> without <code>fields</code>.</p>
+<h2 id="searching-the-trace">Searching the trace</h2>
+<p><code>logs -grep</code> keeps only the matching lines. To see what happened around each match, across every node, use <code>seedfall trace grep</code>:</p>
+<pre><code class="language-sh">seedfall trace grep -c seedfall.always.json -seed 1 -e crash -context 1
+</code></pre>
+<pre><code>     4     0.292s  fault partition [client] | rest, heals at 0.627s
+&gt;    5     0.757s  fault crash server#1 during disk op 56, restart at 1.121s
+     6     1.121s  start server#2
+     7     1.121s  server#2| serving 26 keys on :7000
+&gt;    8     1.705s  fault crash server#2, restart at 1.943s
+     9     1.943s  start server#3
+2 matches of 12 trace lines, 2 shown; seed 1: FAIL client#1: acknowledged write lost: k96=v96, server now answers &quot;NONE&quot;
+</code></pre>
+<p>Matches are marked <code>&gt;</code>, each line carries its number in the run's trace (the same as the artifact's <code>trace.txt</code> for that run) and its virtual time, windows that touch or overlap are merged, and separate windows are divided by <code>--</code>. <code>-e</code> is a Go regular expression. <code>-node</code>, <code>-from</code> and <code>-to</code> narrow which lines can match, as for <code>logs</code>, while the context lines come from every node. <code>-context</code> sets the lines before and after each match (3 by default), <code>-limit</code> the most matches shown (200), <code>-net-trace</code> adds connections and messages first, and <code>-json</code> prints the windows as one JSON object with the same line fields as <code>logs -json</code> plus <code>n</code> and <code>match</code>.</p>
+<h2 id="debugger">Debugger</h2>
+<pre><code class="language-sh">seedfall debug -c seedfall.always.json -seed 1 -at 1.7s
+</code></pre>
+<p><code>debug</code> replays the seed and stops before the first scheduler step after <code>-at</code> (the same moment <code>seedfall inspect -at</code> snapshots), then reads commands:</p>
+<pre><code>paused at t=1.696068226s before scheduler step 379
+  server       server#2     blocked
+  client       client#1     runnable at 1.702612857s
+(seedfall 1.696068226s) until fault crash
+    1.705s  fault crash server#2, restart at 1.943s
+paused at t=1.705199634s before scheduler step 382
+  server                    down until 1.942588993s
+  client       client#1     runnable at 1.706780887s
+(seedfall 1.705199634s) net
+  conn 125  server#2 -&gt; client#1: eof, sent at 1.705199634s, arrives at 1.706780887s
+(seedfall 1.705199634s) stat server data/kv.log
+data/kv.log on server: 527 bytes, 527 durable, directory entry durable: true
+</code></pre>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>where</code></td>
+<td>Virtual time, the next scheduler step, and each node's state: <code>runnable</code> at a time, <code>blocked</code> with no timer or message due, <code>paused</code> or <code>down</code> until a time, <code>exited</code></td>
+</tr>
+<tr>
+<td><code>log [n]</code></td>
+<td>The last <code>n</code> trace lines, 20 by default</td>
+</tr>
+<tr>
+<td><code>grep &lt;regex&gt;</code></td>
+<td>Every trace line so far that matches</td>
+</tr>
+<tr>
+<td><code>ls [node]</code></td>
+<td>Every node's disk, or one node's, in the <a href="inspect.html">inspect</a> format: live and durable sizes, what a crash loses, torn writes and damage</td>
+</tr>
+<tr>
+<td><code>stat &lt;node&gt; &lt;path&gt;</code></td>
+<td>One file's size, durable size, the byte ranges a crash loses and its damage</td>
+</tr>
+<tr>
+<td><code>cat &lt;node&gt; &lt;path&gt;</code></td>
+<td>The file's live content, what the node reads now, as text or a hex dump (<code>inspect -cat</code> shows the durable content instead)</td>
+</tr>
+<tr>
+<td><code>net</code></td>
+<td>Every message still in flight with its sender, receiver, size, send and arrival time, and connections not yet accepted</td>
+</tr>
+<tr>
+<td><code>faults</code></td>
+<td>Active faults and the next scheduled one</td>
+</tr>
+<tr>
+<td><code>step [n]</code></td>
+<td>Run <code>n</code> scheduler steps, 1 by default</td>
+</tr>
+<tr>
+<td><code>until &lt;regex&gt;</code></td>
+<td>Run until a new trace line matches, then stop right after it</td>
+</tr>
+<tr>
+<td><code>to &lt;duration&gt;</code></td>
+<td>Run until the next step is after this virtual time</td>
+</tr>
+<tr>
+<td><code>branch [key]</code></td>
+<td>Re-randomize everything after now with this key, 1 by default: the scheduler, network and disk randomness, guest randomness and the faults still to come, as <a href="cause.html"><code>seedfall cause</code></a> does. One branch per session</td>
+</tr>
+<tr>
+<td><code>quit</code></td>
+<td>End the session</td>
+</tr>
+</tbody>
+</table></div>
+<p>Commands after <code>step</code>, <code>until</code> and <code>to</code> print the trace lines that ran and the new position. Nothing runs between commands, and the run is the same one <code>replay</code> produces, so the state you see is the state the failing run had. Once the run ends, inspection commands still work on the final state.</p>
+<p>The debugger stops between scheduler steps, not inside a node's code: it shows what a crash at that moment would see, not a goroutine's stack. For source-level stepping, rebuild the node natively and reproduce with the faults from <code>faults.json</code>.</p>
+<h2 id="comparing-traces">Comparing traces</h2>
+<pre><code class="language-sh">seedfall trace diff .seedfall/failures/seedfall.always-seed-1 after-fix.txt
+</code></pre>
+<p>Each side is a trace file (an artifact's <code>trace.txt</code>, or <code>seedfall logs</code> output saved to a file) or an artifact folder, which means its <code>trace.txt</code>. It prints the line where the traces first differ with the matching lines before it (<code>-context 3</code>), and exits 1, or says they are identical and exits 0. <code>-context</code> goes before the two paths. Here <code>a.txt</code> is the trace of seed 1 and <code>b.txt</code> the trace of the same seed under its shrunk schedule, both saved with <code>seedfall logs</code>:</p>
+<pre><code>$ seedfall trace diff a.txt b.txt
+the traces diverge at line 4 (a.txt has 12 lines, b.txt has 12)
+
+      0.000s  start server#1
+      0.000s  start client#1
+      0.000s  server#1| serving 0 keys on :7000
+-     0.292s  fault partition [client] | rest, heals at 0.627s
++     0.000s  client#1: sim.Budget capped at 63 of 200 operations
+</code></pre>
+<p>Use it after shrinking to see where the shrunk schedule leaves the original run, after a fix to see the first moment the run behaves differently, or on two machines to find where a nondeterministic run splits (<code>run -check</code> does that for you within one machine).</p>
+<h2 id="over-mcp">Over MCP</h2>
+<p><code>seedfall_logs</code> takes <code>config</code>, <code>seed</code> and optionally <code>faults</code>, <code>node</code>, <code>grep</code>, <code>from</code>, <code>to</code>, <code>net_trace</code> and <code>limit</code> (200 by default), and returns the matching lines with the same fields as <code>logs -json</code>, how many matched and how many the trace has. <code>seedfall_trace_search</code> takes <code>config</code>, <code>seed</code>, <code>pattern</code> and optionally <code>faults</code>, <code>context</code>, <code>node</code>, <code>from</code>, <code>to</code>, <code>net_trace</code> and <code>limit</code>, and returns the same windows as <code>trace grep -json</code>. <code>seedfall_debug</code> takes <code>config</code>, <code>seed</code>, optionally <code>faults</code>, <code>at</code>, <code>net_trace</code> and a <code>commands</code> list run in order (<code>[&quot;until fault crash&quot;, &quot;net&quot;, &quot;ls server&quot;]</code>), and returns each command's output and the final state. Failures from <code>seedfall_run</code>, <code>seedfall_replay</code> and <code>seedfall_shrink</code> name the artifact folder, which holds <code>timeline.html</code> and <code>timeline.mmd</code>. See <a href="agents.html#tools">agents.md</a>.</p>
+
+      </article>
+    </main>
+  </div>
+</div>
+<footer class="foot">
+  <div class="wrap foot-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../llms.txt">llms.txt</a></p>
+  </div>
+</footer>
+</body>
+</html>

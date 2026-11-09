@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Feedback-guided exploration · seedfall docs</title>
+<meta name="description" content="A plain sweep tries seeds one after another, which is slow for a bug that needs two rare things to happen in the same run. seedfall explore keeps the runs that reached something new and builds on…">
+<meta property="og:title" content="Feedback-guided exploration">
+<meta property="og:description" content="A plain sweep tries seeds one after another, which is slow for a bug that needs two rare things to happen in the same run. seedfall explore keeps the runs that reached something new and builds on…">
+<link rel="alternate" type="text/markdown" href="explore.md">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../style.css">
+<link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+<header class="nav docs-nav">
+  <div class="wrap nav-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <nav class="links" aria-label="Site">
+      <a href="../">Home</a>
+      <a href="./" aria-current="true">Docs</a>
+      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="docs">
+  <div class="wrap docs-grid">
+    <aside class="docs-side">
+      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
+      <label class="docs-menu" for="docs-menu">Docs menu</label>
+      <nav class="docs-index" aria-label="Documentation">
+        <h2>Start here</h2>
+        <ul>
+          <li><a href="getting-started.html">Getting started</a></li>
+          <li><a href="install.html">Installing seedfall</a></li>
+          <li><a href="faq.html">FAQ</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+        </ul>
+        <h2>Find a bug</h2>
+        <ul>
+          <li><a href="networking.html">Networking</a></li>
+          <li><a href="properties.html">Properties and checks</a></li>
+          <li><a href="compat.html">Storage engines that need mmap or flock</a></li>
+          <li><a href="config.html">Config files, profiles and seeded disks</a></li>
+          <li><a href="explore.html" aria-current="page">Feedback-guided exploration</a></li>
+          <li><a href="buggify.html">BUGGIFY</a></li>
+          <li><a href="mutate.html">Mutation testing your checks</a></li>
+          <li><a href="antithesis.html">Running Antithesis SDK code</a></li>
+          <li><a href="gostman.html">Use your Gostman collections as workloads</a></li>
+        </ul>
+        <h2>Understand a failure</h2>
+        <ul>
+          <li><a href="timeline.html">Timelines, logs and time-travel debugging</a></li>
+          <li><a href="cause.html">Causality analysis</a></li>
+          <li><a href="inspect.html">Inspecting the disk at the moment of failure</a></li>
+          <li><a href="verify.html">Proving a fix with seedfall verify</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+        </ul>
+        <h2>Use in CI</h2>
+        <ul>
+          <li><a href="ci.html">Running seedfall in CI</a></li>
+          <li><a href="agents.html">Using seedfall from AI coding agents</a></li>
+        </ul>
+        <h2>Reference</h2>
+        <ul>
+          <li><a href="faults.html">Configuration and faults</a></li>
+          <li><a href="properties.html">Properties, linearizability and determinism</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          <li><a href="how-it-works.html">How seedfall works</a></li>
+          <li><a href="testing.html">Testing seedfall itself</a></li>
+          <li><a href="findings/">Findings</a></li>
+        </ul>
+        <h2>About the project</h2>
+        <ul>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
+        </ul>
+      </nav>
+    </aside>
+    <main class="docs-main">
+      <p class="docs-meta">
+        <a href="explore.md" type="text/markdown">View as Markdown, for AI agents</a>
+        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/explore.md">Edit on GitHub</a>
+      </p>
+      <article class="prose">
+<h1 id="feedback-guided-exploration">Feedback-guided exploration</h1>
+<p>A plain sweep tries seeds one after another, which is slow for a bug that needs two rare things to happen in the same run. <code>seedfall explore</code> keeps the runs that reached something new and builds on them. Use it when ordinary sweeps pass but you suspect a deeper bug.</p>
+<p>A plain sweep draws a fresh random seed every time. A failure that needs two rare things to happen in the same run, each with odds of one in a thousand, needs on the order of a million seeds. <code>seedfall explore</code> looks for that kind of failure with feedback: it keeps the runs that reached something new, and spends further runs going deeper from there instead of starting over.</p>
+<pre><code class="language-sh">seedfall explore -c seedfall.json -seeds 1-8 -rounds 30 -batch 8
+</code></pre>
+<pre><code>round 1   runs 8     +4 signals (4)  +625 functions (625)  corpus 4  failures 0  551ms
+    new: property &quot;level 1 reached&quot; = true
+    new: property &quot;level 2 reached&quot; = true
+    new: property &quot;level 3 reached&quot; = true
+    new: property &quot;level 4 reached&quot; = true
+round 2   runs 16    +0 signals (4)  +0 functions (625)  corpus 4  failures 0  935ms
+round 3   runs 24    +1 signals (5)  +0 functions (625)  corpus 5  failures 0  1.289s
+    new: property &quot;level 5 reached&quot; = true
+round 4   runs 32    +1 signals (6)  +2 functions (627)  corpus 5  failures 1  1.628s
+    new: property &quot;level 6 reached&quot; = true
+
+stopped: failure found
+FAIL seed 6 at t=923.003008ms (924 scheduler steps, 56ms real)
+  client#1: the vault opened after 6 consecutive lucky draws
+</code></pre>
+<p>That is <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/examples/explore">examples/explore</a>: 20 plain seeds never reach level 6 (and the sweep passes), while exploration finds it in 32 runs. A failure is reported the usual way, and the artifact is an ordinary schedule file.</p>
+<h2 id="how-it-works">How it works</h2>
+<p>Round 1 runs the <code>-seeds</code> range and any entries left in the corpus by earlier runs. Every run reports <strong>signals</strong>:</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Signal</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>property &quot;msg&quot; = true</code></td>
+<td>a property fired with this outcome, optionally <code>during crash,partition</code>: the fault kinds with an open window when it first fired</td>
+</tr>
+<tr>
+<td><code>fault crash server</code></td>
+<td>a fault of this kind applied to this node, including a <code>buggify</code> firing with its site</td>
+</tr>
+<tr>
+<td>function</td>
+<td>a function reached for the first time, per node, counting every function in the binary (the Go runtime included, so some of them are the runtime reacting to the run). This is coarse, function-entry coverage, not basic blocks</td>
+</tr>
+</tbody>
+</table></div>
+<p>A run that adds a signal or a function joins the corpus as a schedule: its seed, recorded faults and branches. Every further round draws <code>-batch</code> children, one at a time from the exploration's own seed:</p>
+<ul>
+<li>pick a corpus entry, more often when it holds rare signals</li>
+<li>with odds 3 of 5, branch at the moment just after one of its signals fired, more often a rare one, and re-randomize the future. This is the checkpoint step: a run that reached the rare state continues from there, so a rare state followed by another rare event no longer needs both to happen in the same attempt</li>
+<li>with odds 1 of 5, re-key one stream (<code>sched</code>, <code>net</code>, <code>disk</code>, <code>disklatency</code> or <code>random</code>) from a random moment</li>
+<li>otherwise add, remove or shift a fault</li>
+</ul>
+<p>Branching uses the machinery <a href="cause.html"><code>seedfall cause</code></a> already had, with branches now recorded in the run and chained, so a child of a child branches again. A branch at virtual time <em>T</em> re-keys the streams at the first scheduler step at or after <em>T</em>. Nothing is snapshotted: replay is exact, so reaching <em>T</em> again means re-running the seed.</p>
+<p>The exploration stops at the first of these:</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Stops after</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>a failure</td>
+<td>the first failing run, unless <code>-keep-going</code></td>
+</tr>
+<tr>
+<td><code>-rounds N</code></td>
+<td>N rounds</td>
+</tr>
+<tr>
+<td><code>-budget 10m</code></td>
+<td>that much wall-clock time, checked between rounds</td>
+</tr>
+<tr>
+<td><code>-until-novelty N</code> (default 8)</td>
+<td>N rounds in a row that added nothing</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="determinism">Determinism</h2>
+<p>The choices come from <code>-explore-seed</code> (default 1) and every result is merged in a fixed order, so a given corpus and flags produce the same rounds at any <code>-j</code> as long as a <code>-budget</code> does not cut them short: a <code>-budget</code> depends on the machine's speed, so use <code>-rounds</code> for an exploration that must repeat exactly in CI.</p>
+<p>Every failure is a seed plus a schedule file, so nothing is lost for the rest of the tools:</p>
+<pre><code class="language-sh">seedfall replay  -seed 6 -faults .seedfall/failures/seedfall-seed-6-explore-504fa1fb9883/faults.json
+seedfall shrink  -seed 6 -faults .seedfall/failures/seedfall-seed-6-explore-504fa1fb9883/faults.json
+seedfall inspect -seed 6 -faults .seedfall/failures/seedfall-seed-6-explore-504fa1fb9883/faults.json
+seedfall pin     -seed 6 -faults .seedfall/failures/seedfall-seed-6-explore-504fa1fb9883/faults.json
+</code></pre>
+<p>Those commands and the report's replay and shrink lines use the file because the seed alone would not reproduce the run. See <a href="faults.html#editing-a-schedule">the schedule format</a>.</p>
+<h2 id="corpus">Corpus</h2>
+<p>Corpus entries are written to <code>.seedfall/corpus/&lt;config&gt;/&lt;seed&gt;-&lt;id&gt;.json</code> and replayed in the first round of the next <code>seedfall explore</code>, so a search keeps building where it left off. Pass <code>-corpus dir</code> to keep them somewhere committed, like Go fuzz testdata. An entry whose faults no longer fit the config (a node was renamed, for example) or that cannot be read is skipped and counted as stale. Delete the directory to start over.</p>
+<h2 id="what-re-keying-does-not-reach">What re-keying does not reach</h2>
+<p>Re-keying a run changes the random streams seedfall owns: the scheduler, the network, the disk, I/O faults, buggify firings and what <code>random_get</code> returns to the guest, which reaches <code>crypto/rand</code> and <code>sim.Random</code>. Go's <code>math/rand</code> and <code>math/rand/v2</code> top-level functions are seeded once, when the process starts, and keep their own sequence, so a branch does not change what they return in a process that is already running. Workload randomness that should re-roll on a branch has to come from <code>crypto/rand</code> or <code>sim.Random</code>.</p>
+<h2 id="stopping-a-plain-sweep">Stopping a plain sweep</h2>
+<p><code>seedfall run -until-novelty N</code> stops a sweep once N batches of seeds in a row added nothing, so a wide range does not need to be run in full once coverage has flattened out. <code>-batch</code> sets the seeds per batch (default 20) and the verdict for each seed is the same as without the flag; only how many seeds run changes, and the point a run stops does not depend on <code>-j</code>:</p>
+<pre><code class="language-sh">seedfall run -seeds 1-5000 -until-novelty 5 -batch 50
+</code></pre>
+<pre><code>round  runs  new signals  signals  new functions  functions
+  1     4     3            3        624            624
+  2     8     1            4        1              625
+  3     12    0            4        0              625
+stopped: seed range finished
+</code></pre>
+<p>The same growth table is in the JSON output (<code>exploration</code>), <code>seedfall_run</code> and the <strong>Exploration</strong> section of the <a href="reports.html">triage report</a>.</p>
+<h2 id="throughput">Throughput</h2>
+<p>Every sweep reports runs per second and virtual time simulated per wall second, the kind of efficiency numbers a deterministic simulation lives on. They are in the last lines of <code>seedfall run</code>, the JSON summary as <code>seeds_per_second</code> and <code>virtual_seconds_per_wall_second</code>, and the report header.</p>
+<p>Numbers from one Windows 11 machine, <code>-j 2</code>, seedfall built with this repository's Go toolchain:</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Example</th>
+<th>Seeds</th>
+<th>Time</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>examples/kvlog</code> <code>seedfall.fixed.json</code></td>
+<td>20</td>
+<td>1.84 s to 2.12 s, 39 to 45x virtual time</td>
+<td>without feedback instrumentation</td>
+</tr>
+<tr>
+<td><code>examples/kvlog</code> <code>seedfall.fixed.json</code></td>
+<td>20</td>
+<td>1.90 s to 2.13 s</td>
+<td>with <code>-until-novelty</code>, which adds the function bitmap: no measurable slowdown</td>
+</tr>
+<tr>
+<td><code>examples/natscluster</code></td>
+<td>3</td>
+<td>15.2 s at <code>-j 1</code></td>
+<td>a 3-node cluster, about 5 s a seed</td>
+</tr>
+</tbody>
+</table></div>
+<p>A CPU profile of kvlog (10 seeds, <code>-j 1</code>, taken with a one-off build because <code>-cpuprofile</code> is refused on Windows) spent 55% of its samples in the guest's compiled code, 22% in wazero's call path to and from the guest, and 3.7% instantiating modules; the per-step watchdog timer did not appear in the top of the profile.</p>
+<p><code>seedfall run -cpuprofile cpu.pprof</code> is meant to write a Go pprof profile on platforms where Go's profiler can unwind through wazero's compiled code; it has not been verified on Linux or macOS. seedfall refuses it on Windows: the Go runtime crashes unwinding those frames, consistently with parallel guests and intermittently at one guest, reported with a <code>fatal error</code> from <code>runtime.sigprof</code>.</p>
+<p>There is no snapshotting. <code>seedfall cause</code> and every branched run re-execute the seed from the start, in parallel on <code>-j</code> workers.</p>
+<h2 id="from-an-agent">From an agent</h2>
+<p>The MCP tool <code>seedfall_explore</code> takes the same options and returns the rounds, the stop reason and the failure. <code>seedfall_run</code> accepts <code>until_novelty</code> and <code>batch</code>. See <a href="agents.html">agents.md</a>.</p>
+
+      </article>
+    </main>
+  </div>
+</div>
+<footer class="foot">
+  <div class="wrap foot-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../llms.txt">llms.txt</a></p>
+  </div>
+</footer>
+</body>
+</html>

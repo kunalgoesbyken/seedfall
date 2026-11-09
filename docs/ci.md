@@ -1,5 +1,7 @@
 # Running seedfall in CI
 
+This page shows how to run seedfall automatically on every pull request or on a schedule: the GitHub Action, machine-readable output, time limits and sweeps started from `go test`. Use it once seedfall works on your laptop and you want it to guard your main branch.
+
 ## GitHub Actions
 
 ```yaml

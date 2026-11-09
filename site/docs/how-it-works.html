@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How seedfall works · seedfall docs</title>
+<meta name="description" content="This page explains why the same seed always gives the same run: seedfall controls the clock, the randomness and the scheduling for every node, and simulates the disk and the network. Read it to…">
+<meta property="og:title" content="How seedfall works">
+<meta property="og:description" content="This page explains why the same seed always gives the same run: seedfall controls the clock, the randomness and the scheduling for every node, and simulates the disk and the network. Read it to…">
+<link rel="alternate" type="text/markdown" href="how-it-works.md">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../style.css">
+<link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+<header class="nav docs-nav">
+  <div class="wrap nav-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <nav class="links" aria-label="Site">
+      <a href="../">Home</a>
+      <a href="./" aria-current="true">Docs</a>
+      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="docs">
+  <div class="wrap docs-grid">
+    <aside class="docs-side">
+      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
+      <label class="docs-menu" for="docs-menu">Docs menu</label>
+      <nav class="docs-index" aria-label="Documentation">
+        <h2>Start here</h2>
+        <ul>
+          <li><a href="getting-started.html">Getting started</a></li>
+          <li><a href="install.html">Installing seedfall</a></li>
+          <li><a href="faq.html">FAQ</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+        </ul>
+        <h2>Find a bug</h2>
+        <ul>
+          <li><a href="networking.html">Networking</a></li>
+          <li><a href="properties.html">Properties and checks</a></li>
+          <li><a href="compat.html">Storage engines that need mmap or flock</a></li>
+          <li><a href="config.html">Config files, profiles and seeded disks</a></li>
+          <li><a href="explore.html">Feedback-guided exploration</a></li>
+          <li><a href="buggify.html">BUGGIFY</a></li>
+          <li><a href="mutate.html">Mutation testing your checks</a></li>
+          <li><a href="antithesis.html">Running Antithesis SDK code</a></li>
+          <li><a href="gostman.html">Use your Gostman collections as workloads</a></li>
+        </ul>
+        <h2>Understand a failure</h2>
+        <ul>
+          <li><a href="timeline.html">Timelines, logs and time-travel debugging</a></li>
+          <li><a href="cause.html">Causality analysis</a></li>
+          <li><a href="inspect.html">Inspecting the disk at the moment of failure</a></li>
+          <li><a href="verify.html">Proving a fix with seedfall verify</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+        </ul>
+        <h2>Use in CI</h2>
+        <ul>
+          <li><a href="ci.html">Running seedfall in CI</a></li>
+          <li><a href="agents.html">Using seedfall from AI coding agents</a></li>
+        </ul>
+        <h2>Reference</h2>
+        <ul>
+          <li><a href="faults.html">Configuration and faults</a></li>
+          <li><a href="properties.html">Properties, linearizability and determinism</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          <li><a href="how-it-works.html" aria-current="page">How seedfall works</a></li>
+          <li><a href="testing.html">Testing seedfall itself</a></li>
+          <li><a href="findings/">Findings</a></li>
+        </ul>
+        <h2>About the project</h2>
+        <ul>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
+        </ul>
+      </nav>
+    </aside>
+    <main class="docs-main">
+      <p class="docs-meta">
+        <a href="how-it-works.md" type="text/markdown">View as Markdown, for AI agents</a>
+        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/how-it-works.md">Edit on GitHub</a>
+      </p>
+      <article class="prose">
+<h1 id="how-seedfall-works">How seedfall works</h1>
+<p>This page explains why the same seed always gives the same run: seedfall controls the clock, the randomness and the scheduling for every node, and simulates the disk and the network. Read it to understand what seedfall can and cannot find, or to decide how far to trust a result. You do not need it to run your first sweep.</p>
+<h2 id="one-process-one-clock-many-nodes">One process, one clock, many nodes</h2>
+<p>seedfall compiles every node with the stock Go toolchain for <code>GOOS=wasip1</code> and runs each one as its own <a href="https://wazero.io">wazero</a> module instance. On <code>wasip1</code> the Go runtime is single-threaded and has no async preemption, and every source of nondeterminism reaches the outside world through three WASI calls. seedfall implements all three in the host, and adds a deterministic preemption point of its own (below):</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>WASI call</th>
+<th>seedfall behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>random_get</code></td>
+<td>A ChaCha8 stream derived from the seed and the node's incarnation. This fixes map iteration order, <code>select</code> choice, <code>math/rand</code> and crypto randomness.</td>
+</tr>
+<tr>
+<td><code>clock_time_get</code></td>
+<td>A virtual clock shared by every node. Every read advances it by one nanosecond, so two <code>time.Now()</code> calls in a row never return the same value, as on real hardware; wall and monotonic clocks advance together. With <code>clock_skew</code> and <code>clock_jump</code>, each node's wall clock is offset by a seeded amount; the monotonic clock is never skewed.</td>
+</tr>
+<tr>
+<td><code>poll_oneoff</code></td>
+<td>Parks the node until its earliest timer or its next network arrival.</td>
+</tr>
+</tbody>
+</table></div>
+<p>A node gives up control when all of its goroutines are blocked, or when it is preempted after a long run without blocking (see <a href="#preemption">Preemption</a>). The scheduler runs exactly one node at a time, picks the next one by earliest wake-up time, breaks ties with the seed, and jumps virtual time forward. Ten seconds of <code>time.Sleep</code> cost no real time.</p>
+<p>There is no <code>linkname</code>, no source rewriting and no forked runtime, so new Go releases keep working. The opt-in <code>compat_overlay</code> and <code>net_overlay</code> are the exceptions: they add wasip1 files to your build (<a href="compat.html">compat</a>), and the generic <code>flock</code> shim uses one <code>go:linkname</code> to <code>time.Sleep</code>.</p>
+<h2 id="preemption">Preemption</h2>
+<p>Real Go preempts a goroutine that has run for 10ms. On <code>wasip1</code> nothing does, so a goroutine that spins without a syscall would starve every other goroutine in its node, and its node would never yield. seedfall loads each Go module with a call counter added to the start of every function. After 4,194,304 counted calls without the node blocking, the counter calls back into the host, which triggers the Go runtime's own cooperative preemption path for the running goroutine (the same <code>stackguard0</code> request the runtime's <code>sysmon</code> makes on other platforms) and parks the node for 10ms of virtual time, so other nodes run too. The count is part of the execution, so preemption points are as deterministic as everything else. A burst shorter than that costs no virtual time.</p>
+<h3 id="loops">Loops</h3>
+<p>By default a loop that makes no function call is not counted, so it is never preempted: a call-free spin holds the whole simulation until the real-time <code>watchdog</code> stops it, and a long call-free computation takes no virtual time. With <code>&quot;preempt&quot;: {&quot;loops&quot;: true}</code> the counter also runs at the head of every wasm <code>loop</code>, which the Go compiler emits for Go loops, so loop iterations count like calls. A node that spins or computes for 4,194,304 counted calls and iterations is then parked for 10ms of virtual time like any other: other nodes keep running, timers and leases on other nodes expire, and a spin that never ends fails deterministically on <code>liveness</code> (or runs to the horizon) instead of on the host-dependent watchdog. <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/examples/busyloop"><code>examples/busyloop</code></a> shows both: a leader whose lease expires during a call-free checksum, which only fails with <code>loops</code>, and a spin-wait that fails as <code>liveness</code> with <code>loops</code> and as a real-time <code>timeout</code> without.</p>
+<p>Two limits. The Go runtime on <code>wasip1</code> can switch goroutines only at a function entry, so a goroutine in a call-free loop still keeps the other goroutines of its own node from running until it makes a call; <code>loops</code> parks the node, it cannot hand the CPU to a sibling goroutine. And the extra check on every iteration costs guest CPU, which is why it is off by default.</p>
+<h3 id="strategies">Strategies</h3>
+<p><code>preempt.strategy</code> decides when, inside a time slice, the running goroutine is preempted:</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Strategy</th>
+<th>Preempts the running goroutine</th>
+<th>Randomness</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>none</code> (default)</td>
+<td>only at the end of a 4,194,304-call time slice</td>
+<td>none</td>
+</tr>
+<tr>
+<td><code>random</code> (<code>&quot;interleave&quot;: true</code> is shorthand)</td>
+<td>after a seeded random 1 to 4,096 counted calls, again and again</td>
+<td>per instance, from the seed</td>
+</tr>
+<tr>
+<td><code>pct</code></td>
+<td>at <code>depth</code> - 1 change points per node, drawn from the seed over the node's first <code>steps</code> counted calls</td>
+<td>per node, from the seed, recorded as faults</td>
+</tr>
+<tr>
+<td><code>calls</code></td>
+<td>every <code>calls</code> counted calls</td>
+<td>none</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>random</code> finds shallow races quickly: a check-then-act window that any preemption opens shows up within a few seeds (<a href="https://github.com/kunalgoesbyken/seedfall/blob/main/examples/interleave"><code>examples/interleave</code></a>, <code>interleave.json</code>). But it preempts every goroutine every few thousand calls, so no goroutine ever runs long without being interrupted. A bug that needs one goroutine to stop inside a window while another runs a long stretch to completion is almost never hit.</p>
+<p><code>pct</code> is probabilistic concurrency testing (Burckhardt, Kothari, Musuvathi and Nagarakatte, ASPLOS 2010), as in shuttle's <code>check_pct</code>. A run is left alone except at <code>depth</code> - 1 seeded change points; at each one the running goroutine is preempted and goes to the back of the Go run queue, and whatever runs next keeps running until it blocks or its time slice ends. For a priority scheduler with n threads and k steps, PCT finds any bug of depth d (one that needs d ordering constraints) with probability at least 1/(n·k^(d-1)) per run. In <code>examples/interleave</code>, a checkpointer that copies a journal up to its reserved length instead of its committed length fails on 20 of seeds 1-20 with <code>pct</code> at depth 2, on 2 of 20 with <code>random</code>, and on none with <code>none</code>, because the bug needs the checkpointer to format a long header without being interrupted (<code>journal.json</code>).</p>
+<p>Every change point that fires is recorded as a <code>preempt</code> fault with its node and counted call (<code>op</code>), and the trace says so:</p>
+<pre><code>    0.000s  preempt: pct, depth 2, change points per node: 1, drawn over the first 300000 counted function calls
+    0.000s  fault preempt journal#1's running goroutine at counted call 259662
+    0.000s  pct: journal ran 271681 counted calls, change points fired: 1
+</code></pre>
+<p>In the schedule file it is</p>
+<pre><code class="language-json">{ &quot;at&quot;: &quot;10ns&quot;, &quot;kind&quot;: &quot;preempt&quot;, &quot;node&quot;: &quot;journal&quot;, &quot;until&quot;: &quot;0s&quot;, &quot;op&quot;: 259662 }
+</code></pre>
+<p>so replay is exact, <code>shrink</code> drops change points the failure does not need, and <code>seedfall faults</code> can move one (<code>-shift 1=-1000</code>) or remove it to test an explanation. A schedule's <code>preempt</code> faults replace the seed's own change points, and they fire only when the config's strategy is <code>pct</code>. The last trace line shows how many counted calls each node ran: set <code>steps</code> near that number, because change points drawn beyond it never fire.</p>
+<p>The bound is a guide for choosing <code>depth</code> and <code>steps</code>, not a guarantee seedfall gives. seedfall picks only the change points. It cannot see goroutines from the host, so it does not assign them priorities: which goroutine runs after a preemption is the Go scheduler's choice, under the seed's random source. Change points are drawn per node, k is counted in calls (and loop iterations with <code>loops</code>), and preemption takes effect at the goroutine's next function call. None of the strategies is a data race detector: they find races that change behaviour, not unsynchronized accesses that happen not to. Run your tests under <code>go test -race</code> as well.</p>
+<h2 id="determinism">Determinism</h2>
+<p>Scheduling, network latency, disk tearing, fault timing and I/O faults each draw from their own seeded stream. Removing one fault therefore barely disturbs the rest of the run, which is what makes shrinking work. The same seed produces the same trace byte for byte across processes and machines. <code>seedfall run -check</code> verifies this on every seed.</p>
+<h2 id="disk">Disk</h2>
+<p>Each node gets an in-memory file system mounted at <code>/</code> with an explicit durability model. Your code uses plain <code>os.File</code>.</p>
+<ul>
+<li>Writes land in the page cache immediately and are visible to reads.</li>
+<li><code>Sync</code> makes the file's pending writes durable.</li>
+<li>A crash keeps only durable data. A file that was never synced disappears.</li>
+<li>With <code>torn_writes</code>, a crash also keeps a random in-order prefix of the pending writes, possibly ending in a partial write.</li>
+<li>With <code>reorder_writes</code>, a crash writes back dirty pages out of order, as kernel writeback does between fsyncs. Each pending write is split into 4 KiB pages. What may survive depends on <code>fs_model</code> (<a href="faults.html#file-system-models">File system models</a>). The default, <code>ext4_ordered</code>, keeps appends and truncates of a file as an in-order prefix and lets overwrites of existing pages survive per page. <code>page_independent</code> keeps a random in-order prefix of the writes to each page, with pages chosen independently, and <code>dir_reorder</code> also lets each pending directory operation survive independently. With <code>torn_writes</code> as well, the last write kept in each page can be partial. Which pages survive is drawn from a stream keyed by the crash itself, its time or its <code>crash_on_io</code> disk operation, so shrinking away other faults does not change it.</li>
+<li><code>Sync</code> and <code>Datasync</code> behave the same: both make every pending write to the file durable, and neither makes the file's directory entry durable, which is what <code>strict_dirs</code> models.</li>
+<li>With <code>strict_dirs</code>, creating, renaming or unlinking a file survives a crash only after its parent directory is fsynced. This is strict POSIX, the model used by ALICE and CrashMonkey. Without it, directory entries are durable as soon as they are made, which matches ext4 and XFS in practice.</li>
+<li>With <code>fsync_eio</code>, a file <code>Sync</code> can fail with <code>EIO</code>. The unsynced writes stay readable but are dropped from durable storage, and the next <code>Sync</code> succeeds. These are Linux's post-2018 &quot;fsyncgate&quot; semantics.</li>
+<li>Hard links share one inode and count their links, symbolic links are followed by <code>open</code>, <code>stat</code> and intermediate path components, and <code>Lstat</code>, <code>Readlink</code>, <code>Link</code> and <code>Symlink</code> behave as on Linux, including <code>ELOOP</code> after 40 hops. A new link is a directory operation like any other: with <code>strict_dirs</code> it survives a crash only after its parent directory is fsynced. Symlinks are durable with their directory entry, because a program cannot fsync one.</li>
+<li><code>Chtimes</code> stores times on the file, reads update the access time as <code>relatime</code> does, and the times a file had at its last fsync are what a crash restores. Directories report no times. <code>Chmod</code> is not modelled: WASI has no call for it, Go's <code>wasip1</code> <code>os.Chmod</code> only checks that the file exists, and <code>Stat</code> reports fixed permission bits.</li>
+<li>With <code>disk_bytes</code>, each node's disk has a fixed size. A write that does not fit is cut short and the next one fails with <code>ENOSPC</code>.</li>
+<li><code>write_eio</code>, <code>write_enospc</code>, <code>read_eio</code> and <code>read_corrupt</code> fail or corrupt single reads and writes. <code>lost_write</code> and <code>misdirected_write</code> make a successful fsync leave one page with its old content, or put it at the wrong offset, while the page cache keeps the right bytes. <code>corrupt_on_crash</code> flips a bit in the bytes being written at a crash, <code>bitrot_per_sec</code> flips durable bits over time, and <code>disk_latency</code> makes every fsync wait. Each per-operation fault is recorded with the node's disk operation or disk read number, so it replays and shrinks like <code>crash_on_io</code>. See <a href="faults.html#disk-faults">Disk faults</a>.</li>
+</ul>
+<p>See <a href="faults.html">faults.md</a> for every fault type.</p>
+<h2 id="network">Network</h2>
+<p>UDP sockets are queues of datagrams with their own seeded latency, sorted by arrival, so they reorder; a held link drops them rather than holding them, and <code>udp_loss</code> and <code>udp_dup</code> choices are recorded per sender datagram so they replay and shrink like the disk faults. Connections are ordered byte streams with seeded per-chunk latency. Partitions and <code>stop</code> or <code>jam</code> clogs hold traffic until they heal, <code>slow</code> clogs and slow nodes add latency, and a crashed node's connections are reset, as are a live node's when a <code>net_reset</code> fault fires. Every fault is a rule on one direction of a link, so one-way partitions fall out of the same code. Every connection is a virtual file registered with Go's own network poller, so blocking reads, deadlines and <code>Accept</code> behave exactly like <code>net</code>, and nothing polls. See <a href="networking.html">networking.md</a>.</p>
+<h2 id="crashes-and-restarts">Crashes and restarts</h2>
+<p>Every incarnation of a node is a fresh module instance. A crash kills the whole process at a host call, including in the middle of a disk operation with <code>crash_on_io</code>, then applies the disk durability model. A restart instantiates the module again over the surviving disk. With <code>supervise</code>, a node that exits with an error is restarted the way systemd or Kubernetes would restart it.</p>
+<h2 id="checking">Checking</h2>
+<p>A run fails when:</p>
+<ul>
+<li>any node calls <code>sim.Fail</code>, fails <code>sim.Assert</code> or <code>sim.Always</code>, or reaches <code>sim.Unreachable</code>;</li>
+<li>a <code>sim.Eventually</code> condition is still false at its deadline, or, with <code>liveness</code>, the workload or the <code>finally</code> check has not finished within <code>liveness.within</code> of the recovery phase (liveness);</li>
+<li>the workload or the <code>finally</code> check exits non-zero;</li>
+<li>a node exits or panics, unless <code>supervise</code> restarts it (Go panics always fail);</li>
+<li>every node is blocked with no timer or pending message (deadlock);</li>
+<li>a node runs longer than <code>watchdog</code> of real time without yielding (livelock or busy loop; with <code>preempt.loops</code>, a spinning node parks like any other and fails on <code>liveness</code> instead);</li>
+<li>the recorded <code>sim.Put</code> / <code>sim.Get</code> / <code>sim.Invoke</code> history is not linearizable under the configured model, or the <code>sim.Txn</code> history has an isolation anomaly.</li>
+</ul>
+<p>A sweep also fails when a cataloged property is never reached, or a <code>Sometimes</code> is never true, in any seed.</p>
+<p>See <a href="properties.html">properties.md</a>.</p>
+<h2 id="shrinking">Shrinking</h2>
+<p><code>seedfall shrink</code> replays a failing seed under smaller and smaller variations and keeps a change only while the run still fails the same way: same class, node, property and message, ignoring numbers. It never trades the bug for a different one, and every schedule it keeps is one it actually ran. It works in passes:</p>
+<ol>
+<li><strong>Remove faults by delta debugging</strong> (ddmin). Try half the schedule, then each half on its own, then quarters, eighths and so on down to removing single faults. In <code>examples/kvlog</code>, seed 1 goes from 33 faults to the 2 it needs in 16 runs. The last round removes one fault at a time, so the result is 1-minimal: removing any fault left makes the failure go away or change.</li>
+<li><strong>Cap the workload</strong> if it sizes itself with <a href="properties.html#workload-size"><code>sim.Budget</code></a>, by bisecting the operation count.</li>
+<li><strong>Trim the duration</strong> by bisecting the run's horizon down toward the failure.</li>
+<li><strong>Simplify each fault</strong>: shorten crash downtimes, partitions, pauses, clogs and slowdowns (<code>until</code> moves toward <code>at</code>), shrink clock jumps toward zero, take nodes off the cut side of a partition (a partition into groups keeps its groups), and move planned faults earlier. Faults recorded at run time, such as a crash during a disk operation, keep their operation index; only their downtime shrinks.</li>
+</ol>
+<p>Passes 2 to 4 repeat, with another removal round after each, until nothing changes. Times are bisected to within two milliseconds. The shrinker makes no random choices of its own, so a seed always shrinks to the same schedule.</p>
+<p>Candidates of one round run at once on <code>-j</code> workers (all cores by default), and the shrinker takes the first one that fails, in the order it would have tried them one by one. The schedule and run count are the same for any <code>-j</code>. <code>-budget</code> stops early: a number (<code>-budget 300</code>) counts those runs, so the result is still reproducible, while a duration (<code>-budget 10m</code>) is wall-clock time and depends on the machine. With more than one job, a round can also start runs whose results are thrown away. When the budget runs out, shrink saves the smallest failing schedule so far and says it may not be minimal.</p>
+<p>The output shows each improvement with the runs used so far and the faults left, then the sizes before and after:</p>
+<pre><code>  run   16    2 faults  removed 1 of 3 faults
+  run   26    2 faults  sim.Budget capped at 107 of 200 operations
+  run   43    2 faults  duration 1.965s instead of 1m0s
+  ...
+shrunk from 33 faults, 1m0s, 200 workload ops
+         to 2 faults, 991ms, 63 workload ops
+in 191 runs, 14.296s
+</code></pre>
+<p>The schedule is saved to <code>.seedfall/seed-N.faults.json</code>:</p>
+<pre><code class="language-json">{
+  &quot;seed&quot;: 1,
+  &quot;faults&quot;: [
+    { &quot;at&quot;: &quot;427.268419ms&quot;, &quot;kind&quot;: &quot;crash_io&quot;, &quot;node&quot;: &quot;server&quot;, &quot;until&quot;: &quot;761.268419ms&quot;, &quot;op&quot;: 56 },
+    { &quot;at&quot;: &quot;802ms&quot;, &quot;kind&quot;: &quot;crash&quot;, &quot;node&quot;: &quot;server&quot;, &quot;until&quot;: &quot;802ms&quot; }
+  ],
+  &quot;duration&quot;: &quot;991ms&quot;,
+  &quot;ops&quot;: 63,
+  &quot;shrunk_from&quot;: { &quot;faults&quot;: 33, &quot;duration&quot;: &quot;1m0s&quot;, &quot;ops&quot;: 200 },
+  &quot;shrink_runs&quot;: 191
+}
+</code></pre>
+<p><code>replay</code>, <code>inspect</code> and <code>verify</code> take it with <code>-faults</code>. <code>duration</code> replaces the config's <code>duration</code> and <code>ops</code> caps <code>sim.Budget</code>; leave either out to use the config. A bare JSON array of faults, the format older versions wrote, still works. A replay that passes only because the shortened <code>duration</code> ended it before the workload finished prints a note saying so, and <code>verify</code> replays schedules for the config's full duration, so a cut-short run never counts as proof of a fix.</p>
+<h2 id="speed">Speed</h2>
+<p>Virtual time never waits on the wall clock. When every node is blocked, the scheduler jumps straight to the next timer, message or fault; the only real-time limit is the <code>watchdog</code>. Real time therefore goes to three things:</p>
+<ul>
+<li><strong>Guest CPU.</strong> Nodes run as wasm compiled to native code by wazero, with a check on every loop iteration so the watchdog can stop a busy loop. That check costs about a third of guest CPU and is what makes livelocks reportable instead of hanging the run. <code>preempt.loops</code> adds seedfall's own counter to every loop head as well. Host calls (clock, <code>poll_oneoff</code>, files, network) are a few percent.</li>
+<li><strong>Booting nodes.</strong> Every start and restart is a fresh module instance: wazero sets up memory and data segments, then the Go runtime and your <code>main</code> run. For nats-server this is 0.1-0.3s per start, so short seeds with many crashes are dominated by boots.</li>
+<li><strong>Compiling, once.</strong> Each guest is compiled once per process and shared by every seed and every node that runs the same binary. Compiled code is cached in <code>.seedfall/cache</code>, so later processes only load it. The cache keeps the 8 most recently used sets of binaries and deletes older ones, so rebuilding a guest many times does not fill the disk.</li>
+</ul>
+<p>A busy 3-node NATS JetStream cluster under crashes and partitions simulates about 2.5-3x faster than real time; a JetStream node that mostly waits on its client about 7x. Seeds are independent, so <code>seedfall run -j N</code> runs N at once.</p>
+
+      </article>
+    </main>
+  </div>
+</div>
+<footer class="foot">
+  <div class="wrap foot-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../llms.txt">llms.txt</a></p>
+  </div>
+</footer>
+</body>
+</html>

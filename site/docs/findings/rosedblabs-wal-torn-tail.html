@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>rosedblabs/wal appends after a torn chunk, so one crash mid-write makes later fsynced writes unreachable and rosedb can no longer open · seedfall docs</title>
+<meta name="description" content="Upstream: rosedblabs/wal#51">
+<meta property="og:title" content="rosedblabs/wal appends after a torn chunk, so one crash mid-write makes later fsynced writes unreachable and rosedb can no longer open">
+<meta property="og:description" content="Upstream: rosedblabs/wal#51">
+<link rel="alternate" type="text/markdown" href="rosedblabs-wal-torn-tail.md">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../style.css">
+<link rel="stylesheet" href="../../docs.css">
+</head>
+<body>
+<header class="nav docs-nav">
+  <div class="wrap nav-row">
+    <a class="brand" href="../../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <nav class="links" aria-label="Site">
+      <a href="../../">Home</a>
+      <a href="../" aria-current="true">Docs</a>
+      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="docs">
+  <div class="wrap docs-grid">
+    <aside class="docs-side">
+      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
+      <label class="docs-menu" for="docs-menu">Docs menu</label>
+      <nav class="docs-index" aria-label="Documentation">
+        <h2>Start here</h2>
+        <ul>
+          <li><a href="../getting-started.html">Getting started</a></li>
+          <li><a href="../install.html">Installing seedfall</a></li>
+          <li><a href="../faq.html">FAQ</a></li>
+          <li><a href="../troubleshooting.html">Troubleshooting</a></li>
+        </ul>
+        <h2>Find a bug</h2>
+        <ul>
+          <li><a href="../networking.html">Networking</a></li>
+          <li><a href="../properties.html">Properties and checks</a></li>
+          <li><a href="../compat.html">Storage engines that need mmap or flock</a></li>
+          <li><a href="../config.html">Config files, profiles and seeded disks</a></li>
+          <li><a href="../explore.html">Feedback-guided exploration</a></li>
+          <li><a href="../buggify.html">BUGGIFY</a></li>
+          <li><a href="../mutate.html">Mutation testing your checks</a></li>
+          <li><a href="../antithesis.html">Running Antithesis SDK code</a></li>
+          <li><a href="../gostman.html">Use your Gostman collections as workloads</a></li>
+        </ul>
+        <h2>Understand a failure</h2>
+        <ul>
+          <li><a href="../timeline.html">Timelines, logs and time-travel debugging</a></li>
+          <li><a href="../cause.html">Causality analysis</a></li>
+          <li><a href="../inspect.html">Inspecting the disk at the moment of failure</a></li>
+          <li><a href="../verify.html">Proving a fix with seedfall verify</a></li>
+          <li><a href="../reports.html">Triage reports</a></li>
+        </ul>
+        <h2>Use in CI</h2>
+        <ul>
+          <li><a href="../ci.html">Running seedfall in CI</a></li>
+          <li><a href="../agents.html">Using seedfall from AI coding agents</a></li>
+        </ul>
+        <h2>Reference</h2>
+        <ul>
+          <li><a href="../faults.html">Configuration and faults</a></li>
+          <li><a href="../properties.html">Properties, linearizability and determinism</a></li>
+          <li><a href="../reports.html">Triage reports</a></li>
+          <li><a href="../troubleshooting.html">Troubleshooting</a></li>
+          <li><a href="../how-it-works.html">How seedfall works</a></li>
+          <li><a href="../testing.html">Testing seedfall itself</a></li>
+          <li><a href="./">Findings</a></li>
+        </ul>
+        <h2>About the project</h2>
+        <ul>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
+        </ul>
+      </nav>
+    </aside>
+    <main class="docs-main">
+      <p class="docs-meta"><a href="./">&larr; Findings</a>
+        <a href="rosedblabs-wal-torn-tail.md" type="text/markdown">View as Markdown, for AI agents</a>
+        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/findings/rosedblabs-wal-torn-tail.md">Edit on GitHub</a>
+      </p>
+      <article class="prose">
+<h1 id="rosedblabswal-appends-after-a-torn-chunk-so-one-crash-mid-write-makes-later-fsynced-writes-unreachable-and-rosedb-can-no-longer-open">rosedblabs/wal appends after a torn chunk, so one crash mid-write makes later fsynced writes unreachable and rosedb can no longer open</h1>
+<p><strong>Upstream:</strong> <a href="https://github.com/rosedblabs/wal/issues/51">rosedblabs/wal#51</a></p>
+<p><strong>Repo:</strong> rosedblabs/wal (tested on v1.3.8, <code>Sync: true</code>). This affects rosedblabs/rosedb v2, which replays the WAL on <code>Open</code>.
+<strong>Severity:</strong> acknowledged, fsynced writes are lost to replay, and rosedb's <code>Open</code> fails with <code>invalid crc</code> after a single crash during a write.
+<strong>Searched upstream:</strong> no matching issue in rosedblabs/wal or rosedblabs/rosedb. rosedb#56 (&quot;Crash resilience&quot;, 2021) got the answer that rosedb &quot;always starts normally whatever the crash&quot;.</p>
+<h2 id="what-happens">What happens</h2>
+<ol>
+<li>With <code>Sync: true</code>, <code>WAL.Write</code> fsyncs before returning, so a crash can only tear the chunk being written, which was never acknowledged.</li>
+<li>On restart, <code>Open</code> opens the last segment and <code>openSegmentFile</code> seeks to the end of the file (segment.go:116, :126). Nothing checks the tail, so the torn chunk stays.</li>
+<li>New writes are appended <strong>after the torn bytes</strong>, fsynced and acknowledged.</li>
+<li>On the next restart, sequential replay (<code>NewReader().Next()</code>) hits the torn chunk and returns <code>ErrInvalidCRC</code> (segment.go:453). Everything written after it is unreachable to replay, even though it was fsynced and acknowledged.</li>
+</ol>
+<p>rosedb v2.4.0 <code>loadIndexFromWAL</code> (db.go:686-691) returns any non-EOF reader error from <code>Open</code>. In rosedb, the same crash therefore makes the database unopenable rather than silently losing data.</p>
+<p>A related hazard: <code>readInternal</code> slices <code>block[chunkOffset : chunkOffset+chunkHeaderSize]</code> and then <code>block[start:start+length]</code> (segment.go:440-447) without checking either range against the segment size. On a torn tail, those reads see stale buffer bytes, and a large garbage <code>length</code> can panic with <code>slice bounds out of range</code>. Compare rosedb#315, which reports that panic from <code>segment.go readInternal</code>.</p>
+<h2 id="reproduction">Reproduction</h2>
+<p>The harness is an append-only server that replays the WAL on startup. It stops at the first replay error and keeps serving, which is the most lenient behavior a consumer could choose. A client appends 200 entries, then verifies every acknowledged one.</p>
+<pre><code>cd examples/wals
+seedfall replay -c rosedb.json -seed 1
+  427ms  crash server during disk op #56        &lt;- torn chunk, never acknowledged
+  server#2| replay stopped after 26 entries: invalid crc, the data may be corrupted
+  1.705s crash server                            &lt;- any later crash
+  server#3| replay stopped after 26 entries: invalid crc …
+  FAIL client#1: acknowledged entry 27 lost
+</code></pre>
+<p>It shrinks to 2 faults: one crash during a write, then any crash.</p>
+<h2 id="strict-posix-directories">Strict POSIX directories</h2>
+<p><code>rotateActiveSegment</code> (wal.go:316-329) creates the next segment file but never fsyncs the WAL directory. Under seedfall's <code>strict_dirs</code> model, one crash after a rotation loses the whole new segment (<code>rosedb.strict.json</code>, seed 4, one plain crash, acknowledged entry 116 lost). This has the same ext4/XFS caveat as the hashicorp/raft and tidwall/wal directory findings: those filesystems usually persist the entry when the file is fsynced.</p>
+<h2 id="verified-fix">Verified fix</h2>
+<p>These changes are applied to a local copy in <code>.prof/rosedb-wal</code>:</p>
+<ol>
+<li><code>segment.repairTail()</code>, called from <code>Open</code> on the active segment, scans the segment with its own reader, truncates and fsyncs at the end of the last valid chunk, and resets <code>currentBlockNumber</code> and <code>currentBlockSize</code>.</li>
+<li><code>readInternal</code> returns <code>ErrInvalidCRC</code> when the header or the payload would extend past the segment size, instead of reading stale buffer bytes.</li>
+<li><code>rotateActiveSegment</code> fsyncs the WAL directory after creating the new segment.</li>
+</ol>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Variant</th>
+<th><code>rosedb.json</code></th>
+<th><code>rosedb.strict.json</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>v1.3.8</td>
+<td>FAIL seed 1 (2 faults)</td>
+<td>FAIL</td>
+</tr>
+<tr>
+<td>+ tail repair + bounds check</td>
+<td>ok, 1000 seeds</td>
+<td>FAIL seed 4 (segment lost)</td>
+</tr>
+<tr>
+<td>+ directory fsync on rotation</td>
+<td>ok, 1000 seeds</td>
+<td>ok, 1000 seeds</td>
+</tr>
+</tbody>
+</table></div>
+<p>Not covered: a torn record that spans blocks (<code>ChunkTypeFirst</code> with no <code>Last</code>). Reading it returns <code>io.EOF</code> instead of an error, so repair wouldn't truncate it. The test payloads are under 32 KB, so this path wasn't exercised.</p>
+<h2 id="when-the-failure-becomes-inevitable">When the failure becomes inevitable</h2>
+<p><code>seedfall cause</code> re-randomizes the run from many moments and measures how often it still fails:</p>
+<pre><code>         0s    15%  █████
+  427.268ms    10%  ███
+  427.268ms    75%  ███████████████████████         &lt;- after 427.268ms  crash server during disk op #56, restart at 791.388ms
+    1.7052s    70%  █████████████████████
+    1.7052s   100%  ██████████████████████████████  &lt;- after 1.7052s  crash server, restart at 1.942589s
+
+biggest jump: 10% -&gt; 75% at 427.268ms
+</code></pre>
+<p>The crash in the middle of a write is what plants the bug: from that moment, three futures in four lose acknowledged data. The later crash only triggers the replay that exposes it.</p>
+
+      </article>
+    </main>
+  </div>
+</div>
+<footer class="foot">
+  <div class="wrap foot-row">
+    <a class="brand" href="../../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../../llms.txt">llms.txt</a></p>
+  </div>
+</footer>
+</body>
+</html>

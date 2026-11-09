@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Testing seedfall itself · seedfall docs</title>
+<meta name="description" content="This page is for people who work on seedfall itself, or who want to know why its results can be trusted. It lists the tests that check seedfall&#39;s model of crashes, faults and replay, and how to run…">
+<meta property="og:title" content="Testing seedfall itself">
+<meta property="og:description" content="This page is for people who work on seedfall itself, or who want to know why its results can be trusted. It lists the tests that check seedfall&#39;s model of crashes, faults and replay, and how to run…">
+<link rel="alternate" type="text/markdown" href="testing.md">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../style.css">
+<link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+<header class="nav docs-nav">
+  <div class="wrap nav-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <nav class="links" aria-label="Site">
+      <a href="../">Home</a>
+      <a href="./" aria-current="true">Docs</a>
+      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="docs">
+  <div class="wrap docs-grid">
+    <aside class="docs-side">
+      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
+      <label class="docs-menu" for="docs-menu">Docs menu</label>
+      <nav class="docs-index" aria-label="Documentation">
+        <h2>Start here</h2>
+        <ul>
+          <li><a href="getting-started.html">Getting started</a></li>
+          <li><a href="install.html">Installing seedfall</a></li>
+          <li><a href="faq.html">FAQ</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+        </ul>
+        <h2>Find a bug</h2>
+        <ul>
+          <li><a href="networking.html">Networking</a></li>
+          <li><a href="properties.html">Properties and checks</a></li>
+          <li><a href="compat.html">Storage engines that need mmap or flock</a></li>
+          <li><a href="config.html">Config files, profiles and seeded disks</a></li>
+          <li><a href="explore.html">Feedback-guided exploration</a></li>
+          <li><a href="buggify.html">BUGGIFY</a></li>
+          <li><a href="mutate.html">Mutation testing your checks</a></li>
+          <li><a href="antithesis.html">Running Antithesis SDK code</a></li>
+          <li><a href="gostman.html">Use your Gostman collections as workloads</a></li>
+        </ul>
+        <h2>Understand a failure</h2>
+        <ul>
+          <li><a href="timeline.html">Timelines, logs and time-travel debugging</a></li>
+          <li><a href="cause.html">Causality analysis</a></li>
+          <li><a href="inspect.html">Inspecting the disk at the moment of failure</a></li>
+          <li><a href="verify.html">Proving a fix with seedfall verify</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+        </ul>
+        <h2>Use in CI</h2>
+        <ul>
+          <li><a href="ci.html">Running seedfall in CI</a></li>
+          <li><a href="agents.html">Using seedfall from AI coding agents</a></li>
+        </ul>
+        <h2>Reference</h2>
+        <ul>
+          <li><a href="faults.html">Configuration and faults</a></li>
+          <li><a href="properties.html">Properties, linearizability and determinism</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          <li><a href="how-it-works.html">How seedfall works</a></li>
+          <li><a href="testing.html" aria-current="page">Testing seedfall itself</a></li>
+          <li><a href="findings/">Findings</a></li>
+        </ul>
+        <h2>About the project</h2>
+        <ul>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
+        </ul>
+      </nav>
+    </aside>
+    <main class="docs-main">
+      <p class="docs-meta">
+        <a href="testing.md" type="text/markdown">View as Markdown, for AI agents</a>
+        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/testing.md">Edit on GitHub</a>
+      </p>
+      <article class="prose">
+<h1 id="testing-seedfall-itself">Testing seedfall itself</h1>
+<p>This page is for people who work on seedfall itself, or who want to know why its results can be trusted. It lists the tests that check seedfall's model of crashes, faults and replay, and how to run them. You do not need it to use seedfall.</p>
+<p>seedfall is only useful if its own model of crashes, faults and replay is right, so that model has its own tests. This page lists what they check and how to run them.</p>
+<h2 id="what-the-tests-check">What the tests check</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Area</th>
+<th>Test file</th>
+<th>What it proves</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Disk durability</td>
+<td><code>engine/memfs_test.go</code></td>
+<td>Synced writes survive a crash, unsynced writes and never-synced files do not, <code>O_SYNC</code> makes every write durable, an unsynced truncate is undone</td>
+</tr>
+<tr>
+<td>Torn writes</td>
+<td><code>engine/memfs_test.go</code></td>
+<td>A torn crash keeps an in-order prefix of the pending writes, the last one possibly cut mid-way, and records the tear</td>
+</tr>
+<tr>
+<td>Out-of-order writeback</td>
+<td><code>engine/memfs_test.go</code></td>
+<td>Writes split at 4 KiB page boundaries, pages persist independently (a later page can survive without an earlier one), and writes to one page persist in order</td>
+</tr>
+<tr>
+<td>fsync <code>EIO</code></td>
+<td><code>engine/memfs_test.go</code></td>
+<td>A failed fsync drops the pending writes while they stay readable, and a retried fsync does not bring them back</td>
+</tr>
+<tr>
+<td>Disk faults</td>
+<td><code>engine/diskfaults_test.go</code></td>
+<td><code>disk_bytes</code> cuts a write short and then refuses it, flagged so the guest gets <code>ENOSPC</code>, while overwrites still fit; a failed write writes nothing but counts as a disk operation; a corrupted read flips the returned buffer and never the stored data; a lost write keeps the old page on disk (zeros for a new page) and a misdirected write puts the page at another offset, while the page cache keeps the new content, and rewriting the page later writes it in full; crash corruption flips exactly one bit inside the bytes that were being written; bit rot flips one stored bit; <code>fsync_corrupts</code> flips only the durable copy; a misdirected write is chosen from the seed and operation number and replays from its recorded fault</td>
+</tr>
+<tr>
+<td>File system calls</td>
+<td><code>engine/memfs_test.go</code></td>
+<td><code>OpenFile</code> flags, <code>Mkdir</code>, <code>Rename</code>, <code>Unlink</code>, <code>Rmdir</code> and <code>Readdir</code> return the POSIX errors and results</td>
+</tr>
+<tr>
+<td><code>strict_dirs</code></td>
+<td><code>engine/namespace_test.go</code></td>
+<td>New entries need the parent directory fsynced to survive, a rename reverts without a directory fsync, and a torn crash recovers an in-order prefix of directory operations</td>
+</tr>
+<tr>
+<td>Fault schedules</td>
+<td><code>engine/faults_test.go</code></td>
+<td>Schedules are identical for the same seed and differ across seeds, stay inside the time horizon and in order, never crash the workload unless asked, and never plan runtime-only faults; swarm rates stay in <code>[0, 2 x rate)</code>, swarm mixes are deterministic per seed, and partition sides are never empty</td>
+</tr>
+<tr>
+<td>Network faults</td>
+<td><code>engine/netfaults_test.go</code></td>
+<td>Every partition topology has the promised shape (a ring gives each node a distinct majority), the default <code>half</code> topology keeps the old schedule, a one-way clog holds one direction only, <code>jam</code> accepts late without an error, <code>slow</code> adds its delay, per-link latency overrides apply one way, a reset breaks both ends, including connections waiting to be accepted, while the listener stays open, a slow node stretches its latency and timers, <code>sim.QuietFor</code> heals clogs, swizzles clog one node at a time and unclog in random order, and bad settings, including network faults on a single-node config, are rejected</td>
+</tr>
+<tr>
+<td>Scheduler</td>
+<td><code>engine/sched_test.go</code></td>
+<td>The next step is the earliest one; at the same time a planned fault goes before a restart and a restart before a resume; every resume due at that time is a candidate for the seeded scheduler; a paused node waits for its pause to end</td>
+</tr>
+<tr>
+<td>Shrinking</td>
+<td><code>engine/shrink_test.go</code>, <code>cmd/seedfall/shrink_test.go</code></td>
+<td>Against a fake runner, <code>Shrink</code> keeps the original failure, ignores a different failure, and returns a 1-minimal schedule; delta debugging finds one needed fault among 64 in fewer runs than removing one at a time; downtimes, clock jumps, partition sides and fault times shrink to just what the failure needs, while faults recorded at run time keep their operation; the duration and a <code>sim.Budget</code> workload are trimmed, and a workload without <code>sim.Budget</code> is left alone; the result and run count are the same for 1, 3 and 8 jobs; a run or time budget stops it with the failure intact; failure matching ignores numbers only. Schedule files round-trip, the older fault arrays still read, and a passing replay gets a note only when a shortened duration ended it before the workload finished</td>
+</tr>
+<tr>
+<td>Network</td>
+<td><code>engine/net_test.go</code></td>
+<td>Messages on one connection arrive in order under random latency, reads wait for arrival, a partition holds messages until it heals, close delivers EOF after data, and a crash resets every connection</td>
+</tr>
+<tr>
+<td>Linearizability</td>
+<td><code>engine/history_test.go</code></td>
+<td>Every model (<code>kv</code>, <code>cas</code>, <code>append</code>, <code>queue</code>, <code>set</code>, <code>counter</code>) accepts and rejects known histories, including unknown, pending and failed operations; operations a model does not have, and inputs or outputs of the wrong type, are rejected; a history survives the JSONL round trip and re-checks the same; a custom Porcupine model checks a history through <code>PorcupineOperations</code></td>
+</tr>
+<tr>
+<td>Transactional anomalies</td>
+<td><code>engine/elle_test.go</code></td>
+<td>The list-append checker finds <code>G0</code>, <code>G1a</code>, <code>G1b</code>, <code>G1c</code>, <code>G-single</code>, <code>G2</code>, internal inconsistency, incompatible orders, duplicate elements and appends, and garbage reads in minimal histories, passes serializable ones and reads of unknown transactions, explains the cycle, and rejects malformed transactions</td>
+</tr>
+<tr>
+<td>End to end</td>
+<td><code>engine/guest_test.go</code></td>
+<td>A small guest in <code>engine/testdata/guest</code> runs under crashes, partitions, torn writes, out-of-order writeback, crashes during disk operations and pauses: two runs of a seed give byte-identical traces, <code>-check</code> passes, a sweep finds the same failing seeds with 1 or 4 jobs, a failure replays exactly from its saved fault schedule, and a shrunk schedule keeps the failure, replays exactly and is 1-minimal. <code>sim.Budget</code> caps the client's writes when a schedule sets <code>ops</code>, the trace shows the cap, the run is shorter and replays exactly. Under clogs, swizzles, resets, slow nodes and partition topologies, two runs of a seed and a replay of its fault schedule give byte-identical traces. Under every disk fault the same holds, a full disk and <code>write_enospc</code> reach the guest as <code>syscall.ENOSPC</code>, and a failure caused by a lost write shrinks to a schedule that keeps the lost write and replays exactly</td>
+</tr>
+<tr>
+<td>Liveness and workload faults</td>
+<td><code>engine/liveness_test.go</code></td>
+<td>Against the guest: with <code>liveness</code>, a workload that never finishes fails as <code>liveness</code> at <code>duration + within</code> and without it only hits the horizon; the recovery phase restarts a node that would stay down and heals a partition, so the workload finishes; a <code>finally</code> check starts only after the workload, with no fault after it, and its <code>sim.Eventually</code> counts as a property; an <code>Eventually</code> that never holds fails as <code>liveness</code> with its message; <code>include_workload</code> crashes and pauses the client, open operations are reported and stay sound for linearizability, and a replay of the recorded faults is byte-identical; every one of several workloads must finish. Without the guest: <code>supervise</code> never restarts a workload that exits with an error, <code>&quot;faults&quot;: false</code> keeps a node out of every planned fault and every partition, the workload is a fault target only when asked, configs with <code>workloads[]</code>, <code>finally</code> and <code>liveness</code> are validated, and <code>sim.Eventually</code> is cataloged</td>
+</tr>
+<tr>
+<td>Assertions and events</td>
+<td><code>engine/assertions_test.go</code>, <code>sim/sim_test.go</code></td>
+<td>The catalog finds numeric and grouped assertions with their message at the right argument; Antithesis guidance records keep the smallest margin for <code>always</code> and the largest for <code>sometimes</code>, and guidance without an assertion creates nothing; <code>lifecycle.SendEvent</code> becomes a trace event; margins aggregate across seeds; outside the simulator the numeric and grouped forms fail with JSON details and <code>sim.Event</code> does nothing</td>
+</tr>
+<tr>
+<td>Determinism hash</td>
+<td><code>engine/hostcalls_test.go</code></td>
+<td>The host-call hash is stable, checkpointed every 4,096 calls and sensitive to field boundaries, and a divergence report names the first differing call with the call before it, including a run that ends early</td>
+</tr>
+<tr>
+<td>Mutants</td>
+<td><code>engine/mutation_test.go</code></td>
+<td><code>rename_not_atomic</code> loses both names in a crash before the next fsync in loose and strict mode, but not a rename to a new name or one a later fsync closed; <code>truncate_not_durable</code> brings back the old tail; <code>net_drop_after_close</code> drops only an unread last chunk; <code>net_dup_chunk</code> duplicates a seeded share of writes and replays them identically; network mutants skip nodes that take no faults; <code>monotonic_jump</code> moves the monotonic clock only when active; <code>-only</code> parses and rejects typos. <code>engine/appmutant_test.go</code>: source mutants find comparisons, early error returns and <code>Sync</code> calls and still parse, the selection is seeded and ordered, and a mutant's overlay merges with the <code>net_overlay</code> one</td>
+</tr>
+<tr>
+<td>Preemption</td>
+<td><code>engine/preempt_test.go</code></td>
+<td>Strategy validation; loop counting adds the countdown after every <code>loop</code> header while decoding LEB immediates, <code>br_table</code> and <code>0xfc</code> opcodes, and rejects unsupported opcodes; the loop-counted guest compiles; with <code>preempt.loops</code> a call-free loop of three time slices takes at least 30ms of virtual time and without it almost none; <code>pct</code> finds a goroutine race, records its change points as <code>preempt</code> faults that replay exactly, an empty schedule fires none, shrinking keeps one, every change point fires at its counted call across time-slice parks and sleeps and replays the same, and a <code>preempt</code> fault is rejected unless the strategy is <code>pct</code>; <code>calls</code> preempts deterministically</td>
+</tr>
+<tr>
+<td>Confidence math</td>
+<td><code>report/report_test.go</code></td>
+<td><code>SeedsToConfirm</code> and the detectable failure rate against known values, findings moving through new, ongoing, not seen, resolved and regressed across runs, and the JSON report against a golden file</td>
+</tr>
+<tr>
+<td>Proof rendering</td>
+<td><code>verify/verify_test.go</code></td>
+<td>How many seeds a proof needs, and the text and Markdown proof blocks against golden files</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>scripts/regress.sh</code> then runs every example except <code>badgerkv</code> against its expected pass or fail result, replays saved fault schedules, and checks that replays are identical.</p>
+<h2 id="running-them">Running them</h2>
+<pre><code class="language-sh">go test ./...                 # everything, including the wasip1 guest build
+go test -short ./...          # skip the tests that build and run a wasip1 guest
+go test -race ./...           # what CI runs; needs cgo
+go test ./report ./verify -update   # rewrite golden files after an intended change, then review the diff
+go run honnef.co/go/tools/cmd/staticcheck@latest ./...
+go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+bash scripts/regress.sh       # every example; takes hours
+</code></pre>
+<p>govulncheck also reports standard library vulnerabilities, so run it with the latest Go patch release, as CI does with <code>go-version: stable</code>.</p>
+<h2 id="ci">CI</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Workflow</th>
+<th>When</th>
+<th>What</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ci.yml</code></td>
+<td>every push to <code>main</code> and every pull request</td>
+<td>gofmt, <code>go vet</code>, staticcheck, govulncheck, the site checks (<code>scripts/site-check.sh</code> and an up-to-date <code>site/llms.txt</code> and <code>site/llms-full.txt</code>); <code>go test -race ./...</code> on Ubuntu, macOS and Windows; and two example sweeps through the GitHub Action with <code>-check</code></td>
+</tr>
+<tr>
+<td><code>regress.yml</code></td>
+<td>nightly, or by hand</td>
+<td><code>bash scripts/regress.sh</code></td>
+</tr>
+<tr>
+<td><code>codeql.yml</code></td>
+<td>every push to <code>main</code>, every pull request, weekly</td>
+<td>CodeQL analysis of the Go code</td>
+</tr>
+</tbody>
+</table></div>
+<p>Dependabot opens weekly updates for the root module and the GitHub Actions. The examples are left alone on purpose: each pins the library version its findings were made against.</p>
+
+      </article>
+    </main>
+  </div>
+</div>
+<footer class="foot">
+  <div class="wrap foot-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../llms.txt">llms.txt</a></p>
+  </div>
+</footer>
+</body>
+</html>

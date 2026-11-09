@@ -1,5 +1,7 @@
 # Testing seedfall itself
 
+This page is for people who work on seedfall itself, or who want to know why its results can be trusted. It lists the tests that check seedfall's model of crashes, faults and replay, and how to run them. You do not need it to use seedfall.
+
 seedfall is only useful if its own model of crashes, faults and replay is right, so that model has its own tests. This page lists what they check and how to run them.
 
 ## What the tests check

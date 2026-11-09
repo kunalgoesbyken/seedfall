@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Open rewrites config.json in place without fsync, so a crash can leave the database permanently unopenable · seedfall docs</title>
+<meta name="description" content="Repo: prologic/bitcask on git.mills.io, module go.mills.io/bitcask/v2 (tested on v2.2.0, which is main at a5ea7328ad; v1.0.2 has the same code) Severity: one crash at the wrong moment and every later…">
+<meta property="og:title" content="Open rewrites config.json in place without fsync, so a crash can leave the database permanently unopenable">
+<meta property="og:description" content="Repo: prologic/bitcask on git.mills.io, module go.mills.io/bitcask/v2 (tested on v2.2.0, which is main at a5ea7328ad; v1.0.2 has the same code) Severity: one crash at the wrong moment and every later…">
+<link rel="alternate" type="text/markdown" href="bitcask-config-json-torn.md">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../style.css">
+<link rel="stylesheet" href="../../docs.css">
+</head>
+<body>
+<header class="nav docs-nav">
+  <div class="wrap nav-row">
+    <a class="brand" href="../../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <nav class="links" aria-label="Site">
+      <a href="../../">Home</a>
+      <a href="../" aria-current="true">Docs</a>
+      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="docs">
+  <div class="wrap docs-grid">
+    <aside class="docs-side">
+      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
+      <label class="docs-menu" for="docs-menu">Docs menu</label>
+      <nav class="docs-index" aria-label="Documentation">
+        <h2>Start here</h2>
+        <ul>
+          <li><a href="../getting-started.html">Getting started</a></li>
+          <li><a href="../install.html">Installing seedfall</a></li>
+          <li><a href="../faq.html">FAQ</a></li>
+          <li><a href="../troubleshooting.html">Troubleshooting</a></li>
+        </ul>
+        <h2>Find a bug</h2>
+        <ul>
+          <li><a href="../networking.html">Networking</a></li>
+          <li><a href="../properties.html">Properties and checks</a></li>
+          <li><a href="../compat.html">Storage engines that need mmap or flock</a></li>
+          <li><a href="../config.html">Config files, profiles and seeded disks</a></li>
+          <li><a href="../explore.html">Feedback-guided exploration</a></li>
+          <li><a href="../buggify.html">BUGGIFY</a></li>
+          <li><a href="../mutate.html">Mutation testing your checks</a></li>
+          <li><a href="../antithesis.html">Running Antithesis SDK code</a></li>
+          <li><a href="../gostman.html">Use your Gostman collections as workloads</a></li>
+        </ul>
+        <h2>Understand a failure</h2>
+        <ul>
+          <li><a href="../timeline.html">Timelines, logs and time-travel debugging</a></li>
+          <li><a href="../cause.html">Causality analysis</a></li>
+          <li><a href="../inspect.html">Inspecting the disk at the moment of failure</a></li>
+          <li><a href="../verify.html">Proving a fix with seedfall verify</a></li>
+          <li><a href="../reports.html">Triage reports</a></li>
+        </ul>
+        <h2>Use in CI</h2>
+        <ul>
+          <li><a href="../ci.html">Running seedfall in CI</a></li>
+          <li><a href="../agents.html">Using seedfall from AI coding agents</a></li>
+        </ul>
+        <h2>Reference</h2>
+        <ul>
+          <li><a href="../faults.html">Configuration and faults</a></li>
+          <li><a href="../properties.html">Properties, linearizability and determinism</a></li>
+          <li><a href="../reports.html">Triage reports</a></li>
+          <li><a href="../troubleshooting.html">Troubleshooting</a></li>
+          <li><a href="../how-it-works.html">How seedfall works</a></li>
+          <li><a href="../testing.html">Testing seedfall itself</a></li>
+          <li><a href="./">Findings</a></li>
+        </ul>
+        <h2>About the project</h2>
+        <ul>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
+        </ul>
+      </nav>
+    </aside>
+    <main class="docs-main">
+      <p class="docs-meta"><a href="./">&larr; Findings</a>
+        <a href="bitcask-config-json-torn.md" type="text/markdown">View as Markdown, for AI agents</a>
+        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/findings/bitcask-config-json-torn.md">Edit on GitHub</a>
+      </p>
+      <article class="prose">
+<h1 id="open-rewrites-configjson-in-place-without-fsync-so-a-crash-can-leave-the-database-permanently-unopenable">Open rewrites config.json in place without fsync, so a crash can leave the database permanently unopenable</h1>
+<p><strong>Repo:</strong> prologic/bitcask on git.mills.io, module <code>go.mills.io/bitcask/v2</code> (tested on v2.2.0, which is <code>main</code> at a5ea7328ad; v1.0.2 has the same code)
+<strong>Severity:</strong> one crash at the wrong moment and every later <code>Open</code> fails with <code>ErrBadConfig</code> until someone repairs or deletes <code>config.json</code> by hand. No data is lost, but the database stays down.</p>
+<h2 id="summary">Summary</h2>
+<p>Every read-write <code>Open</code> (bitcask.go:620) calls <code>cfg.Save(configPath)</code>, which is <code>os.WriteFile(path, data, mode)</code> (internal/config/config.go:50). That opens the file with <code>O_TRUNC</code>, writes the JSON and closes it, with no fsync, no temporary file and no rename. Until the kernel writes the page back, the on-disk <code>config.json</code> can be empty or hold a prefix of the new JSON.</p>
+<p>On the next <code>Open</code>, <code>config.Load</code> fails with <code>unexpected end of JSON input</code> and <code>Open</code> returns <code>&amp;ErrBadConfig{err}</code> (bitcask.go:566-568). The file is never rewritten, because <code>Save</code> runs only after a successful load, so every later restart fails the same way.</p>
+<p>The exposure window starts at every <code>Open</code> and lasts until writeback, typically up to 30 seconds. That makes it most likely in a crash loop, which is exactly when an application keeps reopening the database. ext4's default <code>auto_da_alloc</code> forces writeback on truncate-then-rewrite and hides this on many Linux systems. It doesn't help ext4 mounted with <code>noauto_da_alloc</code>, XFS or other filesystems, and POSIX doesn't guarantee it.</p>
+<p>#96 discussed what <code>Open</code> should do when <code>config.json</code> can't be read; today it returns <code>ErrBadConfig</code>, which turns this crash window into a hard failure.</p>
+<h2 id="reproduction">Reproduction</h2>
+<p>Reproduced deterministically with <a href="https://github.com/kunalgoesbyken/seedfall">seedfall</a>. It runs a small server on bitcask v2.2.0 with <code>WithSyncWrites(true)</code>, <code>WithAutoRecovery(true)</code> and a 4 KB <code>MaxDatafileSize</code>. It acknowledges <code>SET</code> only after <code>Put</code> returns. A client writes 300 keys and then checks that every acknowledged key is still there. The simulated disk keeps only fsynced data across a crash. With torn writes enabled, a crash can keep a random prefix of the unsynced writes, including a partial last write.</p>
+<pre><code>cd examples/bitcask
+seedfall replay -c seedfall.torn.json -seed 1
+</code></pre>
+<p><code>seedfall shrink</code> reduces the schedule to one plain crash:</p>
+<pre><code>faults before the failure (1):
+   1.7052s  crash server, restart at 1.942589s
+</code></pre>
+<p>On restart: <code>open data/db: error reading config.json: unexpected end of JSON input</code>, and the server exits.</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Config</th>
+<th>Stock v2.2.0</th>
+<th>Patched</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SyncWrites</code>, crashes + partitions (<code>seedfall.json</code>)</td>
+<td>300/300 pass</td>
+<td>—</td>
+</tr>
+<tr>
+<td>plus torn writes + crash during I/O (<code>seedfall.torn.json</code>)</td>
+<td>fails, seed 1</td>
+<td>the <code>config.json</code> error never appears; 300/300 pass with the three recovery fixes in the related drafts</td>
+</tr>
+<tr>
+<td><code>SyncWrites: false</code> (<code>seedfall.nosync.json</code>)</td>
+<td>fails, seed 1 (expected)</td>
+<td>—</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="suggested-fix">Suggested fix</h2>
+<p>Write <code>config.json</code> atomically and durably: write a temporary file, fsync it, rename it over <code>config.json</code>, then fsync the directory.</p>
+<pre><code class="language-go">func writeFileDurably(path string, data []byte, mode os.FileMode) error {
+	tmp := path + &quot;.tmp&quot;
+	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode)
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		return err
+	}
+	dir, err := os.Open(filepath.Dir(path))
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
+	return dir.Sync()
+}
+</code></pre>
+<p>Skipping the rewrite when the serialized config hasn't changed would also remove the window on normal restarts. <code>meta.json</code> is saved through the same <code>os.WriteFile</code> pattern (<code>internal.SaveJSONToFile</code>, internal/utils.go:102) and needs the same treatment.</p>
+<h2 id="fix-verified">Fix verified</h2>
+<p>With <code>Config.Save</code> replaced by the function above, the <code>config.json</code> failure disappears from <code>seedfall.torn.json</code>. The sweep then hits the two auto-recovery bugs filed separately. With all fixes applied, it passes 300 seeds.</p>
+
+      </article>
+    </main>
+  </div>
+</div>
+<footer class="foot">
+  <div class="wrap foot-row">
+    <a class="brand" href="../../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../../llms.txt">llms.txt</a></p>
+  </div>
+</footer>
+</body>
+</html>

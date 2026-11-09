@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Properties, linearizability and determinism · seedfall docs</title>
+<meta name="description" content="A property is something your system must always (or eventually) get right, such as &#34;an acknowledged write is never lost&#34;. This page covers how to write properties with the sim package, how to check…">
+<meta property="og:title" content="Properties, linearizability and determinism">
+<meta property="og:description" content="A property is something your system must always (or eventually) get right, such as &#34;an acknowledged write is never lost&#34;. This page covers how to write properties with the sim package, how to check…">
+<link rel="alternate" type="text/markdown" href="properties.md">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../style.css">
+<link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+<header class="nav docs-nav">
+  <div class="wrap nav-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <nav class="links" aria-label="Site">
+      <a href="../">Home</a>
+      <a href="./" aria-current="true">Docs</a>
+      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="docs">
+  <div class="wrap docs-grid">
+    <aside class="docs-side">
+      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
+      <label class="docs-menu" for="docs-menu">Docs menu</label>
+      <nav class="docs-index" aria-label="Documentation">
+        <h2>Start here</h2>
+        <ul>
+          <li><a href="getting-started.html">Getting started</a></li>
+          <li><a href="install.html">Installing seedfall</a></li>
+          <li><a href="faq.html">FAQ</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+        </ul>
+        <h2>Find a bug</h2>
+        <ul>
+          <li><a href="networking.html">Networking</a></li>
+          <li><a href="properties.html" aria-current="page">Properties and checks</a></li>
+          <li><a href="compat.html">Storage engines that need mmap or flock</a></li>
+          <li><a href="config.html">Config files, profiles and seeded disks</a></li>
+          <li><a href="explore.html">Feedback-guided exploration</a></li>
+          <li><a href="buggify.html">BUGGIFY</a></li>
+          <li><a href="mutate.html">Mutation testing your checks</a></li>
+          <li><a href="antithesis.html">Running Antithesis SDK code</a></li>
+          <li><a href="gostman.html">Use your Gostman collections as workloads</a></li>
+        </ul>
+        <h2>Understand a failure</h2>
+        <ul>
+          <li><a href="timeline.html">Timelines, logs and time-travel debugging</a></li>
+          <li><a href="cause.html">Causality analysis</a></li>
+          <li><a href="inspect.html">Inspecting the disk at the moment of failure</a></li>
+          <li><a href="verify.html">Proving a fix with seedfall verify</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+        </ul>
+        <h2>Use in CI</h2>
+        <ul>
+          <li><a href="ci.html">Running seedfall in CI</a></li>
+          <li><a href="agents.html">Using seedfall from AI coding agents</a></li>
+        </ul>
+        <h2>Reference</h2>
+        <ul>
+          <li><a href="faults.html">Configuration and faults</a></li>
+          <li><a href="properties.html" aria-current="page">Properties, linearizability and determinism</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          <li><a href="how-it-works.html">How seedfall works</a></li>
+          <li><a href="testing.html">Testing seedfall itself</a></li>
+          <li><a href="findings/">Findings</a></li>
+        </ul>
+        <h2>About the project</h2>
+        <ul>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
+        </ul>
+      </nav>
+    </aside>
+    <main class="docs-main">
+      <p class="docs-meta">
+        <a href="properties.md" type="text/markdown">View as Markdown, for AI agents</a>
+        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/properties.md">Edit on GitHub</a>
+      </p>
+      <article class="prose">
+<h1 id="properties-linearizability-and-determinism">Properties, linearizability and determinism</h1>
+<p>A property is something your system must always (or eventually) get right, such as &quot;an acknowledged write is never lost&quot;. This page covers how to write properties with the <code>sim</code> package, how to check recovery, and how to check a recorded history of operations for linearizability (concurrent operations behaving as if they happened one at a time, in some order). Use it when you write or improve your workload.</p>
+<h2 id="failing-a-run">Failing a run</h2>
+<pre><code class="language-go">sim.Fail(&quot;replica diverged&quot;)
+sim.Assert(got == want, fmt.Sprintf(&quot;acknowledged write lost: %s=%s&quot;, key, want))
+</code></pre>
+<p><code>Fail</code> and <code>Assert</code> stop the run with a message. Outside the simulator they panic, so the same code works in ordinary tests.</p>
+<h2 id="properties-with-coverage">Properties with coverage</h2>
+<p>A green sweep only means something if the dangerous paths actually ran. Properties are tracked across every seed and printed after a sweep:</p>
+<pre><code class="language-go">sim.Always(len(log) &gt;= committed, &quot;log never shrinks below the commit index&quot;, len(log), committed)
+sim.Sometimes(tornTail, &quot;recovery found a torn tail&quot;)
+sim.Reachable(&quot;a node restored from a snapshot&quot;)
+sim.Unreachable(&quot;two leaders in the same term&quot;, term)
+</code></pre>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Fails the seed when</th>
+<th>Fails the sweep when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Always(cond, msg, details...)</code></td>
+<td><code>cond</code> is false</td>
+<td>it was never reached</td>
+</tr>
+<tr>
+<td><code>AlwaysOrUnreachable(cond, msg, details...)</code></td>
+<td><code>cond</code> is false</td>
+<td></td>
+</tr>
+<tr>
+<td><code>Unreachable(msg, details...)</code></td>
+<td>it is called</td>
+<td></td>
+</tr>
+<tr>
+<td><code>Sometimes(cond, msg, details...)</code></td>
+<td></td>
+<td>it was never reached, or <code>cond</code> was never true</td>
+</tr>
+<tr>
+<td><code>Reachable(msg, details...)</code></td>
+<td></td>
+<td>it was never reached</td>
+</tr>
+<tr>
+<td><code>Eventually(cond, msg, within)</code></td>
+<td><code>cond()</code> is still false after <code>within</code> of virtual time, as a <code>liveness</code> failure</td>
+<td>it was never reached</td>
+</tr>
+</tbody>
+</table></div>
+<pre><code>property       seeds reached  seeds true
+  sometimes             400         400  a crash interrupted the workload
+  sometimes             400         172  recovery found a torn tail
+
+ok  400 seeds passed (0 hit the time horizon) in 1m32s
+</code></pre>
+<p>A property is identified by its message, so keep messages constant and pass changing values as details. Details appear in the failure message but do not create a new property. A <code>Sometimes</code> that is never satisfied means your faults never reached that path: raise a fault rate, lengthen <code>duration</code>, or change the workload.</p>
+<p>Properties are evaluated in any node, not only the workload. Outside the simulator, <code>Always</code>, <code>Unreachable</code> and <code>Eventually</code> panic on violation and the others do nothing.</p>
+<h3 id="numeric-and-grouped-properties">Numeric and grouped properties</h3>
+<p>The comparison and grouped forms match the <a href="antithesis.html">Antithesis SDK</a> and say more than a plain boolean:</p>
+<pre><code class="language-go">sim.AlwaysGreaterThanOrEqualTo(len(log), committed, &quot;log never shrinks below the commit index&quot;)
+sim.SometimesGreaterThan(backlog, 100, &quot;the queue backs up past 100&quot;)
+sim.AlwaysSome(map[string]bool{&quot;primary&quot;: p &gt;= 0, &quot;backup&quot;: b &gt;= 0}, &quot;some replica answers&quot;)
+sim.SometimesAll(map[string]bool{&quot;crashed&quot;: crashed, &quot;recovered&quot;: recovered}, &quot;a crashed node caught up&quot;)
+</code></pre>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Same as</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AlwaysGreaterThan(left, right, msg, details...)</code>, also <code>OrEqualTo</code></td>
+<td><code>Always(left &gt; right, ...)</code> (<code>&gt;=</code>)</td>
+</tr>
+<tr>
+<td><code>AlwaysLessThan(left, right, msg, details...)</code>, also <code>OrEqualTo</code></td>
+<td><code>Always(left &lt; right, ...)</code> (<code>&lt;=</code>)</td>
+</tr>
+<tr>
+<td><code>SometimesGreaterThan(left, right, msg, details...)</code>, also <code>OrEqualTo</code></td>
+<td><code>Sometimes(left &gt; right, ...)</code> (<code>&gt;=</code>)</td>
+</tr>
+<tr>
+<td><code>SometimesLessThan(left, right, msg, details...)</code>, also <code>OrEqualTo</code></td>
+<td><code>Sometimes(left &lt; right, ...)</code> (<code>&lt;=</code>)</td>
+</tr>
+<tr>
+<td><code>AlwaysSome(named, msg, details...)</code></td>
+<td><code>Always</code> that at least one value in the <code>map[string]bool</code> is true</td>
+</tr>
+<tr>
+<td><code>SometimesAll(named, msg, details...)</code></td>
+<td><code>Sometimes</code> that every value in the map is true</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>left</code> and <code>right</code> are any Go number type. On failure the details are JSON, <code>{&quot;left&quot;:41,&quot;right&quot;:40}</code> for the comparisons and the named booleans for the grouped forms, with any extra details under <code>&quot;details&quot;</code>.</p>
+<p>For the comparisons seedfall also keeps a margin: <code>left - right</code> for <code>GreaterThan</code>, <code>right - left</code> for <code>LessThan</code>, so a positive margin is on the true side. An <code>always</code> comparison reports its smallest margin over every hit and seed, which is how close it came to failing; a <code>sometimes</code> comparison reports its largest, which is how close it came to being true. A margin of 0 on an <code>OrEqualTo</code> assertion means the boundary was hit exactly:</p>
+<pre><code>property       seeds reached  seeds true
+  always                 20          20  no acknowledged add is lost  (smallest margin 0)
+  sometimes              20           0  the queue backs up past 100  (largest margin -37)  &lt;- never true (client/main.go:41)
+</code></pre>
+<p>The margin is also in <code>-json</code>, the MCP <code>seedfall_run</code> result (<code>margin</code>) and the HTML report.</p>
+<h3 id="events">Events</h3>
+<pre><code class="language-go">sim.Event(&quot;client resumed&quot;, map[string]int{&quot;next add&quot;: done})
+</code></pre>
+<p><code>sim.Event(name, details)</code> records a moment in the run without asserting anything. The details are encoded as JSON. Each event is a trace line (<code>event client resumed from client#2: {&quot;next add&quot;:39}</code>), so it sits in order between the faults and the program output, and <code>seedfall_replay</code> returns the run's events as a list. Outside the simulator it does nothing. <code>lifecycle.SendEvent</code> from the Antithesis SDK is recorded the same way.</p>
+<h3 id="the-property-catalog">The property catalog</h3>
+<p>Before a sweep, seedfall scans the Go source of every node and the workload for calls to these functions, including the numeric and grouped forms, with a constant message, so it knows about properties even if no seed ever executes them. A property that is never reached is reported with its location and fails the sweep:</p>
+<pre><code>property       seeds reached  seeds true
+  reachable               0           0  compaction ran  &lt;- never reached (node/main.go:12)
+  always                  5           5  invariant holds
+
+FAIL 1 properties were never reached or never true in 5 seeds
+</code></pre>
+<p>An <code>Always</code> that never runs proves nothing, so it has to be reached too. Calls whose message is not a string literal are still tracked once they run, but they cannot be cataloged in advance.</p>
+<h2 id="liveness-recovery-and-finally-checks">Liveness: recovery and finally checks</h2>
+<p>Safety properties say nothing bad happens. Liveness properties say something good eventually happens, and they can only be checked once the faults stop. A cluster with a stuck leader, or a node that never reconnects after a network blip, passes every safety check: it just stops making progress, and a run that stops making progress only hits the time horizon.</p>
+<p>Liveness mode adds a recovery phase to every run:</p>
+<pre><code class="language-json">&quot;duration&quot;: &quot;20s&quot;,
+&quot;liveness&quot;: { &quot;within&quot;: &quot;10s&quot; }
+</code></pre>
+<p>For the first <code>duration</code>, faults fire as usual. Then the recovery phase starts: every remaining fault is suppressed, every partition, clog and slowdown ends, paused nodes resume, and crashed nodes restart at once instead of waiting out their downtime. From then on the workload has <code>within</code> of virtual time to finish. If it does not, the run fails with class <code>liveness</code>:</p>
+<pre><code>FAIL seed 1 at t=15s (2255 scheduler steps, 404ms real)
+  liveness: client did not finish within 10s of the recovery phase starting at 5.000s
+
+trace:
+    4.172s  fault reset 1 connections of primary#1
+    5.000s  recovery: the fault period ended; faults stop, partitions, clogs, slowdowns and pauses end, 0 crashed nodes restart now, everything must finish by 15.000s
+   15.000s  FAIL  liveness: client did not finish within 10s of the recovery phase starting at 5.000s
+</code></pre>
+<p>That failure shrinks like any other: <code>seedfall shrink</code> cuts it to the faults that leave the system stuck, here a single connection reset. Liveness failures are grouped apart from safety failures in reports, as <code>liveness · client</code>.</p>
+<h3 id="eventually">Eventually</h3>
+<p><code>sim.Eventually</code> checks a condition that must become true, rather than one that must always hold:</p>
+<pre><code class="language-go">sim.Eventually(func() bool { return leader() != &quot;&quot; }, &quot;a leader is elected&quot;, 5*time.Second)
+</code></pre>
+<p>It calls <code>cond</code> until it returns true, sleeping <code>within/100</code> of virtual time between calls, and returns true. If <code>cond</code> is still false after <code>within</code>, the run fails with class <code>liveness</code>, the property's message and <code>not true within 5s</code>. It is a property like the others: it is cataloged from the source, shows up in the coverage table as <code>eventually</code>, and fails the sweep if no seed ever reaches it. Outside the simulator it uses real time and panics when the condition never holds.</p>
+<h3 id="finally-checks">Finally checks</h3>
+<p>A <code>finally</code> program runs once, after every workload has exited 0, the way Antithesis runs <code>finally_</code> commands:</p>
+<pre><code class="language-json">&quot;workload&quot;: { &quot;name&quot;: &quot;client&quot;, &quot;pkg&quot;: &quot;./client&quot; },
+&quot;finally&quot;: { &quot;name&quot;: &quot;check&quot;, &quot;pkg&quot;: &quot;./check&quot; }
+</code></pre>
+<p>When the last workload exits, the recovery phase starts (if <code>liveness</code> has not started it already) and then the check starts. It never takes faults, it sees every node through a healed network, and the run passes when it exits 0. With <code>liveness</code>, it too must finish within <code>within</code> of the recovery phase. Its properties are cataloged and counted like the workload's, so this is the place for end-state checks: replicas converge, every acknowledged write is readable, nothing was applied twice.</p>
+<pre><code class="language-go">var p, b int
+sim.Eventually(func() bool {
+	p, b = count(&quot;primary:7000&quot;), count(&quot;backup:7000&quot;)
+	return p &gt;= 0 &amp;&amp; p == b
+}, &quot;primary and backup report the same count&quot;, 5*time.Second)
+sim.AlwaysLessThanOrEqualTo(p, adds, &quot;no add is applied twice&quot;)
+sim.AlwaysGreaterThanOrEqualTo(p, adds, &quot;no acknowledged add is lost&quot;)
+</code></pre>
+<p><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/examples/liveness"><code>examples/liveness</code></a> shows all three: a primary that never reconnects to its backup fails liveness mode, a server without request deduplication fails the finally check once the client is crashed mid-request, and the fixed pair passes.</p>
+<h3 id="quiet-periods">Quiet periods</h3>
+<p><code>sim.QuietFor(d)</code>, called from any node, starts a quiet period from inside the program: it suppresses every fault for <code>d</code> of virtual time and heals any active partition, lifts every clog and ends every slowdown. Unlike the recovery phase, nodes that are already down still restart on schedule. The trace records each suppressed fault. <code>examples/raftkv/client</code> uses this to check that the cluster recovers after the workload.</p>
+<pre><code class="language-go">sim.QuietFor(10 * time.Second)
+started := time.Now()
+waitUntilServed()
+sim.Always(time.Since(started) &lt; 10*time.Second, &quot;cluster serves reads again within the quiet period&quot;)
+</code></pre>
+<h2 id="faults-at-your-own-code-sites">Faults at your own code sites</h2>
+<p><code>sim.Buggify(&quot;site&quot;)</code> returns true at seeded points when <code>faults.buggify</code> is on, so the simulator can force a retry, an error return or a delay inside your code. A quiet period stops sites from firing too. See <a href="buggify.html">buggify.md</a>.</p>
+<h2 id="waiting-for-setup">Waiting for setup</h2>
+<p>With <code>&quot;faults_after_setup&quot;: true</code>, no faults fire until some node calls <code>sim.SetupComplete()</code>. Use it when bootstrapping, such as electing the first leader or creating a stream, is not what you want to test.</p>
+<h2 id="workload-size">Workload size</h2>
+<p>Wrap the number of operations your workload performs in <code>sim.Budget</code> so that <code>seedfall shrink</code> can make it smaller:</p>
+<pre><code class="language-go">writes := flag.Int(&quot;writes&quot;, 200, &quot;number of writes&quot;)
+flag.Parse()
+n := sim.Budget(*writes)
+for i := range n {
+	// one operation
+}
+</code></pre>
+<p><code>sim.Budget(n)</code> returns <code>n</code> in normal runs and outside the simulator. When a shrunk schedule sets <code>ops</code>, it returns at most that many, and the trace says so: <code>client#1: sim.Budget capped at 63 of 200 operations</code>. Shrink only tries this when a node called <code>sim.Budget</code> in the failing run, and bisects the cap down to the fewest operations that still fail the same way. Use the returned value everywhere the count matters, including messages and checks such as &quot;all <code>n</code> writes were acknowledged&quot;. <code>examples/kvlog/client</code> does this.</p>
+<h2 id="linearizability">Linearizability</h2>
+<p>Workloads can record operations from any number of concurrent clients. When the workload finishes, seedfall checks the history with <a href="https://github.com/anishathalye/porcupine">Porcupine</a> against the model named in <code>seedfall.json</code> (<code>kv</code> when there is no <code>checker</code>). Linearizability checking is NP-complete, and a history with many operations of unknown outcome can take Porcupine longer than any test should run. After 30 seconds of real time seedfall gives up on that seed, notes &quot;gave up checking N operations for linearizability&quot; in the trace, and neither passes nor fails it on linearizability. A seed that hits this limit says nothing about the history, so keep workloads short enough to check, or give fewer operations an unknown outcome.</p>
+<pre><code class="language-go">op := sim.Put(clientID, &quot;k1&quot;, &quot;v7&quot;)
+reply, err := client.Put(&quot;k1&quot;, &quot;v7&quot;)
+switch {
+case err != nil:          op.Unknown()
+case reply == &quot;redirect&quot;: op.Failed()
+default:                  op.Ok(&quot;&quot;)
+}
+
+op = sim.Get(clientID, &quot;k1&quot;)
+value, err := client.Get(&quot;k1&quot;)
+if err != nil {
+	op.Unknown()
+} else {
+	op.Ok(value)
+}
+</code></pre>
+<ul>
+<li><code>Ok(output)</code> means the operation took effect. For a read, <code>output</code> is what was read, with <code>&quot;&quot;</code> meaning absent.</li>
+<li><code>Unknown()</code> means it may or may not have taken effect, such as a timeout. Unknown writes may land any time after they start; unknown reads are dropped.</li>
+<li><code>Failed()</code> means it definitely did not take effect, such as a redirect to the leader.</li>
+</ul>
+<p>On a violation, seedfall writes an interactive timeline to <code>.seedfall/seed-N.history.html</code>.</p>
+<h3 id="other-models">Other models</h3>
+<p><code>sim.Put</code> and <code>sim.Get</code> are shorthands for <code>sim.Invoke(client, f, key, value)</code>, which records any operation. Pick the model in <code>seedfall.json</code>:</p>
+<pre><code class="language-json">&quot;checker&quot;: { &quot;model&quot;: &quot;queue&quot; }
+</code></pre>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Operations: <code>sim.Invoke(client, f, key, value)</code>, then <code>op.Ok(output)</code></th>
+<th>Checked as</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>kv</code> (default)</td>
+<td><code>put</code> with a string value; <code>get</code> with the string read as output, <code>&quot;&quot;</code> for absent</td>
+<td>A linearizable register per key</td>
+</tr>
+<tr>
+<td><code>cas</code></td>
+<td><code>put</code> and <code>get</code> as in <code>kv</code>, plus <code>cas</code> with value <code>[]string{old, new}</code> and output <code>true</code> if it swapped, <code>false</code> if the value was not <code>old</code></td>
+<td>A linearizable compare-and-set register per key, for locks and leases</td>
+</tr>
+<tr>
+<td><code>append</code></td>
+<td><code>append</code> with a string value; <code>read</code> with the whole list as output, a <code>[]string</code></td>
+<td>A linearizable append-only log per key</td>
+</tr>
+<tr>
+<td><code>queue</code></td>
+<td><code>enqueue</code> with a string value; <code>dequeue</code> with the item taken as output, <code>&quot;&quot;</code> when empty</td>
+<td>A linearizable FIFO queue per key: no item lost, delivered twice or out of order</td>
+</tr>
+<tr>
+<td><code>set</code></td>
+<td><code>add</code> with a string value; <code>read</code> with the members as output, a <code>[]string</code> in any order</td>
+<td>A linearizable grow-only set per key</td>
+</tr>
+<tr>
+<td><code>counter</code></td>
+<td><code>add</code> with an integer value; <code>read</code> with the integer read as output</td>
+<td>A linearizable counter per key</td>
+</tr>
+<tr>
+<td><code>list-append</code></td>
+<td><code>sim.Txn(client, mops...)</code>, see <a href="#transactions">transactions</a></td>
+<td>Serializability, with Elle-style anomaly detection</td>
+</tr>
+</tbody>
+</table></div>
+<p>Every model checks each key on its own. An unknown <code>dequeue</code> stays in the history with any result allowed, since it may have removed an item; unknown pure reads (<code>get</code>, <code>read</code>) are dropped. An operation the model does not have, or an input or output of the wrong type, fails the run as an <code>assert</code> that names the operation, for example <code>history (model queue): operation &quot;put&quot; is not one of dequeue, enqueue</code>, so a typo cannot silently weaken the check.</p>
+<pre><code class="language-go">op := sim.Invoke(client, &quot;cas&quot;, &quot;leader-lock&quot;, []string{&quot;&quot;, me})
+swapped, err := locks.CompareAndSwap(&quot;leader-lock&quot;, &quot;&quot;, me)
+if err != nil {
+	op.Unknown()
+} else {
+	op.Ok(swapped)
+}
+</code></pre>
+<h3 id="transactions">Transactions</h3>
+<p>With <code>&quot;checker&quot;: {&quot;model&quot;: &quot;list-append&quot;}</code>, workloads record transactions over append-only lists, the workload Elle uses, and seedfall infers the dependencies between them:</p>
+<pre><code class="language-go">mops := []sim.Mop{sim.Read(&quot;x&quot;), sim.Append(&quot;y&quot;, &quot;c1-17&quot;)}
+op := sim.Txn(client, mops...)
+err := db.Txn(func(tx *Tx) {
+	mops[0].Value = tx.List(&quot;x&quot;)
+	tx.Append(&quot;y&quot;, &quot;c1-17&quot;)
+})
+if err != nil {
+	op.Unknown()
+} else {
+	op.Ok(mops)
+}
+</code></pre>
+<p><code>Ok</code> takes the same micro-ops back, with every read's <code>Value</code> set to the list it returned (a <code>[]string</code>). Appended values must be unique per key. seedfall takes each key's version order from its longest read, builds write-write, write-read and read-write edges between transactions, finds the strongly connected components with Tarjan's algorithm, and searches them breadth-first for one short cycle of each kind:</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Anomaly</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>G0</code></td>
+<td>A cycle of write-write edges: two transactions' appends interleave in different orders on different keys</td>
+</tr>
+<tr>
+<td><code>G1a</code></td>
+<td>A committed transaction read an append made by a transaction that <code>Failed()</code></td>
+</tr>
+<tr>
+<td><code>G1b</code></td>
+<td>A transaction read a list ending in an intermediate append of another transaction, which appended to that key again later</td>
+</tr>
+<tr>
+<td><code>G1c</code></td>
+<td>A cycle of write-write and write-read edges with at least one write-read edge</td>
+</tr>
+<tr>
+<td><code>G-single</code></td>
+<td>A cycle with exactly one read-write edge, such as read skew</td>
+</tr>
+<tr>
+<td><code>G2</code></td>
+<td>A cycle that needs two or more read-write edges, such as write skew</td>
+</tr>
+<tr>
+<td><code>internal</code></td>
+<td>A transaction's read does not match its own earlier reads and appends</td>
+</tr>
+<tr>
+<td><code>incompatible-order</code></td>
+<td>Two reads of a key where neither is a prefix of the other, such as after a lost append</td>
+</tr>
+<tr>
+<td><code>duplicate-elements</code></td>
+<td>A read that contains the same element twice</td>
+</tr>
+<tr>
+<td><code>duplicate-append</code></td>
+<td>The same value appended to a key twice, which makes the history impossible to analyse</td>
+</tr>
+<tr>
+<td><code>garbage-read</code></td>
+<td>A read returned an element nobody appended</td>
+</tr>
+</tbody>
+</table></div>
+<p>A history with any of these fails as <code>isolation</code>, with one explained example of each kind in the trace:</p>
+<pre><code>G-single: T4 -rw z-&gt; T0 -wr z-&gt; T6 -ww y-&gt; T4; T4 (client 4, ok) [r z [&quot;4-0&quot;], append y &quot;4-1&quot;, r y [&quot;3-0&quot; &quot;1-1&quot; &quot;4-1&quot;]]; T0 ...
+FAIL  history of 121 transactions is not serializable: G-single, G2, internal
+</code></pre>
+<p><code>Tn</code> is the transaction's <code>id</code> in the history file. The check is serializability, not strict serializability: real-time order between transactions is not used. Transactions that returned <code>Unknown()</code> or never returned count as possibly committed: their appends are used once someone reads them, and their reads are ignored.</p>
+<h3 id="history-files">History files</h3>
+<p>Every failing <code>run</code>, <code>replay</code> and <code>shrink</code>, and every passing <code>replay</code>, writes the recorded history to <code>.seedfall/seed-N.history.jsonl</code>, one event per line in Jepsen's invoke and completion shape:</p>
+<pre><code class="language-json">{&quot;index&quot;:0,&quot;type&quot;:&quot;invoke&quot;,&quot;process&quot;:1,&quot;f&quot;:&quot;enqueue&quot;,&quot;key&quot;:&quot;q&quot;,&quot;value&quot;:&quot;1-0&quot;,&quot;time&quot;:8,&quot;id&quot;:0}
+{&quot;index&quot;:4,&quot;type&quot;:&quot;ok&quot;,&quot;process&quot;:1,&quot;f&quot;:&quot;enqueue&quot;,&quot;key&quot;:&quot;q&quot;,&quot;value&quot;:null,&quot;time&quot;:648261,&quot;id&quot;:0}
+</code></pre>
+<p><code>type</code> is <code>invoke</code>, then <code>ok</code>, <code>info</code> (unknown) or <code>fail</code>; an operation that never returned has no completion line. <code>time</code> is virtual nanoseconds, and <code>id</code> pairs an invocation with its completion. A completion's <code>value</code> is the output for <code>ok</code> and the input otherwise. For <code>list-append</code>, <code>value</code> holds the micro-ops as <code>[f, key, value]</code> triples, the same layout as Elle's list-append micro-ops (seedfall's keys and values are strings). Over MCP, the failure view names the files as <code>history_file</code> and <code>timeline_file</code>.</p>
+<p>Re-check a stored history, or check it against a different model, without running anything:</p>
+<pre><code class="language-sh">seedfall check -history .seedfall/seed-1.history.jsonl -model queue
+</code></pre>
+<p>It prints the verdict and every anomaly, writes the timeline next to the history file (or to <code>-timeline</code>) on a linearizability violation, and exits 1 when the history fails. The MCP tool is <code>seedfall_check</code>.</p>
+<h3 id="your-own-porcupine-model">Your own Porcupine model</h3>
+<p>For a data type none of the models cover, read a history file in Go and check it with your own <a href="https://github.com/anishathalye/porcupine">Porcupine</a> model:</p>
+<pre><code class="language-go">f, _ := os.Open(&quot;.seedfall/seed-1.history.jsonl&quot;)
+ops, err := engine.ReadHistory(f)
+ok := porcupine.CheckOperations(myModel, engine.PorcupineOperations(ops))
+</code></pre>
+<p><code>PorcupineOperations</code> drops failed operations and gives unknown and pending ones a return time after the end of the history. Each operation's <code>Input</code> and <code>Output</code> are its <code>engine.HistoryOp</code>, with the raw JSON <code>Value</code> and <code>Output</code> and the <code>Status</code>; your <code>Step</code> should accept any output when <code>Status</code> is not <code>ok</code>.</p>
+<h2 id="determinism-check">Determinism check</h2>
+<pre><code class="language-sh">seedfall run -seeds 1-200 -check
+</code></pre>
+<p>Every seed runs twice, and the sweep fails if the two runs diverge. Run it in CI to make sure nothing in your program escapes the simulator.</p>
+<p>The comparison does not wait for a difference to reach the trace. Every run keeps a running hash over its host calls: clock reads, <code>random_get</code> lengths, sleeps and <code>poll_oneoff</code>, file opens, stats, reads, writes, truncates, syncs, renames, links, symlinks and directory changes, <code>mmap</code>, <code>msync</code> and <code>munmap</code> calls, network listens, dials, accepts, reads, writes and closes, and the <code>sim</code> property, event, history, <code>Buggify</code>, <code>SetupComplete</code>, <code>QuietFor</code> and <code>Budget</code> calls, each with its node instance, arguments and virtual time. The hash is saved every 4,096 calls. When the two runs differ, seedfall finds the first window of 4,096 calls where they differ, runs the seed twice more recording that window, and reports the first call that differs, in the form <code>host call N: &lt;call in one run&gt; vs &lt;call in the other&gt;, after &lt;last common call&gt;; host calls &lt;window&gt; (...)</code>. Each call reads as instance, call, target, argument and virtual time, for example <code>server#1 random_get(8) at 1.204s</code> or <code>server#1 fd_write data/log(37) at 1.204s</code>. Every <code>-check</code> failure is a <code>nondeterminism</code> failure.</p>
+<p>If the extra runs do not reproduce the difference, the report names the window instead. If the host calls agree but the traces do not, it falls back to the first differing trace line.</p>
+<p>The final hash is printed at the end of <code>seedfall replay</code> (<code>determinism hash 4c9ab008f72df649 over 9126 host calls</code>) and is the <code>determinism_hash</code> field of every <code>-json</code> seed line and of <code>seedfall_replay</code>. The hash covers only simulated values, so two machines that build the same guest binary should get the same hash for the same seed; comparing the field from CI runs on different machines checks that. A different Go toolchain or source tree produces a different binary and may change the hash.</p>
+
+      </article>
+    </main>
+  </div>
+</div>
+<footer class="foot">
+  <div class="wrap foot-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../llms.txt">llms.txt</a></p>
+  </div>
+</footer>
+</body>
+</html>

@@ -1,5 +1,7 @@
 # Storage engines that need mmap or flock
 
+Some storage libraries, such as bbolt, pebble and badger, use operating system features called `mmap` and `flock` that seedfall's sandbox does not have. This page explains how seedfall swaps in stand-ins at build time so you can still test the real library. Read it when `seedfall init` or a build tells you a dependency will not compile.
+
 Some storage libraries don't build or run for `GOOS=wasip1` because they call `mmap`, `flock` or other syscalls that WASI doesn't have. With `compat_overlay`, seedfall gives them `wasip1` versions at build time, either a shim for that exact library or the [generic `mmap` and `flock` shim](#the-generic-mmap-and-flock-shim), so you test the library you ship, unmodified:
 
 ```json

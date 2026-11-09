@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WriteStream with sync and TempDir doesn&#39;t fsync the directory after the rename, so an acknowledged write can revert after a crash · seedfall docs</title>
+<meta name="description" content="Upstream: peterbourgon/diskv#83">
+<meta property="og:title" content="WriteStream with sync and TempDir doesn&#39;t fsync the directory after the rename, so an acknowledged write can revert after a crash">
+<meta property="og:description" content="Upstream: peterbourgon/diskv#83">
+<link rel="alternate" type="text/markdown" href="diskv-rename-dir-fsync.md">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../style.css">
+<link rel="stylesheet" href="../../docs.css">
+</head>
+<body>
+<header class="nav docs-nav">
+  <div class="wrap nav-row">
+    <a class="brand" href="../../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <nav class="links" aria-label="Site">
+      <a href="../../">Home</a>
+      <a href="../" aria-current="true">Docs</a>
+      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="docs">
+  <div class="wrap docs-grid">
+    <aside class="docs-side">
+      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
+      <label class="docs-menu" for="docs-menu">Docs menu</label>
+      <nav class="docs-index" aria-label="Documentation">
+        <h2>Start here</h2>
+        <ul>
+          <li><a href="../getting-started.html">Getting started</a></li>
+          <li><a href="../install.html">Installing seedfall</a></li>
+          <li><a href="../faq.html">FAQ</a></li>
+          <li><a href="../troubleshooting.html">Troubleshooting</a></li>
+        </ul>
+        <h2>Find a bug</h2>
+        <ul>
+          <li><a href="../networking.html">Networking</a></li>
+          <li><a href="../properties.html">Properties and checks</a></li>
+          <li><a href="../compat.html">Storage engines that need mmap or flock</a></li>
+          <li><a href="../config.html">Config files, profiles and seeded disks</a></li>
+          <li><a href="../explore.html">Feedback-guided exploration</a></li>
+          <li><a href="../buggify.html">BUGGIFY</a></li>
+          <li><a href="../mutate.html">Mutation testing your checks</a></li>
+          <li><a href="../antithesis.html">Running Antithesis SDK code</a></li>
+          <li><a href="../gostman.html">Use your Gostman collections as workloads</a></li>
+        </ul>
+        <h2>Understand a failure</h2>
+        <ul>
+          <li><a href="../timeline.html">Timelines, logs and time-travel debugging</a></li>
+          <li><a href="../cause.html">Causality analysis</a></li>
+          <li><a href="../inspect.html">Inspecting the disk at the moment of failure</a></li>
+          <li><a href="../verify.html">Proving a fix with seedfall verify</a></li>
+          <li><a href="../reports.html">Triage reports</a></li>
+        </ul>
+        <h2>Use in CI</h2>
+        <ul>
+          <li><a href="../ci.html">Running seedfall in CI</a></li>
+          <li><a href="../agents.html">Using seedfall from AI coding agents</a></li>
+        </ul>
+        <h2>Reference</h2>
+        <ul>
+          <li><a href="../faults.html">Configuration and faults</a></li>
+          <li><a href="../properties.html">Properties, linearizability and determinism</a></li>
+          <li><a href="../reports.html">Triage reports</a></li>
+          <li><a href="../troubleshooting.html">Troubleshooting</a></li>
+          <li><a href="../how-it-works.html">How seedfall works</a></li>
+          <li><a href="../testing.html">Testing seedfall itself</a></li>
+          <li><a href="./">Findings</a></li>
+        </ul>
+        <h2>About the project</h2>
+        <ul>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
+        </ul>
+      </nav>
+    </aside>
+    <main class="docs-main">
+      <p class="docs-meta"><a href="./">&larr; Findings</a>
+        <a href="diskv-rename-dir-fsync.md" type="text/markdown">View as Markdown, for AI agents</a>
+        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/findings/diskv-rename-dir-fsync.md">Edit on GitHub</a>
+      </p>
+      <article class="prose">
+<h1 id="writestream-with-sync-and-tempdir-doesnt-fsync-the-directory-after-the-rename-so-an-acknowledged-write-can-revert-after-a-crash">WriteStream with sync and TempDir doesn't fsync the directory after the rename, so an acknowledged write can revert after a crash</h1>
+<p><strong>Upstream:</strong> <a href="https://github.com/peterbourgon/diskv/issues/83">peterbourgon/diskv#83</a></p>
+<p><strong>Repo:</strong> peterbourgon/diskv (tested on v3.0.1, which is the latest commit on <code>master</code>, from 2021)
+<strong>Severity:</strong> low. It needs a filesystem where a rename is durable only after the parent directory is fsynced, plus a crash shortly after the write. On such filesystems, an acknowledged synced write can silently revert to the previous value, or disappear if it created the key.</p>
+<h2 id="summary">Summary</h2>
+<p>With <code>Options.TempDir</code> set, <code>writeStreamWithLock</code> writes the value to a temporary file (diskv.go:206), fsyncs it when <code>sync</code> is true (diskv.go:260-261), and renames it over the key's file (diskv.go:274). The parent directory of the key file is never fsynced, and neither are directories created by <code>ensurePathWithLock</code> (diskv.go:622, <code>os.MkdirAll</code>). Under POSIX, the new name isn't durable until the directory is fsynced. After a crash the key can point back at the old file, or not exist at all, even though <code>WriteStream(key, r, true)</code> returned nil.</p>
+<p><code>TempDir</code> is documented as the way to get atomic writes, and <code>sync</code> as the way to get an explicit fsync. Together they read as the durable configuration, but the result is durable only on filesystems that order the rename with the data (ext4 with the default <code>data=ordered</code>, btrfs).</p>
+<h2 id="reproduction">Reproduction</h2>
+<p>Reproduced deterministically with <a href="https://github.com/kunalgoesbyken/seedfall">seedfall</a>. It runs a small server on diskv v3.0.1 with <code>TempDir</code> set that writes with <code>WriteStream(key, r, true)</code>. It acknowledges <code>SET</code> only after the write returns. A client overwrites 40 keys 300 times and then checks that every key holds a value at least as new as the last acknowledged one. The simulated disk keeps only fsynced data across a crash, and with <code>strict_dirs</code> a directory entry survives a crash only after the directory is fsynced.</p>
+<pre><code>cd examples/diskv
+seedfall replay -c seedfall.strict.json -seed 1
+</code></pre>
+<p><code>seedfall shrink</code> reduces the schedule to three faults:</p>
+<pre><code>faults before the failure (3):
+  292.108ms  partition [client] from the rest until 627.143ms
+  757.268ms  crash server during disk op #56, restart at 1.121388s
+  3.261204s  crash server during disk op #314, restart at 3.73383s
+</code></pre>
+<p>The client reports <code>acknowledged write lost: k0=v240, server now answers &quot;VAL v200&quot;</code>. The rename that installed <code>v240</code> was lost, so the key reverted to an earlier version.</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Config</th>
+<th>Stock v3.0.1</th>
+<th>Patched</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>TempDir</code> + sync, crashes, partitions, torn writes, crash during I/O (<code>seedfall.json</code>)</td>
+<td>300/300 pass</td>
+<td>—</td>
+</tr>
+<tr>
+<td>plus strict directory durability (<code>seedfall.strict.json</code>)</td>
+<td>fails, seed 1</td>
+<td>300/300 pass</td>
+</tr>
+<tr>
+<td>without sync (<code>seedfall.nosync.json</code>)</td>
+<td>fails, seed 3 (expected)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>sync without <code>TempDir</code> (<code>seedfall.inplace.json</code>)</td>
+<td>fails, seed 2 (expected: the in-place overwrite truncates first)</td>
+<td>—</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="suggested-fix">Suggested fix</h2>
+<p>When <code>sync</code> is true, fsync the key's directory after the rename:</p>
+<pre><code class="language-go">if sync {
+	if err := syncDir(filepath.Dir(fullPath)); err != nil {
+		return fmt.Errorf(&quot;dir sync: %s&quot;, err)
+	}
+}
+</code></pre>
+<p>Directories newly created by <code>ensurePathWithLock</code> need the same treatment, up to the first directory that already existed. That doesn't matter with the default flat transform.</p>
+<h2 id="fix-verified">Fix verified</h2>
+<p>A local copy of v3.0.1 with the directory fsync after the rename passes seed 1 and 300 seeds of <code>seedfall.strict.json</code>.</p>
+
+      </article>
+    </main>
+  </div>
+</div>
+<footer class="foot">
+  <div class="wrap foot-row">
+    <a class="brand" href="../../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../../llms.txt">llms.txt</a></p>
+  </div>
+</footer>
+</body>
+</html>

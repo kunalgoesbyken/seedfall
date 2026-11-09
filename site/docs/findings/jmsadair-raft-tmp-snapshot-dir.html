@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A crash while a snapshot is being written leaves a temporary directory that makes every later start fail · seedfall docs</title>
+<meta name="description" content="Upstream: not filed. The GitHub repository is no longer public, so there is nowhere to report it; v0.2.0 is still served by proxy.golang.org.">
+<meta property="og:title" content="A crash while a snapshot is being written leaves a temporary directory that makes every later start fail">
+<meta property="og:description" content="Upstream: not filed. The GitHub repository is no longer public, so there is nowhere to report it; v0.2.0 is still served by proxy.golang.org.">
+<link rel="alternate" type="text/markdown" href="jmsadair-raft-tmp-snapshot-dir.md">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../style.css">
+<link rel="stylesheet" href="../../docs.css">
+</head>
+<body>
+<header class="nav docs-nav">
+  <div class="wrap nav-row">
+    <a class="brand" href="../../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <nav class="links" aria-label="Site">
+      <a href="../../">Home</a>
+      <a href="../" aria-current="true">Docs</a>
+      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="docs">
+  <div class="wrap docs-grid">
+    <aside class="docs-side">
+      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
+      <label class="docs-menu" for="docs-menu">Docs menu</label>
+      <nav class="docs-index" aria-label="Documentation">
+        <h2>Start here</h2>
+        <ul>
+          <li><a href="../getting-started.html">Getting started</a></li>
+          <li><a href="../install.html">Installing seedfall</a></li>
+          <li><a href="../faq.html">FAQ</a></li>
+          <li><a href="../troubleshooting.html">Troubleshooting</a></li>
+        </ul>
+        <h2>Find a bug</h2>
+        <ul>
+          <li><a href="../networking.html">Networking</a></li>
+          <li><a href="../properties.html">Properties and checks</a></li>
+          <li><a href="../compat.html">Storage engines that need mmap or flock</a></li>
+          <li><a href="../config.html">Config files, profiles and seeded disks</a></li>
+          <li><a href="../explore.html">Feedback-guided exploration</a></li>
+          <li><a href="../buggify.html">BUGGIFY</a></li>
+          <li><a href="../mutate.html">Mutation testing your checks</a></li>
+          <li><a href="../antithesis.html">Running Antithesis SDK code</a></li>
+          <li><a href="../gostman.html">Use your Gostman collections as workloads</a></li>
+        </ul>
+        <h2>Understand a failure</h2>
+        <ul>
+          <li><a href="../timeline.html">Timelines, logs and time-travel debugging</a></li>
+          <li><a href="../cause.html">Causality analysis</a></li>
+          <li><a href="../inspect.html">Inspecting the disk at the moment of failure</a></li>
+          <li><a href="../verify.html">Proving a fix with seedfall verify</a></li>
+          <li><a href="../reports.html">Triage reports</a></li>
+        </ul>
+        <h2>Use in CI</h2>
+        <ul>
+          <li><a href="../ci.html">Running seedfall in CI</a></li>
+          <li><a href="../agents.html">Using seedfall from AI coding agents</a></li>
+        </ul>
+        <h2>Reference</h2>
+        <ul>
+          <li><a href="../faults.html">Configuration and faults</a></li>
+          <li><a href="../properties.html">Properties, linearizability and determinism</a></li>
+          <li><a href="../reports.html">Triage reports</a></li>
+          <li><a href="../troubleshooting.html">Troubleshooting</a></li>
+          <li><a href="../how-it-works.html">How seedfall works</a></li>
+          <li><a href="../testing.html">Testing seedfall itself</a></li>
+          <li><a href="./">Findings</a></li>
+        </ul>
+        <h2>About the project</h2>
+        <ul>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
+        </ul>
+      </nav>
+    </aside>
+    <main class="docs-main">
+      <p class="docs-meta"><a href="./">&larr; Findings</a>
+        <a href="jmsadair-raft-tmp-snapshot-dir.md" type="text/markdown">View as Markdown, for AI agents</a>
+        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/findings/jmsadair-raft-tmp-snapshot-dir.md">Edit on GitHub</a>
+      </p>
+      <article class="prose">
+<h1 id="a-crash-while-a-snapshot-is-being-written-leaves-a-temporary-directory-that-makes-every-later-start-fail">A crash while a snapshot is being written leaves a temporary directory that makes every later start fail</h1>
+<p><strong>Upstream:</strong> not filed. The GitHub repository is no longer public, so there is nowhere to report it; v0.2.0 is still served by proxy.golang.org.</p>
+<p><strong>Repo:</strong> jmsadair/raft (tested on v0.2.0, the latest release, commit <code>8dd4cdc</code>; the GitHub repository is no longer public, the module is still served by proxy.golang.org)
+<strong>Severity:</strong> low. One ordinary crash (<code>kill -9</code>, OOM kill, power loss) during a snapshot makes the next start fail with a misleading error. A second start succeeds. No torn writes or strict-POSIX assumptions needed; reproduced on a real filesystem.</p>
+<h2 id="summary">Summary</h2>
+<p>Snapshots are written into a temporary directory, <code>snapshots/tmp-snapshotNNN/</code> holding <code>snapshot.bin</code> and <code>metadata.json</code>, which is renamed to <code>snapshot-&lt;timestamp&gt;</code> when complete (<code>snapshot_storage.go:191-231</code> and <code>:99-140</code>). If the process dies before the rename, the temporary directory stays behind. <code>NewSnapshotStorage</code> cleans it up on the next start with <code>fileutil.RemoveTmpFiles</code> (<code>snapshot_storage.go:183</code>):</p>
+<pre><code class="language-go">// internal/fileutil/fileutil.go:11-21
+func RemoveTmpFiles(rootDir string) error {
+	return filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !strings.HasPrefix(info.Name(), &quot;tmp&quot;) {
+			return nil
+		}
+		return os.RemoveAll(path)
+	})
+}
+</code></pre>
+<p><code>filepath.Walk</code> reads a directory's names before calling the walk function on it. The callback removes <code>tmp-snapshotNNN</code> with everything inside it and returns <code>nil</code>, so Walk goes on to <code>lstat</code> the children it already listed. That fails with &quot;no such file or directory&quot;, Walk passes the error to the callback, and the callback returns it:</p>
+<pre><code>could not remove temporary files: lstat data/snapshots/tmp-snapshot1196913385/metadata.json: no such file or directory
+</code></pre>
+<p>By then the directory has been deleted, but <code>NewRaft</code> has already failed. A second start succeeds, so a supervisor that restarts the process on failure recovers. A process that is started once (an operator script, or a deployment that treats a failed start as fatal) stays down, and the error points at a file that no longer exists.</p>
+<p>The same helper is used for <code>log/</code> (<code>log.go:191</code>) and <code>state/</code> (<code>state_storage.go:102</code>), but those only ever contain temporary files, never directories, so only the snapshot directory triggers it.</p>
+<h2 id="reproduction">Reproduction</h2>
+<p>On a real filesystem:</p>
+<pre><code class="language-go">dir, _ := os.MkdirTemp(&quot;&quot;, &quot;jms&quot;)
+tmp := filepath.Join(dir, &quot;snapshots&quot;, &quot;tmp-snapshot42&quot;)
+os.MkdirAll(tmp, 0o755)
+os.WriteFile(filepath.Join(tmp, &quot;snapshot.bin&quot;), []byte(&quot;x&quot;), 0o644)
+os.WriteFile(filepath.Join(tmp, &quot;metadata.json&quot;), []byte(&quot;{}&quot;), 0o644)
+_, err := raft.NewSnapshotStorage(dir)
+// could not remove temporary files: lstat .../snapshots/tmp-snapshot42/metadata.json: no such file or directory
+</code></pre>
+<p>With <a href="https://github.com/kunalgoesbyken/seedfall">seedfall</a>, on a 3-node key-value store that snapshots every 32 entries:</p>
+<pre><code>cd examples/jmsraft
+seedfall replay -c seedfall.json -seed 16 -faults tmpdir.faults.json
+</code></pre>
+<p>One crash, while n3 is writing a snapshot:</p>
+<pre><code>    0.898s  fault crash n3#1 during disk op 170, restart at 1.286s
+    1.286s  start n3#2
+    1.286s  FAIL  n3#2: node restarts from its own disk: could not remove temporary files: lstat data/snapshots/tmp-snapshot2799775943/metadata.json: No such file or directory
+</code></pre>
+<h2 id="suggested-fix">Suggested fix</h2>
+<p>Skip a directory after removing it:</p>
+<pre><code class="language-go">if err := os.RemoveAll(path); err != nil {
+	return err
+}
+if info.IsDir() {
+	return filepath.SkipDir
+}
+return nil
+</code></pre>
+<p><strong>Fix verified:</strong> with this change applied to a local copy of v0.2.0 (together with the <a href="jmsadair-raft-state-file-fsync.html">state file</a> and <a href="jmsadair-raft-log-torn-tail.html">torn log tail</a> fixes), <code>seedfall.json</code> passes 150 seeds of crashes, partitions, torn writes and crashes during disk I/O, linearizable, and the reproduction above succeeds.</p>
+
+      </article>
+    </main>
+  </div>
+</div>
+<footer class="foot">
+  <div class="wrap foot-row">
+    <a class="brand" href="../../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../../llms.txt">llms.txt</a></p>
+  </div>
+</footer>
+</body>
+</html>

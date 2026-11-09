@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BUGGIFY: faults inside your code · seedfall docs</title>
+<meta name="description" content="Most seedfall faults hit your program from the outside: a crash, a broken disk, a cut network. BUGGIFY lets you mark spots inside your own code where seedfall may force a rare path on purpose, such…">
+<meta property="og:title" content="BUGGIFY: faults inside your code">
+<meta property="og:description" content="Most seedfall faults hit your program from the outside: a crash, a broken disk, a cut network. BUGGIFY lets you mark spots inside your own code where seedfall may force a rare path on purpose, such…">
+<link rel="alternate" type="text/markdown" href="buggify.md">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../style.css">
+<link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+<header class="nav docs-nav">
+  <div class="wrap nav-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <nav class="links" aria-label="Site">
+      <a href="../">Home</a>
+      <a href="./" aria-current="true">Docs</a>
+      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="docs">
+  <div class="wrap docs-grid">
+    <aside class="docs-side">
+      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
+      <label class="docs-menu" for="docs-menu">Docs menu</label>
+      <nav class="docs-index" aria-label="Documentation">
+        <h2>Start here</h2>
+        <ul>
+          <li><a href="getting-started.html">Getting started</a></li>
+          <li><a href="install.html">Installing seedfall</a></li>
+          <li><a href="faq.html">FAQ</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+        </ul>
+        <h2>Find a bug</h2>
+        <ul>
+          <li><a href="networking.html">Networking</a></li>
+          <li><a href="properties.html">Properties and checks</a></li>
+          <li><a href="compat.html">Storage engines that need mmap or flock</a></li>
+          <li><a href="config.html">Config files, profiles and seeded disks</a></li>
+          <li><a href="explore.html">Feedback-guided exploration</a></li>
+          <li><a href="buggify.html" aria-current="page">BUGGIFY</a></li>
+          <li><a href="mutate.html">Mutation testing your checks</a></li>
+          <li><a href="antithesis.html">Running Antithesis SDK code</a></li>
+          <li><a href="gostman.html">Use your Gostman collections as workloads</a></li>
+        </ul>
+        <h2>Understand a failure</h2>
+        <ul>
+          <li><a href="timeline.html">Timelines, logs and time-travel debugging</a></li>
+          <li><a href="cause.html">Causality analysis</a></li>
+          <li><a href="inspect.html">Inspecting the disk at the moment of failure</a></li>
+          <li><a href="verify.html">Proving a fix with seedfall verify</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+        </ul>
+        <h2>Use in CI</h2>
+        <ul>
+          <li><a href="ci.html">Running seedfall in CI</a></li>
+          <li><a href="agents.html">Using seedfall from AI coding agents</a></li>
+        </ul>
+        <h2>Reference</h2>
+        <ul>
+          <li><a href="faults.html">Configuration and faults</a></li>
+          <li><a href="properties.html">Properties, linearizability and determinism</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          <li><a href="how-it-works.html">How seedfall works</a></li>
+          <li><a href="testing.html">Testing seedfall itself</a></li>
+          <li><a href="findings/">Findings</a></li>
+        </ul>
+        <h2>About the project</h2>
+        <ul>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
+        </ul>
+      </nav>
+    </aside>
+    <main class="docs-main">
+      <p class="docs-meta">
+        <a href="buggify.md" type="text/markdown">View as Markdown, for AI agents</a>
+        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/buggify.md">Edit on GitHub</a>
+      </p>
+      <article class="prose">
+<h1 id="buggify-faults-inside-your-code">BUGGIFY: faults inside your code</h1>
+<p>Most seedfall faults hit your program from the outside: a crash, a broken disk, a cut network. BUGGIFY lets you mark spots inside your own code where seedfall may force a rare path on purpose, such as a lost reply, a retry or an error return. Use it when the bug you fear lives in your own error handling, which outside faults rarely reach.</p>
+<p>Every other seedfall fault comes from outside the process: crashes, torn writes, partitions. <code>sim.Buggify</code> lets you mark places in your own code where the simulator may force the rare path, such as a dropped reply, a retry, an error return, a minimal quorum or an extra delay. The idea comes from FoundationDB's <code>BUGGIFY</code>, which FoundationDB credits for many of its deepest bugs.</p>
+<pre><code class="language-go">v := c.apply(req)
+if sim.Buggify(&quot;reply lost after apply&quot;) {
+	return
+}
+reply(conn, v)
+</code></pre>
+<p>Outside the simulator <code>Buggify</code> always returns false, so the site costs one function call in production.</p>
+<h2 id="turning-it-on">Turning it on</h2>
+<p>Sites never fire unless the config asks for it:</p>
+<pre><code class="language-json">{ &quot;faults&quot;: { &quot;buggify&quot;: true } }
+</code></pre>
+<p>With <code>swarm</code> as well, each seed turns buggify on or off along with the other fault types.</p>
+<h2 id="how-a-site-decides">How a site decides</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Rule</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Enable</td>
+<td>The first time a site is reached in a run, it is enabled with probability 0.25 and stays enabled or disabled for the rest of that run</td>
+</tr>
+<tr>
+<td>Fire</td>
+<td>Each time an enabled site is reached, it fires with probability 0.25 for <code>sim.Buggify(site)</code>, or <code>p</code> for <code>sim.BuggifyWithProb(site, p)</code></td>
+</tr>
+<tr>
+<td>Quiet</td>
+<td>A site never fires during <code>sim.QuietFor</code>, during the recovery phase of <code>liveness</code> or the <code>finally</code> check, or, with <code>faults_after_setup</code>, before <code>sim.SetupComplete</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>A site is identified by its name, so keep names constant. Both decisions use random streams keyed by the seed and the site name (and, for firing, the node), so adding a site or reaching another site more often never changes when an existing site fires. Most seeds run with only some sites enabled, which explores combinations that firing every site everywhere would hide.</p>
+<h2 id="replay-and-shrink">Replay and shrink</h2>
+<p>Each firing is recorded as a fault with the node, the site and which hit it was, counted per node and site:</p>
+<pre><code>faults before the failure (1):
+  465.631ms  buggify &quot;reply lost after apply&quot; fires on counter at hit #35
+</code></pre>
+<pre><code class="language-json">{ &quot;at&quot;: &quot;465.631252ms&quot;, &quot;kind&quot;: &quot;buggify&quot;, &quot;node&quot;: &quot;counter&quot;, &quot;site&quot;: &quot;reply lost after apply&quot;, &quot;until&quot;: &quot;0s&quot;, &quot;op&quot;: 35 }
+</code></pre>
+<p>When a schedule is replayed with <code>-faults</code>, a site fires exactly at the hits the schedule lists and nowhere else, so <code>seedfall shrink</code> removes firings like any other fault, and you can hand-edit a schedule to add or drop one. Replaying a schedule needs <code>&quot;buggify&quot;: true</code> in the config, and with <code>swarm</code> it must be on for that seed: otherwise every site returns false. The trace shows when each site is first reached and whether it is enabled for the run, and every firing.</p>
+<h2 id="coverage">Coverage</h2>
+<p>seedfall catalogs <code>sim.Buggify</code> and <code>sim.BuggifyWithProb</code> calls whose site is a string literal, and after a sweep with <code>buggify</code> on it prints how often each site was reached, enabled and fired:</p>
+<pre><code>buggify  seeds reached  seeds enabled  seeds fired  fired
+                    20              6            6     88  reply lost after apply
+                    20              5            5    110  slow apply
+</code></pre>
+<p>A site marked <code>never reached</code> (with its location) is code no seed ran; <code>never fired</code> means it ran but never fired: no seed enabled it, or its rate was too low for the hits it got, so sweep more seeds or raise its probability. Neither fails the sweep: pair a site with a <code>sim.Sometimes</code> on the path it opens when you want that path to be required. The same counts are in <code>buggify_sites</code> in <code>run -json</code> and in the MCP <code>seedfall_run</code> result.</p>
+<h2 id="structured-randomness">Structured randomness</h2>
+<p><code>sim.Random()</code> returns a random <code>uint64</code> and <code>sim.RandomChoice(items)</code> returns one element of a slice (an empty slice fails the run, since there is nothing to return). Inside the simulator both read <code>crypto/rand</code>, which seedfall feeds from a stream keyed by the seed, the node and its restart count, so a choice replays with the seed. <code>RandomChoice</code> rejects out-of-range draws, so every element is equally likely. Outside the simulator they use <code>crypto/rand</code>.</p>
+<pre><code class="language-go">if sim.BuggifyWithProb(&quot;slow apply&quot;, 0.5) {
+	time.Sleep(sim.RandomChoice([]time.Duration{time.Millisecond, 5 * time.Millisecond, 50 * time.Millisecond}))
+}
+</code></pre>
+<p>The Antithesis SDK's <code>random.GetRandom</code> and <code>random.RandomChoice</code> read the same source, so Antithesis-instrumented code gets the same replayable choices with no changes. See <a href="antithesis.html">antithesis.md</a>.</p>
+<h2 id="example">Example</h2>
+<p><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/examples/buggify"><code>examples/buggify</code></a> is a counter service whose client retries an increment when the reply does not arrive. Without buggify nothing ever drops a reply and every seed passes; with it, <code>reply lost after apply</code> makes the retry apply twice and the sweep fails, and the fixed server, which remembers applied request ids, passes.</p>
+<h2 id="limits">Limits</h2>
+<ul>
+<li>A site's name is its identity: two call sites with the same name share one enable decision and one hit count per node.</li>
+<li>Sites named by a non-literal string still fire and are recorded, but cannot be cataloged in advance.</li>
+<li><code>seedfall cause</code> re-randomizes when sites fire after each branch point, not which sites are enabled, so a seed's enabled set is fixed for that seed.</li>
+</ul>
+
+      </article>
+    </main>
+  </div>
+</div>
+<footer class="foot">
+  <div class="wrap foot-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../llms.txt">llms.txt</a></p>
+  </div>
+</footer>
+</body>
+</html>

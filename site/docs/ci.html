@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Running seedfall in CI · seedfall docs</title>
+<meta name="description" content="This page shows how to run seedfall automatically on every pull request or on a schedule: the GitHub Action, machine-readable output, time limits and sweeps started from go test. Use it once seedfall…">
+<meta property="og:title" content="Running seedfall in CI">
+<meta property="og:description" content="This page shows how to run seedfall automatically on every pull request or on a schedule: the GitHub Action, machine-readable output, time limits and sweeps started from go test. Use it once seedfall…">
+<link rel="alternate" type="text/markdown" href="ci.md">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../style.css">
+<link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+<header class="nav docs-nav">
+  <div class="wrap nav-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <nav class="links" aria-label="Site">
+      <a href="../">Home</a>
+      <a href="./" aria-current="true">Docs</a>
+      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="docs">
+  <div class="wrap docs-grid">
+    <aside class="docs-side">
+      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
+      <label class="docs-menu" for="docs-menu">Docs menu</label>
+      <nav class="docs-index" aria-label="Documentation">
+        <h2>Start here</h2>
+        <ul>
+          <li><a href="getting-started.html">Getting started</a></li>
+          <li><a href="install.html">Installing seedfall</a></li>
+          <li><a href="faq.html">FAQ</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+        </ul>
+        <h2>Find a bug</h2>
+        <ul>
+          <li><a href="networking.html">Networking</a></li>
+          <li><a href="properties.html">Properties and checks</a></li>
+          <li><a href="compat.html">Storage engines that need mmap or flock</a></li>
+          <li><a href="config.html">Config files, profiles and seeded disks</a></li>
+          <li><a href="explore.html">Feedback-guided exploration</a></li>
+          <li><a href="buggify.html">BUGGIFY</a></li>
+          <li><a href="mutate.html">Mutation testing your checks</a></li>
+          <li><a href="antithesis.html">Running Antithesis SDK code</a></li>
+          <li><a href="gostman.html">Use your Gostman collections as workloads</a></li>
+        </ul>
+        <h2>Understand a failure</h2>
+        <ul>
+          <li><a href="timeline.html">Timelines, logs and time-travel debugging</a></li>
+          <li><a href="cause.html">Causality analysis</a></li>
+          <li><a href="inspect.html">Inspecting the disk at the moment of failure</a></li>
+          <li><a href="verify.html">Proving a fix with seedfall verify</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+        </ul>
+        <h2>Use in CI</h2>
+        <ul>
+          <li><a href="ci.html" aria-current="page">Running seedfall in CI</a></li>
+          <li><a href="agents.html">Using seedfall from AI coding agents</a></li>
+        </ul>
+        <h2>Reference</h2>
+        <ul>
+          <li><a href="faults.html">Configuration and faults</a></li>
+          <li><a href="properties.html">Properties, linearizability and determinism</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          <li><a href="how-it-works.html">How seedfall works</a></li>
+          <li><a href="testing.html">Testing seedfall itself</a></li>
+          <li><a href="findings/">Findings</a></li>
+        </ul>
+        <h2>About the project</h2>
+        <ul>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
+        </ul>
+      </nav>
+    </aside>
+    <main class="docs-main">
+      <p class="docs-meta">
+        <a href="ci.md" type="text/markdown">View as Markdown, for AI agents</a>
+        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/ci.md">Edit on GitHub</a>
+      </p>
+      <article class="prose">
+<h1 id="running-seedfall-in-ci">Running seedfall in CI</h1>
+<p>This page shows how to run seedfall automatically on every pull request or on a schedule: the GitHub Action, machine-readable output, time limits and sweeps started from <code>go test</code>. Use it once seedfall works on your laptop and you want it to guard your main branch.</p>
+<h2 id="github-actions">GitHub Actions</h2>
+<pre><code class="language-yaml">jobs:
+  simulate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: kunalgoesbyken/seedfall@main
+        id: seedfall
+        with:
+          config: seedfall.json
+          seeds: 1-500
+          check: &quot;true&quot;
+          comment: &quot;true&quot;
+</code></pre>
+<p>The inputs below other than <code>config</code>, <code>profile</code>, <code>seeds</code>, <code>check</code>, <code>go-version</code>, <code>report</code> and <code>artifact-name</code> are newer than v0.2.0, hence <code>@main</code> until the next release.</p>
+<h3 id="inputs">Inputs</h3>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Input</th>
+<th>Default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>command</code></td>
+<td><code>run</code></td>
+<td><code>run</code>, <code>verify</code> or <code>mutate</code> (<a href="#verify-and-mutate">below</a>)</td>
+</tr>
+<tr>
+<td><code>config</code></td>
+<td><code>seedfall.json</code></td>
+<td>Path to the world description</td>
+</tr>
+<tr>
+<td><code>profile</code></td>
+<td></td>
+<td>Profile from the config's <code>profiles</code> to merge over it (<a href="config.html#profiles">config.md</a>)</td>
+</tr>
+<tr>
+<td><code>seeds</code></td>
+<td></td>
+<td>Seed or inclusive range. Empty uses the command's own default: <code>run</code> sweeps <code>1-200</code>, <code>mutate</code> <code>1-100</code>, and <code>verify</code> as many fresh seeds as 95% confidence needs</td>
+</tr>
+<tr>
+<td><code>rotate-seeds</code></td>
+<td><code>false</code></td>
+<td>With <code>run</code>, move <code>seeds</code> forward by its own width for each workflow run (<a href="#rotating-seeds">below</a>)</td>
+</tr>
+<tr>
+<td><code>check</code></td>
+<td><code>false</code></td>
+<td>With <code>run</code>, run every seed twice and fail at the first host call or trace line that differs</td>
+</tr>
+<tr>
+<td><code>args</code></td>
+<td></td>
+<td>Extra flags for the command, separated by spaces, such as <code>-timeout 10m</code>, <code>-only fsync_noop</code> or <code>-seed 1</code>. Quoting is not interpreted</td>
+</tr>
+<tr>
+<td><code>version</code></td>
+<td></td>
+<td>seedfall release to download, or <code>latest</code> (<a href="#which-seedfall-runs">below</a>)</td>
+</tr>
+<tr>
+<td><code>go-version</code></td>
+<td><code>stable</code></td>
+<td>Go version for building your nodes, and seedfall when it is built from source</td>
+</tr>
+<tr>
+<td><code>report</code></td>
+<td><code>true</code></td>
+<td>With <code>run</code>, sweep every seed and upload an HTML triage report. <code>false</code> stops at the first failure</td>
+</tr>
+<tr>
+<td><code>artifact-name</code></td>
+<td><code>seedfall-report</code></td>
+<td>Name of the uploaded artifact, also used to keep each job's cache and pull request comment apart. Make it unique per job in a matrix</td>
+</tr>
+<tr>
+<td><code>cache</code></td>
+<td><code>true</code></td>
+<td>Keep the run history and compiled modules between runs (<a href="#history-between-runs">below</a>)</td>
+</tr>
+<tr>
+<td><code>comment</code></td>
+<td><code>false</code></td>
+<td>Post or update one pull request comment with the outcome. Needs <code>pull-requests: write</code></td>
+</tr>
+<tr>
+<td><code>webhook</code></td>
+<td></td>
+<td>Slack or Discord incoming webhook URL, best from a secret. Posts the report's new and regressed findings with <code>seedfall report notify</code></td>
+</tr>
+<tr>
+<td><code>file-issues</code></td>
+<td><code>false</code></td>
+<td>File a GitHub issue for each finding without an open one, with <code>seedfall report issue</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>An input that does not apply is an error rather than being ignored: <code>check</code> or <code>rotate-seeds</code> with <code>verify</code> or <code>mutate</code>, <code>comment</code> with <code>report: &quot;false&quot;</code>, and <code>webhook</code> or <code>file-issues</code> with <code>report: &quot;false&quot;</code> or a <code>verify</code> or <code>mutate</code> command.</p>
+<p>The job fails if any seed or <a href="verify.html#pinned-regressions">pinned regression</a> fails. The triage report (see <a href="reports.html">reports.md</a>) is uploaded as an artifact, together with the <a href="reports.html#failure-artifacts">failure artifacts</a> under <code>failures/</code>.</p>
+<h3 id="outputs">Outputs</h3>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Output</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>status</code></td>
+<td><code>passed</code>, <code>failed</code>, or <code>error</code> when seedfall could not finish, for example a config that does not build. With <code>report: &quot;false&quot;</code> a <code>run</code> that cannot start also reads <code>failed</code>, because nothing distinguishes the two</td>
+</tr>
+<tr>
+<td><code>failing-seed</code></td>
+<td>With a <code>run</code> report, the seed to look at first: a pinned regression that fails again, else the first regressed, new, then ongoing finding. Empty on a clean run</td>
+</tr>
+<tr>
+<td><code>findings</code></td>
+<td>With a <code>run</code> report, how many findings the report has</td>
+</tr>
+<tr>
+<td><code>report-path</code></td>
+<td>The HTML report on the runner, or the Markdown from <code>verify</code> or <code>mutate</code>. Runner temp is cleared when the job ends</td>
+</tr>
+</tbody>
+</table></div>
+<pre><code class="language-yaml">      - if: failure() &amp;&amp; steps.seedfall.outputs.status == 'failed'
+        run: echo &quot;replay with seed ${{ steps.seedfall.outputs.failing-seed }}&quot;
+</code></pre>
+<p>The job summary shows the same Markdown as the <a href="#pull-request-comments">pull request comment</a>, with seedfall's output folded below it. When seedfall cannot finish, such as a config that does not build or a <code>mutate</code> baseline that already fails, the summary says so with the last lines of output. Problems also appear as error annotations on the run and the pull request's changed files. A finding from a property with a constant message is annotated at its source line, from the same catalog that reports properties that were never reached. Other failures, such as a crash or a <code>sim.Assert</code>, are annotated without a file. GitHub only shows a limited number of annotations per step, so failing regressions come first, then regressed, new and ongoing findings, then unmet properties.</p>
+<h3 id="which-seedfall-runs">Which seedfall runs</h3>
+<p>With <code>version</code> empty, the action uses the release that matches the ref in <code>uses:</code>, so <code>@v1.2.3</code> downloads v1.2.3 for the runner's platform and checks it against the release's <code>checksums.txt</code>. A checksum mismatch fails the job. If the ref has no release, such as a branch, a commit or a release older than the automated pipeline like v0.2.0, seedfall is built from the action's source instead. Windows runners and <code>uses: ./</code> always build from source. The job log has a notice saying whether seedfall was installed from a release or built from source.</p>
+<p>Set <code>version: v1.2.3</code>, or <code>latest</code>, to run a specific release regardless of the ref. An explicit version never falls back: a missing release fails the job, and it needs a Linux or macOS runner and a released action. Go is set up either way, because seedfall compiles your nodes with it.</p>
+<h3 id="history-between-runs">History between runs</h3>
+<p>New, ongoing, resolved and regressed need the run history (<a href="reports.html#history-new-ongoing-resolved-regressed">reports.md</a>), so with <code>cache</code> on the action restores and saves <code>.seedfall/history.jsonl</code> and <code>.seedfall/cache</code> next to the config, with <code>actions/cache</code>. It saves even when the sweep fails, since that is the run whose history matters most.</p>
+<p>The key is the config file's hash, the <code>artifact-name</code>, the branch and the run, and restoring falls back to the newest entry for that config and name from this branch, then from any branch the run can read, so a pull request starts from its base branch's history. Changing the config starts a new history. An <code>extends</code> parent is not part of the hash. Keep <code>artifact-name</code> unique per job, or jobs in a matrix overwrite each other's history.</p>
+<p>Set <code>cache: &quot;false&quot;</code> if you keep <code>.seedfall/history.jsonl</code> some other way, such as committing it.</p>
+<h3 id="pull-request-comments">Pull request comments</h3>
+<p><code>comment: &quot;true&quot;</code> posts one comment per job and edits it on later pushes, so a pull request does not collect one per run. It lists new, regressed and resolved findings, ongoing ones, failing pinned regressions and unmet properties, each failure with its replay command, and links the workflow run. It is the job summary's Markdown, so with <code>verify</code> or <code>mutate</code> it is the proof or the mutant table, and when seedfall cannot finish it says so. A clean run also updates it, so a stale failure does not linger. Only a comment written by the token's own account is edited, so a comment someone else posts with the same marker is left alone. The comment never includes seedfall's raw output; that stays in the job summary.</p>
+<p>The job needs <code>pull-requests: write</code>. Pull requests from forks run with a read-only token, so the action logs a warning and the job's result is unaffected. <code>seedfall report comment</code> does the same from any CI, and <code>seedfall report github</code> writes the annotations and outputs (<a href="reports.html#github">reports.md</a>).</p>
+<h3 id="verify-and-mutate">Verify and mutate</h3>
+<p><code>command: verify</code> runs <a href="verify.html"><code>seedfall verify</code></a>, and <code>args</code> names what to verify:</p>
+<pre><code class="language-yaml">      - uses: kunalgoesbyken/seedfall@main
+        with:
+          command: verify
+          config: seedfall.fixed.json
+          args: -seed 1 -faults testdata/torntail.faults.json -mutate
+          comment: &quot;true&quot;
+</code></pre>
+<p><code>command: mutate</code> runs <a href="mutate.html"><code>seedfall mutate</code></a> and fails if a mutant survives:</p>
+<pre><code class="language-yaml">      - uses: kunalgoesbyken/seedfall@main
+        with:
+          command: mutate
+          seeds: 1-50
+          args: -only fsync_noop,net_dup_chunk
+</code></pre>
+<p>Both write Markdown to the job summary and the artifact (<code>proof.md</code>, <code>mutants.md</code>). <code>failing-seed</code> and <code>findings</code> stay empty, because neither command writes a triage report.</p>
+<h3 id="rotating-seeds">Rotating seeds</h3>
+<p><code>rotate-seeds: &quot;true&quot;</code> keeps exploring new schedules. Run number <code>n</code> sweeps the range <code>n - 1</code> widths after <code>seeds</code>: with <code>seeds: 1-200</code>, run 1 sweeps 1-200, run 2 201-400, and run 8 1401-1600. Re-running a job keeps its run number, so it sweeps the same seeds. Every failure names its seed, so it stays exactly reproducible, and <a href="verify.html#pinned-regressions">pinned regressions</a> still replay on every run.</p>
+<p>Outside the action, <code>seedfall run -seeds 1-200 -rotate N</code> sweeps the Nth range after <code>-seeds</code>, and refuses a rotation past the largest seed.</p>
+<h3 id="nightly-sweep">Nightly sweep</h3>
+<p>A template for a scheduled sweep, with alerts and issues for new and regressed findings:</p>
+<pre><code class="language-yaml">name: nightly-simulation
+on:
+  schedule:
+    - cron: &quot;17 3 * * *&quot;
+  workflow_dispatch:
+jobs:
+  simulate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: kunalgoesbyken/seedfall@main
+        with:
+          seeds: 1-500
+          rotate-seeds: &quot;true&quot;
+          args: -timeout 45m
+          webhook: ${{ secrets.SEEDFALL_WEBHOOK }}
+          file-issues: &quot;true&quot;
+</code></pre>
+<p>The history is what limits alerts to new and regressed findings, so leave <code>cache</code> on. The message links the workflow run, and each issue names the seed, the replay command, the seedfall version and the commit (<a href="reports.html#notifications-and-issues">notifications and issues</a>).</p>
+<h3 id="several-configs">Several configs</h3>
+<p>Run a matrix with a unique <code>artifact-name</code> per job:</p>
+<pre><code class="language-yaml">jobs:
+  simulate:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: storage, config: examples/ledger/seedfall.json, seeds: 1-60 }
+          - { name: upgrade, config: examples/upgrade/seedfall.json, seeds: 1-50 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: kunalgoesbyken/seedfall@main
+        with:
+          config: ${{ matrix.config }}
+          seeds: ${{ matrix.seeds }}
+          artifact-name: seedfall-${{ matrix.name }}
+</code></pre>
+<p>This repository's own <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/.github/workflows/ci.yml"><code>ci.yml</code></a> sweeps several examples this way, and runs <code>verify</code> and <code>mutate</code> too.</p>
+<h2 id="machine-readable-output">Machine-readable output</h2>
+<p><code>seedfall run -json</code> sweeps every seed in the range and prints one JSON object per line, then a summary object. Seeds run in parallel but the lines come out in seed order, so the output is the same for any <code>-j</code>.</p>
+<pre><code class="language-sh">seedfall run -c seedfall.always.json -seeds 1-100 -json | jq -c 'select(.type == &quot;seed&quot; and .passed == false)'
+</code></pre>
+<pre><code class="language-json">{&quot;type&quot;:&quot;seed&quot;,&quot;seed&quot;:1,&quot;passed&quot;:false,&quot;finished&quot;:false,&quot;failure&quot;:{&quot;class&quot;:&quot;assert&quot;,&quot;node&quot;:&quot;client&quot;},&quot;reason&quot;:&quot;client#1: acknowledged write lost: k96=v96, server now answers \&quot;NONE\&quot;&quot;,&quot;virtual_seconds&quot;:2.8918212,&quot;faults&quot;:3,&quot;host_calls&quot;:6810,&quot;determinism_hash&quot;:&quot;53786fa3165d442b&quot;}
+</code></pre>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>type</code></td>
+<td><code>seed</code> or <code>summary</code></td>
+</tr>
+<tr>
+<td><code>seed</code>, <code>passed</code>, <code>finished</code></td>
+<td>The seed, whether it passed, and whether the workload finished before the time horizon</td>
+</tr>
+<tr>
+<td><code>failure</code></td>
+<td><code>class</code>, plus <code>node</code> and <code>property</code> when known, the same key the triage report groups by</td>
+</tr>
+<tr>
+<td><code>reason</code></td>
+<td>The failure message</td>
+</tr>
+<tr>
+<td><code>virtual_seconds</code></td>
+<td>Simulated time the run covered</td>
+</tr>
+<tr>
+<td><code>faults</code></td>
+<td>Faults that happened during the run</td>
+</tr>
+<tr>
+<td><code>host_calls</code>, <code>determinism_hash</code></td>
+<td>How many host calls the run made, and the running hash over them (<a href="properties.html#determinism-check">determinism check</a>). It covers only simulated values, so the same seed and guest binary should give the same hash on any machine, and a CI matrix can compare it across operating systems to check</td>
+</tr>
+</tbody>
+</table></div>
+<p>Before the seed lines comes one <code>{&quot;type&quot;: &quot;regression&quot;, ...}</code> line per <a href="verify.html#pinned-regressions">pinned regression</a> and <code>-seeds-file</code> seed, with <code>source</code>, <code>seed</code> and <code>passed</code>, plus <code>failure</code>, <code>reason</code>, <code>classification</code> and <code>artifacts</code> when it fails again.</p>
+<p>The summary has <code>passed</code>, <code>failed</code>, <code>unfinished</code>, <code>regressions_failed</code>, <code>unmet_properties</code> and <code>properties</code>, the same coverage table <code>seedfall_run</code> returns over MCP, with a <code>problem</code> on each property that was never reached or never true and a <code>margin</code> on each numeric property. With <code>faults.buggify</code> on it also has <code>buggify_sites</code>: each <code>sim.Buggify</code> site with <code>seeds_reached</code>, <code>seeds_enabled</code>, <code>seeds_fired</code>, <code>fired</code> and a <code>problem</code> of <code>never reached</code> or <code>never fired</code>, which does not change the exit code. The exit code is 1 if any seed or regression failed or any property is unmet. <code>-json</code> cannot be combined with <code>-report</code>.</p>
+<h2 id="time-budgets">Time budgets</h2>
+<p><code>seedfall run -timeout 10m</code> stops starting seeds after ten minutes of wall-clock time, so a CI job can use a wide range and take whatever fits:</p>
+<pre><code class="language-sh">seedfall run -seeds 1-1000000 -timeout 10m -report .seedfall/report.html
+</code></pre>
+<p>Seeds already running finish, so the sweep can run slightly past the limit, and <a href="verify.html#pinned-regressions">pinned regressions</a> always run and count toward it. The run prints <code>stopped: time limit reached after N of M seeds</code>, the same text is <code>stopped</code> in the JSON summary, report and <code>seedfall_run</code> result, and the exit code is decided as usual: 0 if every seed that ran passed and every property was met. A property that needs more seeds than fit fails as <code>never reached</code>, as it would with a shorter range, so give the sweep enough time, or <a href="verify.html#pinned-regressions">pin</a> a seed that reaches the rare path. Each seed stays exactly replayable, but which seeds ran depends on the machine's speed, so compare runs by seed and not by count.</p>
+<h2 id="rotating-seeds-outside-github">Rotating seeds outside GitHub</h2>
+<p><code>seedfall run -seeds 1-200 -rotate N</code> sweeps the Nth range of the same width after <code>-seeds</code>, so any CI system can pass its build number and explore new seeds on each run while every failure stays replayable by seed. <code>-rotate 0</code> is the plain range. The run prints <code>rotation N: seeds A-B</code>, and the report's <code>seeds</code> is the rotated range. MCP's <code>seedfall_run</code> takes the same value as <code>rotate</code>.</p>
+<h2 id="go-test"><code>go test</code></h2>
+<pre><code class="language-go">import &quot;github.com/kunalgoesbyken/seedfall/seedfalltest&quot;
+
+func TestDurabilityUnderCrashes(t *testing.T) {
+	seedfalltest.Sweep(t, &quot;seedfall.json&quot;, &quot;1-100&quot;)
+}
+</code></pre>
+<p><code>Sweep</code> first replays every <a href="verify.html#pinned-regressions">pinned regression</a> for the config. A failure reports the seed, the reason, the trace tail, the classification, a replay command and the <a href="reports.html#failure-artifacts">failure artifacts</a> folder. A <code>Sometimes</code> property that is never satisfied also fails the test.</p>
+<p>Three more helpers turn known bugs into tests, each replaying for the config's full duration and expecting a pass:</p>
+<pre><code class="language-go">func TestPinnedRegressions(t *testing.T) {
+	seedfalltest.Pinned(t, &quot;seedfall.json&quot;)
+}
+
+func TestTornTailStaysFixed(t *testing.T) {
+	seedfalltest.Replay(t, &quot;seedfall.json&quot;, &quot;testdata/torntail.faults.json&quot;)
+}
+
+func TestKnownSeeds(t *testing.T) {
+	seedfalltest.Seeds(t, &quot;seedfall.json&quot;, []uint64{1, 9})
+}
+</code></pre>
+<p><code>Pinned</code> runs each schedule in <code>seedfall-regressions/</code> as a subtest, and skips when there is none. <code>Replay</code> takes any schedule file with a <code>seed</code>, such as one written by <code>seedfall shrink</code>. <code>Seeds</code> runs each seed with its own faults as a subtest. <code>examples/kvlog/seedfall_test.go</code> uses all four.</p>
+<h2 id="speed">Speed</h2>
+<p>Runs are independent, so a sweep scales with cores: <code>seedfall run -j N</code> defaults to every CPU. Light servers take tens of milliseconds per seed; a 3-node hashicorp/raft cluster takes a few seconds. Each guest is compiled once per process and every seed reuses the compiled module, so per-seed cost is booting the nodes and running them. Compiled modules are also cached in <code>.seedfall/cache</code>, one entry per set of guest binaries, and only the 8 most recently used entries are kept, so the cache stays bounded however often you rebuild. Add that directory to your CI cache to skip compilation; the first build of a large guest such as nats-server takes about a minute.</p>
+
+      </article>
+    </main>
+  </div>
+</div>
+<footer class="foot">
+  <div class="wrap foot-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../llms.txt">llms.txt</a></p>
+  </div>
+</footer>
+</body>
+</html>

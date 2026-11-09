@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Running Antithesis SDK code · seedfall docs</title>
+<meta name="description" content="Antithesis is a commercial testing platform with its own Go SDK, a library for writing checks inside your program. If your code already uses that SDK, seedfall runs it unchanged and turns each SDK…">
+<meta property="og:title" content="Running Antithesis SDK code">
+<meta property="og:description" content="Antithesis is a commercial testing platform with its own Go SDK, a library for writing checks inside your program. If your code already uses that SDK, seedfall runs it unchanged and turns each SDK…">
+<link rel="alternate" type="text/markdown" href="antithesis.md">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../style.css">
+<link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+<header class="nav docs-nav">
+  <div class="wrap nav-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <nav class="links" aria-label="Site">
+      <a href="../">Home</a>
+      <a href="./" aria-current="true">Docs</a>
+      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="docs">
+  <div class="wrap docs-grid">
+    <aside class="docs-side">
+      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
+      <label class="docs-menu" for="docs-menu">Docs menu</label>
+      <nav class="docs-index" aria-label="Documentation">
+        <h2>Start here</h2>
+        <ul>
+          <li><a href="getting-started.html">Getting started</a></li>
+          <li><a href="install.html">Installing seedfall</a></li>
+          <li><a href="faq.html">FAQ</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+        </ul>
+        <h2>Find a bug</h2>
+        <ul>
+          <li><a href="networking.html">Networking</a></li>
+          <li><a href="properties.html">Properties and checks</a></li>
+          <li><a href="compat.html">Storage engines that need mmap or flock</a></li>
+          <li><a href="config.html">Config files, profiles and seeded disks</a></li>
+          <li><a href="explore.html">Feedback-guided exploration</a></li>
+          <li><a href="buggify.html">BUGGIFY</a></li>
+          <li><a href="mutate.html">Mutation testing your checks</a></li>
+          <li><a href="antithesis.html" aria-current="page">Running Antithesis SDK code</a></li>
+          <li><a href="gostman.html">Use your Gostman collections as workloads</a></li>
+        </ul>
+        <h2>Understand a failure</h2>
+        <ul>
+          <li><a href="timeline.html">Timelines, logs and time-travel debugging</a></li>
+          <li><a href="cause.html">Causality analysis</a></li>
+          <li><a href="inspect.html">Inspecting the disk at the moment of failure</a></li>
+          <li><a href="verify.html">Proving a fix with seedfall verify</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+        </ul>
+        <h2>Use in CI</h2>
+        <ul>
+          <li><a href="ci.html">Running seedfall in CI</a></li>
+          <li><a href="agents.html">Using seedfall from AI coding agents</a></li>
+        </ul>
+        <h2>Reference</h2>
+        <ul>
+          <li><a href="faults.html">Configuration and faults</a></li>
+          <li><a href="properties.html">Properties, linearizability and determinism</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          <li><a href="how-it-works.html">How seedfall works</a></li>
+          <li><a href="testing.html">Testing seedfall itself</a></li>
+          <li><a href="findings/">Findings</a></li>
+        </ul>
+        <h2>About the project</h2>
+        <ul>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
+        </ul>
+      </nav>
+    </aside>
+    <main class="docs-main">
+      <p class="docs-meta">
+        <a href="antithesis.md" type="text/markdown">View as Markdown, for AI agents</a>
+        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/antithesis.md">Edit on GitHub</a>
+      </p>
+      <article class="prose">
+<h1 id="running-antithesis-sdk-code">Running Antithesis SDK code</h1>
+<p>Antithesis is a commercial testing platform with its own Go SDK, a library for writing checks inside your program. If your code already uses that SDK, seedfall runs it unchanged and turns each SDK call into a seedfall check. Read this page if you are coming from Antithesis or share code with a team that uses it.</p>
+<p>Code instrumented with the <a href="https://github.com/antithesishq/antithesis-sdk-go">Antithesis Go SDK</a> runs under seedfall unchanged. Assertions become seedfall properties, <code>lifecycle.SetupComplete</code> becomes seedfall's setup signal, and <code>random.GetRandom</code> draws from the seed.</p>
+<p><code>examples/ledger</code> has no seedfall imports at all. It uses plain <code>net</code> (through <code>net_overlay</code>) and only the Antithesis SDK:</p>
+<pre><code class="language-go">lifecycle.SetupComplete(map[string]any{&quot;ledger&quot;: addr})
+amount := int(random.GetRandom()%100) + 1
+assert.Sometimes(unacked &gt; 0, &quot;a crash interrupted a deposit&quot;, nil)
+lifecycle.SendEvent(&quot;deposits finished&quot;, map[string]any{&quot;total&quot;: total, &quot;acked&quot;: acked, &quot;unacked&quot;: unacked})
+assert.AlwaysGreaterThanOrEqualTo(total, acked, &quot;ledger total covers every acknowledged deposit&quot;, map[string]any{&quot;unacked&quot;: unacked})
+assert.AlwaysLessThanOrEqualTo(total, acked+unacked, &quot;ledger total holds no deposit that was never sent&quot;, nil)
+assert.SometimesAll([]assert.NamedBool{{First: &quot;interrupted&quot;, Second: unacked &gt; 0}, {First: &quot;kept&quot;, Second: total &gt; acked}}, &quot;an unacknowledged deposit survived a crash&quot;, nil)
+</code></pre>
+<pre><code>$ seedfall run -c seedfall.json -seeds 1-20
+property       seeds reached  seeds true
+  sometimes              20          18  a crash interrupted a deposit
+  sometimes              20           2  an unacknowledged deposit survived a crash
+  always                 20          20  ledger total covers every acknowledged deposit  (smallest margin 0)
+  always                 20          20  ledger total holds no deposit that was never sent  (smallest margin 0)
+  sometimes              20           5  recovery dropped a partial entry
+
+ok  20 seeds passed (0 hit the time horizon) in 908ms
+
+$ seedfall run -c seedfall.json -profile nofsync -seeds 1-20
+FAIL seed 1 at t=2.940793302s (618 scheduler steps, 336ms real)
+  client#1: ledger total covers every acknowledged deposit: {&quot;left&quot;:4203,&quot;right&quot;:5608,&quot;unacked&quot;:1729}
+</code></pre>
+<h2 id="how-it-works">How it works</h2>
+<p>On <code>wasip1</code> the SDK has no native Antithesis library to talk to, so it writes each event as a JSON line to the file named by <code>ANTITHESIS_SDK_LOCAL_OUTPUT</code>. seedfall sets that variable for every node and serves the path as a virtual file. Each line is decoded as it is written:</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>SDK call</th>
+<th>seedfall property</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>assert.Always</code></td>
+<td><code>always</code>: fails the seed when false, fails the sweep if never reached</td>
+</tr>
+<tr>
+<td><code>assert.AlwaysOrUnreachable</code></td>
+<td><code>always_or_unreachable</code>: fails the seed when false</td>
+</tr>
+<tr>
+<td><code>assert.Sometimes</code></td>
+<td><code>sometimes</code>: fails the sweep if never true</td>
+</tr>
+<tr>
+<td><code>assert.Reachable</code></td>
+<td><code>reachable</code>: fails the sweep if never reached</td>
+</tr>
+<tr>
+<td><code>assert.Unreachable</code></td>
+<td><code>unreachable</code>: fails the seed when reached</td>
+</tr>
+<tr>
+<td><code>assert.AlwaysGreaterThan</code>, <code>AlwaysGreaterThanOrEqualTo</code>, <code>AlwaysLessThan</code>, <code>AlwaysLessThanOrEqualTo</code></td>
+<td><code>always</code>, with the smallest margin in the property table</td>
+</tr>
+<tr>
+<td><code>assert.SometimesGreaterThan</code>, <code>SometimesGreaterThanOrEqualTo</code>, <code>SometimesLessThan</code>, <code>SometimesLessThanOrEqualTo</code></td>
+<td><code>sometimes</code>, with the largest margin in the property table</td>
+</tr>
+<tr>
+<td><code>assert.AlwaysSome</code></td>
+<td><code>always</code>: at least one named boolean is true</td>
+</tr>
+<tr>
+<td><code>assert.SometimesAll</code></td>
+<td><code>sometimes</code>: every named boolean is true</td>
+</tr>
+<tr>
+<td><code>lifecycle.SetupComplete</code></td>
+<td>ends the setup phase when <code>faults_after_setup</code> is on</td>
+</tr>
+<tr>
+<td><code>lifecycle.SendEvent</code></td>
+<td>an <a href="properties.html#events">event</a>: a trace line with the details as JSON, returned by <code>seedfall_replay</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>The SDK's details map appears as JSON in the failure message; the numeric variants add <code>left</code> and <code>right</code>, and the grouped variants add each named boolean. seedfall's source catalog recognizes every <code>assert.*</code> call above with a constant message, so Antithesis assertions that never run are reported too.</p>
+<p>The margin of a numeric assertion comes from the SDK's own guidance records. Like Antithesis, the SDK only reports a new value when it gets closer to failing (for <code>Always</code>) or closer to true (for <code>Sometimes</code>), so the smallest and largest margins are exact. The SDK also reports each assertion only the first time it passes and the first time it fails in a process, so the number of hits is lower than with <code>sim</code> assertions; seeds reached and seeds true are unaffected.</p>
+<p><code>sim</code> has the same variants with the same names (<a href="properties.html#numeric-and-grouped-properties">properties.md</a>), and <code>sim.Event</code> matches <code>lifecycle.SendEvent</code>.</p>
+<p><code>random.GetRandom</code> and <code>random.RandomChoice</code> read <code>crypto/rand</code>, which seedfall feeds from the seed, so they replay exactly and draw from the same source as <code>sim.Random</code> and <code>sim.RandomChoice</code>. Antithesis custom faults are commands its platform runs from outside your program and have no SDK call to map; mark the same spots with <code>sim.Buggify</code> instead (<a href="buggify.html">buggify.md</a>).</p>
+<h2 id="what-you-get-compared-with-antithesis">What you get compared with Antithesis</h2>
+<p>The same assertions and the same setup signal, run locally or in CI for free, with seed replay, shrinking, causality analysis and triage reports. What you don't get: Antithesis runs arbitrary containers in a deterministic hypervisor, while seedfall runs Go programs that build for <code>wasip1</code>.</p>
+
+      </article>
+    </main>
+  </div>
+</div>
+<footer class="foot">
+  <div class="wrap foot-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../llms.txt">llms.txt</a></p>
+  </div>
+</footer>
+</body>
+</html>

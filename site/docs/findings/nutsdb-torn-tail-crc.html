@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A torn write at the end of the active data file makes Open fail with &#34;crc error&#34; on every restart · seedfall docs</title>
+<meta name="description" content="Upstream: nutsdb/nutsdb#696">
+<meta property="og:title" content="A torn write at the end of the active data file makes Open fail with &#34;crc error&#34; on every restart">
+<meta property="og:description" content="Upstream: nutsdb/nutsdb#696">
+<link rel="alternate" type="text/markdown" href="nutsdb-torn-tail-crc.md">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../style.css">
+<link rel="stylesheet" href="../../docs.css">
+</head>
+<body>
+<header class="nav docs-nav">
+  <div class="wrap nav-row">
+    <a class="brand" href="../../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <nav class="links" aria-label="Site">
+      <a href="../../">Home</a>
+      <a href="../" aria-current="true">Docs</a>
+      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="docs">
+  <div class="wrap docs-grid">
+    <aside class="docs-side">
+      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
+      <label class="docs-menu" for="docs-menu">Docs menu</label>
+      <nav class="docs-index" aria-label="Documentation">
+        <h2>Start here</h2>
+        <ul>
+          <li><a href="../getting-started.html">Getting started</a></li>
+          <li><a href="../install.html">Installing seedfall</a></li>
+          <li><a href="../faq.html">FAQ</a></li>
+          <li><a href="../troubleshooting.html">Troubleshooting</a></li>
+        </ul>
+        <h2>Find a bug</h2>
+        <ul>
+          <li><a href="../networking.html">Networking</a></li>
+          <li><a href="../properties.html">Properties and checks</a></li>
+          <li><a href="../compat.html">Storage engines that need mmap or flock</a></li>
+          <li><a href="../config.html">Config files, profiles and seeded disks</a></li>
+          <li><a href="../explore.html">Feedback-guided exploration</a></li>
+          <li><a href="../buggify.html">BUGGIFY</a></li>
+          <li><a href="../mutate.html">Mutation testing your checks</a></li>
+          <li><a href="../antithesis.html">Running Antithesis SDK code</a></li>
+          <li><a href="../gostman.html">Use your Gostman collections as workloads</a></li>
+        </ul>
+        <h2>Understand a failure</h2>
+        <ul>
+          <li><a href="../timeline.html">Timelines, logs and time-travel debugging</a></li>
+          <li><a href="../cause.html">Causality analysis</a></li>
+          <li><a href="../inspect.html">Inspecting the disk at the moment of failure</a></li>
+          <li><a href="../verify.html">Proving a fix with seedfall verify</a></li>
+          <li><a href="../reports.html">Triage reports</a></li>
+        </ul>
+        <h2>Use in CI</h2>
+        <ul>
+          <li><a href="../ci.html">Running seedfall in CI</a></li>
+          <li><a href="../agents.html">Using seedfall from AI coding agents</a></li>
+        </ul>
+        <h2>Reference</h2>
+        <ul>
+          <li><a href="../faults.html">Configuration and faults</a></li>
+          <li><a href="../properties.html">Properties, linearizability and determinism</a></li>
+          <li><a href="../reports.html">Triage reports</a></li>
+          <li><a href="../troubleshooting.html">Troubleshooting</a></li>
+          <li><a href="../how-it-works.html">How seedfall works</a></li>
+          <li><a href="../testing.html">Testing seedfall itself</a></li>
+          <li><a href="./">Findings</a></li>
+        </ul>
+        <h2>About the project</h2>
+        <ul>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
+        </ul>
+      </nav>
+    </aside>
+    <main class="docs-main">
+      <p class="docs-meta"><a href="./">&larr; Findings</a>
+        <a href="nutsdb-torn-tail-crc.md" type="text/markdown">View as Markdown, for AI agents</a>
+        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/findings/nutsdb-torn-tail-crc.md">Edit on GitHub</a>
+      </p>
+      <article class="prose">
+<h1 id="a-torn-write-at-the-end-of-the-active-data-file-makes-open-fail-with-crc-error-on-every-restart">A torn write at the end of the active data file makes Open fail with &quot;crc error&quot; on every restart</h1>
+<p><strong>Upstream:</strong> <a href="https://github.com/nutsdb/nutsdb/issues/696">nutsdb/nutsdb#696</a></p>
+<p><strong>Repo:</strong> nutsdb/nutsdb (tested on v1.1.0, still present on <code>main</code> at 39d6badd)
+<strong>Severity:</strong> one crash in the middle of a commit that was never acknowledged leaves the database unopenable until someone deletes data by hand.</p>
+<h2 id="summary">Summary</h2>
+<p><code>parseDataFiles</code> (db.go:487) scans each data file with <code>fileRecovery.readEntry</code>. When an entry's checksum doesn't match, <code>readEntry</code> returns <code>ErrCrc</code> (recovery_reader.go:86). The scan loop treats <code>io.EOF</code>, <code>io.ErrUnexpectedEOF</code>, <code>ErrEntryZero</code> and <code>ErrHeaderSizeOutOfBounds</code> as the end of the log (db.go:523), but not <code>ErrCrc</code>. Unless the offset is already past <code>SegmentSize</code>, it returns the error (db.go:530), and <code>Open</code> fails with <code>db.buildIndexes error: crc error</code> (db.go:148).</p>
+<p>A torn tail is exactly what a crash during <code>writeData</code> (tx.go:496) leaves behind. Part of the commit buffer reaches the disk and the rest of the preallocated segment stays zero, so the last entry has a valid header and a bad checksum. That commit never returned to the caller, so it is safe to discard. Instead, every later <code>Open</code> fails the same way.</p>
+<p>This matches field reports that were closed without a root cause: #569 (power loss on an embedded device, <code>crc error</code> on every boot, fixed only by deleting the data files), #141 and #63 (<code>db.buildIndexes error: when build activeDataIndex readAt err: crc error</code>).</p>
+<h2 id="reproduction">Reproduction</h2>
+<p>Reproduced deterministically with <a href="https://github.com/kunalgoesbyken/seedfall">seedfall</a>. It runs a small server on nutsdb v1.1.0 with the default options (<code>SyncEnable: true</code>, <code>RWMode: FileIO</code>) and an 8 KB segment size. It acknowledges <code>SET</code> only after <code>db.Update</code> returns. To keep this separate from the <code>bucket.Meta</code> durability issue (<a href="https://github.com/nutsdb/nutsdb/issues/695">nutsdb#695</a>), the server fsyncs <code>bucket.Meta</code> itself after creating its bucket. The simulated disk keeps only fsynced data across a crash, and with torn writes enabled a crash can keep a partial, unsynced write.</p>
+<pre><code>cd examples/nutsdb
+seedfall replay -c seedfall.torn.json -seed 1
+</code></pre>
+<p><code>seedfall shrink</code> reduces the schedule to a single crash during a disk write:</p>
+<pre><code>faults before the failure (1):
+  271.223ms  crash server during disk op #56, restart at 635.343ms
+</code></pre>
+<p>On restart the server logs <code>open data/db: db.buildIndexes error: crc error</code> and exits. Every later restart fails the same way.</p>
+<p>Controls on the same harness:</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Config</th>
+<th>Stock v1.1.0</th>
+<th>Patched</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>crashes + partitions (<code>seedfall.fsyncmeta.json</code>)</td>
+<td>300/300 pass</td>
+<td>—</td>
+</tr>
+<tr>
+<td>plus torn writes + crash during I/O (<code>seedfall.torn.json</code>)</td>
+<td>fails, seed 1</td>
+<td>300/300 pass</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="suggested-fix">Suggested fix</h2>
+<p>Treat a checksum failure in the active (last) data file as the end of the log, the same way a zero header is treated:</p>
+<pre><code class="language-go">if errors.Is(err, io.EOF) || errors.Is(err, ErrIndexOutOfBound) || errors.Is(err, io.ErrUnexpectedEOF) ||
+	errors.Is(err, ErrEntryZero) || errors.Is(err, ErrHeaderSizeOutOfBounds) || errors.Is(err, ErrCrc) {
+	break
+}
+</code></pre>
+<p><code>writeOff</code> is then set to the start of the torn entry, so the next commit overwrites it. Ideally the rest of the segment from that offset would also be zeroed, so that leftover bytes from the torn entry can't be misread after a shorter entry overwrites its start. A checksum failure in an older, sealed file is real corruption and should still fail <code>Open</code>.</p>
+<h2 id="fix-verified">Fix verified</h2>
+<p>A local copy of v1.1.0 with <code>ErrCrc</code> added to that list (plus the <code>bucket.Meta</code> fsync) passes the failing seed and 300 seeds of <code>seedfall.torn.json</code>.</p>
+
+      </article>
+    </main>
+  </div>
+</div>
+<footer class="foot">
+  <div class="wrap foot-row">
+    <a class="brand" href="../../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../../llms.txt">llms.txt</a></p>
+  </div>
+</footer>
+</body>
+</html>

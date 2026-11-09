@@ -1,6 +1,6 @@
 # Roadmap
 
-This lists what seedfall does not do yet and where work is likely to go next. Nothing here is done unless it says so, there are no dates, and priorities follow what users run into. The current limits are in the [README](README.md#limitations) and the [FAQ](docs/faq.md#what-cant-seedfall-test). To work on one of these, open an issue first ([CONTRIBUTING](CONTRIBUTING.md)).
+This lists what seedfall does not do yet and where work is likely to go next. Nothing here is done unless it says so, there are no dates, and priorities follow what users run into. The current limits are in the [README](README.md#when-its-not-a-fit) and the [FAQ](docs/faq.md#what-cant-seedfall-test). To work on one of these, open an issue first ([CONTRIBUTING](CONTRIBUTING.md)).
 
 ## Platform reach
 

@@ -1,5 +1,7 @@
 # BUGGIFY: faults inside your code
 
+Most seedfall faults hit your program from the outside: a crash, a broken disk, a cut network. BUGGIFY lets you mark spots inside your own code where seedfall may force a rare path on purpose, such as a lost reply, a retry or an error return. Use it when the bug you fear lives in your own error handling, which outside faults rarely reach.
+
 Every other seedfall fault comes from outside the process: crashes, torn writes, partitions. `sim.Buggify` lets you mark places in your own code where the simulator may force the rare path, such as a dropped reply, a retry, an error return, a minimal quorum or an extra delay. The idea comes from FoundationDB's `BUGGIFY`, which FoundationDB credits for many of its deepest bugs.
 
 ```go

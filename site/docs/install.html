@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Installing seedfall · seedfall docs</title>
+<meta name="description" content="This page shows every way to install seedfall and how to check that it works. If you have Go, the quickest way is go install. Skip the rest unless you want a package manager or a signed release.">
+<meta property="og:title" content="Installing seedfall">
+<meta property="og:description" content="This page shows every way to install seedfall and how to check that it works. If you have Go, the quickest way is go install. Skip the rest unless you want a package manager or a signed release.">
+<link rel="alternate" type="text/markdown" href="install.md">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../style.css">
+<link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+<header class="nav docs-nav">
+  <div class="wrap nav-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <nav class="links" aria-label="Site">
+      <a href="../">Home</a>
+      <a href="./" aria-current="true">Docs</a>
+      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="docs">
+  <div class="wrap docs-grid">
+    <aside class="docs-side">
+      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
+      <label class="docs-menu" for="docs-menu">Docs menu</label>
+      <nav class="docs-index" aria-label="Documentation">
+        <h2>Start here</h2>
+        <ul>
+          <li><a href="getting-started.html">Getting started</a></li>
+          <li><a href="install.html" aria-current="page">Installing seedfall</a></li>
+          <li><a href="faq.html">FAQ</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+        </ul>
+        <h2>Find a bug</h2>
+        <ul>
+          <li><a href="networking.html">Networking</a></li>
+          <li><a href="properties.html">Properties and checks</a></li>
+          <li><a href="compat.html">Storage engines that need mmap or flock</a></li>
+          <li><a href="config.html">Config files, profiles and seeded disks</a></li>
+          <li><a href="explore.html">Feedback-guided exploration</a></li>
+          <li><a href="buggify.html">BUGGIFY</a></li>
+          <li><a href="mutate.html">Mutation testing your checks</a></li>
+          <li><a href="antithesis.html">Running Antithesis SDK code</a></li>
+          <li><a href="gostman.html">Use your Gostman collections as workloads</a></li>
+        </ul>
+        <h2>Understand a failure</h2>
+        <ul>
+          <li><a href="timeline.html">Timelines, logs and time-travel debugging</a></li>
+          <li><a href="cause.html">Causality analysis</a></li>
+          <li><a href="inspect.html">Inspecting the disk at the moment of failure</a></li>
+          <li><a href="verify.html">Proving a fix with seedfall verify</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+        </ul>
+        <h2>Use in CI</h2>
+        <ul>
+          <li><a href="ci.html">Running seedfall in CI</a></li>
+          <li><a href="agents.html">Using seedfall from AI coding agents</a></li>
+        </ul>
+        <h2>Reference</h2>
+        <ul>
+          <li><a href="faults.html">Configuration and faults</a></li>
+          <li><a href="properties.html">Properties, linearizability and determinism</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          <li><a href="how-it-works.html">How seedfall works</a></li>
+          <li><a href="testing.html">Testing seedfall itself</a></li>
+          <li><a href="findings/">Findings</a></li>
+        </ul>
+        <h2>About the project</h2>
+        <ul>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
+        </ul>
+      </nav>
+    </aside>
+    <main class="docs-main">
+      <p class="docs-meta">
+        <a href="install.md" type="text/markdown">View as Markdown, for AI agents</a>
+        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/install.md">Edit on GitHub</a>
+      </p>
+      <article class="prose">
+<h1 id="installing-seedfall">Installing seedfall</h1>
+<p>This page shows every way to install seedfall and how to check that it works. If you have Go, the quickest way is <code>go install</code>. Skip the rest unless you want a package manager or a signed release.</p>
+<p>seedfall is a single program. It also needs Go (1.25 or newer) on your machine, because it builds your code before running it. Commands that run your code need Go: <code>run</code>, <code>replay</code>, <code>shrink</code> and the matching MCP tools. Commands that only read things do not need Go: <code>seedfall findings</code>, <code>version</code>, <code>help</code> and <code>schema</code>.</p>
+<p><strong>Which of these work today.</strong> Homebrew, Scoop, the install script and Docker all install from a release made by <code>.github/workflows/release.yml</code>. The latest release, v0.2.0, is older than that workflow. It has only bare binaries, with no archives and no <code>checksums.txt</code>. Until a newer release is cut, use <code>go install</code>. The signing, SBOM, cask, manifest and image steps of the release pipeline have not run yet, so the commands below that depend on them show what the setup is meant to produce. They have not been checked against a published release.</p>
+<h2 id="quickest-go-install">Quickest: go install</h2>
+<pre><code class="language-sh">go install github.com/kunalgoesbyken/seedfall/cmd/seedfall@latest
+</code></pre>
+<p>This needs Go 1.25 or newer. It works for every release, including those from before the automated pipeline.</p>
+<h2 id="homebrew">Homebrew</h2>
+<pre><code class="language-sh">brew install kunalgoesbyken/tap/seedfall
+</code></pre>
+<p>The package depends on Go. Apple has not notarized seedfall's binaries, so macOS would normally refuse to start them. The package therefore clears the &quot;quarantine&quot; flag on its own binary after installing.</p>
+<h2 id="scoop-windows">Scoop (Windows)</h2>
+<pre><code class="language-powershell">scoop bucket add seedfall https://github.com/kunalgoesbyken/homebrew-tap
+scoop install seedfall
+</code></pre>
+<p>The package depends on Go.</p>
+<h2 id="install-script-linux-and-macos">Install script (Linux and macOS)</h2>
+<pre><code class="language-sh">curl -fsSL https://seedfall-lemon.vercel.app/install.sh | sh
+</code></pre>
+<p>The script picks the download for your system, checks its SHA-256 checksum (a fingerprint of the file) against the release's <code>checksums.txt</code>, and installs to <code>~/.local/bin</code>. It stops with an error if the checksum does not match. The script is <code>scripts/install.sh</code>, so you can read it first.</p>
+<p>Settings, all optional:</p>
+<ul>
+<li><code>SEEDFALL_VERSION=v0.3.0</code> installs a specific release.</li>
+<li><code>SEEDFALL_INSTALL_DIR</code> changes where it is installed.</li>
+<li><code>SEEDFALL_BASE_URL</code> downloads from a mirror.</li>
+</ul>
+<h2 id="docker">Docker</h2>
+<pre><code class="language-sh">docker run --rm -v &quot;$PWD:/work&quot; ghcr.io/kunalgoesbyken/seedfall run -seeds 1-200
+</code></pre>
+<p>The image is built on the official <code>golang</code> image, so it can build your code without Go on your machine. Files the container writes, including <code>.seedfall/</code>, belong to root unless you pass <code>--user</code>.</p>
+<h2 id="check-the-install">Check the install</h2>
+<pre><code class="language-sh">seedfall version
+seedfall doctor
+</code></pre>
+<p><code>seedfall version</code> (or <code>--version</code>; add <code>-json</code> for scripts) prints the release, commit, build date, Go version and platform. A build without version-control data, such as <code>go install</code> of a tagged module, has no commit or date lines. The same version is written into <code>report.json</code>, every <code>.seedfall/history.jsonl</code> entry, failure artifacts, pinned regressions and the <code>seedfall verify</code> proof block, so a bug report can name the exact build.</p>
+<p><code>seedfall doctor</code> checks:</p>
+<ul>
+<li>the Go version;</li>
+<li>that <code>GOOS=wasip1</code> builds (<code>wasip1</code> is the WebAssembly System Interface target seedfall compiles your code for);</li>
+<li>that <code>net_overlay</code> patches and builds against your Go (<code>net_overlay</code> lets unmodified code use the simulated network);</li>
+<li>that the Go build cache and the current directory are writable;</li>
+<li>the free memory.</li>
+</ul>
+<p>For anything wrong it prints a fix. It exits with code 1 only if a check fails. A warning, such as low memory or an unsupported <code>net_overlay</code>, still exits 0. <code>-json</code> prints the same checks, and so does the <code>seedfall_doctor</code> MCP tool. Free memory is measured on Linux and Windows and shown as <code>skip</code> elsewhere.</p>
+<p><code>seedfall help</code> lists every command, and <code>seedfall help run</code> prints the flags and defaults of one command. <code>-h</code> and <code>--help</code> also work. All of these exit 0.</p>
+<h2 id="verifying-a-release">Verifying a release</h2>
+<p>This section is for people who want proof that a download is genuine. Each automated release publishes:</p>
+<ul>
+<li><code>checksums.txt</code>, the list of file fingerprints;</li>
+<li><code>checksums.txt.sigstore.json</code>, a Sigstore bundle: a signature, made without a long-lived key, by the release workflow;</li>
+<li>an SBOM (a list of the software inside) for each archive;</li>
+<li>a GitHub build provenance attestation, a signed record of where and how the file was built.</li>
+</ul>
+<p>First verify the signature on the checksums, then check an archive against them:</p>
+<pre><code class="language-sh">cosign verify-blob checksums.txt \
+  --bundle checksums.txt.sigstore.json \
+  --certificate-identity-regexp '^https://github.com/kunalgoesbyken/seedfall/\.github/workflows/release\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+sha256sum --ignore-missing -c checksums.txt
+</code></pre>
+<p>Or check the provenance with the GitHub CLI:</p>
+<pre><code class="language-sh">gh attestation verify seedfall_linux_amd64.tar.gz --repo kunalgoesbyken/seedfall
+</code></pre>
+<p>The install script checks SHA-256 only. That catches a damaged download but not a tampered release. Use one of the commands above for that.</p>
+<h2 id="cutting-a-release-for-maintainers">Cutting a release (for maintainers)</h2>
+<p>Pushing a tag that starts with <code>v</code> runs the release workflow. It builds Linux, macOS and Windows on amd64 and arm64 with GoReleaser, signs and attests the files, publishes the GitHub release, and pushes the Homebrew cask, the Scoop manifest and the Docker image.</p>
+<ul>
+<li>The repository needs a <code>HOMEBREW_TAP_TOKEN</code> secret with write access to <code>kunalgoesbyken/homebrew-tap</code>, which holds both the <code>Casks/</code> directory and the Scoop <code>bucket/</code>.</li>
+<li>Release notes are grouped from commit subjects that start with <code>Add</code> or <code>feat</code>, and <code>Fix</code> or <code>fix</code>.</li>
+<li>A tag with a prerelease suffix, such as <code>v0.3.0-rc1</code>, is marked as a prerelease. It leaves the cask, the Scoop manifest and the <code>latest</code> image alone.</li>
+</ul>
+
+      </article>
+    </main>
+  </div>
+</div>
+<footer class="foot">
+  <div class="wrap foot-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../llms.txt">llms.txt</a></p>
+  </div>
+</footer>
+</body>
+</html>

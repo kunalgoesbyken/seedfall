@@ -62,7 +62,7 @@
  {
   "tool": "seedfall",
   "column": "For coding agents",
-  "value": "MCP server, agent skills and a Claude Code plugin",
+  "value": "MCP server and agent skills",
   "source": "https://github.com/kunalgoesbyken/seedfall/blob/main/docs/agents.md"
  },
  {

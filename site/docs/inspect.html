@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inspecting the disk at the moment of failure · seedfall docs</title>
+<meta name="description" content="When a test fails after a crash, the cause is often what had and had not reached the disk. seedfall inspect shows every node&#39;s files at the moment of failure: which bytes were safely saved, which a…">
+<meta property="og:title" content="Inspecting the disk at the moment of failure">
+<meta property="og:description" content="When a test fails after a crash, the cause is often what had and had not reached the disk. seedfall inspect shows every node&#39;s files at the moment of failure: which bytes were safely saved, which a…">
+<link rel="alternate" type="text/markdown" href="inspect.md">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../style.css">
+<link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+<header class="nav docs-nav">
+  <div class="wrap nav-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <nav class="links" aria-label="Site">
+      <a href="../">Home</a>
+      <a href="./" aria-current="true">Docs</a>
+      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="docs">
+  <div class="wrap docs-grid">
+    <aside class="docs-side">
+      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
+      <label class="docs-menu" for="docs-menu">Docs menu</label>
+      <nav class="docs-index" aria-label="Documentation">
+        <h2>Start here</h2>
+        <ul>
+          <li><a href="getting-started.html">Getting started</a></li>
+          <li><a href="install.html">Installing seedfall</a></li>
+          <li><a href="faq.html">FAQ</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+        </ul>
+        <h2>Find a bug</h2>
+        <ul>
+          <li><a href="networking.html">Networking</a></li>
+          <li><a href="properties.html">Properties and checks</a></li>
+          <li><a href="compat.html">Storage engines that need mmap or flock</a></li>
+          <li><a href="config.html">Config files, profiles and seeded disks</a></li>
+          <li><a href="explore.html">Feedback-guided exploration</a></li>
+          <li><a href="buggify.html">BUGGIFY</a></li>
+          <li><a href="mutate.html">Mutation testing your checks</a></li>
+          <li><a href="antithesis.html">Running Antithesis SDK code</a></li>
+          <li><a href="gostman.html">Use your Gostman collections as workloads</a></li>
+        </ul>
+        <h2>Understand a failure</h2>
+        <ul>
+          <li><a href="timeline.html">Timelines, logs and time-travel debugging</a></li>
+          <li><a href="cause.html">Causality analysis</a></li>
+          <li><a href="inspect.html" aria-current="page">Inspecting the disk at the moment of failure</a></li>
+          <li><a href="verify.html">Proving a fix with seedfall verify</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+        </ul>
+        <h2>Use in CI</h2>
+        <ul>
+          <li><a href="ci.html">Running seedfall in CI</a></li>
+          <li><a href="agents.html">Using seedfall from AI coding agents</a></li>
+        </ul>
+        <h2>Reference</h2>
+        <ul>
+          <li><a href="faults.html">Configuration and faults</a></li>
+          <li><a href="properties.html">Properties, linearizability and determinism</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          <li><a href="how-it-works.html">How seedfall works</a></li>
+          <li><a href="testing.html">Testing seedfall itself</a></li>
+          <li><a href="findings/">Findings</a></li>
+        </ul>
+        <h2>About the project</h2>
+        <ul>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
+        </ul>
+      </nav>
+    </aside>
+    <main class="docs-main">
+      <p class="docs-meta">
+        <a href="inspect.md" type="text/markdown">View as Markdown, for AI agents</a>
+        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/inspect.md">Edit on GitHub</a>
+      </p>
+      <article class="prose">
+<h1 id="inspecting-the-disk-at-the-moment-of-failure">Inspecting the disk at the moment of failure</h1>
+<p>When a test fails after a crash, the cause is often what had and had not reached the disk. <code>seedfall inspect</code> shows every node's files at the moment of failure: which bytes were safely saved, which a crash would lose, and where a write was cut short. Use it for durability bugs, such as data that is missing after a restart.</p>
+<p><code>seedfall replay</code> tells you what happened. <code>seedfall inspect</code> shows you what is on disk when it goes wrong: every file on every node, how much of it is durable, which bytes a crash would lose, which directory entries are not durable yet, and where the last crash tore a write.</p>
+<pre><code class="language-sh">seedfall inspect -c rosedb.json -seed 1
+</code></pre>
+<pre><code>seed 1 failed at t=3.12130224s: client#1: acknowledged entry 27 lost: server now answers &quot;VAL e141-1111111111111111111111&quot;
+disk state at t=3.12130224s, the moment of failure
+
+node server (directory entries are durable once made; torn_writes: a crash may also keep a prefix of the pending writes)
+  path                                                   size    durable  state
+  data/                                                     -          -  durable
+    wal/                                                    -          -  durable
+      000000001.SEG                                      4029       4029  durable
+        ^ torn by the crash at t=427.268199ms: kept 60 of a 73-byte write at offset 2019
+      000000002.SEG                                      3979       3979  durable
+      000000003.SEG                                      2054       2054  durable
+  2 dirs, 3 files: 10062 bytes durable, 0 bytes pending, 0 entries lost on crash, 0 removed entries that come back
+
+node client (directory entries are durable once made; torn_writes: a crash may also keep a prefix of the pending writes)
+  empty disk
+</code></pre>
+<p>The crash at 427ms left a 60-byte fragment of entry 26 at offset 2019, and every later entry was appended after it. That is the rosedblabs/wal bug in <a href="findings/rosedblabs-wal-torn-tail.html">findings</a>, visible without reading any code.</p>
+<h2 id="usage">Usage</h2>
+<pre><code class="language-sh">seedfall inspect [-c seedfall.json] -seed N [-faults file.json] [-at DURATION] [-node name] [-cat path | -out dir]
+</code></pre>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>-seed</code></td>
+<td>Seed to replay</td>
+</tr>
+<tr>
+<td><code>-faults</code></td>
+<td>Replay with a fault schedule from <code>seedfall shrink</code></td>
+</tr>
+<tr>
+<td><code>-at</code></td>
+<td>Snapshot at this virtual time instead of at the failure, for example <code>-at 4.4s</code>. The snapshot is taken at the last scheduler step at or before it. If the run fails or ends first, the snapshot is taken there.</td>
+</tr>
+<tr>
+<td><code>-node</code></td>
+<td>Only this node</td>
+</tr>
+<tr>
+<td><code>-cat</code></td>
+<td>Print the durable content of one file: text as is, binary as a hex dump. The file must exist in the durable image.</td>
+</tr>
+<tr>
+<td><code>-out</code></td>
+<td>Write each node's durable disk image to <code>dir/&lt;node&gt;/</code>, so you can open it with the library's own tools, or start new runs from it with <code>&quot;disk&quot;: &quot;dir/&lt;node&gt;&quot;</code>, a path relative to the config's directory (<a href="config.html#seeded-disks-and-files">seeded disks</a>); the command prints that path. The target must not exist yet.</td>
+</tr>
+</tbody>
+</table></div>
+<p>The run is the same as <code>seedfall replay</code>: same seed, same faults, same trace. Inspecting changes nothing about it.</p>
+<h2 id="reading-the-output">Reading the output</h2>
+<p>Each file has its live size (what the program reads now) and its durable size (what survives a crash), and one state:</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>State</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>durable</code></td>
+<td>The live content and the durable content are the same, and the name survives a crash</td>
+</tr>
+<tr>
+<td><code>PENDING: N bytes lost on crash at [a,b) ...</code></td>
+<td>These byte ranges of the live content differ from the durable content: they were written but not fsynced</td>
+</tr>
+<tr>
+<td><code>PENDING truncate</code></td>
+<td>The file was truncated but not fsynced; a crash restores the old bytes</td>
+</tr>
+<tr>
+<td><code>NOT DURABLE: never fsynced</code></td>
+<td>Without <code>strict_dirs</code>, a file that was never fsynced disappears on crash</td>
+</tr>
+<tr>
+<td><code>NOT DURABLE: entry vanishes on crash</code></td>
+<td>With <code>strict_dirs</code>, the directory entry is not durable until the parent directory is fsynced, even if the file's data is</td>
+</tr>
+</tbody>
+</table></div>
+<p>A <code>^ torn by the crash at t=...</code> line under a file says the last crash kept only part of one write: how many bytes of it, and at which offset. Those partial bytes are now durable and are what recovery code has to cope with.</p>
+<p>With <code>reorder_writes</code>, a <code>^ the crash at t=... wrote back pages out of order</code> line lists the writes that were pending at the last crash, numbered in program order, and says which of them reached the disk: <code>kept</code>, <code>lost</code>, or <code>partial</code> when only some of its pages did. A later write marked <code>kept</code> above an earlier one marked <code>lost</code> is the reordering your recovery code has to survive. The same list is in <code>last_writeback</code> in the MCP inspect output.</p>
+<p>With the <a href="faults.html#disk-faults">disk faults</a>, a <code>^ corrupted ranges</code> list under a file shows every range a disk fault damaged: a <code>lost write</code> or <code>misdirected write</code> that a successful fsync left with its old content, a bit flipped by <code>bit rot</code> or by <code>crash corruption</code>, and each <code>corrupted read</code> that returned a flipped bit while the disk held the right bytes. It is a history: an entry stays after the program overwrites the range or a later fsync rewrites the page in full. The last 8 are shown, and the full list is in <code>damage</code> in the MCP inspect output. With <code>disk_bytes</code>, a <code>disk_bytes: N of M bytes used</code> line follows the totals.</p>
+<pre><code>    kv.log                                               5727       5727  durable
+      ^ corrupted ranges:
+        t=5.259168049s misdirected write: [4096,5005) kept its old content on disk, and its page landed at offset 0 instead
+</code></pre>
+<p>With <code>strict_dirs</code>, a file that was unlinked or renamed away while its parent directory was not fsynced is listed separately as an entry that a crash brings back. Renaming a temporary file over an existing one without fsyncing the directory shows up as the new name <code>NOT DURABLE</code> and the old content coming back.</p>
+<p>The durable image is the disk a crash would leave without <code>torn_writes</code> or <code>reorder_writes</code>. With <code>torn_writes</code>, a crash can also keep an in-order prefix of the pending writes and, with <code>strict_dirs</code>, of the pending directory operations. With <code>reorder_writes</code>, what it can keep depends on <code>fs_model</code>, which the node line names: <code>fs_model</code> is also a field of the MCP inspect output, and each file reports <code>symlink</code> and <code>links</code> there. With <code>inspect -out</code>, a symlink is written as a symlink; on Windows without the privilege to create one, it is written as a file holding its target. Hard links are written as separate files.</p>
+<h2 id="examples">Examples</h2>
+<p>NATS JetStream, the stream that vanishes (<a href="findings/nats-stream-meta-checksum-crash.html">finding</a>):</p>
+<pre><code class="language-sh">cd examples/natsjs
+seedfall inspect -c seedfall.always.json -seed 40 -faults metasum.faults.json
+</code></pre>
+<pre><code>          EVENTS/                                           -          -  durable
+            meta.inf                                      517        517  durable
+            meta.sum.tmp                                    6          6  durable
+              ^ torn by the crash at t=158.20724ms: kept 6 of a 16-byte write at offset 0
+            msgs/                                           -          -  durable
+              1.blk                                      7702       7702  durable
+</code></pre>
+<p><code>meta.inf</code> exists, <code>meta.sum</code> does not, and only a torn <code>meta.sum.tmp</code> is left. NATS skips a stream without a checksum on restart, and because <code>meta.inf</code> exists it never writes <code>meta.sum</code> again, so the 1.blk messages acknowledged since are skipped on every later restart.</p>
+<p>tidwall/buntdb, one step before the crash that empties the database (<a href="findings/tidwall-buntdb-shrink-fsync.html">finding</a>):</p>
+<pre><code class="language-sh">cd examples/buntdb
+seedfall inspect -c seedfall.shrink.json -seed 27 -at 4.417s -node server
+</code></pre>
+<pre><code>  data/                                                     -          -  durable
+    db                                                   1255          0  NOT DURABLE: never fsynced, vanishes on crash
+</code></pre>
+<p>The AOF shrink renamed its rewritten file into place without fsyncing it: 1255 bytes live, none durable. At the failure, <code>db</code> holds only the 211 bytes that the crash at 4.417s happened to keep.</p>
+<h2 id="from-an-agent">From an agent</h2>
+<p>The MCP server exposes the same snapshot as <code>seedfall_inspect</code>, with the per-file sizes, volatile byte ranges, entry durability and last tear as JSON, and optionally one file's durable content. See <a href="agents.html">agents.md</a>.</p>
+<h2 id="limitations">Limitations</h2>
+<ul>
+<li>The snapshot covers the simulated disk only, not process memory or in-flight network messages. <code>seedfall debug -at</code> stops the run at the same moment and also shows the messages in flight, the active faults and each node's live file content (<a href="timeline.html#debugger">timeline.md</a>).</li>
+<li>The last tear is recorded per file. A later write over the same range does not clear it.</li>
+<li><code>-cat</code> prints the whole file. Pipe it through <code>tail</code> for large files.</li>
+</ul>
+
+      </article>
+    </main>
+  </div>
+</div>
+<footer class="foot">
+  <div class="wrap foot-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../llms.txt">llms.txt</a></p>
+  </div>
+</footer>
+</body>
+</html>

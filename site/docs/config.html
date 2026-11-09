@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Config files, profiles and seeded disks · seedfall docs</title>
+<meta name="description" content="One seedfall.json can hold many variations of your test: a base setup, named profiles, ready-made fault presets and one-off command-line overrides. This page also covers starting nodes from an…">
+<meta property="og:title" content="Config files, profiles and seeded disks">
+<meta property="og:description" content="One seedfall.json can hold many variations of your test: a base setup, named profiles, ready-made fault presets and one-off command-line overrides. This page also covers starting nodes from an…">
+<link rel="alternate" type="text/markdown" href="config.md">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../style.css">
+<link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+<header class="nav docs-nav">
+  <div class="wrap nav-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <nav class="links" aria-label="Site">
+      <a href="../">Home</a>
+      <a href="./" aria-current="true">Docs</a>
+      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="docs">
+  <div class="wrap docs-grid">
+    <aside class="docs-side">
+      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
+      <label class="docs-menu" for="docs-menu">Docs menu</label>
+      <nav class="docs-index" aria-label="Documentation">
+        <h2>Start here</h2>
+        <ul>
+          <li><a href="getting-started.html">Getting started</a></li>
+          <li><a href="install.html">Installing seedfall</a></li>
+          <li><a href="faq.html">FAQ</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+        </ul>
+        <h2>Find a bug</h2>
+        <ul>
+          <li><a href="networking.html">Networking</a></li>
+          <li><a href="properties.html">Properties and checks</a></li>
+          <li><a href="compat.html">Storage engines that need mmap or flock</a></li>
+          <li><a href="config.html" aria-current="page">Config files, profiles and seeded disks</a></li>
+          <li><a href="explore.html">Feedback-guided exploration</a></li>
+          <li><a href="buggify.html">BUGGIFY</a></li>
+          <li><a href="mutate.html">Mutation testing your checks</a></li>
+          <li><a href="antithesis.html">Running Antithesis SDK code</a></li>
+          <li><a href="gostman.html">Use your Gostman collections as workloads</a></li>
+        </ul>
+        <h2>Understand a failure</h2>
+        <ul>
+          <li><a href="timeline.html">Timelines, logs and time-travel debugging</a></li>
+          <li><a href="cause.html">Causality analysis</a></li>
+          <li><a href="inspect.html">Inspecting the disk at the moment of failure</a></li>
+          <li><a href="verify.html">Proving a fix with seedfall verify</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+        </ul>
+        <h2>Use in CI</h2>
+        <ul>
+          <li><a href="ci.html">Running seedfall in CI</a></li>
+          <li><a href="agents.html">Using seedfall from AI coding agents</a></li>
+        </ul>
+        <h2>Reference</h2>
+        <ul>
+          <li><a href="faults.html">Configuration and faults</a></li>
+          <li><a href="properties.html">Properties, linearizability and determinism</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          <li><a href="how-it-works.html">How seedfall works</a></li>
+          <li><a href="testing.html">Testing seedfall itself</a></li>
+          <li><a href="findings/">Findings</a></li>
+        </ul>
+        <h2>About the project</h2>
+        <ul>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
+        </ul>
+      </nav>
+    </aside>
+    <main class="docs-main">
+      <p class="docs-meta">
+        <a href="config.md" type="text/markdown">View as Markdown, for AI agents</a>
+        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/config.md">Edit on GitHub</a>
+      </p>
+      <article class="prose">
+<h1 id="config-files-profiles-and-seeded-disks">Config files, profiles and seeded disks</h1>
+<p>One <code>seedfall.json</code> can hold many variations of your test: a base setup, named profiles, ready-made fault presets and one-off command-line overrides. This page also covers starting nodes from an existing disk and restarting them into a new version of your program. Use it when you want to test more than one scenario without copying files around.</p>
+<p>One <code>seedfall.json</code> can hold every variant you test: a base config, named profiles that change a few fields, fault presets instead of hand-tuned rates, and one-off overrides from the command line. Nodes can start from an existing disk instead of an empty one, get files from the host, and restart into a new version of their program.</p>
+<h2 id="layers">Layers</h2>
+<p>A config is built from up to four layers, each merged over the one before:</p>
+<ol>
+<li>the file named in <code>&quot;extends&quot;</code>, if any, itself built the same way</li>
+<li>the file you pass with <code>-c</code></li>
+<li>the profile you pass with <code>-profile name</code></li>
+<li>every <code>-set path=value</code>, in order</li>
+</ol>
+<p>Merging works the same way at every layer:</p>
+<ul>
+<li>objects merge key by key, so <code>{&quot;faults&quot;: {&quot;crash_on_io&quot;: 0.1}}</code> changes one rate and keeps the rest</li>
+<li>lists of named entries, such as <code>nodes</code> and <code>workloads</code>, merge by <code>name</code>: an entry with a known name merges into it, a new name is appended</li>
+<li>anything else, including <code>args</code> and other lists, replaces the value</li>
+</ul>
+<p>Fields that no layer sets keep their defaults, as listed in the <code>seedfall://schema/config</code> MCP resource.</p>
+<p>The merged config is checked once, before anything is built or run, and a config that fails the check does not load:</p>
+<ul>
+<li>a key that is not a config field is an error, in the file, in a profile and in <code>-set</code>, so a typo such as <code>crash_per_sc</code> cannot silently leave a fault off</li>
+<li>every probability (<code>crash_on_io</code>, <code>fsync_eio</code>, <code>write_eio</code>, <code>write_enospc</code>, <code>read_eio</code>, <code>read_corrupt</code>, <code>lost_write</code>, <code>misdirected_write</code>, <code>mmap_early_writeback</code>, <code>udp_loss</code> and <code>udp_dup</code>) is between 0 and 1, and every <code>_per_sec</code> rate is 0 or more</li>
+<li>every range (<code>latency</code>, <code>links[].latency</code>, <code>restart_after</code>, <code>partition_for</code>, <code>clog_for</code>, <code>clog_delay</code>, <code>slow_for</code>, <code>pause_for</code> and <code>disk_latency</code>) is <code>[min, max]</code> with <code>0 &lt;= min &lt;= max</code></li>
+<li><code>duration</code> and <code>watchdog</code> are positive, and <code>clock_jump_max</code> is 0 or more</li>
+<li>a node sets <code>pkg</code> or <code>wasm</code>, not both</li>
+</ul>
+<h3 id="extends">extends</h3>
+<pre><code class="language-json">{
+  &quot;extends&quot;: &quot;seedfall.json&quot;,
+  &quot;nodes&quot;: [{ &quot;name&quot;: &quot;server&quot;, &quot;args&quot;: [&quot;-sync&quot;, &quot;always&quot;, &quot;-repair&quot;] }],
+  &quot;faults&quot;: { &quot;bitrot_per_sec&quot;: 0.5 }
+}
+</code></pre>
+<p><code>extends</code> names another config file, relative to the file that extends it, and can chain. A file that extends itself, directly or through others, is an error. Paths inside the config, such as <code>pkg</code>, <code>wasm</code>, <code>files</code> and <code>disk</code>, are resolved from the directory of the file you pass with <code>-c</code>, so keep extended files in the same directory as the configs that use them. <code>examples/kvlog</code> keeps one file per variant this way, each a few lines over <code>seedfall.json</code>, because the getting started guide and CI name those files.</p>
+<h3 id="profiles">profiles</h3>
+<pre><code class="language-json">{
+  &quot;nodes&quot;: [{ &quot;name&quot;: &quot;counter&quot;, &quot;pkg&quot;: &quot;./counter&quot; }],
+  &quot;workload&quot;: { &quot;name&quot;: &quot;client&quot;, &quot;pkg&quot;: &quot;./client&quot; },
+  &quot;faults&quot;: { &quot;buggify&quot;: true },
+  &quot;profiles&quot;: {
+    &quot;fixed&quot;: { &quot;nodes&quot;: [{ &quot;name&quot;: &quot;counter&quot;, &quot;args&quot;: [&quot;-dedupe&quot;] }] },
+    &quot;off&quot;: { &quot;faults&quot;: &quot;none&quot; }
+  }
+}
+</code></pre>
+<pre><code class="language-sh">seedfall run -c seedfall.json -profile fixed -seeds 1-20
+</code></pre>
+<p>A profile is a partial config merged over the file. Asking for a profile that does not exist fails and lists the ones that do. Every command that takes <code>-c</code> takes <code>-profile</code>, and so do the MCP tools (<code>&quot;profile&quot;: &quot;fixed&quot;</code>). <code>seedfall init</code> writes three starter profiles: <code>strict</code>, <code>resilient</code> and <code>everything</code>.</p>
+<p>A profile is part of the config's identity everywhere seedfall prints or saves it:</p>
+<ul>
+<li>replay and shrink commands carry it: <code>replay: seedfall replay -c seedfall.json -profile fixed -seed 2</code></li>
+<li>failure artifacts go to <code>.seedfall/failures/seedfall.fixed-seed-2/</code>, the same folder a separate <code>seedfall.fixed.json</code> would use</li>
+<li><code>seedfall pin</code> records the profile and <code>-set</code> overrides in the pinned file (<code>&quot;profile&quot;: &quot;fixed&quot;</code>), and a pinned schedule is replayed only by runs with the same config file, profile and overrides</li>
+<li><code>-set</code> overrides add a short hash of the overrides to artifact folder and pinned file names, <code>seedfall.fixed.set-1a2b3c4d-seed-2</code>, so a run with overrides never replaces the files of a run without them</li>
+<li>reports, proofs and <code>seedfall hook</code> print the full config reference</li>
+</ul>
+<p><code>seedfall hook</code> reads the profile from <code>$SEEDFALL_HOOK_PROFILE</code> (<a href="agents.html#the-seedfall-hook-command">agents.md</a>).</p>
+<h3 id="-set">-set</h3>
+<pre><code class="language-sh">seedfall run -set faults.crash_per_sec=2 -set duration=10s -seeds 1-50
+seedfall run -set 'nodes.server.args=[&quot;-sync&quot;,&quot;always&quot;]' -seeds 1-50
+seedfall replay -seed 7 -set faults=resilient
+</code></pre>
+<p><code>-set path=value</code> overrides one value after every other layer, and can repeat. The path is a dot-separated list of keys. Inside a list, a part is either the <code>name</code> of an entry or its index, so <code>nodes.server.env.MODE</code> and <code>nodes.0.env.MODE</code> both work. Missing objects along the path are created. The value is read as JSON when it parses as JSON (<code>2</code>, <code>true</code>, <code>[&quot;-x&quot;]</code>, <code>{}</code>) and as a plain string otherwise (<code>10s</code>, <code>resilient</code>). To set a string that looks like JSON, quote it: <code>-set 'nodes.server.env.PORT=&quot;7000&quot;'</code>. When the JSON reading does not fit the field, such as the number in <code>-set nodes.server.env.PORT=7000</code> for an <code>env</code> value, which must be a string, the value is used as a plain string instead.</p>
+<h2 id="fault-presets">Fault presets</h2>
+<pre><code class="language-json">{ &quot;faults&quot;: &quot;resilient&quot; }
+{ &quot;faults&quot;: { &quot;preset&quot;: &quot;high_availability&quot;, &quot;crash_per_sec&quot;: 2, &quot;clog_per_sec&quot;: 0 } }
+</code></pre>
+<p>A preset fills in a documented fault level. Fields set next to it override it, and the string form is shorthand for <code>{&quot;preset&quot;: name}</code>. Each level adds to the one before:</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Preset</th>
+<th>Adds</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>none</code></td>
+<td>no faults</td>
+</tr>
+<tr>
+<td><code>durability</code></td>
+<td><code>crash_per_sec</code> 0.5, <code>crash_on_io</code> 0.002, <code>torn_writes</code>, <code>reorder_writes</code>, <code>strict_dirs</code>, <code>mmap_early_writeback</code> 0.1</td>
+</tr>
+<tr>
+<td><code>resilient</code></td>
+<td><code>pause_per_sec</code> 0.1, <code>slow_per_sec</code> 0.1, <code>reset_per_sec</code> 0.1, <code>clock_jump_per_sec</code> 0.05</td>
+</tr>
+<tr>
+<td><code>high_availability</code></td>
+<td><code>partition_per_sec</code> 0.2, <code>clog_per_sec</code> 0.2, <code>swizzle_per_sec</code> 0.05, <code>udp_loss</code> 0.01, <code>udp_dup</code> 0.01</td>
+</tr>
+<tr>
+<td><code>everything</code></td>
+<td><code>fsync_eio</code> 0.01, <code>write_eio</code>, <code>write_enospc</code>, <code>read_eio</code>, <code>read_corrupt</code>, <code>lost_write</code> and <code>misdirected_write</code> 0.005 each, <code>corrupt_on_crash</code>, <code>bitrot_per_sec</code> 0.05, <code>buggify</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>Durations, topologies and clog modes keep their defaults, and every rate is per node per second, per disk operation for the I/O faults, or per datagram for <code>udp_loss</code> and <code>udp_dup</code>, as in <a href="faults.html">faults</a>. The levels are seedfall's own, named after the fault tolerance levels Antithesis offers, not a copy of them. <code>high_availability</code> and <code>everything</code> include partitions, clogs and swizzles, which need at least two nodes that take faults, workload included. <code>everything</code> includes faults such as corrupted reads that only a system with checksums can survive.</p>
+<p>A layer that names a preset starts its faults from that preset, and fault fields from earlier layers are dropped, so a profile with <code>&quot;faults&quot;: &quot;none&quot;</code> turns every fault off even when the base config sets rates. A layer without a preset merges its fault fields as usual. On the command line, <code>-set faults=none</code> replaces the faults the same way, while <code>-set faults.preset=none</code> changes only the preset and keeps the fault fields set so far, which still override it. The preset in effect shows up as <code>faults.preset</code> in the triage report JSON and in the HTML report's fault table.</p>
+<h2 id="seeded-disks-and-files">Seeded disks and files</h2>
+<p>Every node starts with an empty disk unless its entry says otherwise:</p>
+<pre><code class="language-json">{
+  &quot;name&quot;: &quot;ledger&quot;,
+  &quot;pkg&quot;: &quot;./v1&quot;,
+  &quot;disk&quot;: &quot;image&quot;,
+  &quot;files&quot;: { &quot;etc/ledger.conf&quot;: &quot;fixtures/atomic.conf&quot; }
+}
+</code></pre>
+<ul>
+<li><code>disk</code> names a host directory. Its files, directories and symlinks are copied onto the node's disk, the directory itself becoming <code>/</code>.</li>
+<li><code>files</code> maps a path on the node's disk to a host file. A file listed here replaces the same path from <code>disk</code>.</li>
+</ul>
+<p>Both are read from the host once, when the config loads, and copied into memory, so a run never touches the host disk and stays deterministic. The copied files are durable and synced before the node first starts, as if an earlier life had written and fsynced them: a crash never loses them, and <code>seedfall inspect</code> shows them as durable from t=0. Directories leading to them are durable too, even with <code>strict_dirs</code>. Symlinks and other special files in <code>disk</code> are rejected. The trace opens with a line per seeded node, <code>ledger's disk starts with 2 durable files, 86 bytes</code>, and the config hash in failure artifacts covers the bytes of every seeded file, so changing a fixture changes <code>config_sha256</code>.</p>
+<p><code>seedfall inspect -out dir</code> exports each node's durable disk as <code>dir/&lt;node&gt;/</code>, in exactly the layout <code>disk</code> reads, so a failing state can become the starting point of new runs:</p>
+<pre><code class="language-sh">seedfall inspect -seed 21 -out state
+seedfall run -set nodes.ledger.disk=state/ledger -seeds 1-20
+</code></pre>
+<h2 id="upgrades">Upgrades</h2>
+<pre><code class="language-json">{ &quot;name&quot;: &quot;ledger&quot;, &quot;pkg&quot;: &quot;./v1&quot;, &quot;upgrade_to&quot;: &quot;./v2&quot; }
+</code></pre>
+<p><code>upgrade_to</code> names a second Go package for the node. seedfall builds both, the node starts as <code>pkg</code>, and every start from its first restart on runs <code>upgrade_to</code> instead, over whatever the old version left on disk. Restarts come from crash faults, <code>crash_on_io</code> and <code>supervise</code>. The trace marks the switch with <code>start ledger#2, upgraded to ./v2</code>. <code>upgrade_to</code> takes a package, not a prebuilt <code>wasm</code> file, and <code>seedfall mutate -app</code> mutates only <code>pkg</code>.</p>
+<p>Together with <code>disk</code>, this tests the upgrade path FoundationDB's restart tests cover: real old data, a crash, and the new version's recovery code. <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/examples/upgrade">examples/upgrade</a> seeds a v1 ledger, upgrades it to v2 on the first crash, and catches an in-place migration that a crash leaves half done.</p>
+
+      </article>
+    </main>
+  </div>
+</div>
+<footer class="foot">
+  <div class="wrap foot-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../llms.txt">llms.txt</a></p>
+  </div>
+</footer>
+</body>
+</html>

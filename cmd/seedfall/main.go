@@ -52,7 +52,7 @@ func init() {
 		{"help", "[command]", cmdHelp},
 		{"schema", "print every command with its flags and every MCP tool, prompt and resource as JSON", cmdSchema},
 		{"mcp", "serve init, run, explore, replay, logs, trace search, debug, shrink, faults edit, cause, inspect, check, mutate, pin, findings, verify and doctor to AI coding agents over MCP (stdio)", cmdMCP},
-		{"hook", "Claude Code Stop hook: sweep $SEEDFALL_HOOK_SEEDS (unset: do nothing) and block the stop on a failure", cmdHook},
+		{"hook", "agent stop hook: sweep $SEEDFALL_HOOK_SEEDS (unset: do nothing) and block the stop on a failure", cmdHook},
 	}
 }
 

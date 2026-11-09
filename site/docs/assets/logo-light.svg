@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 330 80" width="330" height="80">
+  <rect x="6" y="42" width="11" height="18" rx="5.5" fill="#ff9a5a" opacity="0.55"/>
+  <rect x="22" y="18" width="11" height="42" rx="5.5" fill="#ff9a5a"/>
+  <rect x="38" y="31" width="11" height="29" rx="5.5" fill="#ff9a5a" opacity="0.75"/>
+  <text x="66" y="58" font-family="'Cormorant Garamond', Georgia, 'Times New Roman', serif" font-size="50" fill="#22170f" letter-spacing="-0.5">seedfall</text>
+</svg>

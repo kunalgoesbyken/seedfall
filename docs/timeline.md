@@ -1,5 +1,7 @@
 # Timelines, logs and time-travel debugging
 
+After a failure you want to see what happened. This page covers the four views seedfall gives you of one run: a timeline diagram, a sequence diagram, filtered logs and a step-by-step debugger. Use it when the failure message alone does not explain the problem.
+
 A failing seed replays exactly, so you can look at it as many times and in as many ways as you like. seedfall gives you four views of one run:
 
 | View | Command | What it shows |

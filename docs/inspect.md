@@ -1,5 +1,7 @@
 # Inspecting the disk at the moment of failure
 
+When a test fails after a crash, the cause is often what had and had not reached the disk. `seedfall inspect` shows every node's files at the moment of failure: which bytes were safely saved, which a crash would lose, and where a write was cut short. Use it for durability bugs, such as data that is missing after a restart.
+
 `seedfall replay` tells you what happened. `seedfall inspect` shows you what is on disk when it goes wrong: every file on every node, how much of it is durable, which bytes a crash would lose, which directory entries are not durable yet, and where the last crash tore a write.
 
 ```sh

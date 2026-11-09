@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A crash in the middle of a log append makes the node unable to restart, now or after its next restart · seedfall docs</title>
+<meta name="description" content="Upstream: not filed. The GitHub repository is no longer public, so there is nowhere to report it; v0.2.0 is still served by proxy.golang.org.">
+<meta property="og:title" content="A crash in the middle of a log append makes the node unable to restart, now or after its next restart">
+<meta property="og:description" content="Upstream: not filed. The GitHub repository is no longer public, so there is nowhere to report it; v0.2.0 is still served by proxy.golang.org.">
+<link rel="alternate" type="text/markdown" href="jmsadair-raft-log-torn-tail.md">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../style.css">
+<link rel="stylesheet" href="../../docs.css">
+</head>
+<body>
+<header class="nav docs-nav">
+  <div class="wrap nav-row">
+    <a class="brand" href="../../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <nav class="links" aria-label="Site">
+      <a href="../../">Home</a>
+      <a href="../" aria-current="true">Docs</a>
+      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="docs">
+  <div class="wrap docs-grid">
+    <aside class="docs-side">
+      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
+      <label class="docs-menu" for="docs-menu">Docs menu</label>
+      <nav class="docs-index" aria-label="Documentation">
+        <h2>Start here</h2>
+        <ul>
+          <li><a href="../getting-started.html">Getting started</a></li>
+          <li><a href="../install.html">Installing seedfall</a></li>
+          <li><a href="../faq.html">FAQ</a></li>
+          <li><a href="../troubleshooting.html">Troubleshooting</a></li>
+        </ul>
+        <h2>Find a bug</h2>
+        <ul>
+          <li><a href="../networking.html">Networking</a></li>
+          <li><a href="../properties.html">Properties and checks</a></li>
+          <li><a href="../compat.html">Storage engines that need mmap or flock</a></li>
+          <li><a href="../config.html">Config files, profiles and seeded disks</a></li>
+          <li><a href="../explore.html">Feedback-guided exploration</a></li>
+          <li><a href="../buggify.html">BUGGIFY</a></li>
+          <li><a href="../mutate.html">Mutation testing your checks</a></li>
+          <li><a href="../antithesis.html">Running Antithesis SDK code</a></li>
+          <li><a href="../gostman.html">Use your Gostman collections as workloads</a></li>
+        </ul>
+        <h2>Understand a failure</h2>
+        <ul>
+          <li><a href="../timeline.html">Timelines, logs and time-travel debugging</a></li>
+          <li><a href="../cause.html">Causality analysis</a></li>
+          <li><a href="../inspect.html">Inspecting the disk at the moment of failure</a></li>
+          <li><a href="../verify.html">Proving a fix with seedfall verify</a></li>
+          <li><a href="../reports.html">Triage reports</a></li>
+        </ul>
+        <h2>Use in CI</h2>
+        <ul>
+          <li><a href="../ci.html">Running seedfall in CI</a></li>
+          <li><a href="../agents.html">Using seedfall from AI coding agents</a></li>
+        </ul>
+        <h2>Reference</h2>
+        <ul>
+          <li><a href="../faults.html">Configuration and faults</a></li>
+          <li><a href="../properties.html">Properties, linearizability and determinism</a></li>
+          <li><a href="../reports.html">Triage reports</a></li>
+          <li><a href="../troubleshooting.html">Troubleshooting</a></li>
+          <li><a href="../how-it-works.html">How seedfall works</a></li>
+          <li><a href="../testing.html">Testing seedfall itself</a></li>
+          <li><a href="./">Findings</a></li>
+        </ul>
+        <h2>About the project</h2>
+        <ul>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
+        </ul>
+      </nav>
+    </aside>
+    <main class="docs-main">
+      <p class="docs-meta"><a href="./">&larr; Findings</a>
+        <a href="jmsadair-raft-log-torn-tail.md" type="text/markdown">View as Markdown, for AI agents</a>
+        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/findings/jmsadair-raft-log-torn-tail.md">Edit on GitHub</a>
+      </p>
+      <article class="prose">
+<h1 id="a-crash-in-the-middle-of-a-log-append-makes-the-node-unable-to-restart-now-or-after-its-next-restart">A crash in the middle of a log append makes the node unable to restart, now or after its next restart</h1>
+<p><strong>Upstream:</strong> not filed. The GitHub repository is no longer public, so there is nowhere to report it; v0.2.0 is still served by proxy.golang.org.</p>
+<p><strong>Repo:</strong> jmsadair/raft (tested on v0.2.0, the latest release, commit <code>8dd4cdc</code>; the GitHub repository is no longer public, the module is still served by proxy.golang.org)
+<strong>Severity:</strong> one crash while an entry is being appended to <code>log/log.bin</code> leaves a node that fails <code>NewRaft</code> on every start until an operator repairs or deletes its log. The interrupted entry was never acknowledged, so nothing requires keeping it. No strict-POSIX assumptions needed: only that a crash can persist a prefix of the unsynced bytes. The second variant below does not even need a power loss: the length and the body are separate <code>write</code> calls, so a <code>kill -9</code> or OOM kill between them leaves exactly that tail.</p>
+<h2 id="summary">Summary</h2>
+<p><code>encodeLogEntry</code> (<code>log.go:117-140</code>) writes each entry as two writes, a 4-byte big-endian length and then the protobuf body. <code>AppendEntries</code> (<code>log.go:274-295</code>) fsyncs after the batch. A crash before the fsync can persist any prefix of those bytes. <code>Replay</code> (<code>log.go:209-235</code>) handles neither kind of incomplete tail:</p>
+<pre><code class="language-go">for {
+	entry, err := decodeLogEntry(reader)
+	if errors.Is(err, io.EOF) {
+		break
+	}
+	if err != nil {
+		return fmt.Errorf(&quot;could not decode log entry: %w&quot;, err)
+	}
+	l.entries = append(l.entries, &amp;entry)
+}
+</code></pre>
+<ol>
+<li>
+<p><strong>Partial length or partial body.</strong> <code>binary.Read</code> or <code>io.ReadFull</code> returns <code>io.ErrUnexpectedEOF</code>, <code>Replay</code> returns an error, and <code>NewRaft</code> (<code>raft.go:301</code>, through <code>restore</code>, <code>raft.go:313</code>) fails on every start:</p>
+<pre><code>could not replay log: could not decode log entry: could not read protobuf messsage: unexpected EOF
+</code></pre>
+</li>
+<li>
+<p><strong>Complete length, no body.</strong> <code>io.ReadFull</code> reads zero bytes and returns plain <code>io.EOF</code>, which <code>Replay</code> treats as a clean end of the log. The node starts normally, but the 4 orphan bytes stay in the file, and the next append is written after them. From then on every new entry sits behind a record whose length prefix swallows the next entry's length prefix. Nothing goes wrong until the next restart, which fails on every attempt:</p>
+<pre><code>could not replay log: could not decode log entry: could not unmarshal protobuf message: proto: cannot parse invalid wire-format data
+</code></pre>
+<p>With seedfall's byte dump of the failing file: offset 182 holds <code>00000017</code> (an orphan length), immediately followed by the complete next record <code>00000017 0825 1001 18ba01 220c &quot;PUT k3 c2-33&quot; ...</code>.</p>
+</li>
+</ol>
+<p>Raft treats an incomplete trailing entry as never written: it was not fsynced, so it was never acknowledged to the leader and never counted toward a commit. Truncating it is always safe.</p>
+<h2 id="reproduction">Reproduction</h2>
+<p>Reproduced deterministically with <a href="https://github.com/kunalgoesbyken/seedfall">seedfall</a>: a 3-node key-value store on jmsadair/raft v0.2.0 with the library's own storage, a simulated disk with torn writes and crashes during disk I/O, and 4 clients checked for linearizability.</p>
+<pre><code>cd examples/jmsraft
+seedfall replay -c seedfall.json -seed 7 -faults tornlog.faults.json
+</code></pre>
+<p>One fault is enough. The crash lands while n2 is appending an entry, and the node can never start again:</p>
+<pre><code>    1.049s  fault crash n2#1 during disk op 148, restart at 1.274s
+    1.274s  start n2#2
+    1.274s  FAIL  n2#2: node restarts from its own disk: could not replay log: could not decode log entry: could not read protobuf messsage: unexpected EOF
+</code></pre>
+<p>In a 150-seed sweep of this configuration, 125 seeds fail with a node that cannot restart; among seeds 1-60, 50 fail: 15 with this bug, 34 with the <a href="jmsadair-raft-state-file-fsync.html">state file bug</a> and 1 with the <a href="jmsadair-raft-tmp-snapshot-dir.html">temporary snapshot directory bug</a>.</p>
+<p>The second variant reproduces outside the simulator on a real filesystem, by appending only a length prefix to a valid log:</p>
+<pre><code class="language-go">l := open(dir)                       // raft.NewLog, Open, Replay
+l.AppendEntries(entry(1, &quot;PUT a 1&quot;))
+l.Close()
+appendBytes(dir+&quot;/log/log.bin&quot;, []byte{0, 0, 0, 23}) // crash kept the length, not the body
+
+l = open(dir)                        // Replay: no error, LastIndex 1
+l.AppendEntries(entry(2, &quot;PUT b 2&quot;)) // fsynced and acknowledged
+l.Close()
+
+open(dir)                            // could not decode log entry: could not read protobuf messsage: unexpected EOF
+</code></pre>
+<h2 id="suggested-fix">Suggested fix</h2>
+<p>Track the offset of each record during replay, and truncate the file at the start of an incomplete final record, whether the read stopped with <code>io.ErrUnexpectedEOF</code> or with <code>io.EOF</code> after part of the record:</p>
+<pre><code class="language-go">reader := &amp;countingReader{r: bufio.NewReader(l.file)}
+for {
+	start := reader.n
+	entry, err := decodeLogEntry(reader)
+	if errors.Is(err, io.EOF) &amp;&amp; reader.n == start {
+		break
+	}
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		if err := l.truncateTornTail(start); err != nil { // Truncate, Sync, Seek(start)
+			return err
+		}
+		break
+	}
+	if err != nil {
+		return fmt.Errorf(&quot;could not decode log entry: %w&quot;, err)
+	}
+	l.entries = append(l.entries, &amp;entry)
+}
+</code></pre>
+<p>The <code>Seek</code> matters: after replay through a <code>bufio.Reader</code>, the file offset is at the old end of the file, and <code>AppendEntries</code> takes each entry's offset from <code>Seek(0, io.SeekCurrent)</code>. A per-record checksum would also catch tails that are not a clean prefix, but is not needed for the crash behavior above.</p>
+<p><strong>Fix verified:</strong> with this change applied to a local copy of v0.2.0 (together with the <a href="jmsadair-raft-state-file-fsync.html">state file</a> and <a href="jmsadair-raft-tmp-snapshot-dir.html">temporary snapshot directory</a> fixes), <code>seedfall.json</code> passes 150 seeds of crashes, partitions, torn writes and crashes during disk I/O, every history linearizable.</p>
+<h2 id="related-strict-posix-only-lower-priority">Related, strict-POSIX only (lower priority)</h2>
+<p>The library never fsyncs a directory: not after <code>os.MkdirAll</code> of <code>log/</code>, <code>state/</code> and <code>snapshots/</code>, not after creating <code>log.bin</code>, and not after any of its renames (<code>state.bin</code>, log compaction at <code>log.go:435</code>, the snapshot directory at <code>snapshot_storage.go:135</code>). Under strict POSIX semantics a crash can roll back any of these. In the seedfall strict configuration this shows up as a node whose term, vote or log is rolled back, and in one seed as a leader that panics in <code>sendAppendEntries</code> (<code>raft.go:1007</code>, <code>make([]*LogEntry, 0, r.log.NextIndex()-nextIndex)</code> underflows because a follower reports a <code>nextIndex</code> past the leader's rolled-back log). With directory fsyncs added (after <code>MkdirAll</code>, after creating <code>log.bin</code>, after each rename, and of the temporary snapshot directory before its rename) on top of the three crash fixes, <code>seedfall.strict.json</code> passes 150 seeds.</p>
+
+      </article>
+    </main>
+  </div>
+</div>
+<footer class="foot">
+  <div class="wrap foot-row">
+    <a class="brand" href="../../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../../llms.txt">llms.txt</a></p>
+  </div>
+</footer>
+</body>
+</html>

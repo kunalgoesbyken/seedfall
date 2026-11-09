@@ -1,5 +1,7 @@
 # Running Antithesis SDK code
 
+Antithesis is a commercial testing platform with its own Go SDK, a library for writing checks inside your program. If your code already uses that SDK, seedfall runs it unchanged and turns each SDK call into a seedfall check. Read this page if you are coming from Antithesis or share code with a team that uses it.
+
 Code instrumented with the [Antithesis Go SDK](https://github.com/antithesishq/antithesis-sdk-go) runs under seedfall unchanged. Assertions become seedfall properties, `lifecycle.SetupComplete` becomes seedfall's setup signal, and `random.GetRandom` draws from the seed.
 
 `examples/ledger` has no seedfall imports at all. It uses plain `net` (through `net_overlay`) and only the Antithesis SDK:

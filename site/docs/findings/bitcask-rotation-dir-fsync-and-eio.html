@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Acknowledged writes can be lost after a datafile rotation (no directory fsync) or after a failed fsync (offset not rewound) · seedfall docs</title>
+<meta name="description" content="Repo: prologic/bitcask on git.mills.io, module go.mills.io/bitcask/v2 (tested on v2.2.0, which is main at a5ea7328ad) Severity: lower than the config.json and auto-recovery issues. Both need a less…">
+<meta property="og:title" content="Acknowledged writes can be lost after a datafile rotation (no directory fsync) or after a failed fsync (offset not rewound)">
+<meta property="og:description" content="Repo: prologic/bitcask on git.mills.io, module go.mills.io/bitcask/v2 (tested on v2.2.0, which is main at a5ea7328ad) Severity: lower than the config.json and auto-recovery issues. Both need a less…">
+<link rel="alternate" type="text/markdown" href="bitcask-rotation-dir-fsync-and-eio.md">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../style.css">
+<link rel="stylesheet" href="../../docs.css">
+</head>
+<body>
+<header class="nav docs-nav">
+  <div class="wrap nav-row">
+    <a class="brand" href="../../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <nav class="links" aria-label="Site">
+      <a href="../../">Home</a>
+      <a href="../" aria-current="true">Docs</a>
+      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="docs">
+  <div class="wrap docs-grid">
+    <aside class="docs-side">
+      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
+      <label class="docs-menu" for="docs-menu">Docs menu</label>
+      <nav class="docs-index" aria-label="Documentation">
+        <h2>Start here</h2>
+        <ul>
+          <li><a href="../getting-started.html">Getting started</a></li>
+          <li><a href="../install.html">Installing seedfall</a></li>
+          <li><a href="../faq.html">FAQ</a></li>
+          <li><a href="../troubleshooting.html">Troubleshooting</a></li>
+        </ul>
+        <h2>Find a bug</h2>
+        <ul>
+          <li><a href="../networking.html">Networking</a></li>
+          <li><a href="../properties.html">Properties and checks</a></li>
+          <li><a href="../compat.html">Storage engines that need mmap or flock</a></li>
+          <li><a href="../config.html">Config files, profiles and seeded disks</a></li>
+          <li><a href="../explore.html">Feedback-guided exploration</a></li>
+          <li><a href="../buggify.html">BUGGIFY</a></li>
+          <li><a href="../mutate.html">Mutation testing your checks</a></li>
+          <li><a href="../antithesis.html">Running Antithesis SDK code</a></li>
+          <li><a href="../gostman.html">Use your Gostman collections as workloads</a></li>
+        </ul>
+        <h2>Understand a failure</h2>
+        <ul>
+          <li><a href="../timeline.html">Timelines, logs and time-travel debugging</a></li>
+          <li><a href="../cause.html">Causality analysis</a></li>
+          <li><a href="../inspect.html">Inspecting the disk at the moment of failure</a></li>
+          <li><a href="../verify.html">Proving a fix with seedfall verify</a></li>
+          <li><a href="../reports.html">Triage reports</a></li>
+        </ul>
+        <h2>Use in CI</h2>
+        <ul>
+          <li><a href="../ci.html">Running seedfall in CI</a></li>
+          <li><a href="../agents.html">Using seedfall from AI coding agents</a></li>
+        </ul>
+        <h2>Reference</h2>
+        <ul>
+          <li><a href="../faults.html">Configuration and faults</a></li>
+          <li><a href="../properties.html">Properties, linearizability and determinism</a></li>
+          <li><a href="../reports.html">Triage reports</a></li>
+          <li><a href="../troubleshooting.html">Troubleshooting</a></li>
+          <li><a href="../how-it-works.html">How seedfall works</a></li>
+          <li><a href="../testing.html">Testing seedfall itself</a></li>
+          <li><a href="./">Findings</a></li>
+        </ul>
+        <h2>About the project</h2>
+        <ul>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
+        </ul>
+      </nav>
+    </aside>
+    <main class="docs-main">
+      <p class="docs-meta"><a href="./">&larr; Findings</a>
+        <a href="bitcask-rotation-dir-fsync-and-eio.md" type="text/markdown">View as Markdown, for AI agents</a>
+        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/findings/bitcask-rotation-dir-fsync-and-eio.md">Edit on GitHub</a>
+      </p>
+      <article class="prose">
+<h1 id="acknowledged-writes-can-be-lost-after-a-datafile-rotation-no-directory-fsync-or-after-a-failed-fsync-offset-not-rewound">Acknowledged writes can be lost after a datafile rotation (no directory fsync) or after a failed fsync (offset not rewound)</h1>
+<p><strong>Repo:</strong> prologic/bitcask on git.mills.io, module <code>go.mills.io/bitcask/v2</code> (tested on v2.2.0, which is <code>main</code> at a5ea7328ad)
+<strong>Severity:</strong> lower than the <code>config.json</code> and auto-recovery issues. Both need a less common event, a crash shortly after a rotation or an fsync error, and both lose acknowledged writes silently with <code>WithSyncWrites(true)</code>.</p>
+<h2 id="1-a-new-datafile-is-created-without-fsyncing-the-directory">1. A new datafile is created without fsyncing the directory</h2>
+<p><code>maybeRotate</code> (bitcask.go:262) closes the current datafile and creates the next one with <code>data.NewOnDiskDatafile</code> (bitcask.go:277), which opens it with <code>O_CREATE|O_APPEND</code> (internal/data/datafile.go:63). Every <code>Put</code> into the new file is fsynced, but the directory entry for the file never is. On filesystems that need an explicit directory fsync to persist a new name, a crash can drop the whole file and every acknowledged record in it.</p>
+<p>Reproduction (stock v2.2.0; the server fsyncs <code>config.json</code> after <code>Open</code> to work around the separate <code>config.json</code> issue, and the disk uses strict POSIX directory semantics):</p>
+<pre><code>cd examples/bitcask
+seedfall replay -c seedfall.strict.json -seed 2
+</code></pre>
+<p><code>seedfall shrink</code> reduces it to one plain crash after the client finished writing:</p>
+<pre><code>faults before the failure (1):
+  6.681412s  crash server, restart at 6.843388s
+</code></pre>
+<p>The server restarts with <code>recovered 180 keys</code>, and the client reports <code>acknowledged write lost: k249=v249, server now answers &quot;NONE&quot;</code>.</p>
+<p><strong>Fix:</strong> fsync the directory at the end of <code>maybeRotate</code>, after the new datafile is created.</p>
+<h2 id="2-a-failed-fsync-leaves-a-hole-that-auto-recovery-truncates-at">2. A failed fsync leaves a hole that auto-recovery truncates at</h2>
+<p><code>WriteBatch</code> (batch.go:87) appends each entry with <code>b.current.Write</code> (batch.go:102), which advances the datafile's offset (internal/data/ondisk.go:169), and then calls <code>Sync</code> (batch.go:108). If <code>Sync</code> fails, the <code>Put</code> returns an error and is not acknowledged, but the bytes stay in the file at that offset. On Linux, a failed fsync can drop the dirty pages and clear the error (&quot;fsyncgate&quot;), so they may never reach the disk. The next <code>Put</code> appends after them, and its fsync succeeds. After a crash, the durable file has zeros where the failed record was. Auto-recovery decodes a zero key size as <code>errInvalidKeyOrValueSize</code>, treats it as a corrupt tail, and throws away everything after it, including every later acknowledged record.</p>
+<p>Reproduction (stock v2.2.0, same workaround, supervised so that the server can exit on an I/O error):</p>
+<pre><code>cd examples/bitcask
+seedfall replay -c seedfall.fsyncgate.json -seed 1
+</code></pre>
+<pre><code>faults before the failure (2):
+  900.606ms  fsync on server fails with EIO at disk op #116, unsynced writes dropped
+   1.7052s  crash server, restart at 1.942589s
+</code></pre>
+<p>The first restart also shows the separate missing-index bug (<code>error deleting the index on recovery</code>). The supervised restart after that reports <code>recovered 54 keys</code>, and the client reports <code>acknowledged write lost: k55=v55, server now answers &quot;NONE&quot;</code>.</p>
+<p><strong>Fix:</strong> on a failed <code>Sync</code>, truncate the active datafile back to the entry's offset, so the next write replaces the lost bytes:</p>
+<pre><code class="language-go">if err := b.current.Sync(); err != nil {
+	return errors.Join(err, b.current.Truncate(offset))
+}
+</code></pre>
+<p><code>Truncate</code> is a new <code>Datafile</code> method that calls <code>os.File.Truncate</code> and resets the in-memory offset. Refusing further writes until the database is reopened would also work.</p>
+<h2 id="harness">Harness</h2>
+<p><a href="https://github.com/kunalgoesbyken/seedfall">seedfall</a> runs a small server on bitcask v2.2.0 with <code>WithSyncWrites(true)</code>, <code>WithAutoRecovery(true)</code> and a 4 KB <code>MaxDatafileSize</code>. It acknowledges <code>SET</code> only after <code>Put</code> returns. A client writes 300 keys and then checks that every acknowledged key is still there. The simulated disk keeps only fsynced data across a crash.</p>
+<h2 id="fix-verified">Fix verified</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Config</th>
+<th>Stock v2.2.0</th>
+<th>Patched</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>crashes + partitions (<code>seedfall.json</code>)</td>
+<td>300/300 pass</td>
+<td>—</td>
+</tr>
+<tr>
+<td>plus strict directory durability (<code>seedfall.strict.json</code>)</td>
+<td>fails, seed 2</td>
+<td>300/300 pass</td>
+</tr>
+<tr>
+<td>plus fsync <code>EIO</code>, supervised (<code>seedfall.fsyncgate.json</code>)</td>
+<td>fails, seed 1</td>
+<td>300/300 pass</td>
+</tr>
+</tbody>
+</table></div>
+<p>The patched copy carries all six fixes from these drafts. It also passes 300 seeds of strict directories and of fsync <code>EIO</code>, each combined with torn writes and crashes during I/O.</p>
+
+      </article>
+    </main>
+  </div>
+</div>
+<footer class="foot">
+  <div class="wrap foot-row">
+    <a class="brand" href="../../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../../llms.txt">llms.txt</a></p>
+  </div>
+</footer>
+</body>
+</html>

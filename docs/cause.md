@@ -1,5 +1,7 @@
 # Causality analysis
 
+When a seed fails, you know it failed but not always which event decided it. `seedfall cause` replays the run from many points and shows when the failure became likely and which fault tipped it over. Use it after `shrink` when the short fault list still leaves you asking which fault matters.
+
 `seedfall shrink` tells you which faults are *needed* for a failure. `seedfall cause` tells you *when the failure became likely*, and which event made it so.
 
 ```sh

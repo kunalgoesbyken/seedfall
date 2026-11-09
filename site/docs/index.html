@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Documentation · seedfall docs</title>
+<meta name="description" content="seedfall runs your Go system in a simulated world, breaks it on purpose (crashes, lost messages, half-written files), and lets you replay any failure exactly. These pages are grouped by what you want…">
+<meta property="og:title" content="Documentation">
+<meta property="og:description" content="seedfall runs your Go system in a simulated world, breaks it on purpose (crashes, lost messages, half-written files), and lets you replay any failure exactly. These pages are grouped by what you want…">
+<link rel="alternate" type="text/markdown" href="index.md">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../style.css">
+<link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+<header class="nav docs-nav">
+  <div class="wrap nav-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <nav class="links" aria-label="Site">
+      <a href="../">Home</a>
+      <a href="./" aria-current="true">Docs</a>
+      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="docs">
+  <div class="wrap docs-grid">
+    <aside class="docs-side">
+      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
+      <label class="docs-menu" for="docs-menu">Docs menu</label>
+      <nav class="docs-index" aria-label="Documentation">
+        <h2>Start here</h2>
+        <ul>
+          <li><a href="getting-started.html">Getting started</a></li>
+          <li><a href="install.html">Installing seedfall</a></li>
+          <li><a href="faq.html">FAQ</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+        </ul>
+        <h2>Find a bug</h2>
+        <ul>
+          <li><a href="networking.html">Networking</a></li>
+          <li><a href="properties.html">Properties and checks</a></li>
+          <li><a href="compat.html">Storage engines that need mmap or flock</a></li>
+          <li><a href="config.html">Config files, profiles and seeded disks</a></li>
+          <li><a href="explore.html">Feedback-guided exploration</a></li>
+          <li><a href="buggify.html">BUGGIFY</a></li>
+          <li><a href="mutate.html">Mutation testing your checks</a></li>
+          <li><a href="antithesis.html">Running Antithesis SDK code</a></li>
+          <li><a href="gostman.html">Use your Gostman collections as workloads</a></li>
+        </ul>
+        <h2>Understand a failure</h2>
+        <ul>
+          <li><a href="timeline.html">Timelines, logs and time-travel debugging</a></li>
+          <li><a href="cause.html">Causality analysis</a></li>
+          <li><a href="inspect.html">Inspecting the disk at the moment of failure</a></li>
+          <li><a href="verify.html">Proving a fix with seedfall verify</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+        </ul>
+        <h2>Use in CI</h2>
+        <ul>
+          <li><a href="ci.html">Running seedfall in CI</a></li>
+          <li><a href="agents.html">Using seedfall from AI coding agents</a></li>
+        </ul>
+        <h2>Reference</h2>
+        <ul>
+          <li><a href="faults.html">Configuration and faults</a></li>
+          <li><a href="properties.html">Properties, linearizability and determinism</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          <li><a href="how-it-works.html">How seedfall works</a></li>
+          <li><a href="testing.html">Testing seedfall itself</a></li>
+          <li><a href="findings/">Findings</a></li>
+        </ul>
+        <h2>About the project</h2>
+        <ul>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
+        </ul>
+      </nav>
+    </aside>
+    <main class="docs-main">
+      <p class="docs-meta">
+        <a href="index.md" type="text/markdown">View as Markdown, for AI agents</a>
+        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/README.md">Edit on GitHub</a>
+      </p>
+      <article class="prose">
+<h1 id="documentation">Documentation</h1>
+<p>seedfall runs your Go system in a simulated world, breaks it on purpose (crashes, lost messages, half-written files), and lets you replay any failure exactly. These pages are grouped by what you want to do. If you are new, read the first one and stop there for now.</p>
+<h2 id="start-here">Start here</h2>
+<ul>
+<li><a href="getting-started.html">Getting started</a>: find, shrink, fix and prove a real bug in about five minutes, using an example that is included.</li>
+<li><a href="install.html">Installing seedfall</a>: every way to install it, and how to check the install worked.</li>
+<li><a href="faq.html">FAQ</a>: short answers, such as how seedfall differs from other tools and what it cannot test.</li>
+<li><a href="troubleshooting.html">Troubleshooting</a>: look up an error message and see how to fix it.</li>
+</ul>
+<h2 id="find-a-bug">Find a bug</h2>
+<ul>
+<li><a href="networking.html">Networking</a>: let your nodes talk to each other inside the simulation.</li>
+<li><a href="properties.html">Properties and checks</a>: write the statements your system must keep true, such as &quot;an acknowledged write is never lost&quot;.</li>
+<li><a href="compat.html">Storage engines that need mmap or flock</a>: test databases such as bbolt, pebble and badger.</li>
+<li><a href="config.html">Config files, profiles and seeded disks</a>: keep several test setups in one file and start nodes from an existing disk.</li>
+<li><a href="explore.html">Feedback-guided exploration</a>: hunt for bugs that need two rare events in one run.</li>
+<li><a href="buggify.html">BUGGIFY</a>: mark places in your own code where seedfall may force a rare path.</li>
+<li><a href="mutate.html">Mutation testing your checks</a>: find out whether your checks would notice a real bug.</li>
+<li><a href="antithesis.html">Running Antithesis SDK code</a>: run programs that already use the Antithesis Go SDK.</li>
+<li><a href="gostman.html">Use your Gostman collections as workloads</a>: reuse API checks you already wrote.</li>
+</ul>
+<h2 id="understand-a-failure">Understand a failure</h2>
+<ul>
+<li><a href="timeline.html">Timelines, logs and time-travel debugging</a>: see a failing run as a diagram, a filtered log or a step-by-step debugger.</li>
+<li><a href="cause.html">Causality analysis</a>: find which fault actually made a seed fail.</li>
+<li><a href="inspect.html">Inspecting the disk at the moment of failure</a>: see which bytes were saved and which a crash would lose.</li>
+<li><a href="verify.html">Proving a fix with <code>seedfall verify</code></a>: show that a fix works, and pin the bug so it cannot come back.</li>
+<li><a href="reports.html">Triage reports</a>: group many failing seeds into a short list of bugs.</li>
+</ul>
+<h2 id="use-in-ci">Use in CI</h2>
+<ul>
+<li><a href="ci.html">Running seedfall in CI</a>: the GitHub Action, machine-readable output, time limits and <code>go test</code>.</li>
+<li><a href="agents.html">Using seedfall from AI coding agents</a>: the MCP server and skills that let an agent run seedfall for you.</li>
+</ul>
+<h2 id="reference">Reference</h2>
+<ul>
+<li><a href="faults.html">Configuration and faults</a>: every <code>seedfall.json</code> field and every fault seedfall can inject.</li>
+<li><a href="properties.html">Properties, linearizability and determinism</a>: the full <code>sim</code> API for checks.</li>
+<li><a href="reports.html">Triage reports</a>: findings, classification, failure artifacts, notifications and utilization.</li>
+<li><a href="troubleshooting.html">Troubleshooting</a>: the error catalog, keyed by exact message.</li>
+<li><a href="how-it-works.html">How seedfall works</a>: the simulated clock, the disk and network models, checking, shrinking and speed.</li>
+<li><a href="testing.html">Testing seedfall itself</a>: what the project's own tests prove.</li>
+<li><a href="findings/">Findings</a>: bugs seedfall found in open-source projects, with replay commands.</li>
+</ul>
+<h2 id="about-the-project">About the project</h2>
+<ul>
+<li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a>: development setup, tests and commit style.</li>
+<li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a>: what is planned and what is not done yet.</li>
+<li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a> and <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a>.</li>
+</ul>
+
+      </article>
+    </main>
+  </div>
+</div>
+<footer class="foot">
+  <div class="wrap foot-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../llms.txt">llms.txt</a></p>
+  </div>
+</footer>
+</body>
+</html>

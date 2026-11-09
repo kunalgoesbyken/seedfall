@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>bucket.Meta is never fsynced, so a crash can make recovery drop every entry in the bucket · seedfall docs</title>
+<meta name="description" content="Upstream: nutsdb/nutsdb#695">
+<meta property="og:title" content="bucket.Meta is never fsynced, so a crash can make recovery drop every entry in the bucket">
+<meta property="og:description" content="Upstream: nutsdb/nutsdb#695">
+<link rel="alternate" type="text/markdown" href="nutsdb-bucket-meta-fsync.md">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../style.css">
+<link rel="stylesheet" href="../../docs.css">
+</head>
+<body>
+<header class="nav docs-nav">
+  <div class="wrap nav-row">
+    <a class="brand" href="../../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <nav class="links" aria-label="Site">
+      <a href="../../">Home</a>
+      <a href="../" aria-current="true">Docs</a>
+      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="docs">
+  <div class="wrap docs-grid">
+    <aside class="docs-side">
+      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
+      <label class="docs-menu" for="docs-menu">Docs menu</label>
+      <nav class="docs-index" aria-label="Documentation">
+        <h2>Start here</h2>
+        <ul>
+          <li><a href="../getting-started.html">Getting started</a></li>
+          <li><a href="../install.html">Installing seedfall</a></li>
+          <li><a href="../faq.html">FAQ</a></li>
+          <li><a href="../troubleshooting.html">Troubleshooting</a></li>
+        </ul>
+        <h2>Find a bug</h2>
+        <ul>
+          <li><a href="../networking.html">Networking</a></li>
+          <li><a href="../properties.html">Properties and checks</a></li>
+          <li><a href="../compat.html">Storage engines that need mmap or flock</a></li>
+          <li><a href="../config.html">Config files, profiles and seeded disks</a></li>
+          <li><a href="../explore.html">Feedback-guided exploration</a></li>
+          <li><a href="../buggify.html">BUGGIFY</a></li>
+          <li><a href="../mutate.html">Mutation testing your checks</a></li>
+          <li><a href="../antithesis.html">Running Antithesis SDK code</a></li>
+          <li><a href="../gostman.html">Use your Gostman collections as workloads</a></li>
+        </ul>
+        <h2>Understand a failure</h2>
+        <ul>
+          <li><a href="../timeline.html">Timelines, logs and time-travel debugging</a></li>
+          <li><a href="../cause.html">Causality analysis</a></li>
+          <li><a href="../inspect.html">Inspecting the disk at the moment of failure</a></li>
+          <li><a href="../verify.html">Proving a fix with seedfall verify</a></li>
+          <li><a href="../reports.html">Triage reports</a></li>
+        </ul>
+        <h2>Use in CI</h2>
+        <ul>
+          <li><a href="../ci.html">Running seedfall in CI</a></li>
+          <li><a href="../agents.html">Using seedfall from AI coding agents</a></li>
+        </ul>
+        <h2>Reference</h2>
+        <ul>
+          <li><a href="../faults.html">Configuration and faults</a></li>
+          <li><a href="../properties.html">Properties, linearizability and determinism</a></li>
+          <li><a href="../reports.html">Triage reports</a></li>
+          <li><a href="../troubleshooting.html">Troubleshooting</a></li>
+          <li><a href="../how-it-works.html">How seedfall works</a></li>
+          <li><a href="../testing.html">Testing seedfall itself</a></li>
+          <li><a href="./">Findings</a></li>
+        </ul>
+        <h2>About the project</h2>
+        <ul>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
+        </ul>
+      </nav>
+    </aside>
+    <main class="docs-main">
+      <p class="docs-meta"><a href="./">&larr; Findings</a>
+        <a href="nutsdb-bucket-meta-fsync.md" type="text/markdown">View as Markdown, for AI agents</a>
+        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/findings/nutsdb-bucket-meta-fsync.md">Edit on GitHub</a>
+      </p>
+      <article class="prose">
+<h1 id="bucketmeta-is-never-fsynced-so-a-crash-can-make-recovery-drop-every-entry-in-the-bucket"><code>bucket.Meta</code> is never fsynced, so a crash can make recovery drop every entry in the bucket</h1>
+<p><strong>Upstream:</strong> <a href="https://github.com/nutsdb/nutsdb/issues/695">nutsdb/nutsdb#695</a></p>
+<p><strong>Repo:</strong> nutsdb/nutsdb (tested on v1.1.0, still present on <code>main</code> at 39d6badd)
+<strong>Severity:</strong> with the default <code>SyncEnable: true</code>, one OS crash or power loss after a bucket is created can silently lose every acknowledged write in that bucket.</p>
+<h2 id="summary">Summary</h2>
+<p>Bucket definitions live in <code>&lt;dir&gt;/bucket.Meta</code>. <code>(*BucketManager).SubmitPendingBucketChange</code> (bucket_manager.go:55) appends the encoded buckets with <code>bm.fd.Write</code> (bucket_manager.go:79) and returns. Nothing in the package ever calls <code>Sync</code> on that file. <code>Commit</code> fsyncs the data file in <code>writeData</code> (tx.go:516) and then calls <code>SubmitBucket</code> (tx.go:270), so a transaction that creates a bucket is acknowledged while its bucket record is still only in the page cache.</p>
+<p>On open, <code>rebuildBucketManager</code> (db.go:1035) loads buckets from <code>bucket.Meta</code>, and <code>parseDataFiles</code> then skips every entry whose bucket ID is unknown (db.go:501, <code>GetBucketById(...); errors.Is(err, ErrBucketNotExist) { continue }</code>). If the bucket record didn't reach the disk, every entry in that bucket is dropped during recovery, even though the entries themselves were fsynced. <code>Open</code> succeeds and reports an empty bucket. The usual startup code (<code>if !tx.ExistBucket(...) { tx.NewBucket(...) }</code>) then recreates the bucket, and the application carries on without its data.</p>
+<p>Exposure lasts until the kernel writes <code>bucket.Meta</code> back on its own, typically up to 30 seconds after each bucket is created. A process crash (<code>kill -9</code>, panic) is not enough, because the page cache survives; it takes an OS crash or power loss.</p>
+<h2 id="reproduction">Reproduction</h2>
+<p>Reproduced deterministically with <a href="https://github.com/kunalgoesbyken/seedfall">seedfall</a>. It runs a small server on nutsdb v1.1.0 with the default options (<code>SyncEnable: true</code>, <code>RWMode: FileIO</code>), an 8 KB segment size and merges disabled. On startup the server creates the <code>kv</code> bucket if it is missing. It acknowledges <code>SET</code> only after <code>db.Update</code> returns. A client writes 300 keys and then checks that every acknowledged key is still there. The simulated disk keeps only fsynced data across a crash.</p>
+<pre><code>cd examples/nutsdb
+seedfall replay -c seedfall.json -seed 1
+</code></pre>
+<p><code>seedfall shrink</code> reduces the schedule to a single crash:</p>
+<pre><code>faults before the failure (1):
+   1.7052s  crash server, restart at 1.942589s
+</code></pre>
+<p>The server restarts with <code>recovered 0 keys</code>, although every write it acknowledged before the crash had been fsynced to <code>0.dat</code>. The client then reports <code>acknowledged write lost: k0=v0, server now answers &quot;NONE&quot;</code>.</p>
+<p>Controls on the same harness:</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Config</th>
+<th>Stock v1.1.0</th>
+<th>Patched</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SyncEnable: true</code>, crashes + partitions (<code>seedfall.json</code>)</td>
+<td>fails, seed 1</td>
+<td>300/300 pass</td>
+</tr>
+<tr>
+<td>the same, with the server fsyncing <code>bucket.Meta</code> itself after creating the bucket (<code>seedfall.fsyncmeta.json</code>)</td>
+<td>300/300 pass</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>SyncEnable: false</code> (<code>seedfall.nosync.json</code>)</td>
+<td>fails, seed 1 (expected: commits are not fsynced)</td>
+<td>—</td>
+</tr>
+</tbody>
+</table></div>
+<p>The app-side workaround passing on the stock library isolates the cause to <code>bucket.Meta</code>.</p>
+<h2 id="suggested-fix">Suggested fix</h2>
+<p>In <code>SubmitPendingBucketChange</code>, fsync after the write:</p>
+<pre><code class="language-go">if _, err := bm.fd.Write(bytes); err != nil {
+	return err
+}
+return bm.fd.Sync()
+</code></pre>
+<p><code>bucket.Meta</code> is created by <code>NewBucketManager</code> on the first <code>Open</code>, so the directory should also be fsynced once after creating it.</p>
+<h2 id="fix-verified">Fix verified</h2>
+<p>A local copy of v1.1.0 with the fsync added passes the failing seed and 300 seeds of <code>seedfall.json</code> without the app-side workaround.</p>
+
+      </article>
+    </main>
+  </div>
+</div>
+<footer class="foot">
+  <div class="wrap foot-row">
+    <a class="brand" href="../../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../../llms.txt">llms.txt</a></p>
+  </div>
+</footer>
+</body>
+</html>

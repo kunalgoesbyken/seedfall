@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Use your Gostman collections as workloads · seedfall docs</title>
+<meta name="description" content="Gostman is an API testing tool. Its collections list requests and the checks each reply must pass. This page shows how to reuse a collection as seedfall&#39;s workload, so the same checks run while…">
+<meta property="og:title" content="Use your Gostman collections as workloads">
+<meta property="og:description" content="Gostman is an API testing tool. Its collections list requests and the checks each reply must pass. This page shows how to reuse a collection as seedfall&#39;s workload, so the same checks run while…">
+<link rel="alternate" type="text/markdown" href="gostman.md">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../style.css">
+<link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+<header class="nav docs-nav">
+  <div class="wrap nav-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <nav class="links" aria-label="Site">
+      <a href="../">Home</a>
+      <a href="./" aria-current="true">Docs</a>
+      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="docs">
+  <div class="wrap docs-grid">
+    <aside class="docs-side">
+      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
+      <label class="docs-menu" for="docs-menu">Docs menu</label>
+      <nav class="docs-index" aria-label="Documentation">
+        <h2>Start here</h2>
+        <ul>
+          <li><a href="getting-started.html">Getting started</a></li>
+          <li><a href="install.html">Installing seedfall</a></li>
+          <li><a href="faq.html">FAQ</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+        </ul>
+        <h2>Find a bug</h2>
+        <ul>
+          <li><a href="networking.html">Networking</a></li>
+          <li><a href="properties.html">Properties and checks</a></li>
+          <li><a href="compat.html">Storage engines that need mmap or flock</a></li>
+          <li><a href="config.html">Config files, profiles and seeded disks</a></li>
+          <li><a href="explore.html">Feedback-guided exploration</a></li>
+          <li><a href="buggify.html">BUGGIFY</a></li>
+          <li><a href="mutate.html">Mutation testing your checks</a></li>
+          <li><a href="antithesis.html">Running Antithesis SDK code</a></li>
+          <li><a href="gostman.html" aria-current="page">Use your Gostman collections as workloads</a></li>
+        </ul>
+        <h2>Understand a failure</h2>
+        <ul>
+          <li><a href="timeline.html">Timelines, logs and time-travel debugging</a></li>
+          <li><a href="cause.html">Causality analysis</a></li>
+          <li><a href="inspect.html">Inspecting the disk at the moment of failure</a></li>
+          <li><a href="verify.html">Proving a fix with seedfall verify</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+        </ul>
+        <h2>Use in CI</h2>
+        <ul>
+          <li><a href="ci.html">Running seedfall in CI</a></li>
+          <li><a href="agents.html">Using seedfall from AI coding agents</a></li>
+        </ul>
+        <h2>Reference</h2>
+        <ul>
+          <li><a href="faults.html">Configuration and faults</a></li>
+          <li><a href="properties.html">Properties, linearizability and determinism</a></li>
+          <li><a href="reports.html">Triage reports</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          <li><a href="how-it-works.html">How seedfall works</a></li>
+          <li><a href="testing.html">Testing seedfall itself</a></li>
+          <li><a href="findings/">Findings</a></li>
+        </ul>
+        <h2>About the project</h2>
+        <ul>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
+        </ul>
+      </nav>
+    </aside>
+    <main class="docs-main">
+      <p class="docs-meta">
+        <a href="gostman.md" type="text/markdown">View as Markdown, for AI agents</a>
+        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/gostman.md">Edit on GitHub</a>
+      </p>
+      <article class="prose">
+<h1 id="use-your-gostman-collections-as-workloads">Use your Gostman collections as workloads</h1>
+<p>Gostman is an API testing tool. Its collections list requests and the checks each reply must pass. This page shows how to reuse a collection as seedfall's workload, so the same checks run while seedfall breaks your service. Use it if you already have a Gostman collection.</p>
+<p>A <a href="https://github.com/kunalgoesbyken/gostman">Gostman</a> collection already says what your API promises: each request carries checks such as <code>res.status equals 200</code> or <code>res.body equals {{value}}</code>. Gostman's Go <code>runner</code> package builds for <code>wasip1</code>, so a seedfall workload can load the collection and send it while seedfall crashes your service, tears its writes and partitions its network. A check that fails after the faults stop is a broken promise, reported with the request and the check, and replayable from its seed.</p>
+<p><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/examples/gostman"><code>examples/gostman</code></a> is a complete world: <code>examples/httpkv</code>'s server and a client that runs the collection in <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/examples/gostman/collection"><code>examples/gostman/collection</code></a>.</p>
+<h2 id="the-pattern">The pattern</h2>
+<p>Split the collection into two folders:</p>
+<ul>
+<li><strong>Write</strong>: requests that change state. They are sent while faults run and retried until their checks pass, so a pass means the server acknowledged the change.</li>
+<li><strong>Verify</strong>: requests that check state. They are sent after <code>sim.QuietFor</code>, when faults are paused and partitions healed. A request that gets no answer, because the server is still restarting, is sent again. A check that fails on an answer fails the seed.</li>
+</ul>
+<p>The client copies the embedded collection onto its simulated disk, loads it and sends one request at a time through a single session:</p>
+<pre><code class="language-go">//go:embed collection
+var Collection embed.FS
+
+os.CopyFS(&quot;.&quot;, Collection)
+collection, _ := runner.Load(&quot;collection&quot;)
+session, _ := runner.NewSession(engine.Policy{})
+session.Enter(collection, &quot;&quot;, &quot;Simulation&quot;, nil)
+listed, _ := session.Catalog(collection, &quot;Verify&quot;)
+result := session.Send(ctx, listed[0].Request, listed[0].Folder, vars).Result
+sim.Always(!result.Failed, &quot;Gostman checks pass once the faults stop&quot;, details)
+</code></pre>
+<p>Nodes cannot read files on the host, which is why the collection is embedded. Variables passed to <code>Send</code> (<code>key</code>, <code>value</code>, <code>deleted_key</code> in the example) win over the environment, so each round uses fresh keys. The <code>Simulation</code> environment points <code>base_url</code> at <code>http://server:8080</code>, the node name; a <code>Local</code> environment points at <code>127.0.0.1</code> so the same files run with the Gostman command line.</p>
+<h2 id="run-it">Run it</h2>
+<pre><code class="language-sh">cd examples/gostman
+seedfall run -seeds 1-120
+seedfall replay -c seedfall.json -profile nofsync -seed 1
+</code></pre>
+<p>With fsync before every acknowledgement every seed passes. With <code>-fsync=false</code> the first seed fails once a crash drops an acknowledged write:</p>
+<pre><code>FAIL seed 1 at t=13.104695555s (108 scheduler steps, 29.398s real)
+  client#1: Gostman checks pass once the faults stop: GET http://server:8080/kv/k6 (Verify/Get value)
+  res.status equals 200: The value was 404
+  res.body equals v6: The value was &quot;404 page not found\n&quot;
+</code></pre>
+<p>The client embeds the Gostman runner and its JavaScript sandbox, so each seed takes about a minute of real time; sweeps get their speed from running seeds in parallel.</p>
+<h2 id="use-your-own-collection">Use your own collection</h2>
+<ol>
+<li>Copy <code>examples/gostman/client</code> and <code>collection.go</code> next to your service's seedfall config, and put your Gostman workspace folder in <code>collection/</code>.</li>
+<li>Add a <code>Simulation</code> environment whose base URL uses the node name from <code>seedfall.json</code>.</li>
+<li>Put the requests that write in one folder and the requests that check in another, and pass their names with <code>-write</code> and <code>-verify</code>.</li>
+<li>Enable <code>&quot;net_overlay&quot;: true</code> so the runner's plain <code>net/http</code> client reaches the simulated network.</li>
+</ol>
+<p>The example uses HTTP requests with assertions. Anything that needs the host, such as <code>{{$file(...)}}</code>, local commands or an OAuth sign-in in a browser, cannot work inside a node.</p>
+
+      </article>
+    </main>
+  </div>
+</div>
+<footer class="foot">
+  <div class="wrap foot-row">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../llms.txt">llms.txt</a></p>
+  </div>
+</footer>
+</body>
+</html>

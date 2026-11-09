@@ -1,5 +1,7 @@
 # Using seedfall from AI coding agents
 
+This page is for people who let an AI coding agent, such as Claude Code, Cursor or Codex, do the testing work. seedfall can talk to the agent directly through an MCP server (a standard way for an agent to call tools) and ships skills (step-by-step instructions the agent follows). Use it to let the agent find a bug, shrink it, fix it and prove the fix.
+
 `seedfall mcp` serves seedfall's core operations over the [Model Context Protocol](https://modelcontextprotocol.io) on stdio. An agent such as Claude Code, Cursor or Codex can then sweep seeds, replay a failure and shrink it on its own, then use the exact fault schedule and trace to fix the bug and prove the fix. No API key and no hosted service are involved: the agent you already use does the reasoning.
 
 ## Setup
@@ -10,17 +12,7 @@ Install the binary first. Every integration below runs it:
 go install github.com/kunalgoesbyken/seedfall/cmd/seedfall@latest
 ```
 
-### Claude Code plugin
-
-One command installs the MCP server, the four skills and the opt-in Stop hook:
-
-```sh
-claude plugin install seedfall --marketplace kunalgoesbyken/seedfall
-```
-
-Inside a session, `/plugin install seedfall --marketplace kunalgoesbyken/seedfall` does the same. On Claude Code versions before 2.1.275, add the marketplace first with `/plugin marketplace add kunalgoesbyken/seedfall`, then run `/plugin install seedfall@seedfall`. The skills then run as `/seedfall:seedfall-setup` and so on, and Claude also loads them on its own when a task matches.
-
-### Skills for other agents
+### Skills
 
 The skills follow the [Agent Skills](https://agentskills.io/specification) format, so any agent that reads `SKILL.md` files can use them. To install them with the [`skills` CLI](https://github.com/vercel-labs/skills):
 
@@ -28,7 +20,7 @@ The skills follow the [Agent Skills](https://agentskills.io/specification) forma
 npx skills add kunalgoesbyken/seedfall
 ```
 
-### MCP server only
+### MCP server
 
 Claude Code:
 
@@ -129,15 +121,11 @@ The `skills/` directory holds four skills. They follow the order of a real adopt
 | `seedfall-triage` | Classify, shrink, find the decisive fault with `cause`, inspect the disk, and confirm the explanation with a replay of an edited schedule |
 | `seedfall-fix-and-prove` | Fix the cause, replay the saved schedule, sweep, run `seedfall verify -mutate -md proof.md` and paste the proof into the pull request |
 
-## Stop hook
+## The `seedfall hook` command
 
-The Claude Code plugin registers a Stop hook that runs `seedfall hook`. It does nothing unless you opt in by setting `SEEDFALL_HOOK_SEEDS`, for example in `.claude/settings.json`:
+`seedfall hook` is a small command that reads a Claude Code hook payload (JSON with `cwd` and `stop_hook_active`) from stdin. It does nothing unless `SEEDFALL_HOOK_SEEDS` is set, for example to `1-20`. It is not installed for you; you only get it by pointing your own hook setup at it.
 
-```json
-{ "env": { "SEEDFALL_HOOK_SEEDS": "1-20" } }
-```
-
-When Claude finishes a turn in a directory that has `seedfall.json` (or the file named by `SEEDFALL_HOOK_CONFIG`), the hook sweeps those seeds, under the profile named by `SEEDFALL_HOOK_PROFILE` if it is set. On a failure or an unmet property, it blocks the stop and hands Claude the seed and the replay and shrink commands. To avoid loops, it skips a stop that a hook has already continued once.
+When the variable is set and `seedfall.json` exists in the payload's `cwd` (or the file named by `SEEDFALL_HOOK_CONFIG`), the command replays the [pinned regressions](verify.md#pinned-regressions), then sweeps those seeds, under the profile named by `SEEDFALL_HOOK_PROFILE` if it is set. On a failure, or a property that was never reached or never true, it prints the seed with the replay and shrink commands to stderr and exits with code 2. If `stop_hook_active` is true it exits 0 without running, so it cannot loop.
 
 ## Docs for models
 

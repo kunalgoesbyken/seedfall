@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} · seedfall docs</title>
+<meta name="description" content="{{.Desc}}">
+<meta property="og:title" content="{{.Title}}">
+<meta property="og:description" content="{{.Desc}}">
+<link rel="alternate" type="text/markdown" href="{{.Markdown}}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="{{.Root}}favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="{{.Root}}style.css">
+<link rel="stylesheet" href="{{.Root}}docs.css">
+</head>
+<body>
+<header class="nav docs-nav">
+  <div class="wrap nav-row">
+    <a class="brand" href="{{.Root}}"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <nav class="links" aria-label="Site">
+      <a href="{{.Root}}">Home</a>
+      <a href="{{.Docs}}" aria-current="true">Docs</a>
+      <a href="{{.Repo}}">GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="docs">
+  <div class="wrap docs-grid">
+    <aside class="docs-side">
+      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
+      <label class="docs-menu" for="docs-menu">Docs menu</label>
+      <nav class="docs-index" aria-label="Documentation">
+{{- range .Groups}}
+        <h2>{{.Name}}</h2>
+        <ul>
+{{- range .Items}}
+          <li><a href="{{.Href}}"{{if .Current}} aria-current="page"{{end}}>{{.Label}}</a></li>
+{{- end}}
+        </ul>
+{{- end}}
+      </nav>
+    </aside>
+    <main class="docs-main">
+      <p class="docs-meta">
+{{- if .CrumbHref}}<a href="{{.CrumbHref}}">&larr; {{.CrumbLabel}}</a>{{end}}
+        <a href="{{.Markdown}}" type="text/markdown">View as Markdown, for AI agents</a>
+        <a href="{{.Source}}">Edit on GitHub</a>
+      </p>
+      <article class="prose">
+{{.Body}}
+      </article>
+    </main>
+  </div>
+</div>
+<footer class="foot">
+  <div class="wrap foot-row">
+    <a class="brand" href="{{.Root}}"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
+    <p>Deterministic simulation testing for Go · <a href="{{.Repo}}">Source on GitHub</a> · <a href="{{.Root}}llms.txt">llms.txt</a></p>
+  </div>
+</footer>
+</body>
+</html>

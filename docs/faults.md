@@ -1,5 +1,7 @@
 # Configuration and faults
 
+This is the reference for `seedfall.json`: every field, and every fault seedfall can inject, such as crashes, partly written disk writes, lost network messages and clock jumps. Use it to look up what a setting does or to design the failures you want to test. If you are new, start with [getting-started.md](getting-started.md).
+
 A world is described in a JSON file, `seedfall.json` by default. Paths inside it are relative to the file. One file can extend another, hold named profiles selected with `-profile`, take `-set path=value` overrides and start from a fault preset such as `"faults": "resilient"`; see [config.md](config.md).
 
 ```json

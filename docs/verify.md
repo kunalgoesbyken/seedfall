@@ -1,5 +1,7 @@
 # Proving a fix with `seedfall verify`
 
+After you fix a bug you need evidence that the fix works. `seedfall verify` replays the failing run, sweeps many fresh seeds, checks that the run is repeatable and writes a proof for your pull request. Pinned regressions then keep the bug from coming back. Use it as the last step before you open a pull request.
+
 `seedfall verify` is the definition of done for a change that fixes a seedfall failure, whether a person or an AI agent wrote it. It answers one question with evidence: is the failure gone, and how sure are we?
 
 ```sh

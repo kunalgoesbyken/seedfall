@@ -5,48 +5,53 @@
 
 # Documentation
 
-Every page in `docs/`, grouped by what you want to do: learn seedfall from scratch, get a specific task done, look something up, or understand how it works.
+seedfall runs your Go system in a simulated world, breaks it on purpose (crashes, lost messages, half-written files), and lets you replay any failure exactly. These pages are grouped by what you want to do. If you are new, read the first one and stop there for now.
 
-## Tutorials
+## Start here
 
-- [Getting started](getting-started.md): find, shrink, fix and prove a real bug in five minutes.
+- [Getting started](getting-started.md): find, shrink, fix and prove a real bug in about five minutes, using an example that is included.
+- [Installing seedfall](install.md): every way to install it, and how to check the install worked.
+- [FAQ](faq.md): short answers, such as how seedfall differs from other tools and what it cannot test.
+- [Troubleshooting](troubleshooting.md): look up an error message and see how to fix it.
 
-## How-to guides
+## Find a bug
 
-- [Installing seedfall](install.md): Homebrew, Scoop, the install script, Docker and `go install`, and verifying a release.
-- [Networking](networking.md): make nodes reachable with `sim.Listen` and `sim.Dial`, or with no code changes through `net_overlay`.
-- [Storage engines that need mmap or flock](compat.md): run bbolt, pebble, badger and other `mmap` or `flock` users through `compat_overlay`.
-- [Config files, profiles and seeded disks](config.md): `extends`, `profiles`, `-set`, fault presets, seeded disks and upgrades.
-- [Feedback-guided exploration](explore.md): find failures that need two rare events in one run.
-- [Causality analysis](cause.md): find the fault that made a seed fail.
-- [Inspecting the disk at the moment of failure](inspect.md): durable, pending and torn bytes on every node.
-- [Timelines, logs and time-travel debugging](timeline.md): space-time diagrams, filtered traces and `seedfall debug`.
-- [Mutation testing your checks](mutate.md): check that your properties notice broken durability.
-- [Proving a fix with `seedfall verify`](verify.md): the proof block for a pull request, and pinned regressions.
-- [BUGGIFY: faults inside your code](buggify.md): mark fault sites in your own code.
-- [Running seedfall in CI](ci.md): the GitHub Action, machine-readable output, time budgets and `go test`.
-- [Using seedfall from AI coding agents](agents.md): the MCP server, skills and Stop hook.
-- [Running Antithesis SDK code](antithesis.md): programs instrumented with the Antithesis Go SDK.
-- [Use your Gostman collections as workloads](gostman.md): API checks as the workload.
-- [Troubleshooting](troubleshooting.md): the errors seedfall prints, their causes and fixes.
+- [Networking](networking.md): let your nodes talk to each other inside the simulation.
+- [Properties and checks](properties.md): write the statements your system must keep true, such as "an acknowledged write is never lost".
+- [Storage engines that need mmap or flock](compat.md): test databases such as bbolt, pebble and badger.
+- [Config files, profiles and seeded disks](config.md): keep several test setups in one file and start nodes from an existing disk.
+- [Feedback-guided exploration](explore.md): hunt for bugs that need two rare events in one run.
+- [BUGGIFY](buggify.md): mark places in your own code where seedfall may force a rare path.
+- [Mutation testing your checks](mutate.md): find out whether your checks would notice a real bug.
+- [Running Antithesis SDK code](antithesis.md): run programs that already use the Antithesis Go SDK.
+- [Use your Gostman collections as workloads](gostman.md): reuse API checks you already wrote.
+
+## Understand a failure
+
+- [Timelines, logs and time-travel debugging](timeline.md): see a failing run as a diagram, a filtered log or a step-by-step debugger.
+- [Causality analysis](cause.md): find which fault actually made a seed fail.
+- [Inspecting the disk at the moment of failure](inspect.md): see which bytes were saved and which a crash would lose.
+- [Proving a fix with `seedfall verify`](verify.md): show that a fix works, and pin the bug so it cannot come back.
+- [Triage reports](reports.md): group many failing seeds into a short list of bugs.
+
+## Use in CI
+
+- [Running seedfall in CI](ci.md): the GitHub Action, machine-readable output, time limits and `go test`.
+- [Using seedfall from AI coding agents](agents.md): the MCP server and skills that let an agent run seedfall for you.
 
 ## Reference
 
-- [Configuration and faults](faults.md): every `seedfall.json` field, fault, network fault, disk fault and file system model.
-- [Properties, linearizability and determinism](properties.md): the `sim` assertions, liveness, history checkers and `-check`.
+- [Configuration and faults](faults.md): every `seedfall.json` field and every fault seedfall can inject.
+- [Properties, linearizability and determinism](properties.md): the full `sim` API for checks.
 - [Triage reports](reports.md): findings, classification, failure artifacts, notifications and utilization.
 - [Troubleshooting](troubleshooting.md): the error catalog, keyed by exact message.
+- [How seedfall works](how-it-works.md): the simulated clock, the disk and network models, checking, shrinking and speed.
+- [Testing seedfall itself](testing.md): what the project's own tests prove.
+- [Findings](findings/README.md): bugs seedfall found in open-source projects, with replay commands.
 
-## Explanation
+## About the project
 
-- [How seedfall works](how-it-works.md): the simulated clock, preemption, determinism, the disk and network models, checking, shrinking and speed.
-- [FAQ](faq.md): seedfall compared with Antithesis, gosim, `testing/synctest`, `-race` and Jepsen, why `wasip1`, and what it cannot test.
-- [Testing seedfall itself](testing.md): what the unit tests and the example suite prove, and the CI workflows.
-- [Findings](findings/README.md): bugs seedfall found in open-source projects, with replay commands and verified fixes.
-
-## Project
-
-- [Contributing](../CONTRIBUTING.md): development setup, tests, examples, compat shims, findings and commit style.
+- [Contributing](../CONTRIBUTING.md): development setup, tests and commit style.
 - [Roadmap](../ROADMAP.md): what is planned and what is not done yet.
 - [Security policy](../SECURITY.md) and [code of conduct](../CODE_OF_CONDUCT.md).
 
@@ -54,6 +59,8 @@ Every page in `docs/`, grouped by what you want to do: learn seedfall from scrat
 <!-- docs/agents.md -->
 
 # Using seedfall from AI coding agents
+
+This page is for people who let an AI coding agent, such as Claude Code, Cursor or Codex, do the testing work. seedfall can talk to the agent directly through an MCP server (a standard way for an agent to call tools) and ships skills (step-by-step instructions the agent follows). Use it to let the agent find a bug, shrink it, fix it and prove the fix.
 
 `seedfall mcp` serves seedfall's core operations over the [Model Context Protocol](https://modelcontextprotocol.io) on stdio. An agent such as Claude Code, Cursor or Codex can then sweep seeds, replay a failure and shrink it on its own, then use the exact fault schedule and trace to fix the bug and prove the fix. No API key and no hosted service are involved: the agent you already use does the reasoning.
 
@@ -65,17 +72,7 @@ Install the binary first. Every integration below runs it:
 go install github.com/kunalgoesbyken/seedfall/cmd/seedfall@latest
 ```
 
-### Claude Code plugin
-
-One command installs the MCP server, the four skills and the opt-in Stop hook:
-
-```sh
-claude plugin install seedfall --marketplace kunalgoesbyken/seedfall
-```
-
-Inside a session, `/plugin install seedfall --marketplace kunalgoesbyken/seedfall` does the same. On Claude Code versions before 2.1.275, add the marketplace first with `/plugin marketplace add kunalgoesbyken/seedfall`, then run `/plugin install seedfall@seedfall`. The skills then run as `/seedfall:seedfall-setup` and so on, and Claude also loads them on its own when a task matches.
-
-### Skills for other agents
+### Skills
 
 The skills follow the [Agent Skills](https://agentskills.io/specification) format, so any agent that reads `SKILL.md` files can use them. To install them with the [`skills` CLI](https://github.com/vercel-labs/skills):
 
@@ -83,7 +80,7 @@ The skills follow the [Agent Skills](https://agentskills.io/specification) forma
 npx skills add kunalgoesbyken/seedfall
 ```
 
-### MCP server only
+### MCP server
 
 Claude Code:
 
@@ -184,15 +181,11 @@ The `skills/` directory holds four skills. They follow the order of a real adopt
 | `seedfall-triage` | Classify, shrink, find the decisive fault with `cause`, inspect the disk, and confirm the explanation with a replay of an edited schedule |
 | `seedfall-fix-and-prove` | Fix the cause, replay the saved schedule, sweep, run `seedfall verify -mutate -md proof.md` and paste the proof into the pull request |
 
-## Stop hook
+## The `seedfall hook` command
 
-The Claude Code plugin registers a Stop hook that runs `seedfall hook`. It does nothing unless you opt in by setting `SEEDFALL_HOOK_SEEDS`, for example in `.claude/settings.json`:
+`seedfall hook` is a small command that reads a Claude Code hook payload (JSON with `cwd` and `stop_hook_active`) from stdin. It does nothing unless `SEEDFALL_HOOK_SEEDS` is set, for example to `1-20`. It is not installed for you; you only get it by pointing your own hook setup at it.
 
-```json
-{ "env": { "SEEDFALL_HOOK_SEEDS": "1-20" } }
-```
-
-When Claude finishes a turn in a directory that has `seedfall.json` (or the file named by `SEEDFALL_HOOK_CONFIG`), the hook sweeps those seeds, under the profile named by `SEEDFALL_HOOK_PROFILE` if it is set. On a failure or an unmet property, it blocks the stop and hands Claude the seed and the replay and shrink commands. To avoid loops, it skips a stop that a hook has already continued once.
+When the variable is set and `seedfall.json` exists in the payload's `cwd` (or the file named by `SEEDFALL_HOOK_CONFIG`), the command replays the [pinned regressions](verify.md#pinned-regressions), then sweeps those seeds, under the profile named by `SEEDFALL_HOOK_PROFILE` if it is set. On a failure, or a property that was never reached or never true, it prints the seed with the replay and shrink commands to stderr and exits with code 2. If `stop_hook_active` is true it exits 0 without running, so it cannot loop.
 
 ## Docs for models
 
@@ -213,6 +206,8 @@ Shrunk schedules are small enough that an agent can reason about them step by st
 <!-- docs/antithesis.md -->
 
 # Running Antithesis SDK code
+
+Antithesis is a commercial testing platform with its own Go SDK, a library for writing checks inside your program. If your code already uses that SDK, seedfall runs it unchanged and turns each SDK call into a seedfall check. Read this page if you are coming from Antithesis or share code with a team that uses it.
 
 Code instrumented with the [Antithesis Go SDK](https://github.com/antithesishq/antithesis-sdk-go) runs under seedfall unchanged. Assertions become seedfall properties, `lifecycle.SetupComplete` becomes seedfall's setup signal, and `random.GetRandom` draws from the seed.
 
@@ -278,6 +273,8 @@ The same assertions and the same setup signal, run locally or in CI for free, wi
 <!-- docs/buggify.md -->
 
 # BUGGIFY: faults inside your code
+
+Most seedfall faults hit your program from the outside: a crash, a broken disk, a cut network. BUGGIFY lets you mark spots inside your own code where seedfall may force a rare path on purpose, such as a lost reply, a retry or an error return. Use it when the bug you fear lives in your own error handling, which outside faults rarely reach.
 
 Every other seedfall fault comes from outside the process: crashes, torn writes, partitions. `sim.Buggify` lets you mark places in your own code where the simulator may force the rare path, such as a dropped reply, a retry, an error return, a minimal quorum or an extra delay. The idea comes from FoundationDB's `BUGGIFY`, which FoundationDB credits for many of its deepest bugs.
 
@@ -365,6 +362,8 @@ The Antithesis SDK's `random.GetRandom` and `random.RandomChoice` read the same 
 
 # Causality analysis
 
+When a seed fails, you know it failed but not always which event decided it. `seedfall cause` replays the run from many points and shows when the failure became likely and which fault tipped it over. Use it after `shrink` when the short fault list still leaves you asking which fault matters.
+
 `seedfall shrink` tells you which faults are *needed* for a failure. `seedfall cause` tells you *when the failure became likely*, and which event made it so.
 
 ```sh
@@ -413,6 +412,8 @@ The MCP server exposes the same analysis as `seedfall_cause`, returning the curv
 <!-- docs/ci.md -->
 
 # Running seedfall in CI
+
+This page shows how to run seedfall automatically on every pull request or on a schedule: the GitHub Action, machine-readable output, time limits and sweeps started from `go test`. Use it once seedfall works on your laptop and you want it to guard your main branch.
 
 ## GitHub Actions
 
@@ -661,6 +662,8 @@ Runs are independent, so a sweep scales with cores: `seedfall run -j N` defaults
 
 # Storage engines that need mmap or flock
 
+Some storage libraries, such as bbolt, pebble and badger, use operating system features called `mmap` and `flock` that seedfall's sandbox does not have. This page explains how seedfall swaps in stand-ins at build time so you can still test the real library. Read it when `seedfall init` or a build tells you a dependency will not compile.
+
 Some storage libraries don't build or run for `GOOS=wasip1` because they call `mmap`, `flock` or other syscalls that WASI doesn't have. With `compat_overlay`, seedfall gives them `wasip1` versions at build time, either a shim for that exact library or the [generic `mmap` and `flock` shim](#the-generic-mmap-and-flock-shim), so you test the library you ship, unmodified:
 
 ```json
@@ -731,6 +734,8 @@ Pebble records which manifest is current with an empty marker file. It creates t
 
 # Config files, profiles and seeded disks
 
+One `seedfall.json` can hold many variations of your test: a base setup, named profiles, ready-made fault presets and one-off command-line overrides. This page also covers starting nodes from an existing disk and restarting them into a new version of your program. Use it when you want to test more than one scenario without copying files around.
+
 One `seedfall.json` can hold every variant you test: a base config, named profiles that change a few fields, fault presets instead of hand-tuned rates, and one-off overrides from the command line. Nodes can start from an existing disk instead of an empty one, get files from the host, and restart into a new version of their program.
 
 ## Layers
@@ -796,9 +801,9 @@ A profile is part of the config's identity everywhere seedfall prints or saves i
 - failure artifacts go to `.seedfall/failures/seedfall.fixed-seed-2/`, the same folder a separate `seedfall.fixed.json` would use
 - `seedfall pin` records the profile and `-set` overrides in the pinned file (`"profile": "fixed"`), and a pinned schedule is replayed only by runs with the same config file, profile and overrides
 - `-set` overrides add a short hash of the overrides to artifact folder and pinned file names, `seedfall.fixed.set-1a2b3c4d-seed-2`, so a run with overrides never replaces the files of a run without them
-- reports, proofs and the hook print the full config reference
+- reports, proofs and `seedfall hook` print the full config reference
 
-The Claude Code hook reads the profile from `$SEEDFALL_HOOK_PROFILE`.
+`seedfall hook` reads the profile from `$SEEDFALL_HOOK_PROFILE` ([agents.md](agents.md#the-seedfall-hook-command)).
 
 ### -set
 
@@ -870,6 +875,8 @@ Together with `disk`, this tests the upgrade path FoundationDB's restart tests c
 <!-- docs/explore.md -->
 
 # Feedback-guided exploration
+
+A plain sweep tries seeds one after another, which is slow for a bug that needs two rare things to happen in the same run. `seedfall explore` keeps the runs that reached something new and builds on them. Use it when ordinary sweeps pass but you suspect a deeper bug.
 
 A plain sweep draws a fresh random seed every time. A failure that needs two rare things to happen in the same run, each with odds of one in a thousand, needs on the order of a million seeds. `seedfall explore` looks for that kind of failure with feedback: it keeps the runs that reached something new, and spends further runs going deeper from there instead of starting over.
 
@@ -992,54 +999,69 @@ The MCP tool `seedfall_explore` takes the same options and returns the rounds, t
 
 # FAQ
 
-Short answers to the questions that come up most, with links to the pages that go into detail.
+Short answers to the questions people ask most, with links to the pages that go into detail. Start with the first section if you are comparing seedfall to something you already know.
+
+Two words come up a lot. A **seed** is a number that decides everything random in one run, so the same seed always gives the same run. A **fault** is something that goes wrong on purpose, such as a crash or a lost message.
 
 ## How is seedfall different from Antithesis?
 
-Antithesis runs arbitrary containers inside a deterministic hypervisor, so it can test software in any language with its real operating system underneath. seedfall runs only Go programs that build for `wasip1`, inside one process, with a simulated disk and network. In exchange it runs locally and in CI with no service and no account, and it is open source.
+Antithesis runs any kind of program, in any language, inside a special virtual machine that can replay everything exactly. seedfall only runs Go programs, inside one process, with a simulated disk and network. In exchange, seedfall runs on your laptop and in CI with no service and no account, and it is open source.
 
-Programs instrumented with the Antithesis Go SDK run under seedfall unchanged: `assert.Always`, `Sometimes`, `Reachable`, the numeric and grouped variants, `lifecycle.SetupComplete` and `lifecycle.SendEvent` become seedfall properties, setup and trace events. `seedfall cause` uses the same idea as Antithesis's multiverse debugging, with exact replay from the start standing in for VM snapshots. See [Antithesis compatibility](antithesis.md).
+If your program already uses the Antithesis Go SDK (a library for writing checks in your code), it runs under seedfall unchanged. The SDK's `assert.Always`, `Sometimes`, `Reachable`, the numeric and grouped variants, `lifecycle.SetupComplete` and `lifecycle.SendEvent` become seedfall properties (checks), setup and trace events. `seedfall cause` uses the same idea as Antithesis's multiverse debugging: it looks at how likely the failure was from each moment of the run. Instead of VM snapshots it replays exactly from the start. See [Antithesis compatibility](antithesis.md).
 
 ## How is it different from gosim?
 
-[gosim](https://github.com/jellevandenhooff/gosim) is also deterministic simulation testing for Go, with simulated machines, a network, a file system and crashes. It transforms your program and its dependencies to run on its own simulated runtime, at the system call level. seedfall does not transform code: it compiles the program with the stock Go toolchain for `GOOS=wasip1` and owns nondeterminism at the WASI boundary, where time, randomness and blocking leave the guest, plus its own file system and network calls. Each node is a separate wasm instance, so a crash kills the whole process and a restart boots a fresh one over the surviving disk. Check gosim's own documentation for its current feature set rather than relying on this page.
+[gosim](https://github.com/jellevandenhooff/gosim) is also deterministic simulation testing for Go, with simulated machines, a network, a file system and crashes. Deterministic means the same input always gives the same run. gosim rewrites your program and its dependencies so they run on its own simulated runtime, at the level of system calls.
+
+seedfall does not rewrite code. It compiles your program with the normal Go toolchain for `GOOS=wasip1` (a WebAssembly target, explained [below](#why-wasip1)) and controls everything random at that boundary: time, randomness and waiting, plus its own file system and network calls. Each node is a separate WebAssembly instance, so a crash kills the whole process and a restart boots a fresh one over the disk that survived. Check gosim's own documentation for its current features instead of relying on this page.
 
 ## Why not `testing/synctest`?
 
-`testing/synctest` runs a test's goroutines in a bubble with a fake clock that advances when every goroutine in the bubble is blocked. It makes time-dependent unit tests fast and repeatable inside one `go test` process. It does not simulate a disk or a network, crash or restart processes, inject faults, or record a schedule you can replay and shrink, and goroutine interleavings still come from the real scheduler.
+`testing/synctest` is part of Go's standard library. It runs a test's goroutines (Go's lightweight threads) in a "bubble" with a fake clock. The clock jumps ahead whenever every goroutine in the bubble is waiting. This makes time-based unit tests fast and repeatable inside one `go test` process.
 
-seedfall is for whole services: several nodes as separate processes on one virtual clock, with crashes, torn writes, fsync errors, partitions and clock faults, and any failure replayed from its seed. The two fit together: `synctest` for a component's timing logic, seedfall for what the service does when the machine fails under it.
+It does not simulate a disk or a network, crash or restart processes, inject faults, or record a run you can replay and shrink. The order in which goroutines interleave still comes from the real scheduler.
+
+seedfall is for whole services: several nodes as separate processes on one virtual clock, with crashes, torn writes (a write that a crash leaves half saved), fsync errors (fsync is the call that forces data onto the disk), partitions (nodes that cannot reach each other) and clock faults. Any failure replays from its seed. The two fit together: use `synctest` for the timing logic of one component, and seedfall for what your service does when the machine fails under it.
 
 ## Does seedfall replace `go test -race`?
 
-No. On `wasip1` the Go runtime is single-threaded, so goroutines never run in parallel and the memory accesses that the race detector looks for never overlap. The `random`, `pct` and `calls` preemption strategies find interleaving bugs such as a check-then-act race between goroutines, but they do not detect data races the way `-race` does. Keep running `-race` on your unit tests; seedfall's own CI does.
+No. On `wasip1` the Go runtime runs one thing at a time, so goroutines never really run in parallel. The overlapping memory accesses that the race detector looks for never happen there. seedfall's `random`, `pct` and `calls` preemption strategies do find ordering bugs, such as a check-then-act race between goroutines, but they do not detect data races the way `-race` does. Keep running `-race` on your unit tests. seedfall's own CI does.
 
 ## How does it compare with Jepsen?
 
-Jepsen tests real deployments of a database on real or virtual machines, in any language, with faults injected into the real operating system and network, and checks the recorded history for consistency anomalies. It finds bugs in the system as shipped, but a failing run cannot be replayed exactly.
+Jepsen tests real deployments of a database, on real or virtual machines, in any language. It injects faults into the real operating system and network, then checks the recorded history for consistency problems. It finds bugs in the system as shipped, but a failing run cannot be replayed exactly.
 
-seedfall borrows from Jepsen: the partition topologies follow Jepsen's nemeses, histories are recorded in Jepsen's invoke and completion shape, and `sim.Txn` histories are checked for the same Elle anomalies (`G0`, `G1a`, `G1b`, `G1c`, `G-single`, `G2`). The difference is that every run is deterministic, so a failure comes with a seed, an exact fault schedule and a trace, and `seedfall shrink` cuts the schedule down to the faults that matter. The cost is that seedfall tests a Go program on a simulated disk and network, not the real kernel and binary. See [properties](properties.md#linearizability).
+seedfall borrows from Jepsen. Its network partition shapes follow Jepsen's "nemeses". It records histories in Jepsen's invoke and completion shape. It checks `sim.Txn` histories for the same Elle anomalies (`G0`, `G1a`, `G1b`, `G1c`, `G-single`, `G2`, which are named kinds of transaction inconsistency).
+
+The difference is that every seedfall run is deterministic. A failure comes with a seed, an exact fault schedule and a trace, and `seedfall shrink` cuts the schedule down to the faults that matter. The cost is that seedfall tests a Go program on a simulated disk and network, not the real kernel and the real binary. The checker for **linearizability** (the rule that concurrent operations must look as if they happened one at a time, in an order that fits real time) is described in [properties](properties.md#linearizability).
 
 ## Why `wasip1`?
 
-On `GOOS=wasip1` the Go runtime is single-threaded, has no async preemption, and reaches the outside world for time, randomness and blocking through three WASI calls: `clock_time_get`, `random_get` and `poll_oneoff`. seedfall implements those in the host, so the seed decides map iteration order, `select` choices, `math/rand` and crypto randomness, and every clock read. File and network calls are seedfall's too. That gives exact replay with the stock toolchain: no forked runtime, no `linkname` and no source rewriting outside the opt-in overlays, so new Go releases keep working. Each node runs as its own [wazero](https://wazero.io) instance, so a crash is a real process death. See [how it works](how-it-works.md).
+`wasip1` is a Go build target: `GOOS=wasip1` compiles your program to WebAssembly that talks to the outside world through WASI, a small, standard system interface. For seedfall this has a useful property. The Go runtime on `wasip1` is single-threaded and has no asynchronous preemption, and a program reaches the outside world for time, randomness and waiting through only three WASI calls: `clock_time_get`, `random_get` and `poll_oneoff`.
+
+seedfall implements those three calls itself. So the seed decides map iteration order, `select` choices, `math/rand`, crypto randomness and every clock read. File and network calls are seedfall's too. The result is exact replay with the standard toolchain: no forked Go runtime, no `linkname` tricks and no source rewriting outside the opt-in overlays, so new Go releases keep working. Each node runs as its own [wazero](https://wazero.io) instance, so a crash is a real process death. See [how it works](how-it-works.md).
 
 ## Does seedfall change my code?
 
-Not by default. `net_overlay` adds `wasip1` files to the standard library's `net` package at build time, and `compat_overlay` swaps a dependency's `mmap` and `flock` files for shims in a copy under `.seedfall/compat`. Neither touches your source, `go.mod`, `go.sum` or module cache. Instead of `net_overlay`, you can call `sim.Listen` and `sim.Dial`, which fall back to `net.Listen` and `net.Dial` outside the simulator. See [networking](networking.md) and [compat](compat.md).
+Not by default. Two opt-in settings change how things are built, never your files:
+
+- `net_overlay` adds `wasip1` files to the standard library's `net` package at build time, so unmodified code can use the simulated network.
+- `compat_overlay` swaps a dependency's `mmap` and `flock` files for stand-ins, in a copy under `.seedfall/compat`.
+
+Neither touches your source, `go.mod`, `go.sum` or module cache. Instead of `net_overlay` you can call `sim.Listen` and `sim.Dial`, which fall back to `net.Listen` and `net.Dial` outside the simulator. See [networking](networking.md) and [compat](compat.md).
 
 ## What can't seedfall test?
 
-These limits are also listed in the [README](../README.md#limitations):
+The README has a short version of this list under [When it's not a fit](../README.md#when-its-not-a-fit). The full list:
 
-- **Code that does not build for `wasip1`.** No cgo. Dependencies that need `mmap` or `flock` work through `compat_overlay`, but files named `_linux.go` and code using other unix calls still need a hand-written shim. Libraries that need cgo, such as RocksDB bindings or `mattn/go-sqlite3`, cannot run.
-- **Time-based preemption.** Preemption is counted in function calls, not time: a spinning goroutine is preempted after about four million calls, and a loop that makes no function call only with `preempt.loops`. Even then the runtime switches goroutines only at a function entry, so a call-free loop keeps the node's other goroutines from running until it makes a call.
-- **Exhaustive interleavings.** Interleavings inside a node come from the Go scheduler under a seeded random source. The preemption strategies sample interleavings rather than enumerate them, `pct`'s probability bound is a guide rather than a guarantee, and none of them detects data races.
-- **Every file system.** `fs_model` covers ext4 `data=ordered`, an aggressive independent-pages model, and ext2 or btrfs directory reordering. XFS, `data=journal` and `nodelalloc` have no model of their own, a single directory operation is always atomic, and `Chmod` is not modelled.
+- **Code that does not build for `wasip1`.** There is no cgo (Go code that calls C). Dependencies that need `mmap` or `flock` work through `compat_overlay`, but files named `_linux.go` and code that uses other unix calls still need a hand-written stand-in. Libraries that need cgo, such as RocksDB bindings or `mattn/go-sqlite3`, cannot run.
+- **Time-based preemption.** seedfall counts function calls instead of time. A goroutine that spins is interrupted after about four million calls. A loop that makes no function call is interrupted only with `preempt.loops`. Even then the runtime switches goroutines only when a function is entered, so a call-free loop keeps the node's other goroutines from running until it makes a call.
+- **Every possible ordering of goroutines.** Inside a node, the ordering comes from the Go scheduler under a seeded random source. The preemption strategies sample orderings rather than list all of them. `pct`'s probability bound is a guide, not a guarantee. None of them detects data races.
+- **Every file system.** `fs_model` covers ext4 `data=ordered`, an aggressive independent-pages model, and ext2 or btrfs directory reordering. XFS, `data=journal` and `nodelalloc` have no model of their own. A single directory operation is always atomic, and `Chmod` is not modelled.
 - **Some network features.** UDP multicast is not simulated, and `WriteMsgUDP` with out-of-band data returns `ENOTSUP` ([networking](networking.md#udp)).
-- **Memory shared between processes.** A mapping is coherent only with its own node's writes ([compat](compat.md#not-covered)).
+- **Memory shared between processes.** A memory mapping is consistent only with its own node's writes ([compat](compat.md#not-covered)).
 
-Speed is a limit too: idle virtual time is free, but guest CPU and node boots are real time, and short seeds of large guests are dominated by boot cost ([how it works](how-it-works.md#speed)).
+Speed is a limit too. Idle virtual time is free, but the CPU time your code uses and the time to start each node are real. Short runs of large programs are dominated by start-up cost ([how it works](how-it-works.md#speed)).
 
 ## Which platforms does it run on?
 
@@ -1047,16 +1069,18 @@ Linux, macOS and Windows. seedfall's tests run on all three in CI.
 
 ## How many seeds should I run?
 
-Enough that a failure at the rate you care about would have shown up. `seedfall verify` computes this for 95% confidence, 299 seeds when no failure rate is known, and a sweep's utilization section says whether more seeds are likely to find anything new ([verify](verify.md), [reports](reports.md#utilization)). `seedfall explore` reaches states that need two rare events in one run ([explore](explore.md)).
+Enough that a failure at the rate you care about would have shown up. `seedfall verify` works this out for 95% confidence. With no known failure rate it asks for 299 seeds. A sweep's utilization section tells you whether more seeds are likely to find anything new ([verify](verify.md), [reports](reports.md#utilization)). For bugs that need two rare events in one run, `seedfall explore` is better than more plain seeds ([explore](explore.md)).
 
 ## A failure looks wrong. Is it a seedfall bug?
 
-Check its classification first: `nondeterministic` and `timeout` failures are explained in [troubleshooting](troubleshooting.md#failures-that-are-not-your-systems-bug). If seedfall produced an outcome a real machine could not, open a false positive issue with the replay command and schedule.
+First check the failure's classification. Failures marked `nondeterministic` or `timeout` are explained in [troubleshooting](troubleshooting.md#failures-that-are-not-your-systems-bug). If seedfall produced an outcome that a real machine could not, open a false positive issue and include the replay command and the fault schedule.
 
 
 <!-- docs/faults.md -->
 
 # Configuration and faults
+
+This is the reference for `seedfall.json`: every field, and every fault seedfall can inject, such as crashes, partly written disk writes, lost network messages and clock jumps. Use it to look up what a setting does or to design the failures you want to test. If you are new, start with [getting-started.md](getting-started.md).
 
 A world is described in a JSON file, `seedfall.json` by default. Paths inside it are relative to the file. One file can extend another, hold named profiles selected with `-profile`, take `-set path=value` overrides and start from a fault preset such as `"faults": "resilient"`; see [config.md](config.md).
 
@@ -1376,11 +1400,18 @@ Every duration is a Go duration string, such as `"250ms"` or `"2s"`. Ranges are 
 
 # Getting started
 
-This walkthrough uses `examples/kvlog`, a small log-structured key-value server, to find a real durability bug, shrink it, fix it and prove the fix. It takes about five minutes.
+This walkthrough takes about five minutes. You will run seedfall on a small example server that loses data after a crash. You will find the bug, cut the failure down to its simplest form, fix it and prove the fix. The example is `examples/kvlog`, a key-value server that appends every write to a log file.
+
+A few words you will see:
+
+- A **node** is one program in your system, such as a server. seedfall runs each node as its own process inside a simulation.
+- A **workload** is a program that uses your system and checks the answers. It plays the part of a client.
+- A **fault** is something that goes wrong on purpose: a crash, a lost message, a half-written file.
+- A **seed** is a number that decides everything random in one run, including when the faults happen. The same seed always gives the same run, so any failure can be replayed.
 
 ## 1. Install
 
-seedfall needs Go 1.25 or newer. It runs on Linux, macOS and Windows.
+You need Go 1.25 or newer. seedfall runs on Linux, macOS and Windows.
 
 ```sh
 go install github.com/kunalgoesbyken/seedfall/cmd/seedfall@latest
@@ -1389,11 +1420,11 @@ git clone https://github.com/kunalgoesbyken/seedfall
 cd seedfall/examples/kvlog
 ```
 
-`seedfall doctor` checks the toolchain and prints a fix for anything missing. Homebrew, Scoop, an install script, a Docker image and how to verify a release are in [install.md](install.md); those paths need a release newer than v0.2.0.
+`seedfall doctor` checks your setup and tells you how to fix anything that is missing. Other ways to install (Homebrew, Scoop, a script, Docker) are in [install.md](install.md). Those need a release newer than v0.2.0.
 
-## 2. Look at the world
+## 2. Look at the example
 
-`seedfall.always.json` runs one server and one client. It extends `seedfall.json` and changes only the server's `-sync` flag; merged, it reads (abridged):
+The file `seedfall.always.json` describes the test: one server, one client and the faults to inject. It extends `seedfall.json` and changes one setting, the server's `-sync` flag. Merged, it reads (shortened):
 
 ```json
 {
@@ -1403,9 +1434,16 @@ cd seedfall/examples/kvlog
 }
 ```
 
-The server appends `key=value` lines to `data/kv.log` and fsyncs before every acknowledgement. The client writes 200 keys, then checks that every acknowledged key is still there, using `sim.Assert`. The only seedfall-specific code in the server is `sim.Listen`.
+What this means:
 
-## 3. Sweep
+- The server appends `key=value` lines to `data/kv.log`. Before it tells a client "done", it calls **fsync**. Fsync is the operating system call that forces data onto the disk. Without it, a crash can lose data that is only in memory.
+- The client writes 200 keys. Then it checks that every key the server acknowledged is still there. The check is a `sim.Assert` call.
+- The faults crash the server about every two seconds and allow **torn writes**, where a crash leaves a write only half saved.
+- The server's only seedfall-specific code is `sim.Listen`, which opens its network port.
+
+## 3. Run a sweep
+
+A sweep runs the test once per seed. Try seeds 1 to 100:
 
 ```sh
 seedfall run -c seedfall.always.json -seeds 1-100
@@ -1416,9 +1454,11 @@ FAIL seed 1 at t=2.891820635s (737 scheduler steps, 445ms real)
   client#1: acknowledged write lost: k96=v96, server now answers "NONE"
 ```
 
-Even with an fsync before every acknowledgement, data is lost.
+Seed 1 fails. The server said it saved a key, and after the crashes the key was gone, even though the server uses fsync before every acknowledgement. That is a real bug.
 
-## 4. Shrink
+## 4. Shrink the failure
+
+Seed 1 had 33 faults, and most do not matter. `shrink` removes faults and simplifies what is left, while the failure keeps happening:
 
 ```sh
 seedfall shrink -c seedfall.always.json -seed 1
@@ -1433,15 +1473,19 @@ shrunk from 33 faults, 1m0s, 200 workload ops
          to 2 faults, 991ms, 63 workload ops
 ```
 
-Shrink removed 31 faults, then made what was left simpler: the first crash restarts 30ms sooner, the second moved from 1.7s to 0.8s with no downtime, the run ends at 991ms instead of 60s, and the client, which sizes itself with [`sim.Budget`](properties.md#workload-size), sends 63 writes instead of 200.
+Two faults are enough. Shrink also made them simpler: the first crash restarts 30ms sooner, the second moved from 1.7s to 0.8s, the run ends at 991ms instead of 60s, and the client sends 63 writes instead of 200. (The client can shrink its own size because it uses [`sim.Budget`](properties.md#workload-size).)
 
-The first crash lands in the middle of an append and leaves a torn, half-written line. On restart, recovery skips the bad line but keeps appending after it, so the next record is glued onto the garbage. The second crash forces another recovery, which can no longer parse that record.
+Here is the bug in plain words:
 
-`seedfall replay -c seedfall.always.json -seed 1` prints the full trace, and adding `-faults .seedfall/seed-1.faults.json` replays exactly the minimal schedule.
+1. The first crash lands in the middle of an append. The last line in the log is left half written.
+2. On restart, recovery skips the bad line but keeps appending after it. The next record is glued onto the garbage.
+3. The second crash forces another recovery, which can no longer read that record.
 
-## 5. Fix and prove it
+To see the whole run, use `seedfall replay -c seedfall.always.json -seed 1`. To replay only the two faults that matter, add `-faults .seedfall/seed-1.faults.json`.
 
-The fix is to truncate the torn tail during recovery. The server already has it behind `-repair`, and `seedfall.fixed.json` enables it:
+## 5. Fix it and prove it
+
+The fix is to cut off the half-written tail during recovery. The server already has this behind a flag called `-repair`, and `seedfall.fixed.json` turns it on:
 
 ```sh
 seedfall run -c seedfall.fixed.json -seeds 1-1000
@@ -1455,28 +1499,32 @@ property       seeds reached  seeds true
 ok  1000 seeds passed (0 hit the time horizon) in 1m28.94s
 ```
 
-The property table shows that the recovery path really ran: hundreds of seeds produced a torn tail, and every one was recovered correctly.
+All 1000 seeds pass. The table below the result matters too. It shows that the risky paths really ran: in 406 seeds recovery met a torn tail, and each one was handled correctly. A passing sweep that never reached the risky code would prove little.
 
 ## 6. Go further
 
-- `seedfall.fsyncgate.json` adds `fsync_eio`, and the "fixed" server fails again: a failed fsync leaves a hole in the durable log. `seedfall.rewind.json` adds the fix.
-- `seedfall.strict.json` adds strict POSIX directory durability.
-- Open `.seedfall/failures/seedfall.always-seed-1/timeline.html` from the failing sweep for a diagram of every crash, partition and message, or step through the run with `seedfall debug -c seedfall.always.json -seed 1 -at 1.7s` ([timeline.md](timeline.md)).
-- Each of these files is a few lines that extend `seedfall.json`. In your own project you can keep such variants as profiles in one file and run them with `-profile`, or try a fault preset with `-set faults=resilient` ([config.md](config.md)).
+- `seedfall.fsyncgate.json` makes fsync itself fail (`fsync_eio`). The "fixed" server breaks again, because a failed fsync leaves a hole in the log. `seedfall.rewind.json` adds the fix.
+- `seedfall.strict.json` also loses directory changes that were never synced, as POSIX allows.
+- Open `.seedfall/failures/seedfall.always-seed-1/timeline.html` after the failing sweep for a diagram of every crash and message. Or step through the run with `seedfall debug -c seedfall.always.json -seed 1 -at 1.7s` ([timeline.md](timeline.md)).
+- Each of these config files is a few lines that extend `seedfall.json`. In your own project you can keep such variants as profiles in one file and pick one with `-profile`, or try a ready-made fault preset with `-set faults=resilient` ([config.md](config.md)).
 
-## Your own project
+## Use it on your own project
 
-1. Make your nodes reachable: either switch `net.Listen` and `net.Dial` to `sim.Listen` and `sim.Dial`, or set `"net_overlay": true` to run unmodified code ([networking.md](networking.md)).
-2. Write a workload: any Go `main` package that drives your system and checks invariants with `sim.Assert`, `sim.Always` and friends ([properties.md](properties.md)).
-3. Describe the world in `seedfall.json` ([faults.md](faults.md)).
-4. Sweep locally, then in CI ([ci.md](ci.md)), and from your coding agent ([agents.md](agents.md)).
+1. Make your nodes reachable inside the simulation. Either change `net.Listen` and `net.Dial` to `sim.Listen` and `sim.Dial`, or set `"net_overlay": true` to run your code unchanged ([networking.md](networking.md)).
+2. Write a workload. It is any Go `main` package that uses your system and checks the results with `sim.Assert`, `sim.Always` and similar calls ([properties.md](properties.md)).
+3. Describe the test in `seedfall.json` ([faults.md](faults.md)).
+4. Run sweeps on your machine, then in CI ([ci.md](ci.md)), and from your coding agent ([agents.md](agents.md)).
 
-Your code must build for `GOOS=wasip1`. cgo is not available. Dependencies that need `mmap` or `flock` work with `"compat_overlay": true`, through a shim for bbolt, pebble and badger or the generic shim for other callers of `Mmap` and `Flock`; `seedfall init` turns it on and says which dependency is covered ([compat.md](compat.md)).
+`seedfall init` can write a first config and workload for you.
+
+One requirement: your code must build for `GOOS=wasip1`. This is Go's target for WebAssembly System Interface, a small sandbox that lets seedfall control time, randomness and the disk. In practice it means no cgo (Go code that calls C). Libraries that need `mmap` or `flock` (operating system calls for mapping files and locking them) work when you set `"compat_overlay": true`; `seedfall init` turns it on and tells you which dependency is covered ([compat.md](compat.md)).
 
 
 <!-- docs/gostman.md -->
 
 # Use your Gostman collections as workloads
+
+Gostman is an API testing tool. Its collections list requests and the checks each reply must pass. This page shows how to reuse a collection as seedfall's workload, so the same checks run while seedfall breaks your service. Use it if you already have a Gostman collection.
 
 A [Gostman](https://github.com/kunalgoesbyken/gostman) collection already says what your API promises: each request carries checks such as `res.status equals 200` or `res.body equals {{value}}`. Gostman's Go `runner` package builds for `wasip1`, so a seedfall workload can load the collection and send it while seedfall crashes your service, tears its writes and partitions its network. A check that fails after the faults stop is a broken promise, reported with the request and the check, and replayable from its seed.
 
@@ -1538,6 +1586,8 @@ The example uses HTTP requests with assertions. Anything that needs the host, su
 <!-- docs/how-it-works.md -->
 
 # How seedfall works
+
+This page explains why the same seed always gives the same run: seedfall controls the clock, the randomness and the scheduling for every node, and simulates the disk and the network. Read it to understand what seedfall can and cannot find, or to decide how far to trust a result. You do not need it to run your first sweep.
 
 ## One process, one clock, many nodes
 
@@ -1700,6 +1750,8 @@ A busy 3-node NATS JetStream cluster under crashes and partitions simulates abou
 
 # Inspecting the disk at the moment of failure
 
+When a test fails after a crash, the cause is often what had and had not reached the disk. `seedfall inspect` shows every node's files at the moment of failure: which bytes were safely saved, which a crash would lose, and where a write was cut short. Use it for durability bugs, such as data that is missing after a restart.
+
 `seedfall replay` tells you what happened. `seedfall inspect` shows you what is on disk when it goes wrong: every file on every node, how much of it is durable, which bytes a crash would lose, which directory entries are not durable yet, and where the last crash tore a write.
 
 ```sh
@@ -1820,9 +1872,19 @@ The MCP server exposes the same snapshot as `seedfall_inspect`, with the per-fil
 
 # Installing seedfall
 
-seedfall ships as a single binary, and it builds your nodes with Go. Anything that runs nodes, including `run`, `replay`, `shrink` and the matching MCP tools, needs Go 1.25 or newer because it builds them first. Reading a finished report with `seedfall findings`, and `version`, `help` and `schema`, need only the binary.
+This page shows every way to install seedfall and how to check that it works. If you have Go, the quickest way is `go install`. Skip the rest unless you want a package manager or a signed release.
 
-**Which of these work today.** The Homebrew, Scoop, install script and Docker paths install from a release built by `.github/workflows/release.yml`. v0.2.0 predates that workflow and has only bare binaries, with no archives or `checksums.txt`, so until a newer release is cut use `go install`. The pipeline's signing, SBOM, cask, manifest and image steps have not run yet, so the commands below that depend on them are what the configuration is set up to produce, not something checked against a published release.
+seedfall is a single program. It also needs Go (1.25 or newer) on your machine, because it builds your code before running it. Commands that run your code need Go: `run`, `replay`, `shrink` and the matching MCP tools. Commands that only read things do not need Go: `seedfall findings`, `version`, `help` and `schema`.
+
+**Which of these work today.** Homebrew, Scoop, the install script and Docker all install from a release made by `.github/workflows/release.yml`. The latest release, v0.2.0, is older than that workflow. It has only bare binaries, with no archives and no `checksums.txt`. Until a newer release is cut, use `go install`. The signing, SBOM, cask, manifest and image steps of the release pipeline have not run yet, so the commands below that depend on them show what the setup is meant to produce. They have not been checked against a published release.
+
+## Quickest: go install
+
+```sh
+go install github.com/kunalgoesbyken/seedfall/cmd/seedfall@latest
+```
+
+This needs Go 1.25 or newer. It works for every release, including those from before the automated pipeline.
 
 ## Homebrew
 
@@ -1830,7 +1892,7 @@ seedfall ships as a single binary, and it builds your nodes with Go. Anything th
 brew install kunalgoesbyken/tap/seedfall
 ```
 
-The cask depends on Go. seedfall binaries are not notarized by Apple, so on macOS the cask clears the quarantine flag on its own binary after installing; without that, Gatekeeper would refuse to start it.
+The package depends on Go. Apple has not notarized seedfall's binaries, so macOS would normally refuse to start them. The package therefore clears the "quarantine" flag on its own binary after installing.
 
 ## Scoop (Windows)
 
@@ -1839,7 +1901,7 @@ scoop bucket add seedfall https://github.com/kunalgoesbyken/homebrew-tap
 scoop install seedfall
 ```
 
-The manifest depends on Go.
+The package depends on Go.
 
 ## Install script (Linux and macOS)
 
@@ -1847,7 +1909,13 @@ The manifest depends on Go.
 curl -fsSL https://seedfall-lemon.vercel.app/install.sh | sh
 ```
 
-It picks the archive for your OS and architecture, checks its SHA-256 against the release's `checksums.txt`, and installs to `~/.local/bin`. Set `SEEDFALL_VERSION=v0.3.0` to pin a release, `SEEDFALL_INSTALL_DIR` to change where it goes, and `SEEDFALL_BASE_URL` to download from a mirror. It stops with an error on a checksum mismatch. The script is `scripts/install.sh`; read it first if you prefer.
+The script picks the download for your system, checks its SHA-256 checksum (a fingerprint of the file) against the release's `checksums.txt`, and installs to `~/.local/bin`. It stops with an error if the checksum does not match. The script is `scripts/install.sh`, so you can read it first.
+
+Settings, all optional:
+
+- `SEEDFALL_VERSION=v0.3.0` installs a specific release.
+- `SEEDFALL_INSTALL_DIR` changes where it is installed.
+- `SEEDFALL_BASE_URL` downloads from a mirror.
 
 ## Docker
 
@@ -1855,15 +1923,7 @@ It picks the archive for your OS and architecture, checks its SHA-256 against th
 docker run --rm -v "$PWD:/work" ghcr.io/kunalgoesbyken/seedfall run -seeds 1-200
 ```
 
-The image is built on the official `golang` image, so it can build your nodes with no local Go. Files the container writes, including `.seedfall/`, belong to root unless you pass `--user`.
-
-## go install
-
-```sh
-go install github.com/kunalgoesbyken/seedfall/cmd/seedfall@latest
-```
-
-This needs Go 1.25 or newer and always works, including for releases before the automated pipeline.
+The image is built on the official `golang` image, so it can build your code without Go on your machine. Files the container writes, including `.seedfall/`, belong to root unless you pass `--user`.
 
 ## Check the install
 
@@ -1872,17 +1932,30 @@ seedfall version
 seedfall doctor
 ```
 
-`seedfall version` (or `--version`, with `-json` for a script) prints the release, commit, build date, Go version and platform. A build without VCS data, such as `go install` of a tagged module, has no commit or date lines. The same version goes into `report.json`, each `.seedfall/history.jsonl` entry, failure artifacts, pinned regressions and the `seedfall verify` proof block, so a bug report can name the exact build.
+`seedfall version` (or `--version`; add `-json` for scripts) prints the release, commit, build date, Go version and platform. A build without version-control data, such as `go install` of a tagged module, has no commit or date lines. The same version is written into `report.json`, every `.seedfall/history.jsonl` entry, failure artifacts, pinned regressions and the `seedfall verify` proof block, so a bug report can name the exact build.
 
-`seedfall doctor` checks the Go version, that `GOOS=wasip1` builds, that `net_overlay` patches and builds against the installed Go, that the Go build cache and the current directory are writable, and the free memory. It prints a fix for anything wrong and exits 1 only if a check fails; a warning, such as low memory or an unsupported `net_overlay`, leaves it at 0. `-json` prints the same checks, as does the `seedfall_doctor` MCP tool. Free memory is measured on Linux and Windows and reported as `skip` elsewhere.
+`seedfall doctor` checks:
 
-`seedfall help` lists every command, and `seedfall help run` prints one command's flags and defaults. `-h` and `--help` work too and all of these exit 0.
+- the Go version;
+- that `GOOS=wasip1` builds (`wasip1` is the WebAssembly System Interface target seedfall compiles your code for);
+- that `net_overlay` patches and builds against your Go (`net_overlay` lets unmodified code use the simulated network);
+- that the Go build cache and the current directory are writable;
+- the free memory.
+
+For anything wrong it prints a fix. It exits with code 1 only if a check fails. A warning, such as low memory or an unsupported `net_overlay`, still exits 0. `-json` prints the same checks, and so does the `seedfall_doctor` MCP tool. Free memory is measured on Linux and Windows and shown as `skip` elsewhere.
+
+`seedfall help` lists every command, and `seedfall help run` prints the flags and defaults of one command. `-h` and `--help` also work. All of these exit 0.
 
 ## Verifying a release
 
-Each automated release publishes `checksums.txt`, a Sigstore bundle `checksums.txt.sigstore.json` signed keylessly by the release workflow, an SBOM per archive, and a GitHub build provenance attestation.
+This section is for people who want proof that a download is genuine. Each automated release publishes:
 
-Verify the signature on the checksums, then an archive against them:
+- `checksums.txt`, the list of file fingerprints;
+- `checksums.txt.sigstore.json`, a Sigstore bundle: a signature, made without a long-lived key, by the release workflow;
+- an SBOM (a list of the software inside) for each archive;
+- a GitHub build provenance attestation, a signed record of where and how the file was built.
+
+First verify the signature on the checksums, then check an archive against them:
 
 ```sh
 cosign verify-blob checksums.txt \
@@ -1892,22 +1965,28 @@ cosign verify-blob checksums.txt \
 sha256sum --ignore-missing -c checksums.txt
 ```
 
-Or check provenance with the GitHub CLI:
+Or check the provenance with the GitHub CLI:
 
 ```sh
 gh attestation verify seedfall_linux_amd64.tar.gz --repo kunalgoesbyken/seedfall
 ```
 
-The install script checks SHA-256 only, which catches a corrupted download but not a tampered release; use one of the commands above for that.
+The install script checks SHA-256 only. That catches a damaged download but not a tampered release. Use one of the commands above for that.
 
-## Cutting a release
+## Cutting a release (for maintainers)
 
-Pushing a `v*` tag runs the release workflow, which builds linux, darwin and windows on amd64 and arm64 with GoReleaser, signs, attests, publishes the GitHub release and pushes the Homebrew cask, the Scoop manifest and the image. The repository needs a `HOMEBREW_TAP_TOKEN` secret with write access to `kunalgoesbyken/homebrew-tap`, which holds both the `Casks/` directory and the Scoop `bucket/`. Release notes are grouped from commit subjects starting with `Add` or `feat` and `Fix` or `fix`. A tag with a prerelease suffix, such as `v0.3.0-rc1`, is marked as a prerelease and leaves the cask, the Scoop manifest and the `latest` image alone.
+Pushing a tag that starts with `v` runs the release workflow. It builds Linux, macOS and Windows on amd64 and arm64 with GoReleaser, signs and attests the files, publishes the GitHub release, and pushes the Homebrew cask, the Scoop manifest and the Docker image.
+
+- The repository needs a `HOMEBREW_TAP_TOKEN` secret with write access to `kunalgoesbyken/homebrew-tap`, which holds both the `Casks/` directory and the Scoop `bucket/`.
+- Release notes are grouped from commit subjects that start with `Add` or `feat`, and `Fix` or `fix`.
+- A tag with a prerelease suffix, such as `v0.3.0-rc1`, is marked as a prerelease. It leaves the cask, the Scoop manifest and the `latest` image alone.
 
 
 <!-- docs/mutate.md -->
 
 # Mutation testing your checks
+
+A passing sweep only means something if your checks would notice a real problem. `seedfall mutate` weakens the simulated disk, network or clock one guarantee at a time, or changes your own source code, and tells you whether your checks catch it. Use it to find checks that are too weak.
 
 A sweep that passes is only meaningful if your workload would notice when a guarantee breaks. `seedfall mutate` tests that directly: it weakens the simulated disk, network or clock under your nodes, one guarantee at a time, and checks whether your sweep catches it.
 
@@ -2021,6 +2100,8 @@ The baseline must pass first; otherwise mutants would be killed by the existing 
 
 # Networking
 
+Nodes in seedfall talk over a simulated network, so seedfall can delay, drop and cut messages between them. This page explains the two ways to connect your code to it: call seedfall's `sim.Listen` and `sim.Dial`, or leave your code alone and turn on `net_overlay`. Read it when nodes cannot reach each other or you are wiring up a new project.
+
 seedfall gives every node a simulated network: ordered TCP byte streams and unordered UDP datagrams with seeded latency, per-link latency overrides, partitions that hold TCP traffic until they heal and drop UDP datagrams, one-way clogs that stop, jam or slow a link, slow nodes, and connection resets when a peer crashes or a reset fault fires. Node names are host names, so a node named `server` is reachable at `server:7000`.
 
 How each network fault behaves and how to configure it is in [faults.md](faults.md#network-faults).
@@ -2088,6 +2169,8 @@ Go's unmodified `net` package on `wasip1` is an in-process fake. A `net.Listen` 
 <!-- docs/properties.md -->
 
 # Properties, linearizability and determinism
+
+A property is something your system must always (or eventually) get right, such as "an acknowledged write is never lost". This page covers how to write properties with the `sim` package, how to check recovery, and how to check a recorded history of operations for linearizability (concurrent operations behaving as if they happened one at a time, in some order). Use it when you write or improve your workload.
 
 ## Failing a run
 
@@ -2427,6 +2510,8 @@ The final hash is printed at the end of `seedfall replay` (`determinism hash 4c9
 
 # Triage reports
 
+A big sweep can find many failing seeds that come from only a few bugs. Reports group them into findings, label each one as new or old, remember history between runs, and can post to Slack, Discord or GitHub. Use this page when you run seedfall at scale or in CI and want to triage instead of reading one failure at a time.
+
 ```sh
 seedfall run -c seedfall.json -seeds 1-500 -report .seedfall/report.html
 ```
@@ -2593,6 +2678,8 @@ seedfall report comment -report .seedfall/report.html -repo owner/name -pr 12 -m
 
 # Testing seedfall itself
 
+This page is for people who work on seedfall itself, or who want to know why its results can be trusted. It lists the tests that check seedfall's model of crashes, faults and replay, and how to run them. You do not need it to use seedfall.
+
 seedfall is only useful if its own model of crashes, faults and replay is right, so that model has its own tests. This page lists what they check and how to run them.
 
 ## What the tests check
@@ -2652,6 +2739,8 @@ Dependabot opens weekly updates for the root module and the GitHub Actions. The 
 <!-- docs/timeline.md -->
 
 # Timelines, logs and time-travel debugging
+
+After a failure you want to see what happened. This page covers the four views seedfall gives you of one run: a timeline diagram, a sequence diagram, filtered logs and a step-by-step debugger. Use it when the failure message alone does not explain the problem.
 
 A failing seed replays exactly, so you can look at it as many times and in as many ways as you like. seedfall gives you four views of one run:
 
@@ -2862,9 +2951,12 @@ Use it after shrinking to see where the shrunk schedule leaves the original run,
 
 # Troubleshooting
 
-This page lists the errors and failure messages seedfall prints, keyed by their exact text, with what causes each one and how to fix it. Parts in angle brackets, such as `<pkg>`, vary. Commands print errors as `seedfall: <message>` and exit 1.
+This page lists the errors and failure messages seedfall prints, with what causes each one and how to fix it. Find yours by its exact text. Parts in angle brackets, such as `<pkg>`, change from case to case. Commands print errors as `seedfall: <message>` and exit with code 1.
 
-Start with `seedfall doctor`. It checks the Go version, a `wasip1` build, `net_overlay`, the build cache, the working directory and free memory, and prints a fix for each check that is not `ok`. In a new module, `seedfall init` reports every package that will not build for `wasip1`, with the import chain to it.
+Do this first:
+
+1. Run `seedfall doctor`. It checks the Go version, a `wasip1` build, `net_overlay`, the build cache, the working directory and free memory. For every check that is not `ok` it prints a fix.
+2. In a new project, run `seedfall init`. It lists every package that will not build for `wasip1` (the WebAssembly target seedfall compiles your code for) and shows the chain of imports that pulls each one in.
 
 ## Setup and Go version
 
@@ -2875,7 +2967,7 @@ Start with `seedfall doctor`. It checks the Go version, a `wasip1` build, `net_o
         fix: install go<version> or newer from https://go.dev/dl/
 ```
 
-`seedfall doctor` prints this when the installed Go is older than the version in seedfall's own `go.mod` (currently `go1.25.0`). Install that version or newer.
+`seedfall doctor` prints this when your Go is older than the version in seedfall's own `go.mod` (currently `go1.25.0`). Install that version or newer.
 
 ### No go command
 
@@ -2883,7 +2975,13 @@ Start with `seedfall doctor`. It checks the Go version, a `wasip1` build, `net_o
   fail  go            no working go command on PATH: <error>
 ```
 
-seedfall builds every node with your Go toolchain, so it needs `go` on `PATH`. Install Go from https://go.dev/dl/. `seedfall doctor` skips the `wasip1 build`, `net_overlay` and `build cache` checks until this passes. When `net_overlay` or the generic compat shim is built, the same problem shows up as `go env GOROOT: <error>`.
+seedfall builds each node with your Go toolchain, so `go` must be on your `PATH`.
+
+1. Install Go from https://go.dev/dl/.
+2. Open a new terminal and run `go version` to check.
+3. Run `seedfall doctor` again.
+
+Until this passes, `seedfall doctor` skips the `wasip1 build`, `net_overlay` and `build cache` checks. If you use `net_overlay` or the generic compat shim, the same problem shows up as `go env GOROOT: <error>`.
 
 ### The net overlay does not support this Go version
 
@@ -2891,15 +2989,18 @@ seedfall builds every node with your Go toolchain, so it needs `go` on `PATH`. I
 net overlay: expected one "<anchor>" in <file>, found <n>; this Go version is not supported yet
 ```
 
-With `"net_overlay": true`, seedfall patches a few functions of the installed Go's `net` package for `wasip1` (`net_fake.go`, `fd_fake.go` and `sockopt_fake.go`). Each patch looks for one exact line in `$GOROOT/src/net`. If a Go release changes that line, the patch is refused rather than applied in the wrong place. `seedfall doctor` reports it as a `warn` on the `net_overlay` check.
+With `"net_overlay": true`, seedfall patches a few functions in Go's own `net` package for `wasip1` (`net_fake.go`, `fd_fake.go` and `sockopt_fake.go`). Each patch looks for one exact line in `$GOROOT/src/net`. If a new Go release changed that line, seedfall refuses to patch instead of patching the wrong place. `seedfall doctor` shows this as a `warn` on the `net_overlay` check.
 
-Fix: use a Go version seedfall supports, or drop `net_overlay` and make nodes reachable with `sim.Listen` and `sim.Dial`, which need no patch ([networking](networking.md)).
+Fix it in one of two ways:
+
+- Use a Go version that seedfall supports.
+- Turn off `net_overlay` and call `sim.Listen` and `sim.Dial` in your code instead. They need no patch ([networking](networking.md)).
 
 ```
 net overlay: <error>
 ```
 
-The patched files could not be read from `$GOROOT/src/net`. The Go installation is missing its standard library source; reinstall Go from https://go.dev/dl/.
+seedfall could not read the files it patches from `$GOROOT/src/net`. Your Go install is missing its standard library source. Reinstall Go from https://go.dev/dl/.
 
 ## Building nodes for wasip1
 
@@ -2909,10 +3010,12 @@ The patched files could not be read from `$GOROOT/src/net`. The Go installation 
 build <pkg>: exit status 1
 ```
 
-seedfall runs `GOOS=wasip1 GOARCH=wasm go build` for each `pkg` in the config, and the compiler's own errors are printed above this line. The usual causes:
+For every `pkg` in the config, seedfall runs `GOOS=wasip1 GOARCH=wasm go build`. The compiler's own errors are printed above this line. The usual causes:
 
-- **cgo.** cgo is off under `wasip1`, so a package with cgo files does not build. `seedfall init` lists these under `cgo packages` with a `cgo files: <files>` line and the chain `via <main> -> ... -> <pkg>`. Replace each with a pure-Go alternative, or stub it behind a build tag. Libraries such as RocksDB bindings or `mattn/go-sqlite3` cannot run under seedfall.
-- **`mmap`, `flock` and other unix calls.** Errors such as an undefined `syscall.Mmap`, `unix.Mmap` or `syscall.Flock` come from code that WASI cannot run. `seedfall init` lists each under `wasip1 blockers` with a `shim:` line. If it names a shim, set `"compat_overlay": true` ([compat](compat.md)). If it says `none: needs a shim, see docs/compat.md`, the dependency needs a hand-written shim, an upgrade, or a `go.mod` replace with an in-process version, as `examples/flockshim` does for `gofrs/flock`.
+- **cgo.** cgo (Go code that calls C) is off under `wasip1`, so a package with cgo files does not build. `seedfall init` lists these under `cgo packages`, with a `cgo files: <files>` line and the chain `via <main> -> ... -> <pkg>`. Replace each with a pure-Go library, or stub it behind a build tag. Libraries such as RocksDB bindings or `mattn/go-sqlite3` cannot run under seedfall.
+- **`mmap`, `flock` and other unix calls.** An error such as an undefined `syscall.Mmap`, `unix.Mmap` or `syscall.Flock` means the code uses operating system calls that WASI does not have. (`mmap` maps a file into memory. `flock` locks a file.) `seedfall init` lists each one under `wasip1 blockers` with a `shim:` line.
+  - If the line names a shim, set `"compat_overlay": true` ([compat](compat.md)).
+  - If it says `none: needs a shim, see docs/compat.md`, the dependency needs a hand-written shim, an upgrade, or a `go.mod` replace with an in-process version, as `examples/flockshim` does for `gofrs/flock`.
 - **Platform-specific code in your own packages.** Move it behind build tags so that a `wasip1` version builds. `compat_overlay` never changes your own module.
 
 ### A compat shim does not match the library version
@@ -2921,7 +3024,7 @@ seedfall runs `GOOS=wasip1 GOARCH=wasm go build` for each `pkg` in the config, a
 compat overlay: <pkg>/<file> declares <names>, which the wasip1 shim does not provide; this version is not supported yet
 ```
 
-A shim replaces whole files, and only if it provides every top-level declaration in them. The library version you depend on declares something the shim does not, so seedfall stops instead of building a partial replacement. Pin the library to the version listed in [compat](compat.md), or add the missing declarations to the shim under `engine/compat` ([CONTRIBUTING](../CONTRIBUTING.md#adding-a-compat-shim)).
+A shim replaces whole files, and only if it provides every top-level name those files declare. The version of the library you use declares something the shim does not, so seedfall stops instead of building a half replacement. Either pin the library to the version listed in [compat](compat.md), or add the missing declarations to the shim under `engine/compat` ([CONTRIBUTING](../CONTRIBUTING.md#adding-a-compat-shim)).
 
 ### golang.org/x/sys is not downloaded
 
@@ -2929,13 +3032,13 @@ A shim replaces whole files, and only if it provides every top-level declaration
 compat overlay: golang.org/x/sys is not downloaded; run go mod download golang.org/x/sys
 ```
 
-The generic shim adds `wasip1` versions of `Mmap` and `Flock` to a copy of `golang.org/x/sys/unix`, so the module has to be in the module cache. Run the command in the message from the directory of your `go.mod`.
+The generic shim adds `wasip1` versions of `Mmap` and `Flock` to a copy of `golang.org/x/sys/unix`, so that module must be in your module cache. Run the command from the message in the folder that holds your `go.mod`.
 
 ```
 compat overlay: finding golang.org/x/sys: <error>
 ```
 
-`go list -m golang.org/x/sys` failed in the config's directory. Run it yourself to see why, usually a `go.mod` that does not require `golang.org/x/sys` or a module download that fails.
+`go list -m golang.org/x/sys` failed in the config's folder. Run it yourself to see why. Usually your `go.mod` does not require `golang.org/x/sys`, or a module download fails.
 
 ### Not inside a module
 
@@ -2944,13 +3047,13 @@ compat overlay: <dir> is not inside a Go module
 compat overlay: <pkg> is not part of a module
 ```
 
-`compat_overlay` builds with a copy of your `go.mod` that adds a `replace` for each shimmed module, so the config's directory must be inside a module and every shimmed package must come from one. Run seedfall from a module with a `go.mod` and module mode on (not `GO111MODULE=off`).
+`compat_overlay` builds with a copy of your `go.mod` that adds a `replace` for each shimmed module. So the config's folder must be inside a Go module, and every shimmed package must come from one. Run seedfall from a folder with a `go.mod`, with module mode on (not `GO111MODULE=off`).
 
 ```
 compat overlay: go mod edit: <error>: <output>
 ```
 
-seedfall could not write the `replace` lines into its copy of `go.mod` under `.seedfall/compat`. The output after the colon is from `go mod edit`. Check that `.seedfall` is writable and that `go.mod` parses.
+seedfall could not write the `replace` lines into its copy of `go.mod` under `.seedfall/compat`. The text after the colon comes from `go mod edit`. Check that `.seedfall` is writable and that your `go.mod` is valid.
 
 ### preempt.loops cannot instrument the binary
 
@@ -2959,9 +3062,11 @@ preempt.loops: function <n>: unsupported wasm opcode 0x<op>
 preempt.loops: function <n>: unsupported wasm opcode 0xfc <sub>
 ```
 
-With `"preempt": {"loops": true}`, seedfall decodes every function of the compiled module to add a counter after each `loop`. It stopped at an instruction its decoder does not know, which a newer Go compiler could emit. Turn `preempt.loops` off and report the Go version in an issue.
+With `"preempt": {"loops": true}`, seedfall reads every function of the compiled program and adds a counter after each `loop`. It hit an instruction it does not know, which a newer Go compiler may produce. Turn `preempt.loops` off and report your Go version in an issue.
 
 ## Config
+
+These errors come from a check that runs before anything is built.
 
 ```
 config: workload.name is required
@@ -2971,14 +3076,14 @@ config: node "<name>" needs pkg or wasm
 config: node "<name>" has an invalid pkg "<pkg>"
 ```
 
-The config is checked before anything is built. Every node and the workload need a unique `name`, and every node needs a `pkg` (a Go package path, built for you) or a `wasm` file. [Configuration and faults](faults.md) lists every field.
+The workload and every node need a unique `name`. Every node also needs either a `pkg` (a Go package path, which seedfall builds for you) or a `wasm` file. [Configuration and faults](faults.md) lists every field.
 
 ```
 config: node "<name>" sets both pkg and wasm, use one
 <file>: json: unknown field "<name>"
 ```
 
-A node names either a `pkg`, which seedfall builds into the `wasm`, or a prebuilt `wasm`, not both. An unknown field is a key that is not part of the config, usually a typo, in the file, a profile or a `-set`.
+A node names either a `pkg`, which seedfall builds into a `wasm` file, or a prebuilt `wasm`, never both. An "unknown field" is a key that is not part of the config. Look for a typo in the file, in a profile or in a `-set`.
 
 ```
 config: faults.<name> must be between 0 and 1, got <value>
@@ -2989,21 +3094,21 @@ config: watchdog must be positive, got <value>
 config: faults.clock_jump_max must not be negative, got <value>
 ```
 
-A probability is outside 0 to 1, a `_per_sec` rate is negative, a range has a negative or reversed bound, or a duration is not positive. [Config](config.md) lists which fields each rule covers.
+A number is out of range. A probability is outside 0 to 1, a `_per_sec` rate is negative, a range has a negative or reversed end, or a duration is not positive. [Config](config.md) says which rule covers which field.
 
 ```
 config: no profile "<name>", have <profiles>
 config: no profile "<name>", the config has no profiles
 ```
 
-`-profile` named a profile that is not in the config's `profiles` ([config](config.md#profiles)).
+`-profile` named a profile that is not in the config's `profiles`. The first form lists the ones that exist ([config](config.md#profiles)).
 
 ```
 config: -set "<expr>" is not path=value
 config: -set <key>: <path> is not an object or a list
 ```
 
-`-set` takes `path=value`, where the path walks objects by key and lists by element name or index, and the value is JSON or a bare string ([config](config.md#-set)).
+`-set` takes `path=value`. The path walks objects by key and lists by element name or index. The value is JSON or a bare string ([config](config.md#-set)).
 
 ```
 config: <file> extends itself
@@ -3017,38 +3122,38 @@ config: preempt: unknown strategy "<name>", want one of <strategies>
 config: preempt: interleave is shorthand for strategy random, but strategy is <name>
 ```
 
-`preempt.strategy` is not one of the listed strategies, or `interleave` was combined with a different strategy ([how it works](how-it-works.md#strategies)).
+`preempt.strategy` is not one of the strategies listed, or `interleave` was combined with a different strategy ([how it works](how-it-works.md#strategies)).
 
 ```
 bad seed range "<range>": seed 18446744073709551615 is the largest uint64, so the count of seeds or the next seed would wrap around, end the range at 18446744073709551614 or lower
 ```
 
-A `-seeds` range cannot end at the largest 64-bit seed, because the sweep could not tell the end of the range from a wrap to seed 0.
+A `-seeds` range cannot end at the largest 64-bit number. The sweep could not tell the end of the range from a wrap-around to seed 0.
 
 ```
 the module cannot be instrumented for preemption or feedback: <reason>
 ```
 
-`preempt.strategy`, `preempt.loops` or the feedback of `explore` needs the call counter that seedfall adds to Go wasip1 modules. A prebuilt `wasm` from another toolchain, or one that does not import `sched_yield`, cannot take it. Build the node from Go, or turn those settings off.
+`preempt.strategy`, `preempt.loops` and the feedback used by `explore` need a call counter that seedfall adds to Go `wasip1` programs. A prebuilt `wasm` from another toolchain, or one that does not import `sched_yield`, cannot take it. Build the node from Go, or turn those settings off.
 
 ```
 -json and -report cannot be combined
 timeout cannot be negative
 ```
 
-`run` writes either one JSON object per seed or an HTML report, not both, and `-timeout` must be zero (no budget) or positive.
+`run` writes either one JSON object per seed or an HTML report, not both. `-timeout` must be zero (no limit) or positive.
 
 ```
 report path <path> ends in .json, which is where the JSON report goes; use a .html path
 ```
 
-`-report` names the HTML report and the JSON version is written next to it with `.json` in place of the extension, so an HTML report cannot go to a `.json` path without being overwritten.
+`-report` names the HTML report. The JSON version is written next to it, with `.json` in place of the extension. An HTML report cannot go to a `.json` path, because it would be overwritten.
 
 ```
 <file> line <n>: <json error>
 ```
 
-A line of `.seedfall/history.jsonl` is not valid JSON, for example after an editor or a merge damaged it. `report`, `findings` and `report notify` refuse to read a history they cannot trust. Delete or repair the named line ([history](reports.md#history-new-ongoing-resolved-regressed)).
+A line of `.seedfall/history.jsonl` is not valid JSON, for example because an editor or a merge damaged it. `report`, `findings` and `report notify` refuse to read a history they cannot trust. Delete or repair the line named in the message ([history](reports.md#history-new-ongoing-resolved-regressed)).
 
 ```
 listen <network>: the simulator supports only tcp, tcp4, tcp6
@@ -3056,7 +3161,7 @@ listen <network>: the simulator supports only udp, udp4, udp6
 dial <network>: the simulator supports only tcp, tcp4, tcp6
 ```
 
-`sim.Listen`, `sim.ListenPacket` or `sim.Dial` got a network the simulator does not have, such as `unix`. Use `tcp` or `udp` ([networking](networking.md#option-1-simlisten-and-simdial)).
+`sim.Listen`, `sim.ListenPacket` or `sim.Dial` was given a network type the simulator does not have, such as `unix`. Use `tcp` or `udp` ([networking](networking.md#option-1-simlisten-and-simdial)).
 
 ## Failures that are not your system's bug
 
@@ -3068,9 +3173,13 @@ Every reported failure is classed as `bug`, `nondeterministic` or `timeout` ([re
 watchdog: <node>#<n> ran for more than 30s of real time without yielding (livelock or busy loop)
 ```
 
-Classified `timeout`. A node ran without blocking for longer than `watchdog` (default `30s`) of real time. Only one node runs at a time and virtual time barely moves while it runs, so a loop that never blocks holds the whole simulation. The usual cause is a loop with no function call, which the default preemption cannot interrupt, or a long computation. Because it depends on how fast the host is and how loaded, the same seed may pass on a faster machine or with a lower `-j`.
+Classed as `timeout`. One node ran for longer than `watchdog` (default `30s`) of real time without ever waiting. Only one node runs at a time, and virtual time barely moves while it runs, so a loop that never waits freezes the whole simulation. The usual cause is a loop with no function call, which the default preemption cannot interrupt, or a very long calculation. The result depends on how fast and how busy your machine is, so the same seed may pass on a faster machine or with a lower `-j`.
 
-Fix: set `"preempt": {"loops": true}` so call-free loops are preempted and spend virtual time; a spin that never ends then fails as `liveness`, which does not depend on the host ([how it works](how-it-works.md#loops), [`examples/busyloop`](../examples/busyloop)). If the node really needs more real time, raise `watchdog`, or lower `-j` so fewer guests share the CPU.
+To fix it:
+
+1. Set `"preempt": {"loops": true}`. Loops with no function call are then interrupted and use up virtual time. A spin that never ends then fails as `liveness`, which does not depend on your machine ([how it works](how-it-works.md#loops), [`examples/busyloop`](../examples/busyloop)).
+2. If the node really needs more real time, raise `watchdog`.
+3. Or lower `-j`, so fewer nodes share the CPU.
 
 ### Nondeterminism
 
@@ -3079,22 +3188,22 @@ nondeterminism: two runs of seed <n> diverge at host call <n>: <call> vs <call>,
 nondeterminism: two runs of seed <n> diverge at trace line <n>: "<line>" vs "<line>"
 ```
 
-With `-check` (and in `verify`), every seed runs twice, and the two runs made a different host call or wrote a different trace line. The first form names the first call that differs, with the node instance, call, target, argument and virtual time ([properties](properties.md#determinism-check)).
+With `-check` (and in `verify`), every seed runs twice. The two runs made a different host call or wrote a different trace line. The first form names the first call that differs, with the node instance, call, target, argument and virtual time ([properties](properties.md#determinism-check)).
 
 ```
 nondeterministic (replay diverges at trace line <n>: "<line>" vs "<line>")
 nondeterministic (replay diverges at outcome: "<reason>" vs "<reason>")
 ```
 
-A failure is replayed to classify it, and the replay did not match the original run.
+seedfall replays a failure to classify it, and the replay did not match the original run.
 
-Everything a guest normally reads, time, randomness, scheduling, disk and network, is owned by seedfall and replays exactly, so a divergence means something outside that leaked in. Check, in this order:
+seedfall controls everything a program normally reads: time, randomness, scheduling, disk and network. All of it replays exactly. So a difference means something from outside got in. Check these, in order:
 
-- whether the guest binary changed between the runs: a rebuilt package, another Go toolchain or a different source tree produces a different binary and can change the run;
-- whether input from the host changed, such as seeded disk images or fixture files that the config reads;
-- whether the watchdog or a `-timeout` budget fired in one run and not the other, since both depend on real time.
+1. Did your program's binary change between the runs? A rebuilt package, another Go toolchain or a different source tree makes a different binary and can change the run.
+2. Did input from the host change? Examples are seeded disk images or fixture files that the config reads.
+3. Did the watchdog or a `-timeout` limit fire in one run and not the other? Both depend on real time.
 
-If none applies, it is a bug in seedfall. Open a bug report with the `-check` output, the config and the seed.
+If none of these applies, it is a bug in seedfall. Open a bug report with the `-check` output, the config and the seed.
 
 ### Deadlock
 
@@ -3103,7 +3212,11 @@ deadlock: every node is blocked with no timer or pending message
 deadlock: every node has exited
 ```
 
-Classified `bug`. Every node is waiting and nothing can wake one, or no node is left to run before the workload finished. The first is often a real bug, for example a retry loop that waits for a reply after a partition dropped the connection without setting a deadline. It is also what happens when nodes cannot reach each other at all: without `net_overlay` or `sim.Listen`, Go's `net` package on `wasip1` is an in-process fake, and a listener on one node is unreachable from another ([networking](networking.md#without-either)). The second usually means the nodes exited and nothing restarts them.
+Classed as `bug`. In the first message every node is waiting and nothing can wake one. In the second, no node is left to run before the workload finished.
+
+The first is often a real bug. For example, a retry loop waits for a reply after a partition dropped the connection, and it never set a deadline. It is also what you see when nodes cannot reach each other at all. Without `net_overlay` or `sim.Listen`, Go's `net` package on `wasip1` is a fake that lives inside one process, so a listener on one node cannot be reached from another ([networking](networking.md#without-either)).
+
+The second usually means the nodes exited and nothing restarts them.
 
 ### Liveness
 
@@ -3111,7 +3224,7 @@ Classified `bug`. Every node is waiting and nothing can wake one, or no node is 
 liveness: <node> did not finish within <within> of the recovery phase starting at <time>
 ```
 
-With `liveness`, faults stop at the recovery phase, the network heals and crashed nodes restart; the workload or `finally` check then has `liveness.within` to finish. A system that never recovers is a real bug. If it recovers but slowly, raise `within` ([properties](properties.md#liveness-recovery-and-finally-checks)).
+With `liveness` on, faults stop at the recovery phase, the network heals and crashed nodes restart. The workload or the `finally` check then has `liveness.within` to finish. A system that never recovers has a real bug. If it recovers but slowly, raise `within` ([properties](properties.md#liveness-recovery-and-finally-checks)).
 
 ### A node exits or panics
 
@@ -3120,12 +3233,14 @@ With `liveness`, faults stop at the recovery phase, the network heals and crashe
 <node>#<n> crashed: <error>
 ```
 
-The first line is a node, other than the workload or `finally` check, that exited with status 0; a server that returns from `main` is treated as a failure. The second is a node that exited with an error or panicked. `"supervise": true` restarts a node that exits with an error after `restart_after`, as systemd would, but Go panics (exit code 2) always fail the run ([faults](faults.md#world)).
+The first line means a node, other than the workload or the `finally` check, exited with status 0. A server that returns from `main` counts as a failure. The second means a node exited with an error or panicked. With `"supervise": true`, seedfall restarts a node that exits with an error after `restart_after`, as systemd would. A Go panic (exit code 2) always fails the run ([faults](faults.md#world)).
 
 
 <!-- docs/verify.md -->
 
 # Proving a fix with `seedfall verify`
+
+After you fix a bug you need evidence that the fix works. `seedfall verify` replays the failing run, sweeps many fresh seeds, checks that the run is repeatable and writes a proof for your pull request. Pinned regressions then keep the bug from coming back. Use it as the last step before you open a pull request.
 
 `seedfall verify` is the definition of done for a change that fixes a seedfall failure, whether a person or an AI agent wrote it. It answers one question with evidence: is the failure gone, and how sure are we?
 
@@ -3320,7 +3435,7 @@ Paste `proof.md`, or the MCP `markdown` field, into the pull request description
   git add seedfall-regressions/
   ```
 
-  Pin takes `S` (or `-faults` another file) and writes `seedfall-regressions/<config>-seed-N.json`. Over MCP, `seedfall_pin` with `{"config": "C", "seed": N}`. It reports whether the schedule passes now; after a real fix it must. From then on `seedfall run`, `seedfall verify`, the Stop hook and `seedfalltest.Sweep` replay it before every sweep and fail if the bug comes back.
+  Pin takes `S` (or `-faults` another file) and writes `seedfall-regressions/<config>-seed-N.json`. Over MCP, `seedfall_pin` with `{"config": "C", "seed": N}`. It reports whether the schedule passes now; after a real fix it must. From then on `seedfall run`, `seedfall verify`, `seedfall hook` and `seedfalltest.Sweep` replay it before every sweep and fail if the bug comes back.
 - Run the sweep from `go test` with `seedfalltest.Sweep(t, "seedfall.json", "1-100")`, and the pinned schedules alone with `seedfalltest.Pinned(t, "seedfall.json")`, from `github.com/kunalgoesbyken/seedfall/seedfalltest`, or in CI with the `kunalgoesbyken/seedfall` GitHub Action, whose `command: verify` input runs the same proof on a pull request.
 
 

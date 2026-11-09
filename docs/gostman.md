@@ -1,5 +1,7 @@
 # Use your Gostman collections as workloads
 
+Gostman is an API testing tool. Its collections list requests and the checks each reply must pass. This page shows how to reuse a collection as seedfall's workload, so the same checks run while seedfall breaks your service. Use it if you already have a Gostman collection.
+
 A [Gostman](https://github.com/kunalgoesbyken/gostman) collection already says what your API promises: each request carries checks such as `res.status equals 200` or `res.body equals {{value}}`. Gostman's Go `runner` package builds for `wasip1`, so a seedfall workload can load the collection and send it while seedfall crashes your service, tears its writes and partitions its network. A check that fails after the faults stop is a broken promise, reported with the request and the check, and replayable from its seed.
 
 [`examples/gostman`](../examples/gostman) is a complete world: `examples/httpkv`'s server and a client that runs the collection in [`examples/gostman/collection`](../examples/gostman/collection).
