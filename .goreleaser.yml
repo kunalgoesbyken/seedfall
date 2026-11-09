@@ -70,8 +70,8 @@ homebrew_casks:
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     homepage: https://github.com/kunalgoesbyken/seedfall
     description: Deterministic simulation testing for Go
-    license: MIT
-    skip_upload: auto
+    license: Apache-2.0
+    skip_upload: '{{ if .Env.HOMEBREW_TAP_TOKEN }}auto{{ else }}true{{ end }}'
     dependencies:
       - formula: go
     hooks:
@@ -90,8 +90,8 @@ scoops:
     directory: bucket
     homepage: https://github.com/kunalgoesbyken/seedfall
     description: Deterministic simulation testing for Go
-    license: MIT
-    skip_upload: auto
+    license: Apache-2.0
+    skip_upload: '{{ if .Env.HOMEBREW_TAP_TOKEN }}auto{{ else }}true{{ end }}'
     depends: [go]
 
 dockers:
@@ -122,6 +122,8 @@ docker_manifests:
       - ghcr.io/kunalgoesbyken/seedfall:{{ .Tag }}-arm64
 
 release:
+  # Lets a failed tag run be re-run without failing on assets it already uploaded.
+  replace_existing_artifacts: true
   prerelease: auto
   github:
     owner: kunalgoesbyken
