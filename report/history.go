@@ -2,8 +2,10 @@ package report
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -58,32 +60,42 @@ type Event struct {
 	Report  time.Time `json:"report"`
 }
 
+type record struct {
+	Entry
+	Kind string `json:"event"`
+}
+
 func ReadHistory(path, config string) ([]Entry, error) {
 	var entries []Entry
-	err := readLines(path, func(b []byte) {
-		var e struct {
-			Entry
-			Kind string `json:"event"`
+	err := readLines(path, func(b []byte) error {
+		var r record
+		if err := json.Unmarshal(b, &r); err != nil {
+			return err
 		}
-		if json.Unmarshal(b, &e) == nil && e.Kind == "" && e.Config == config {
-			entries = append(entries, e.Entry)
+		if r.Kind == "" && r.Config == config {
+			entries = append(entries, r.Entry)
 		}
+		return nil
 	})
 	return entries, err
 }
 
 func ReadEvents(path, config string) ([]Event, error) {
 	var events []Event
-	err := readLines(path, func(b []byte) {
+	err := readLines(path, func(b []byte) error {
 		var e Event
-		if json.Unmarshal(b, &e) == nil && e.Kind != "" && e.Config == config {
+		if err := json.Unmarshal(b, &e); err != nil {
+			return err
+		}
+		if e.Kind != "" && e.Config == config {
 			events = append(events, e)
 		}
+		return nil
 	})
 	return events, err
 }
 
-func readLines(path string, line func([]byte)) error {
+func readLines(path string, line func([]byte) error) error {
 	f, err := os.Open(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil
@@ -94,8 +106,14 @@ func readLines(path string, line func([]byte)) error {
 	defer f.Close()
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
-	for scanner.Scan() {
-		line(scanner.Bytes())
+	for n := 1; scanner.Scan(); n++ {
+		b := bytes.TrimSpace(scanner.Bytes())
+		if len(b) == 0 {
+			continue
+		}
+		if err := line(b); err != nil {
+			return fmt.Errorf("%s line %d: %w", path, n, err)
+		}
 	}
 	return scanner.Err()
 }

@@ -89,7 +89,8 @@ func Run(r *engine.Runner, p Plan) Proof {
 	if proof.Sweep.Failure != nil {
 		return proof
 	}
-	proof.Determinism = doublecheck(r, p.Lo, min(p.Hi, p.Lo+uint64(max(p.CheckSeeds, 1))-1), opts)
+	checkHi := min(p.Hi, p.Lo+uint64(max(p.CheckSeeds, 1))-1)
+	proof.Determinism = doublechecked(r, func() *Sweep { return sweep(r, p.Lo, checkHi, opts) })
 	if proof.Determinism.Failure == nil && p.Mutate {
 		proof.Mutants = mutants(r, p.Lo, p.Hi, opts)
 	}
@@ -104,24 +105,30 @@ func Run(r *engine.Runner, p Plan) Proof {
 	return proof
 }
 
-func replay(r *engine.Runner, targets []Target, jobs int) []Replay {
+func doublechecked[T any](r *engine.Runner, run func() T) T {
 	r.Doublecheck = true
 	defer func() { r.Doublecheck = false }()
-	out := make([]Replay, len(targets))
-	slots := make(chan struct{}, max(jobs, 1))
-	var wg sync.WaitGroup
-	for i, t := range targets {
-		slots <- struct{}{}
-		wg.Go(func() {
-			defer func() { <-slots }()
-			s := t.Schedule
-			s.Duration = 0
-			res := r.Replay(t.Seed, s)
-			out[i] = Replay{Target: t.Label, Seed: t.Seed, Failure: failure(r, res, s)}
-		})
-	}
-	wg.Wait()
-	return out
+	return run()
+}
+
+func replay(r *engine.Runner, targets []Target, jobs int) []Replay {
+	return doublechecked(r, func() []Replay {
+		out := make([]Replay, len(targets))
+		slots := make(chan struct{}, max(jobs, 1))
+		var wg sync.WaitGroup
+		for i, t := range targets {
+			slots <- struct{}{}
+			wg.Go(func() {
+				defer func() { <-slots }()
+				s := t.Schedule
+				s.Duration = 0
+				res := r.Replay(t.Seed, s)
+				out[i] = Replay{Target: t.Label, Seed: t.Seed, Failure: failure(r, res, s)}
+			})
+		}
+		wg.Wait()
+		return out
+	})
 }
 
 func sweep(r *engine.Runner, lo, hi uint64, opts engine.SweepOptions) *Sweep {
@@ -134,20 +141,10 @@ func sweep(r *engine.Runner, lo, hi uint64, opts engine.SweepOptions) *Sweep {
 	return out
 }
 
-func doublecheck(r *engine.Runner, lo, hi uint64, opts engine.SweepOptions) *Sweep {
-	r.Doublecheck = true
-	defer func() { r.Doublecheck = false }()
-	return sweep(r, lo, hi, opts)
-}
-
 func mutants(r *engine.Runner, lo, hi uint64, opts engine.SweepOptions) []Mutant {
 	var out []Mutant
 	for _, m := range engine.SweepMutants(r, engine.Mutations, lo, hi, opts) {
-		v := Mutant{Mutation: m.Mutation, Outcome: m.Outcome()}
-		if m.KilledBy != nil {
-			v.Seed, v.Reason = m.KilledBy.Seed, m.KilledBy.Reason
-		}
-		out = append(out, v)
+		out = append(out, mutantOf(Mutant{Mutation: m.Mutation}, m.Outcome(), m.KilledBy))
 	}
 	return out
 }
@@ -159,13 +156,17 @@ func appMutants(r *engine.Runner, n int, lo, hi uint64, opts engine.SweepOptions
 	}
 	var out []Mutant
 	for _, m := range engine.SweepAppMutants(r, engine.SelectAppMutants(all, n, lo), lo, hi, opts) {
-		v := Mutant{Location: m.Mutant.Location, Change: m.Mutant.From + " -> " + m.Mutant.To, Outcome: m.Outcome()}
-		if m.KilledBy != nil {
-			v.Seed, v.Reason = m.KilledBy.Seed, m.KilledBy.Reason
-		}
-		out = append(out, v)
+		out = append(out, mutantOf(Mutant{Location: m.Mutant.Location, Change: m.Mutant.From + " -> " + m.Mutant.To}, m.Outcome(), m.KilledBy))
 	}
 	return out, nil
+}
+
+func mutantOf(v Mutant, outcome engine.MutantOutcome, killedBy *engine.Result) Mutant {
+	v.Outcome = outcome
+	if killedBy != nil {
+		v.Seed, v.Reason = killedBy.Seed, killedBy.Reason
+	}
+	return v
 }
 
 func failure(r *engine.Runner, res engine.Result, s engine.Schedule) *Failure {

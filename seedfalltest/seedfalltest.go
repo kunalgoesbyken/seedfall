@@ -73,6 +73,7 @@ func runner(t testing.TB, config string) (*engine.Runner, *engine.Config) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(r.Close)
 	return r, cfg
 }
 

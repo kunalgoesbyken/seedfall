@@ -146,6 +146,26 @@ timeout cannot be negative
 
 `run` writes either one JSON object per seed or an HTML report, not both, and `-timeout` must be zero (no budget) or positive.
 
+```
+report path <path> ends in .json, which is where the JSON report goes; use a .html path
+```
+
+`-report` names the HTML report and the JSON version is written next to it with `.json` in place of the extension, so an HTML report cannot go to a `.json` path without being overwritten.
+
+```
+<file> line <n>: <json error>
+```
+
+A line of `.seedfall/history.jsonl` is not valid JSON, for example after an editor or a merge damaged it. `report`, `findings` and `report notify` refuse to read a history they cannot trust. Delete or repair the named line ([history](reports.md#history-new-ongoing-resolved-regressed)).
+
+```
+listen <network>: the simulator supports only tcp, tcp4, tcp6
+listen <network>: the simulator supports only udp, udp4, udp6
+dial <network>: the simulator supports only tcp, tcp4, tcp6
+```
+
+`sim.Listen`, `sim.ListenPacket` or `sim.Dial` got a network the simulator does not have, such as `unix`. Use `tcp` or `udp` ([networking](networking.md#option-1-simlisten-and-simdial)).
+
 ## Failures that are not your system's bug
 
 Every reported failure is classed as `bug`, `nondeterministic` or `timeout` ([reports](reports.md#classification)). The last two need a different fix from a bug.

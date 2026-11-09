@@ -3,10 +3,10 @@ package verify
 import (
 	"cmp"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/kunalgoesbyken/seedfall/engine"
+	"github.com/kunalgoesbyken/seedfall/report"
 )
 
 const skipped = "skip"
@@ -79,9 +79,9 @@ func sweepRow(name string, s *Sweep, clean func(*Sweep) string) row {
 }
 
 func cleanSweep(s *Sweep) string {
-	text := fmt.Sprintf("%d of %d pass: 95%% confidence that a failure with rate >= %s would have shown up", s.Passed, s.Count, percent(s.Detectable))
+	text := fmt.Sprintf("%d of %d pass: 95%% confidence that a failure with rate >= %s would have shown up", s.Passed, s.Count, report.Percent(s.Detectable))
 	if s.Rate > 0 {
-		text += fmt.Sprintf(" (historical rate %s)", percent(s.Rate))
+		text += fmt.Sprintf(" (historical rate %s)", report.Percent(s.Rate))
 	}
 	return text
 }
@@ -113,11 +113,4 @@ func mark(ok bool) string {
 	return "FAIL"
 }
 
-func verdict(passed bool) string {
-	if passed {
-		return "PASS"
-	}
-	return "FAIL"
-}
-
-func percent(f float64) string { return strconv.FormatFloat(f*100, 'g', 3, 64) + "%" }
+func verdict(passed bool) string { return strings.ToUpper(mark(passed)) }

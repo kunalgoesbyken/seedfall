@@ -4,7 +4,7 @@
 seedfall run -c seedfall.json -seeds 1-500 -report .seedfall/report.html
 ```
 
-With `-report`, a sweep keeps going after the first failure, groups every failing seed into findings, and writes an HTML report plus a JSON version next to it (`report.json`). The terminal prints a summary:
+With `-report`, a sweep keeps going after the first failure, groups every failing seed into findings, and writes an HTML report plus a JSON version next to it (`report.json`). The `-report` path must not end in `.json`, since that is where the JSON version goes. The terminal prints a summary:
 
 ```
 16 of 60 seeds failed, 1 findings, in 4.867s
@@ -61,6 +61,8 @@ Every report appends a line to `.seedfall/history.jsonl`, keyed by config path. 
   resolved  assert · client          not seen in 20 seeds since it failed 15 of 60
   regressed assert · client           6 seeds  e.g. seed 1
 ```
+
+A line of the file that is not valid JSON is an error that names the file and the line (`.seedfall/history.jsonl line 12: ...`), not something skipped, since skipping it would make findings look new or resolved by mistake. Delete that line to carry on.
 
 Keep `.seedfall/history.jsonl` between CI runs (cache or commit it) to get this classification on every pull request. The [GitHub Action](ci.md#history-between-runs) caches it for you.
 

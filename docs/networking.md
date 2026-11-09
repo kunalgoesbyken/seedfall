@@ -16,7 +16,7 @@ conn, err := sim.Dial("tcp", "server:7000")
 pc, err := sim.ListenPacket("udp", ":7100")
 ```
 
-They return a standard `net.Listener`, `net.Conn` and `net.PacketConn`. Outside the simulator they call `net.Listen`, `net.Dial` and `net.ListenPacket`, so production builds are unaffected. This works on every Go version seedfall supports, and it is how most of the examples are written. A connection also has `CloseRead` and `CloseWrite`, reached with a type assertion to an interface that declares them.
+`sim.Listen` and `sim.Dial` take `tcp`, `tcp4` or `tcp6`, and `sim.ListenPacket` takes `udp`, `udp4` or `udp6`; any other network, such as `unix`, is an error in the simulator and outside it, so a node does not behave differently in production. They return a standard `net.Listener`, `net.Conn` and `net.PacketConn`. Outside the simulator they call `net.Listen`, `net.Dial` and `net.ListenPacket`, so production builds are unaffected. This works on every Go version seedfall supports, and it is how most of the examples are written. A connection also has `CloseRead` and `CloseWrite`, reached with a type assertion to an interface that declares them.
 
 If a library takes a custom dialer or listener, pass these in. hashicorp/raft's `NewNetworkTransport` accepts a `StreamLayer` built on them, and NATS clients accept `nats.SetCustomDialer`.
 

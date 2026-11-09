@@ -42,7 +42,7 @@ func (r Report) Message(findings []Finding, link string) string {
 	var b strings.Builder
 	b.WriteString(head)
 	for i, f := range findings {
-		line := fmt.Sprintf("\n• %s %s: %d seeds (%s)", f.Status, f.Key, f.Count, percent(f.Rate))
+		line := fmt.Sprintf("\n• %s %s: %d seeds (%s)", f.Status, f.Key, f.Count, Percent(f.Rate))
 		if f.Example != nil {
 			line += fmt.Sprintf(", e.g. seed %d: %s\n  %s", f.Example.Seed, f.Example.Reason, f.Example.Replay)
 		}

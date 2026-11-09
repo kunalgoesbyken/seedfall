@@ -61,7 +61,7 @@ A site marked `never reached` (with its location) is code no seed ran; `never fi
 
 ## Structured randomness
 
-`sim.Random()` returns a random `uint64` and `sim.RandomChoice(items)` returns one element of a slice (the zero value for an empty slice). Inside the simulator both read `crypto/rand`, which seedfall feeds from a stream keyed by the seed, the node and its restart count, so a choice replays with the seed. `RandomChoice` rejects out-of-range draws, so every element is equally likely. Outside the simulator they use `crypto/rand`.
+`sim.Random()` returns a random `uint64` and `sim.RandomChoice(items)` returns one element of a slice (an empty slice fails the run, since there is nothing to return). Inside the simulator both read `crypto/rand`, which seedfall feeds from a stream keyed by the seed, the node and its restart count, so a choice replays with the seed. `RandomChoice` rejects out-of-range draws, so every element is equally likely. Outside the simulator they use `crypto/rand`.
 
 ```go
 if sim.BuggifyWithProb("slow apply", 0.5) {

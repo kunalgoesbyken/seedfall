@@ -99,3 +99,24 @@ func golden(t *testing.T, path, got string) {
 		t.Errorf("%s differs; rerun with -update and review the diff\n%s", path, got)
 	}
 }
+
+func TestDoublecheckedTurnsTheCheckOnOnlyForTheCall(t *testing.T) {
+	r := &engine.Runner{}
+	if !doublechecked(r, func() bool { return r.Doublecheck }) {
+		t.Fatal("the runner was not doublechecking inside the call")
+	}
+	if r.Doublecheck {
+		t.Fatal("the runner kept doublechecking after the call")
+	}
+}
+
+func TestMutantOfRecordsTheSeedThatKilledIt(t *testing.T) {
+	base := Mutant{Location: "a.go:3", Change: "x -> y"}
+	killed := mutantOf(base, engine.MutantKilled, &engine.Result{Seed: 7, Reason: "lost write"})
+	if killed.Outcome != engine.MutantKilled || killed.Seed != 7 || killed.Reason != "lost write" || killed.Location != base.Location || killed.Change != base.Change {
+		t.Fatalf("killed mutant %+v", killed)
+	}
+	if survived := mutantOf(base, engine.MutantSurvived, nil); survived.Outcome != engine.MutantSurvived || survived.Seed != 0 || survived.Reason != "" {
+		t.Fatalf("survived mutant %+v", survived)
+	}
+}

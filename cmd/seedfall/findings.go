@@ -52,13 +52,7 @@ func findings(a findingsArgs) (findingsView, error) {
 	if err != nil {
 		return findingsView{}, err
 	}
-	out := findingsView{Report: path, Config: rep.Config, Seeds: rep.Seeds, SeedsRun: rep.Total, Failed: rep.Failed, Findings: filterFindings(rep.Findings, keep), Cleared: filterFindings(rep.Cleared, keep), Runs: runs}
-	for _, p := range rep.Properties {
-		if p.Problem != "" {
-			out.Properties = append(out.Properties, p)
-		}
-	}
-	return out, nil
+	return findingsView{Report: path, Config: rep.Config, Seeds: rep.Seeds, SeedsRun: rep.Total, Failed: rep.Failed, Findings: filterFindings(rep.Findings, keep), Cleared: filterFindings(rep.Cleared, keep), Runs: runs, Properties: rep.UnmetProperties()}, nil
 }
 
 func statusFilter(s string) ([]report.Status, error) {

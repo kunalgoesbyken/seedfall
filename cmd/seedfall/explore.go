@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/kunalgoesbyken/seedfall/engine"
+	"github.com/kunalgoesbyken/seedfall/report"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -72,6 +73,9 @@ func cmdExplore(args []string) error {
 	}
 	if *jsonOut && *reportPath != "" {
 		return errors.New("-json and -report cannot be combined")
+	}
+	if err := report.CheckPath(*reportPath); err != nil {
+		return err
 	}
 	stop, err := startProfile(*cpuProfile)
 	if err != nil {
