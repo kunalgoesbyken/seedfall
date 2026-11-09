@@ -85,12 +85,9 @@ func scheduleSource(config string, seed uint64, path string, own func() (engine.
 			return engine.ScheduleFile{Seed: seed, Schedule: s}, fmt.Sprintf("seed %d's own faults", seed), err
 		}
 	}
-	file, err := engine.ReadScheduleFile(path)
+	file, err := readScheduleFile(path, seed)
 	if err != nil {
 		return file, "", err
-	}
-	if file.Seed != 0 && file.Seed != seed {
-		return file, "", fmt.Errorf("%s is a schedule for seed %d, not %d", path, file.Seed, seed)
 	}
 	file.Seed = seed
 	return file, filepath.ToSlash(path), nil
@@ -130,7 +127,9 @@ func viewRegressions(r *engine.Runner, config string, results []engine.Regressio
 			if a.Classification.Verdict != "" {
 				v.Class = &a.Classification
 			}
-			if err == nil {
+			if err != nil {
+				warnArtifacts(reg.File.Seed, err)
+			} else {
 				v.Artifacts = filepath.ToSlash(a.Dir)
 			}
 		}

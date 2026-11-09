@@ -46,12 +46,15 @@ func cmdShrink(args []string) error {
 	if err != nil {
 		return err
 	}
+	if err := checkJobs(*jobs); err != nil {
+		return err
+	}
 	opts.Jobs = *jobs
 	r, _, err := load(ca.ref())
 	if err != nil {
 		return err
 	}
-	sched, err := readSchedule(*faultsFile)
+	sched, err := readSchedule(*faultsFile, *seed)
 	if err != nil {
 		return err
 	}
@@ -93,7 +96,7 @@ func toolShrink(_ context.Context, _ *mcp.CallToolRequest, a shrinkArgs) (*mcp.C
 	if err != nil {
 		return nil, shrinkView{}, err
 	}
-	sched, err := readSchedule(a.Faults)
+	sched, err := readSchedule(a.Faults, a.Seed)
 	if err != nil {
 		return nil, shrinkView{}, err
 	}
@@ -107,7 +110,7 @@ func toolShrink(_ context.Context, _ *mcp.CallToolRequest, a shrinkArgs) (*mcp.C
 		return nil, shrinkView{}, err
 	}
 	failure := viewFailure(a.ref().String(), shrunk.Result)
-	withArtifacts(r, failure, a.ref().String(), shrunk.Schedule, engine.ArtifactOptions{Config: a.ref().String(), ScheduleFile: path, Label: "shrunk", Original: &shrunk.Result})
+	withArtifacts(r, failure, shrunk.Schedule, engine.ArtifactOptions{Config: a.ref().String(), ScheduleFile: path, Label: "shrunk", Original: &shrunk.Result})
 	failure.Replay = fmt.Sprintf("seedfall replay -c %s -seed %d -faults %s", a.ref().String(), a.Seed, path)
 	return nil, shrinkView{
 		OriginalFaults: shrunk.Before.Faults, MinimalFaults: shrunk.After.Faults,
@@ -150,16 +153,27 @@ func budgetNote(opts engine.ShrinkOptions) string {
 	return ""
 }
 
-func readSchedule(path string) (engine.Schedule, error) {
+func readScheduleFile(path string, seed uint64) (engine.ScheduleFile, error) {
+	file, err := engine.ReadScheduleFile(path)
+	if err != nil {
+		return file, err
+	}
+	if file.Seed != 0 && file.Seed != seed {
+		return file, fmt.Errorf("%s is a schedule for seed %d, not %d", path, file.Seed, seed)
+	}
+	return file, nil
+}
+
+func readSchedule(path string, seed uint64) (engine.Schedule, error) {
 	if path == "" {
 		return engine.Schedule{}, nil
 	}
-	file, err := engine.ReadScheduleFile(path)
+	file, err := readScheduleFile(path, seed)
 	return file.Schedule, err
 }
 
 func schedulePath(config string, seed uint64) string {
-	return filepath.Join(filepath.Dir(config), ".seedfall", fmt.Sprintf("seed-%d.faults.json", seed))
+	return filepath.Join(filepath.Dir(config), stateDir, fmt.Sprintf("seed-%d.faults.json", seed))
 }
 
 func saveSchedule(config string, seed uint64, shrunk engine.Shrunk) (string, error) {

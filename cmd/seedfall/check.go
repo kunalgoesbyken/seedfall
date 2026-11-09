@@ -18,7 +18,7 @@ func saveHistory(res engine.Result) historyFiles {
 	if len(res.History.Ops) == 0 {
 		return out
 	}
-	base := filepath.Join(".seedfall", fmt.Sprintf("seed-%d.history", res.Seed))
+	base := filepath.Join(stateDir, fmt.Sprintf("seed-%d.history", res.Seed))
 	if os.MkdirAll(filepath.Dir(base), 0o755) != nil {
 		return out
 	}

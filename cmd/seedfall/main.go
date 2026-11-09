@@ -86,10 +86,18 @@ func main() {
 		os.Exit(2)
 	}
 	if err := cmd.run(args); err != nil {
+		var status exitStatus
+		if errors.As(err, &status) {
+			os.Exit(int(status))
+		}
 		fmt.Fprintln(os.Stderr, "seedfall:", err)
 		os.Exit(1)
 	}
 }
+
+type exitStatus int
+
+func (e exitStatus) Error() string { return fmt.Sprintf("exit status %d", int(e)) }
 
 func newFlags(name string) *flag.FlagSet {
 	if collectFlags == nil {
@@ -144,6 +152,12 @@ func cmdRun(args []string) error {
 	}
 	if *timeout < 0 {
 		return errNegativeTimeout
+	}
+	if err := checkJobs(*jobs); err != nil {
+		return err
+	}
+	if err := checkBatch(*batch, flagSet(fs, "batch"), *untilNovelty); err != nil {
+		return err
 	}
 	lo, hi, err := engine.ParseSeeds(*seeds)
 	if err != nil {
@@ -279,13 +293,13 @@ func writeReport(r *engine.Runner, cfg *engine.Config, conf, seeds, path string,
 		}
 		a, res, err := r.SaveArtifacts(failed.Seed, s, opts)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "seedfall: artifacts of seed %d: %v\n", failed.Seed, err)
+			warnArtifacts(failed.Seed, err)
 			a.Dir = ""
 		}
 		return report.Replayed{Result: res, Class: a.Classification, Artifacts: filepath.ToSlash(a.Dir)}
 	}
 	in.Regressions = regs
-	rep, err := report.Generate(in, path, filepath.Join(cfg.Dir, ".seedfall", "history.jsonl"))
+	rep, err := report.Generate(in, path, filepath.Join(cfg.Dir, stateDir, "history.jsonl"))
 	if err != nil {
 		return err
 	}
@@ -310,6 +324,10 @@ func writeReport(r *engine.Runner, cfg *engine.Config, conf, seeds, path string,
 		exit(1)
 	}
 	return nil
+}
+
+func warnArtifacts(seed uint64, err error) {
+	fmt.Fprintf(os.Stderr, "seedfall: artifacts of seed %d: %v\n", seed, err)
 }
 
 func status(res engine.Result) string {
@@ -359,7 +377,7 @@ func cmdReplay(args []string) error {
 	if err != nil {
 		return err
 	}
-	sched, err := readSchedule(*faultsFile)
+	sched, err := readSchedule(*faultsFile, *seed)
 	if err != nil {
 		return err
 	}
@@ -391,8 +409,7 @@ func cmdReplay(args []string) error {
 	}
 	a, _, err := r.SaveArtifacts(*seed, sched, opts)
 	printArtifacts(a, err)
-	os.Exit(1)
-	return nil
+	return exitStatus(1)
 }
 
 func replayOrRecord(r *engine.Runner, seed uint64, s engine.Schedule, record bool) engine.Result {

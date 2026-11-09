@@ -58,6 +58,9 @@ func cmdMutate(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if err := checkMutants(a.Mutants, flagSet(fs, "mutants"), a.App); err != nil {
+		return err
+	}
 	out, err := runMutate(a)
 	if err != nil {
 		return err
@@ -80,6 +83,9 @@ func cmdMutate(args []string) error {
 }
 
 func toolMutate(_ context.Context, _ *mcp.CallToolRequest, a mutateArgs) (*mcp.CallToolResult, mutateView, error) {
+	if err := checkMutants(a.Mutants, a.Mutants != 0, a.App); err != nil {
+		return nil, mutateView{}, err
+	}
 	a.Seeds, a.Mutants, a.jobs = cmp.Or(a.Seeds, defaultMutateSeeds), cmp.Or(a.Mutants, defaultAppMutants), runtime.NumCPU()
 	out, err := runMutate(a)
 	return nil, out, err
@@ -115,6 +121,9 @@ func (v mutateView) markdown(a mutateArgs) string {
 }
 
 func runMutate(a mutateArgs) (mutateView, error) {
+	if err := checkJobs(a.jobs); err != nil {
+		return mutateView{}, err
+	}
 	lo, hi, err := engine.ParseSeeds(a.Seeds)
 	if err != nil {
 		return mutateView{}, err

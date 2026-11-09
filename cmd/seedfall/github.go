@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"cmp"
 	"encoding/json"
 	"errors"
@@ -73,6 +72,17 @@ func cmdComment(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if *bodyFile != "" && flagSet(fs, "report") {
+		return errors.New("-body and -report cannot be combined")
+	}
+	if !*dry || *repo != "" {
+		if err := checkRepo(*repo); err != nil {
+			return err
+		}
+	}
+	if !*dry && *pr <= 0 {
+		return errors.New("-pr N is required")
+	}
 	text, err := commentText(*path, *bodyFile, *link)
 	if err != nil {
 		return err
@@ -81,9 +91,6 @@ func cmdComment(args []string) error {
 	if *dry {
 		fmt.Print(body)
 		return nil
-	}
-	if *repo == "" || *pr <= 0 {
-		return errors.New("-repo owner/name and -pr N are required")
 	}
 	return upsertComment(*repo, *pr, *marker, body)
 }
@@ -103,7 +110,10 @@ func commentText(reportPath, bodyFile, link string) (string, error) {
 	return rep.CommentMarkdown(link)
 }
 
-const actionsBot = "github-actions[bot]"
+const (
+	actionsBot         = "github-actions[bot]"
+	integrationRefusal = "Resource not accessible by integration"
+)
 
 func upsertComment(repo string, pr int, marker, body string) error {
 	list := fmt.Sprintf("repos/%s/issues/%d/comments", repo, pr)
@@ -140,23 +150,25 @@ func upsertComment(repo string, pr int, marker, body string) error {
 func tokenLogin() (string, error) {
 	out, err := gh("", "api", "user", "--jq", ".login")
 	if err != nil {
-		return actionsBot, nil
+		if strings.Contains(err.Error(), integrationRefusal) && strings.Contains(err.Error(), "HTTP 403") {
+			return actionsBot, nil
+		}
+		return "", err
 	}
 	return strings.TrimSpace(string(out)), nil
 }
 
 func markedComment(list []byte, marker, author string) (int64, error) {
-	dec := json.NewDecoder(bytes.NewReader(list))
+	comments, err := decodeStream[struct {
+		ID     int64
+		Body   string
+		Author string
+	}](list)
+	if err != nil {
+		return 0, fmt.Errorf("gh api: %w", err)
+	}
 	var found int64
-	for dec.More() {
-		var c struct {
-			ID     int64
-			Body   string
-			Author string
-		}
-		if err := dec.Decode(&c); err != nil {
-			return 0, fmt.Errorf("gh api: %w", err)
-		}
+	for _, c := range comments {
 		if c.Author == author && strings.HasPrefix(c.Body, marker) {
 			found = cmp.Or(found, c.ID)
 		}

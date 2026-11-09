@@ -19,13 +19,15 @@ type logFilter struct {
 	Nodes []string
 	Grep  *regexp.Regexp
 	From  time.Duration
-	To    time.Duration
+	To    *time.Duration
 }
 
 func newLogFilter(nodes, grep, from, to string) (logFilter, error) {
-	f := logFilter{To: -1}
+	var f logFilter
 	if nodes != "" {
-		f.Nodes = strings.Split(nodes, ",")
+		for _, n := range strings.Split(nodes, ",") {
+			f.Nodes = append(f.Nodes, strings.TrimSpace(n))
+		}
 	}
 	var err error
 	if grep != "" {
@@ -37,16 +39,21 @@ func newLogFilter(nodes, grep, from, to string) (logFilter, error) {
 		return f, err
 	}
 	if to != "" {
-		if f.To, err = time.ParseDuration(to); err != nil {
+		end, err := parseAt(to)
+		if err != nil {
 			return f, err
 		}
+		if end < f.From {
+			return f, fmt.Errorf("from %s is after to %s", f.From, end)
+		}
+		f.To = &end
 	}
 	return f, nil
 }
 
 func (f logFilter) keep(l engine.TraceLine) bool {
 	return (len(f.Nodes) == 0 || slices.Contains(f.Nodes, l.Node)) &&
-		l.At >= f.From && (f.To < 0 || l.At <= f.To) &&
+		l.At >= f.From && (f.To == nil || l.At <= *f.To) &&
 		(f.Grep == nil || f.Grep.MatchString(l.Text))
 }
 
@@ -72,17 +79,20 @@ func viewLog(l engine.TraceLine) logView {
 	return v
 }
 
-func recordedRun(ca *configArgs, seed uint64, faultsFile string, netTrace bool) (engine.Result, *engine.Config, error) {
+func recordedRun(ca *configArgs, f logFilter, seed uint64, faultsFile string, netTrace bool) (engine.Result, error) {
 	r, cfg, err := load(ca.ref())
 	if err != nil {
-		return engine.Result{}, nil, err
+		return engine.Result{}, err
 	}
-	sched, err := readSchedule(faultsFile)
+	if unknown := f.unknownNodes(cfg.NodeNames()); unknown != "" {
+		return engine.Result{}, fmt.Errorf("unknown node %q", unknown)
+	}
+	sched, err := readSchedule(faultsFile, seed)
 	if err != nil {
-		return engine.Result{}, nil, err
+		return engine.Result{}, err
 	}
 	r.NetTrace = netTrace
-	return r.Record(seed, sched), cfg, nil
+	return r.Record(seed, sched), nil
 }
 
 func cmdLogs(args []string) error {
@@ -103,12 +113,9 @@ func cmdLogs(args []string) error {
 	if err != nil {
 		return err
 	}
-	res, _, err := recordedRun(ca, *seed, *faultsFile, *netTrace)
+	res, err := recordedRun(ca, filter, *seed, *faultsFile, *netTrace)
 	if err != nil {
 		return err
-	}
-	if unknown := filter.unknownNodes(res.Timeline.Nodes); unknown != "" {
-		return fmt.Errorf("unknown node %q", unknown)
 	}
 	lines := filter.apply(res.Timeline.Logs)
 	enc := json.NewEncoder(os.Stdout)
@@ -177,8 +184,7 @@ func cmdTraceDiff(args []string) error {
 		fmt.Printf("  %s\n", a[i])
 	}
 	fmt.Printf("- %s\n+ %s\n", engine.LineAt(a, line), engine.LineAt(b, line))
-	os.Exit(1)
-	return nil
+	return exitStatus(1)
 }
 
 func readTrace(path string) ([]string, error) {

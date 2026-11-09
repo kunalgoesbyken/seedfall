@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -17,14 +16,13 @@ import (
 )
 
 const (
-	defaultReport  = ".seedfall/report.html"
-	issueListLimit = 1000
+	defaultReport = stateDir + "/report.html"
 )
 
 var ghCommand = "gh"
 
 func reportHistory(rep report.Report, path string) string {
-	return cmp.Or(path, rep.History, filepath.Join(filepath.Dir(rep.Config), ".seedfall", "history.jsonl"))
+	return cmp.Or(path, rep.History, filepath.Join(filepath.Dir(rep.Config), stateDir, "history.jsonl"))
 }
 
 func cmdNotify(args []string) error {
@@ -80,6 +78,11 @@ func cmdIssue(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if !*dry || *repo != "" {
+		if err := checkRepo(*repo); err != nil {
+			return err
+		}
+	}
 	rep, err := report.Load(*path)
 	if err != nil {
 		return err
@@ -93,9 +96,6 @@ func cmdIssue(args []string) error {
 			fmt.Printf("# %s\n\n%s\n", report.IssueTitle(f), body)
 		}
 		return nil
-	}
-	if *repo == "" {
-		return errors.New("-repo owner/name is required")
 	}
 	open, err := openIssues(*repo)
 	if err != nil {
@@ -121,13 +121,14 @@ func cmdIssue(args []string) error {
 }
 
 func openIssues(repo string) (map[string]string, error) {
-	out, err := gh("", "issue", "list", "--repo", repo, "--state", "open", "--limit", strconv.Itoa(issueListLimit), "--json", "title,url")
+	list := fmt.Sprintf("repos/%s/issues?state=open&per_page=100", repo)
+	out, err := gh("", "api", "--paginate", list, "--jq", ".[] | select(.pull_request == null) | {title, url: .html_url}")
 	if err != nil {
 		return nil, err
 	}
-	var issues []struct{ Title, URL string }
-	if err := json.Unmarshal(out, &issues); err != nil {
-		return nil, fmt.Errorf("gh issue list: %w", err)
+	issues, err := decodeStream[struct{ Title, URL string }](out)
+	if err != nil {
+		return nil, fmt.Errorf("gh api: %w", err)
 	}
 	byTitle := map[string]string{}
 	for _, i := range issues {
@@ -143,7 +144,20 @@ func gh(stdin string, args ...string) ([]byte, error) {
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("gh %s %s: %w: %s", args[0], args[1], err, strings.TrimSpace(stderr.String()))
+		return nil, fmt.Errorf("gh %s: %w: %s", strings.Join(args[:min(len(args), 2)], " "), err, strings.TrimSpace(stderr.String()))
+	}
+	return out, nil
+}
+
+func decodeStream[T any](b []byte) ([]T, error) {
+	dec := json.NewDecoder(bytes.NewReader(b))
+	var out []T
+	for dec.More() {
+		var v T
+		if err := dec.Decode(&v); err != nil {
+			return nil, err
+		}
+		out = append(out, v)
 	}
 	return out, nil
 }

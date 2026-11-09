@@ -259,6 +259,16 @@ func (c *Config) specs() []*NodeSpec {
 	return out
 }
 
+func (c *Config) NodeNames() []string {
+	var out []string
+	for _, s := range c.specs() {
+		if s.Name != "" {
+			out = append(out, s.Name)
+		}
+	}
+	return out
+}
+
 func (c *Config) all() []NodeSpec {
 	var out []NodeSpec
 	for _, s := range c.specs() {
