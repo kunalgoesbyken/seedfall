@@ -2,6 +2,7 @@ package report
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"math"
 	"path"
@@ -118,12 +119,15 @@ type Input struct {
 	Replay      func(failed engine.Result) Replayed
 }
 
-func Build(in Input, history map[string]known) Report {
+func Build(in Input, history map[string]known) (Report, error) {
+	if in.Replay == nil {
+		return Report{}, errors.New("report: Input.Replay is required")
+	}
 	total := in.Summary.Passed + len(in.Summary.Failures)
 	r := Report{
 		Config: in.Config, Seeds: in.Seeds, Total: total, Passed: in.Summary.Passed, Failed: len(in.Summary.Failures),
 		Elapsed: in.Elapsed.Round(time.Millisecond).String(), Generated: time.Now(), GoVersion: runtime.Version(), Version: in.Version, Commit: in.Commit,
-		Faults: in.Faults, Regressions: in.Regressions, Properties: properties(in.Summary.Coverage),
+		Faults: in.Faults, Regressions: in.Regressions, Findings: []Finding{}, Properties: properties(in.Summary.Coverage),
 		Exploration: in.Summary.Growth, Stopped: in.Summary.Stopped, SeedsPerSec: in.Summary.SeedsPerSecond(), VirtualPerWall: in.Summary.VirtualPerWall(),
 		Utilization: in.Summary.Utilization(),
 	}
@@ -131,7 +135,7 @@ func Build(in Input, history map[string]known) Report {
 		r.Findings = append(r.Findings, finding(in, group, total, history))
 	}
 	r.Cleared = cleared(r.Findings, history, total)
-	return r
+	return r, nil
 }
 
 func groupFailures(failures []engine.Result) [][]engine.Result {
@@ -201,7 +205,7 @@ func cleared(current []Finding, history map[string]known, total int) []Finding {
 	for _, f := range current {
 		seen[f.Key] = true
 	}
-	var out []Finding
+	out := []Finding{}
 	for key, k := range history {
 		if seen[key] || k.resolved(0) {
 			continue
@@ -230,7 +234,7 @@ func DetectableRate(cleanSeeds int) float64 {
 }
 
 func properties(c engine.Coverage) []Property {
-	var out []Property
+	out := []Property{}
 	for _, msg := range c.Messages() {
 		p := c[msg]
 		out = append(out, Property{Kind: p.Kind.String(), Message: msg, Location: p.Location, SeedsReached: p.SeedsReached, SeedsTrue: p.SeedsTrue, Problem: p.Problem(), Margin: p.Margin, MarginNote: p.Kind.MarginNote(p.Margin)})
@@ -246,12 +250,24 @@ func (r Report) entry() Entry {
 	return e
 }
 
-func (r Report) RegressionsFailed() int {
-	n := 0
+func (r Report) FailedRegressions() []Regression {
+	var out []Regression
 	for _, reg := range r.Regressions {
 		if !reg.Passed {
-			n++
+			out = append(out, reg)
 		}
 	}
-	return n
+	return out
+}
+
+func (r Report) RegressionsFailed() int { return len(r.FailedRegressions()) }
+
+func (r Report) UnmetProperties() []Property {
+	var out []Property
+	for _, p := range r.Properties {
+		if p.Problem != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }

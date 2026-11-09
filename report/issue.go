@@ -9,7 +9,7 @@ import (
 //go:embed issue.md.tmpl
 var issuePage string
 
-var issueTmpl = template.Must(template.New("issue").Funcs(template.FuncMap{"percent": percent}).Parse(issuePage))
+var issueTmpl = template.Must(template.New("issue").Funcs(template.FuncMap{"percent": Percent}).Parse(issuePage))
 
 const issueLabel = "seedfall finding"
 

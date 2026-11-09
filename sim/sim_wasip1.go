@@ -60,22 +60,22 @@ func hostString(fn func(unsafe.Pointer, uint32) int32, s string) int32 {
 }
 
 //go:wasmimport seedfall setup_complete
-func setupComplete()
+func SetupComplete()
 
 //go:wasmimport seedfall quiet
 func hostQuiet(ns int64)
 
-func quietFor(d time.Duration) { hostQuiet(int64(d)) }
+func QuietFor(d time.Duration) { hostQuiet(int64(d)) }
 
 //go:wasmimport seedfall budget
 func hostBudget(n int64) int64
 
-func budget(n int) int { return int(hostBudget(int64(n))) }
+func Budget(n int) int { return int(hostBudget(int64(n))) }
 
 //go:wasmimport seedfall buggify
 func hostBuggify(site unsafe.Pointer, n uint32, p float64) int32
 
-func buggify(site string, p float64) bool {
+func BuggifyWithProb(site string, p float64) bool {
 	b := []byte(site)
 	return hostBuggify(bytesPtr(b), uint32(len(b)), p) != 0
 }
@@ -161,6 +161,9 @@ func endpointAddr(f *os.File, peer int32) addr {
 }
 
 func Listen(network, address string) (net.Listener, error) {
+	if err := checkNetwork("listen", network, streamNetworks); err != nil {
+		return nil, err
+	}
 	id := hostString(hostListen, address)
 	if id < 0 {
 		return nil, &net.OpError{Op: "listen", Net: network, Err: codeErr(id)}
@@ -173,6 +176,9 @@ func Listen(network, address string) (net.Listener, error) {
 }
 
 func ListenPacket(network, address string) (net.PacketConn, error) {
+	if err := checkNetwork("listen", network, packetNetworks); err != nil {
+		return nil, err
+	}
 	id := hostString(hostUDP, address)
 	if id < 0 {
 		return nil, &net.OpError{Op: "listen", Net: network, Err: codeErr(id)}
@@ -185,6 +191,9 @@ func ListenPacket(network, address string) (net.PacketConn, error) {
 }
 
 func Dial(network, address string) (net.Conn, error) {
+	if err := checkNetwork("dial", network, streamNetworks); err != nil {
+		return nil, err
+	}
 	id := hostString(hostDial, address)
 	if id < 0 {
 		return nil, &net.OpError{Op: "dial", Net: network, Addr: addr(address), Err: codeErr(id)}
@@ -335,7 +344,7 @@ func hostHistoryReturn(id int32, p unsafe.Pointer, n uint32, outcome int32)
 
 type Op struct{ id int32 }
 
-func call(client int, f, key string, value any) Op {
+func Invoke(client int, f, key string, value any) Op {
 	b, _ := json.Marshal(map[string]any{"client": client, "f": f, "key": key, "value": value})
 	return Op{id: hostHistoryCall(bytesPtr(b), uint32(len(b)))}
 }

@@ -3,6 +3,7 @@ package report
 import (
 	_ "embed"
 	"encoding/json"
+	"fmt"
 	"html/template"
 	"os"
 	"path/filepath"
@@ -15,16 +16,29 @@ import (
 //go:embed report.html.tmpl
 var page string
 
-var tmpl = template.Must(template.New("report").Funcs(template.FuncMap{"percent": percent}).Parse(page))
+var tmpl = template.Must(template.New("report").Funcs(template.FuncMap{"percent": Percent}).Parse(page))
 
-func percent(f float64) string { return strconv.FormatFloat(f*100, 'g', 3, 64) + "%" }
+func Percent(f float64) string { return strconv.FormatFloat(f*100, 'g', 3, 64) + "%" }
+
+func CheckPath(htmlPath string) error {
+	if strings.EqualFold(filepath.Ext(htmlPath), ".json") {
+		return fmt.Errorf("report path %s ends in .json, which is where the JSON report goes; use a .html path", htmlPath)
+	}
+	return nil
+}
 
 func Generate(in Input, htmlPath, historyPath string) (Report, error) {
+	if err := CheckPath(htmlPath); err != nil {
+		return Report{}, err
+	}
 	entries, err := ReadHistory(historyPath, in.Config)
 	if err != nil {
 		return Report{}, err
 	}
-	r := Build(in, knownFindings(entries))
+	r, err := Build(in, knownFindings(entries))
+	if err != nil {
+		return Report{}, err
+	}
 	r.History = filepath.ToSlash(historyPath)
 	r.linkTimelines(filepath.Dir(htmlPath))
 	if err := writeHTML(r, htmlPath); err != nil {

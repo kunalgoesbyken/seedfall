@@ -61,7 +61,7 @@ func TestMessageStaysUnderTheLimit(t *testing.T) {
 		res.Failure = engine.Failure{Class: engine.FailProperty, Node: "client", Property: fmt.Sprintf("property %d %s", i, strings.Repeat("x", 40))}
 		failures = append(failures, res)
 	}
-	r := Build(input("1-400", 200, failures...), map[string]known{})
+	r := build(t, input("1-400", 200, failures...), map[string]known{})
 	msg := r.Message(r.Alerts(nil), "https://ci.example/run/1")
 	if len(msg) > messageLimit || !strings.Contains(msg, "more") || !strings.Contains(msg, "seedfall replay -c seedfall.json -seed") || !strings.Contains(msg, "https://ci.example/run/1") {
 		t.Fatalf("message of %d bytes:\n%s", len(msg), msg)

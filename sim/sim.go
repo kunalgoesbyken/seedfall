@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"maps"
 	"math"
+	"net"
 	"os"
 	"slices"
+	"strings"
 	"time"
 )
 
@@ -137,17 +139,9 @@ func Event(name string, details any) {
 	event(name, string(b))
 }
 
-func SetupComplete() { setupComplete() }
-
-func QuietFor(d time.Duration) { quietFor(d) }
-
-func Budget(n int) int { return budget(n) }
-
 const BuggifyProb = 0.25
 
-func Buggify(site string) bool { return buggify(site, BuggifyProb) }
-
-func BuggifyWithProb(site string, p float64) bool { return buggify(site, p) }
+func Buggify(site string) bool { return BuggifyWithProb(site, BuggifyProb) }
 
 func Random() uint64 {
 	var b [8]byte
@@ -156,9 +150,8 @@ func Random() uint64 {
 }
 
 func RandomChoice[T any](items []T) T {
-	var zero T
 	if len(items) == 0 {
-		return zero
+		Fail("RandomChoice of an empty slice")
 	}
 	n := uint64(len(items))
 	ceiling := math.MaxUint64 / n * n
@@ -175,6 +168,18 @@ func Assert(cond bool, msg string) {
 	}
 }
 
+var (
+	streamNetworks = []string{"tcp", "tcp4", "tcp6"}
+	packetNetworks = []string{"udp", "udp4", "udp6"}
+)
+
+func checkNetwork(op, network string, supported []string) error {
+	if slices.Contains(supported, network) {
+		return nil
+	}
+	return &net.OpError{Op: op, Net: network, Err: fmt.Errorf("the simulator supports only %s", strings.Join(supported, ", "))}
+}
+
 func describe(details []any) string {
 	if len(details) == 0 {
 		return ""
@@ -185,8 +190,6 @@ func describe(details []any) string {
 func Put(client int, key, value string) Op { return Invoke(client, "put", key, value) }
 
 func Get(client int, key string) Op { return Invoke(client, "get", key, nil) }
-
-func Invoke(client int, f, key string, value any) Op { return call(client, f, key, value) }
 
 type Mop struct {
 	F     string
@@ -200,4 +203,4 @@ func Append(key, value string) Mop { return Mop{F: "append", Key: key, Value: va
 
 func Read(key string) Mop { return Mop{F: "r", Key: key} }
 
-func Txn(client int, mops ...Mop) Op { return call(client, "txn", "", mops) }
+func Txn(client int, mops ...Mop) Op { return Invoke(client, "txn", "", mops) }

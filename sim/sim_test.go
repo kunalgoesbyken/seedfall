@@ -17,8 +17,8 @@ func TestBuggifyIsInertOutsideTheSimulator(t *testing.T) {
 }
 
 func TestRandomChoiceCoversEveryItem(t *testing.T) {
-	if RandomChoice([]int(nil)) != 0 {
-		t.Fatal("an empty choice is not the zero value")
+	if msg := panics(func() { RandomChoice([]int(nil)) }); !strings.Contains(msg, "empty slice") {
+		t.Fatalf("an empty choice gave %q", msg)
 	}
 	items := []string{"a", "b", "c"}
 	seen := map[string]bool{}
@@ -89,4 +89,38 @@ func TestNumericDetailsSurviveValuesJSONCannotEncode(t *testing.T) {
 	if msg := panics(func() { AlwaysGreaterThan(math.NaN(), 0, "ratio is positive") }); !strings.Contains(msg, "left:NaN") {
 		t.Fatalf("numeric failure %q", msg)
 	}
+}
+
+func TestNetworkFunctionsRejectOtherNetworks(t *testing.T) {
+	calls := map[string]func(network string) error{
+		"Listen":       func(n string) error { _, err := Listen(n, "127.0.0.1:0"); return err },
+		"ListenPacket": func(n string) error { _, err := ListenPacket(n, "127.0.0.1:0"); return err },
+		"Dial":         func(n string) error { _, err := Dial(n, "127.0.0.1:1"); return err },
+	}
+	wrong := map[string][]string{"Listen": {"udp", "unix", ""}, "ListenPacket": {"tcp", "unixgram", ""}, "Dial": {"udp", "unix", "tcpx"}}
+	for name, call := range calls {
+		for _, network := range wrong[name] {
+			if err := call(network); err == nil || !strings.Contains(err.Error(), "simulator supports only") {
+				t.Errorf("%s(%q) returned %v", name, network, err)
+			}
+		}
+	}
+}
+
+func TestListenAndDialAcceptTheIPNetworks(t *testing.T) {
+	l, err := Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	c, err := Dial("tcp", l.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Close()
+	p, err := ListenPacket("udp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.Close()
 }

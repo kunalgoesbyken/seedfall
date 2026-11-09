@@ -96,9 +96,18 @@ func input(seeds string, passed int, failures ...engine.Result) Input {
 	}
 }
 
+func build(t *testing.T, in Input, history map[string]known) Report {
+	t.Helper()
+	r, err := Build(in, history)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r
+}
+
 func TestBuildMatchesGolden(t *testing.T) {
 	crash := engine.Result{Seed: 4, Failed: true, Failure: engine.Failure{Class: engine.FailCrash, Node: "server"}, Reason: "server#2 crashed: panic"}
-	r := Build(input("1-100", 96, failing(9), crash, failing(3), failing(30)), map[string]known{})
+	r := build(t, input("1-100", 96, failing(9), crash, failing(3), failing(30)), map[string]known{})
 	r.Generated, r.GoVersion, r.Version = time.Time{}, "go", "v0.0.0"
 	got, err := json.MarshalIndent(r, "", "  ")
 	if err != nil {
@@ -168,7 +177,7 @@ func TestScheduledFindingCarriesItsScheduleAndExplorationIsReported(t *testing.T
 	in := input("1-8", 7, bad)
 	in.Summary.Growth = []engine.GrowthPoint{{Round: 1, Runs: 8, NewSignals: 4, Signals: 4}}
 	in.Summary.Stopped = "failure found"
-	r := Build(in, nil)
+	r := build(t, in, nil)
 	ex := r.Findings[0].Example
 	want := ".seedfall/failures/seedfall-seed-3/" + engine.ArtifactFaults
 	if ex.Schedule != want || !strings.HasSuffix(ex.Replay, "-faults "+want) || !strings.HasSuffix(ex.Shrink, "-faults "+want) {
@@ -243,6 +252,65 @@ func TestHTMLShowsUtilizationAndStop(t *testing.T) {
 	for _, want := range []string{"Stopped: time limit reached after 3 of 8 seeds", "Utilization", "more seeds are likely", "5x median", "1-4"} {
 		if !strings.Contains(string(b), want) {
 			t.Errorf("report lacks %q", want)
+		}
+	}
+}
+
+func TestBuildNeedsAReplayFunction(t *testing.T) {
+	in := input("1-10", 10)
+	in.Replay = nil
+	if _, err := Build(in, nil); err == nil || !strings.Contains(err.Error(), "Replay") {
+		t.Fatalf("Build without Replay returned %v", err)
+	}
+}
+
+func TestCleanReportJSONHasNoNullLists(t *testing.T) {
+	in := input("1-10", 10)
+	in.Summary.Coverage = nil
+	b, err := json.Marshal(build(t, in, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"findings", "previous_findings_not_seen", "properties"} {
+		if !strings.Contains(string(b), `"`+key+`":[]`) {
+			t.Errorf("%s is not an empty list in %s", key, b)
+		}
+	}
+}
+
+func TestGenerateRefusesAJSONReportPath(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "report.JSON")
+	if _, err := Generate(input("1-10", 10), path, filepath.Join(dir, "history.jsonl")); err == nil || !strings.Contains(err.Error(), ".json") {
+		t.Fatalf("Generate to a .json path returned %v", err)
+	}
+	if _, err := os.Stat(path); err == nil {
+		t.Fatal("Generate wrote to the refused path")
+	}
+}
+
+func TestReadingHistoryNamesTheUnparsableLine(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "history.jsonl")
+	good := `{"time":"2026-01-01T00:00:00Z","config":"seedfall.json","seeds":5,"findings":{}}`
+	event := `{"time":"2026-01-01T00:00:00Z","config":"seedfall.json","event":"notified","finding":"k","report":"2026-01-01T00:00:00Z"}`
+	if err := os.WriteFile(path, []byte(good+"\n\n"+event+"\n"+good+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if entries, err := ReadHistory(path, "seedfall.json"); err != nil || len(entries) != 2 {
+		t.Fatalf("ReadHistory = %d entries, %v", len(entries), err)
+	}
+	if events, err := ReadEvents(path, "seedfall.json"); err != nil || len(events) != 1 {
+		t.Fatalf("ReadEvents = %d events, %v", len(events), err)
+	}
+	if err := os.WriteFile(path, []byte(good+"\n"+good[:20]+"\n"+good+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for name, read := range map[string]func() error{
+		"ReadHistory": func() error { _, err := ReadHistory(path, "seedfall.json"); return err },
+		"ReadEvents":  func() error { _, err := ReadEvents(path, "seedfall.json"); return err },
+	} {
+		if err := read(); err == nil || !strings.Contains(err.Error(), "line 2") {
+			t.Errorf("%s of a history with a bad second line returned %v", name, err)
 		}
 	}
 }

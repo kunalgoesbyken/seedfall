@@ -340,7 +340,7 @@ A site marked `never reached` (with its location) is code no seed ran; `never fi
 
 ## Structured randomness
 
-`sim.Random()` returns a random `uint64` and `sim.RandomChoice(items)` returns one element of a slice (the zero value for an empty slice). Inside the simulator both read `crypto/rand`, which seedfall feeds from a stream keyed by the seed, the node and its restart count, so a choice replays with the seed. `RandomChoice` rejects out-of-range draws, so every element is equally likely. Outside the simulator they use `crypto/rand`.
+`sim.Random()` returns a random `uint64` and `sim.RandomChoice(items)` returns one element of a slice (an empty slice fails the run, since there is nothing to return). Inside the simulator both read `crypto/rand`, which seedfall feeds from a stream keyed by the seed, the node and its restart count, so a choice replays with the seed. `RandomChoice` rejects out-of-range draws, so every element is equally likely. Outside the simulator they use `crypto/rand`.
 
 ```go
 if sim.BuggifyWithProb("slow apply", 0.5) {
@@ -2029,7 +2029,7 @@ conn, err := sim.Dial("tcp", "server:7000")
 pc, err := sim.ListenPacket("udp", ":7100")
 ```
 
-They return a standard `net.Listener`, `net.Conn` and `net.PacketConn`. Outside the simulator they call `net.Listen`, `net.Dial` and `net.ListenPacket`, so production builds are unaffected. This works on every Go version seedfall supports, and it is how most of the examples are written. A connection also has `CloseRead` and `CloseWrite`, reached with a type assertion to an interface that declares them.
+`sim.Listen` and `sim.Dial` take `tcp`, `tcp4` or `tcp6`, and `sim.ListenPacket` takes `udp`, `udp4` or `udp6`; any other network, such as `unix`, is an error in the simulator and outside it, so a node does not behave differently in production. They return a standard `net.Listener`, `net.Conn` and `net.PacketConn`. Outside the simulator they call `net.Listen`, `net.Dial` and `net.ListenPacket`, so production builds are unaffected. This works on every Go version seedfall supports, and it is how most of the examples are written. A connection also has `CloseRead` and `CloseWrite`, reached with a type assertion to an interface that declares them.
 
 If a library takes a custom dialer or listener, pass these in. hashicorp/raft's `NewNetworkTransport` accepts a `StreamLayer` built on them, and NATS clients accept `nats.SetCustomDialer`.
 
@@ -2423,7 +2423,7 @@ The final hash is printed at the end of `seedfall replay` (`determinism hash 4c9
 seedfall run -c seedfall.json -seeds 1-500 -report .seedfall/report.html
 ```
 
-With `-report`, a sweep keeps going after the first failure, groups every failing seed into findings, and writes an HTML report plus a JSON version next to it (`report.json`). The terminal prints a summary:
+With `-report`, a sweep keeps going after the first failure, groups every failing seed into findings, and writes an HTML report plus a JSON version next to it (`report.json`). The `-report` path must not end in `.json`, since that is where the JSON version goes. The terminal prints a summary:
 
 ```
 16 of 60 seeds failed, 1 findings, in 4.867s
@@ -2480,6 +2480,8 @@ Every report appends a line to `.seedfall/history.jsonl`, keyed by config path. 
   resolved  assert · client          not seen in 20 seeds since it failed 15 of 60
   regressed assert · client           6 seeds  e.g. seed 1
 ```
+
+A line of the file that is not valid JSON is an error that names the file and the line (`.seedfall/history.jsonl line 12: ...`), not something skipped, since skipping it would make findings look new or resolved by mistake. Delete that line to carry on.
 
 Keep `.seedfall/history.jsonl` between CI runs (cache or commit it) to get this classification on every pull request. The [GitHub Action](ci.md#history-between-runs) caches it for you.
 
@@ -2997,6 +2999,26 @@ timeout cannot be negative
 ```
 
 `run` writes either one JSON object per seed or an HTML report, not both, and `-timeout` must be zero (no budget) or positive.
+
+```
+report path <path> ends in .json, which is where the JSON report goes; use a .html path
+```
+
+`-report` names the HTML report and the JSON version is written next to it with `.json` in place of the extension, so an HTML report cannot go to a `.json` path without being overwritten.
+
+```
+<file> line <n>: <json error>
+```
+
+A line of `.seedfall/history.jsonl` is not valid JSON, for example after an editor or a merge damaged it. `report`, `findings` and `report notify` refuse to read a history they cannot trust. Delete or repair the named line ([history](reports.md#history-new-ongoing-resolved-regressed)).
+
+```
+listen <network>: the simulator supports only tcp, tcp4, tcp6
+listen <network>: the simulator supports only udp, udp4, udp6
+dial <network>: the simulator supports only tcp, tcp4, tcp6
+```
+
+`sim.Listen`, `sim.ListenPacket` or `sim.Dial` got a network the simulator does not have, such as `unix`. Use `tcp` or `udp` ([networking](networking.md#option-1-simlisten-and-simdial)).
 
 ## Failures that are not your system's bug
 

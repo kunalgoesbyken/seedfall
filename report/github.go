@@ -20,7 +20,7 @@ const (
 //go:embed comment.md.tmpl
 var commentPage string
 
-var commentTmpl = template.Must(template.New("comment").Funcs(template.FuncMap{"percent": percent, "code": code}).Parse(commentPage))
+var commentTmpl = template.Must(template.New("comment").Funcs(template.FuncMap{"percent": Percent, "code": code}).Parse(commentPage))
 
 var annotateData = strings.NewReplacer("%", "%25", "\r", "%0D", "\n", "%0A")
 
@@ -93,10 +93,8 @@ func (r Report) Annotations(workdir string) []Annotation {
 		locations[p.Message] = p.Location
 	}
 	var out []Annotation
-	for _, reg := range r.Regressions {
-		if !reg.Passed {
-			out = append(out, Annotation{Title: annotateTitle + ": pinned regression", Message: "seed " + strconv.FormatUint(reg.Seed, 10) + " from " + reg.Source + " fails again: " + reg.Reason})
-		}
+	for _, reg := range r.FailedRegressions() {
+		out = append(out, Annotation{Title: annotateTitle + ": pinned regression", Message: "seed " + strconv.FormatUint(reg.Seed, 10) + " from " + reg.Source + " fails again: " + reg.Reason})
 	}
 	for _, f := range r.attentionFindings() {
 		a := Annotation{Title: annotateTitle + ": " + f.Key, Message: string(f.Status) + " finding, " + strconv.Itoa(f.Count) + " seeds failed"}
@@ -108,10 +106,7 @@ func (r Report) Annotations(workdir string) []Annotation {
 		}
 		out = append(out, a)
 	}
-	for _, p := range r.Properties {
-		if p.Problem == "" {
-			continue
-		}
+	for _, p := range r.UnmetProperties() {
 		a := Annotation{Title: annotateTitle + ": property " + p.Problem, Message: p.Kind + " " + p.Message + ": " + p.Problem}
 		a.File, a.Line = r.source(p.Location, workdir)
 		out = append(out, a)
@@ -120,10 +115,8 @@ func (r Report) Annotations(workdir string) []Annotation {
 }
 
 func (r Report) FailingSeed() (uint64, bool) {
-	for _, reg := range r.Regressions {
-		if !reg.Passed {
-			return reg.Seed, true
-		}
+	if failed := r.FailedRegressions(); len(failed) > 0 {
+		return failed[0].Seed, true
 	}
 	for _, f := range r.attentionFindings() {
 		if len(f.Seeds) > 0 {
@@ -146,12 +139,7 @@ type commentView struct {
 }
 
 func (r Report) CommentMarkdown(link string) (string, error) {
-	v := commentView{Report: r, Link: link}
-	for _, reg := range r.Regressions {
-		if !reg.Passed {
-			v.Regressions = append(v.Regressions, reg)
-		}
-	}
+	v := commentView{Report: r, Link: link, Regressions: r.FailedRegressions(), Unmet: r.UnmetProperties()}
 	for _, f := range r.Findings {
 		switch f.Status {
 		case StatusRegressed:
@@ -165,11 +153,6 @@ func (r Report) CommentMarkdown(link string) (string, error) {
 	for _, f := range r.Cleared {
 		if f.Status == StatusResolved {
 			v.Resolved = append(v.Resolved, f)
-		}
-	}
-	for _, p := range r.Properties {
-		if p.Problem != "" {
-			v.Unmet = append(v.Unmet, p)
 		}
 	}
 	v.Passed = r.Failed == 0 && len(v.Regressions) == 0 && len(v.Unmet) == 0

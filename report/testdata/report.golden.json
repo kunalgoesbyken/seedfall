@@ -133,7 +133,7 @@
       }
     }
   ],
-  "previous_findings_not_seen": null,
+  "previous_findings_not_seen": [],
   "properties": [
     {
       "kind": "sometimes",

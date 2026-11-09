@@ -142,6 +142,9 @@ func cmdRun(args []string) error {
 	if *jsonOut && *reportPath != "" {
 		return errors.New("-json and -report cannot be combined")
 	}
+	if err := report.CheckPath(*reportPath); err != nil {
+		return err
+	}
 	if *timeout < 0 {
 		return errNegativeTimeout
 	}

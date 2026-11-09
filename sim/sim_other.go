@@ -7,13 +7,26 @@ import (
 	"time"
 )
 
-func Listen(network, address string) (net.Listener, error) { return net.Listen(network, address) }
+func Listen(network, address string) (net.Listener, error) {
+	if err := checkNetwork("listen", network, streamNetworks); err != nil {
+		return nil, err
+	}
+	return net.Listen(network, address)
+}
 
 func ListenPacket(network, address string) (net.PacketConn, error) {
+	if err := checkNetwork("listen", network, packetNetworks); err != nil {
+		return nil, err
+	}
 	return net.ListenPacket(network, address)
 }
 
-func Dial(network, address string) (net.Conn, error) { return net.Dial(network, address) }
+func Dial(network, address string) (net.Conn, error) {
+	if err := checkNetwork("dial", network, streamNetworks); err != nil {
+		return nil, err
+	}
+	return net.Dial(network, address)
+}
 
 func Fail(msg string) { panic("seedfall: " + msg) }
 
@@ -27,17 +40,17 @@ func numeric(k kind, cond bool, _ float64, msg, detail string) { property(k, con
 
 func event(string, string) {}
 
-func setupComplete() {}
+func SetupComplete() {}
 
-func buggify(string, float64) bool { return false }
+func BuggifyWithProb(string, float64) bool { return false }
 
-func quietFor(time.Duration) {}
+func QuietFor(time.Duration) {}
 
-func budget(n int) int { return n }
+func Budget(n int) int { return n }
 
 type Op struct{}
 
-func call(int, string, string, any) Op { return Op{} }
+func Invoke(int, string, string, any) Op { return Op{} }
 
 func (o Op) Ok(any) {}
 
