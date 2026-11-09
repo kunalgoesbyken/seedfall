@@ -42,7 +42,7 @@ expect_action() {
   tmp="$(mktemp -d)"
   cp "$bin" "$tmp/seedfall"
   (cd "$root" && env RUNNER_TEMP="$tmp" GITHUB_OUTPUT="$tmp/output" GITHUB_STEP_SUMMARY="$tmp/summary" GITHUB_RUN_NUMBER=4 \
-    COMMAND=run PROFILE= SEEDS= ROTATE=false CHECK=false REPORT=true COMMENT=false EXTRA_ARGS= LINK=https://example.test/run "$@" bash scripts/action-run.sh >/dev/null 2>&1)
+    COMMAND=run PROFILE= SEEDS= ROTATE=false CHECK=false REPORT=true COMMENT=false WEBHOOK= FILE_ISSUES=false EXTRA_ARGS= LINK=https://example.test/run "$@" bash scripts/action-run.sh >/dev/null 2>&1)
   got="$(sed -n 's/^status=//p' "$tmp/output")"
   if [ "$got" = "$want" ]; then
     printf 'PASS  action %-16s want=%s\n' "$name" "$want"
@@ -367,4 +367,4 @@ expect_command doctor doctor
 
 echo
 [ $failures -eq 0 ] && echo "regression: all checks passed" || echo "regression: $failures check(s) failed"
-exit $failures
+[ $failures -eq 0 ] || exit 1

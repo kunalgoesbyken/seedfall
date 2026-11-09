@@ -49,6 +49,9 @@ if [ "$COMMAND" != run ]; then
 elif [ "$COMMENT" = true ] && [ "$REPORT" != true ]; then
   refuse "the comment input needs report: true"
 fi
+if [ -n "$WEBHOOK" ] || [ "$FILE_ISSUES" = true ]; then
+  [ "$COMMAND" = run ] && [ "$REPORT" = true ] || refuse "the webhook and file-issues inputs need command run with report: true"
+fi
 
 args=("$COMMAND" -c "$CONFIG" -profile "$PROFILE")
 [ -z "$SEEDS" ] || args+=(-seeds "$SEEDS")
@@ -63,7 +66,7 @@ if [ "$COMMAND" = run ]; then
 else
   args+=(-md "$report_path")
 fi
-read -r -a extra <<<"$EXTRA_ARGS" || true
+read -r -d '' -a extra <<<"$EXTRA_ARGS" || true
 
 "$bin" "${args[@]}" ${extra[@]+"${extra[@]}"} 2>&1 | tee "$log"
 code="${PIPESTATUS[0]}"

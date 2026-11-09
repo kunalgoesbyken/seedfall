@@ -44,7 +44,7 @@ go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 bash scripts/regress.sh
 ```
 
-This builds `seedfall` into the repository root and runs every example against its expected result: each config must pass or fail as recorded, saved fault schedules must replay to the recorded outcome, shrinks must reach the recorded size, and selected replays must be byte-identical. It also drives the GitHub Action script (`scripts/action-run.sh`) and the `version`, `help` and `doctor` commands. It prints one `PASS` or `FAIL` line per check and exits with the number of failed checks.
+This builds `seedfall` into the repository root and runs every example except `badgerkv`, a guest too heavy for it, against its expected result: each config must pass or fail as recorded, saved fault schedules must replay to the recorded outcome, shrinks must reach the recorded size, and selected replays must be byte-identical. It also drives the GitHub Action script (`scripts/action-run.sh`) and the `version`, `help` and `doctor` commands. It prints one `PASS` or `FAIL` line per check and exits 1 if any check failed.
 
 It is expensive. It takes hours, uses every core for the sweeps, and needs enough memory for many guests at once, since several examples run large guests such as nats-server, pebble and badger. CI runs it nightly (`regress.yml`) rather than on every pull request, so you usually do not need to run all of it. If your change touches an example or its config, run the `expect` lines for that example by hand instead, for example:
 
@@ -94,7 +94,7 @@ Findings in other projects live in [`docs/findings`](docs/findings), one file pe
 
 Report the bug upstream before the write-up is published here, and link it in **Upstream:**. Give maintainers the reproduction first; if the bug is a security issue in their project, use that project's private reporting process and wait for their fix. If a finding cannot be filed (the repository is archived or private), say so in the report.
 
-`site/proof/` is generated from these files by `scripts/site-proofs.sh`, and `site/llms.txt` and `site/llms-full.txt` from `docs/` by `scripts/site-llms.sh`. Rerun both after changing a finding or a doc, and commit the output.
+`site/proof/` is generated from these files by `scripts/site-proofs.sh`, and `site/llms.txt` and `site/llms-full.txt` from `docs/` by `scripts/site-llms.sh`. Rerun both after changing a finding or a doc, and commit the output. `scripts/site-check.sh` checks that the site lists the same commands and MCP tools as the code, `scripts/site-compare.sh` regenerates the comparison table in `site/index.html` from `site/compare.json`, and CI runs `site-check.sh` and checks that `site-llms.sh` leaves the llms files unchanged.
 
 ## Pull requests
 

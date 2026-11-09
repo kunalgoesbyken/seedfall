@@ -29,7 +29,7 @@ seedfall is only useful if its own model of crashes, faults and replay is right,
 | Confidence math | `report/report_test.go` | `SeedsToConfirm` and the detectable failure rate against known values, findings moving through new, ongoing, not seen, resolved and regressed across runs, and the JSON report against a golden file |
 | Proof rendering | `verify/verify_test.go` | How many seeds a proof needs, and the text and Markdown proof blocks against golden files |
 
-`scripts/regress.sh` then runs every example against its expected pass or fail result, replays saved fault schedules, and checks that replays are identical.
+`scripts/regress.sh` then runs every example except `badgerkv` against its expected pass or fail result, replays saved fault schedules, and checks that replays are identical.
 
 ## Running them
 
@@ -49,7 +49,7 @@ govulncheck also reports standard library vulnerabilities, so run it with the la
 
 | Workflow | When | What |
 |---|---|---|
-| `ci.yml` | every push to `main` and every pull request | gofmt, `go vet`, staticcheck and govulncheck; `go test -race ./...` on Ubuntu, macOS and Windows; and two example sweeps through the GitHub Action with `-check` |
+| `ci.yml` | every push to `main` and every pull request | gofmt, `go vet`, staticcheck, govulncheck, the site checks (`scripts/site-check.sh` and an up-to-date `site/llms.txt` and `site/llms-full.txt`); `go test -race ./...` on Ubuntu, macOS and Windows; and two example sweeps through the GitHub Action with `-check` |
 | `regress.yml` | nightly, or by hand | `bash scripts/regress.sh` |
 | `codeql.yml` | every push to `main`, every pull request, weekly | CodeQL analysis of the Go code |
 

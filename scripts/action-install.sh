@@ -5,7 +5,7 @@ bin="$RUNNER_TEMP/seedfall"
 
 build_from_source() {
   [ -z "$VERSION" ] || { echo "::error title=seedfall::the version input needs a Linux or macOS runner and a released action, not a local one"; exit 1; }
-  echo "building seedfall from source"
+  echo "::notice title=seedfall::building seedfall from source"
   (cd "$GITHUB_ACTION_PATH" && go build -trimpath -o "$bin" ./cmd/seedfall)
 }
 
@@ -30,6 +30,7 @@ else
   base="${SEEDFALL_BASE_URL:-$base}"
   if [ -n "$VERSION" ] || curl -fsSL -o /dev/null "$base/checksums.txt"; then
     SEEDFALL_VERSION="$version" SEEDFALL_BASE_URL="$base" SEEDFALL_INSTALL_DIR="$RUNNER_TEMP" sh "$GITHUB_ACTION_PATH/scripts/install.sh"
+    echo "::notice title=seedfall::installed the $version release"
   else
     build_from_source
   fi

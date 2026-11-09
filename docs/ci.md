@@ -42,7 +42,7 @@ The inputs below other than `config`, `profile`, `seeds`, `check`, `go-version`,
 | `webhook` | | Slack or Discord incoming webhook URL, best from a secret. Posts the report's new and regressed findings with `seedfall report notify` |
 | `file-issues` | `false` | File a GitHub issue for each finding without an open one, with `seedfall report issue` |
 
-An input that does not apply is an error rather than being ignored: `check` or `rotate-seeds` with `verify` or `mutate`, and `comment` with `report: "false"`.
+An input that does not apply is an error rather than being ignored: `check` or `rotate-seeds` with `verify` or `mutate`, `comment` with `report: "false"`, and `webhook` or `file-issues` with `report: "false"` or a `verify` or `mutate` command.
 
 The job fails if any seed or [pinned regression](verify.md#pinned-regressions) fails. The triage report (see [reports.md](reports.md)) is uploaded as an artifact, together with the [failure artifacts](reports.md#failure-artifacts) under `failures/`.
 
@@ -64,7 +64,7 @@ The job summary shows the same Markdown as the [pull request comment](#pull-requ
 
 ### Which seedfall runs
 
-With `version` empty, the action uses the release that matches the ref in `uses:`, so `@v1.2.3` downloads v1.2.3 for the runner's platform and checks it against the release's `checksums.txt`. A checksum mismatch fails the job. If the ref has no release, such as a branch, a commit or a release older than the automated pipeline like v0.2.0, seedfall is built from the action's source instead. Windows runners and `uses: ./` always build from source.
+With `version` empty, the action uses the release that matches the ref in `uses:`, so `@v1.2.3` downloads v1.2.3 for the runner's platform and checks it against the release's `checksums.txt`. A checksum mismatch fails the job. If the ref has no release, such as a branch, a commit or a release older than the automated pipeline like v0.2.0, seedfall is built from the action's source instead. Windows runners and `uses: ./` always build from source. The job log has a notice saying whether seedfall was installed from a release or built from source.
 
 Set `version: v1.2.3`, or `latest`, to run a specific release regardless of the ref. An explicit version never falls back: a missing release fails the job, and it needs a Linux or macOS runner and a released action. Go is set up either way, because seedfall compiles your nodes with it.
 

@@ -65,7 +65,7 @@ outputs:
 runs:
   using: composite
   steps:
-    - uses: actions/setup-go@v5
+    - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
       with:
         go-version: ${{ inputs.go-version }}
     - name: Install seedfall
@@ -83,7 +83,7 @@ runs:
         echo "config=$(git hash-object "$CONFIG" 2>/dev/null || echo missing)" >> "$GITHUB_OUTPUT"
     - name: Restore the history
       if: inputs.cache == 'true'
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
       with:
         path: |
           ${{ steps.state.outputs.dir }}/history.jsonl
@@ -105,6 +105,8 @@ runs:
         EXTRA_ARGS: ${{ inputs.args }}
         REPORT: ${{ inputs.report }}
         COMMENT: ${{ inputs.comment }}
+        WEBHOOK: ${{ inputs.webhook }}
+        FILE_ISSUES: ${{ inputs.file-issues }}
         LINK: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       run: bash "$GITHUB_ACTION_PATH/scripts/action-run.sh"
     - name: Collect failure artifacts
@@ -143,12 +145,13 @@ runs:
         PR: ${{ github.event.pull_request.number }}
         MARKER: ${{ inputs.artifact-name }}
         BODY: ${{ steps.run.outputs.body }}
+        LINK: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       run: |
-        "$RUNNER_TEMP/seedfall" report comment -body "$BODY" -repo "$REPO" -pr "$PR" -marker "$MARKER" \
+        "$RUNNER_TEMP/seedfall" report comment -body "$BODY" -repo "$REPO" -pr "$PR" -marker "$MARKER" -link "$LINK" \
           || echo "::warning title=seedfall::could not post the pull request comment; the job needs the pull-requests write permission, which pull requests from forks do not get"
     - name: Save the history
       if: always() && inputs.cache == 'true'
-      uses: actions/cache/save@v4
+      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
       with:
         path: |
           ${{ steps.state.outputs.dir }}/history.jsonl
@@ -156,7 +159,7 @@ runs:
         key: seedfall-${{ runner.os }}-${{ steps.state.outputs.config }}-${{ inputs.artifact-name }}-${{ github.head_ref || github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}
     - name: Upload triage report
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
       with:
         name: ${{ inputs.artifact-name }}
         path: ${{ runner.temp }}/seedfall-report

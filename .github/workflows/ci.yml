@@ -3,12 +3,14 @@ on:
   push:
     branches: [main]
   pull_request:
+permissions:
+  contents: read
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: stable
       - name: gofmt
@@ -21,7 +23,12 @@ jobs:
       - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
       - run: sh -n scripts/install.sh && cmp scripts/install.sh site/install.sh
       - run: bash -n scripts/action-install.sh && bash -n scripts/action-run.sh
-      - uses: goreleaser/goreleaser-action@v6
+      - run: bash scripts/site-check.sh
+      - name: site llms files are current
+        run: |
+          bash scripts/site-llms.sh
+          git diff --exit-code site/llms.txt site/llms-full.txt
+      - uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6
         with:
           distribution: goreleaser
           version: "~> v2"
@@ -34,8 +41,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: stable
       - run: go test -race ./...
@@ -71,7 +78,7 @@ jobs:
             command: mutate
             args: -only fsync_noop
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: ./
         with:
           config: ${{ matrix.config }}

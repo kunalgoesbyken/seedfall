@@ -8,11 +8,13 @@ module="$(sed -n 's/^module //p' "$root/go.mod")"
 raw="https://raw.githubusercontent.com/${module#github.com/}/$branch"
 web="$(sed -n -E 's|.*<a href="([^"]+)">Website</a>.*|\1|p' "$root/README.md")"
 
-title() { sed -n -E '0,/^# /s/^# (.*)/\1/p' "$1"; }
+[ -n "$web" ] || { echo "site-llms: no Website link found in README.md" >&2; exit 1; }
+
+title() { awk '/^# / { sub(/^# /, ""); print; exit }' "$1"; }
 summary() { awk 'BEGIN { RS = "" } NR == 2 && $0 !~ /^(#|```|[|<])/ { gsub(/\n/, " "); print }' "$1"; }
 intro() { awk 'BEGIN { RS = "" } /^[[:alpha:]]/ { gsub(/\n/, " "); print; exit }' "$1"; }
 item() { if [ -n "${3:-}" ]; then echo "- [$1]($2): $3"; else echo "- [$1]($2)"; fi; }
-frontmatter() { sed -n -E "0,/^---\$/d; /^---\$/q; s/^$2: //p" "$1"; }
+frontmatter() { awk -v key="$2" '/^---$/ { if (++n == 2) exit; next } n == 1 && index($0, key ": ") == 1 { print substr($0, length(key) + 3) }' "$1"; }
 body() { awk 'NR == 1 && $0 == "---" { skip = 1; next } skip && $0 == "---" { skip = 0; next } !skip' "$1"; }
 
 {

@@ -39,9 +39,9 @@ for md in "$src"/*.md; do
     page="$out/$name.html"
     back='<a class="crumb" href="./">&larr; All findings</a>'
   fi
-  title_html="$(sed -n -E '0,/^<h1[^>]*>/s|^<h1[^>]*>(.*)</h1>$|\1|p' "$html" | sed -E 's|^DRAFT( ISSUE)? \(not filed\): ||')"
+  title_html="$(awk '/^<h1[^>]*>.*<\/h1>$/ { sub(/^<h1[^>]*>/, ""); sub(/<\/h1>$/, ""); print; exit }' "$html" | sed -E 's|^DRAFT( ISSUE)? \(not filed\): ||')"
   title_text="$(printf '%s' "$title_html" | sed -E 's|<[^>]+>||g')"
-  body="$(sed '0,/^<h1[^>]*>.*<\/h1>$/{//d}' "$html")"
+  body="$(awk '!done && /^<h1[^>]*>.*<\/h1>$/ { done = 1; next } 1' "$html")"
   cat > "$page" <<EOF
 <!doctype html>
 <html lang="en">

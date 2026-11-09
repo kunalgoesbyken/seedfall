@@ -179,8 +179,8 @@ The [getting started guide](docs/getting-started.md) walks through finding, shri
 - **Proof of fix.** `seedfall verify` replays the failing schedules, sweeps enough fresh seeds for 95% confidence, checks determinism and mutants, and writes a Markdown proof block for the pull request. [Verify](docs/verify.md)
 - **Sweep feedback.** A live progress line with seeds per second, failures, ETA and virtual speedup on a terminal, a `-timeout` budget for CI, and a utilization section that says whether more seeds are likely to help. [Reports](docs/reports.md#utilization)
 - **AI-agent native.** `seedfall mcp` lets Claude Code, Cursor and other agents run, replay, search traces, shrink, edit fault schedules, grade checks with mutants, pin regressions and read findings on their own, and prove a fix before opening a PR. Every MCP tool has a CLI command, and `seedfall schema` prints both surfaces as JSON. [Agents](docs/agents.md)
-- **CI ready.** A GitHub Action that downloads a checksummed release, runs `run`, `verify` or `mutate`, keeps the finding history between runs, rotates seeds, annotates source lines and updates one pull request comment, plus a `go test` helper and `run -json` for one JSON object per seed. [CI](docs/ci.md)
-- **Tested itself.** Unit tests pin down the crash, torn-write, writeback, fsync `EIO`, disk fault, `strict_dirs`, scheduler, network, shrink and confidence models, and an end-to-end guest proves byte-identical replay. CI runs them with `-race` on Linux, macOS and Windows, plus staticcheck, govulncheck and CodeQL, and every example nightly. [Testing](docs/testing.md)
+- **CI ready.** A GitHub Action that installs the release matching its ref and verifies it against the release's `checksums.txt`, or builds from source when there is none (v0.2.0 has no checksums), runs `run`, `verify` or `mutate`, keeps the finding history between runs, rotates seeds, annotates source lines and updates one pull request comment, plus a `go test` helper and `run -json` for one JSON object per seed. [CI](docs/ci.md)
+- **Tested itself.** Unit tests pin down the crash, torn-write, writeback, fsync `EIO`, disk fault, `strict_dirs`, scheduler, network, shrink and confidence models, and an end-to-end guest proves byte-identical replay. CI runs them with `-race` on Linux, macOS and Windows, plus staticcheck, govulncheck and CodeQL, and every example except `badgerkv` nightly. [Testing](docs/testing.md)
 - **Gostman collections as workloads.** Run the API checks you already keep in a [Gostman](https://github.com/kunalgoesbyken/gostman) collection while seedfall crashes and partitions the service behind them. [Gostman](docs/gostman.md)
 
 ## Examples
@@ -218,7 +218,7 @@ The [getting started guide](docs/getting-started.md) walks through finding, shri
 | [`examples/upgrade`](examples/upgrade) | A ledger that changes its on-disk format: the node starts from a seeded v1 disk, restarts into v2 after its first crash, and an in-place migration that a crash leaves half done loses deposits |
 | [`examples/gostman`](examples/gostman) | A [Gostman](https://github.com/kunalgoesbyken/gostman) collection as the workload: its checks must pass after every fault window |
 
-`bash scripts/regress.sh` runs every example against its expected result; CI runs it nightly. [Testing seedfall itself](docs/testing.md) covers the unit tests and CI.
+`bash scripts/regress.sh` runs every example except `badgerkv`, a guest too heavy for it, against its expected result; CI runs it nightly. [Testing seedfall itself](docs/testing.md) covers the unit tests and CI.
 
 ## Limitations
 
