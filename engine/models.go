@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/anishathalye/porcupine"
 )
@@ -203,6 +204,11 @@ func (m model) operations(ops []HistoryOp) []porcupine.Operation {
 	return out
 }
 
+const (
+	historyCheckBudget = 30 * time.Second
+	timelineBudget     = 10 * time.Second
+)
+
 func (m model) check(ops []HistoryOp) HistoryCheck {
 	p := m.porcupine()
 	res := HistoryCheck{timeline: &p}
@@ -210,8 +216,16 @@ func (m model) check(ops []HistoryOp) HistoryCheck {
 	if len(checked) == 0 {
 		return res
 	}
-	result, info := porcupine.CheckOperationsVerbose(p, checked, 0)
-	res.Checked, res.Ok, res.Count, res.info = true, result == porcupine.Ok, len(checked), info
+	res.Count = len(checked)
+	result := porcupine.CheckOperationsTimeout(p, checked, historyCheckBudget)
+	if result == porcupine.Unknown {
+		res.GaveUp = true
+		return res
+	}
+	res.Checked, res.Ok = true, result == porcupine.Ok
+	if !res.Ok {
+		_, res.info = porcupine.CheckOperationsVerbose(p, checked, timelineBudget)
+	}
 	return res
 }
 

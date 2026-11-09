@@ -548,6 +548,10 @@ func (w *world) checkHistory() {
 		return
 	}
 	w.lin = w.history.check()
+	if w.lin.GaveUp {
+		w.trace.add(w.now, "gave up checking %d operations for linearizability (model %s) after %s of real time; the result is unknown", w.lin.Count, w.lin.Model, historyCheckBudget)
+		return
+	}
 	if !w.lin.Checked {
 		return
 	}

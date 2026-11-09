@@ -10,8 +10,14 @@ import (
 func TestEveryExampleConfigLoadsWithEveryProfile(t *testing.T) {
 	loaded := 0
 	err := filepath.WalkDir("../examples", func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || filepath.Ext(path) != ".json" {
+		if err != nil {
 			return err
+		}
+		if d.IsDir() && d.Name() != "." && d.Name()[0] == '.' {
+			return filepath.SkipDir
+		}
+		if d.IsDir() || filepath.Ext(path) != ".json" {
+			return nil
 		}
 		b, err := os.ReadFile(path)
 		if err != nil {

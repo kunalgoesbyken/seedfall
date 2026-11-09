@@ -189,7 +189,7 @@ for i := range n {
 
 ## Linearizability
 
-Workloads can record operations from any number of concurrent clients. When the workload finishes, seedfall checks the history with [Porcupine](https://github.com/anishathalye/porcupine) against the model named in `seedfall.json` (`kv` when there is no `checker`).
+Workloads can record operations from any number of concurrent clients. When the workload finishes, seedfall checks the history with [Porcupine](https://github.com/anishathalye/porcupine) against the model named in `seedfall.json` (`kv` when there is no `checker`). Linearizability checking is NP-complete, and a history with many operations of unknown outcome can take Porcupine longer than any test should run. After 30 seconds of real time seedfall gives up on that seed, notes "gave up checking N operations for linearizability" in the trace, and neither passes nor fails it on linearizability. A seed that hits this limit says nothing about the history, so keep workloads short enough to check, or give fewer operations an unknown outcome.
 
 ```go
 op := sim.Put(clientID, "k1", "v7")

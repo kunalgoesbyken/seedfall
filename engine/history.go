@@ -119,6 +119,7 @@ type Anomaly struct {
 type HistoryCheck struct {
 	Model     string
 	Checked   bool
+	GaveUp    bool
 	Ok        bool
 	Count     int
 	Anomalies []Anomaly
