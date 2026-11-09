@@ -38,7 +38,14 @@ func TestLogFilterKeepsNodesWindowAndPattern(t *testing.T) {
 	if f.unknownNodes([]string{"server", "client"}) != "nobody" {
 		t.Fatal("an unknown node was accepted")
 	}
-	for _, bad := range [][4]string{{"", "([", "", ""}, {"", "", "soon", ""}, {"", "", "", "later"}} {
+	f, err = newLogFilter(" server , client ", "", "0s", "0s")
+	if err != nil || !slices.Equal(f.Nodes, []string{"server", "client"}) || f.To == nil {
+		t.Fatalf("trimmed nodes and an explicit zero end: %+v, %v", f, err)
+	}
+	if got := f.apply(lines); len(got) != 1 || got[0].At != 0 {
+		t.Fatalf("lines up to an explicit 0s: %+v", got)
+	}
+	for _, bad := range [][4]string{{"", "([", "", ""}, {"", "", "soon", ""}, {"", "", "", "later"}, {"", "", "-1s", ""}, {"", "", "", "-1s"}, {"", "", "2s", "1s"}} {
 		if _, err := newLogFilter(bad[0], bad[1], bad[2], bad[3]); err == nil {
 			t.Fatalf("filter %q was accepted", bad)
 		}

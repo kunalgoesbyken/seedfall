@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -83,12 +84,13 @@ func cmdExplore(args []string) error {
 	}
 	defer stop()
 	enc := json.NewEncoder(os.Stdout)
+	var encodeErr error
 	r, cfg, out, err := runExplore(a, *jobs, func(p engine.GrowthPoint) {
 		if *jsonOut {
-			enc.Encode(struct {
+			encodeErr = cmp.Or(encodeErr, enc.Encode(struct {
 				Type string `json:"type"`
 				engine.GrowthPoint
-			}{"round", p})
+			}{"round", p}))
 			return
 		}
 		printRound(p)
@@ -97,10 +99,13 @@ func cmdExplore(args []string) error {
 		return err
 	}
 	if *jsonOut {
-		enc.Encode(struct {
+		encodeErr = cmp.Or(encodeErr, enc.Encode(struct {
 			Type string `json:"type"`
 			exploreView
-		}{"summary", viewExplore(r, a.ref().String(), out)})
+		}{"summary", viewExplore(r, a.ref().String(), out)}))
+		if encodeErr != nil {
+			return encodeErr
+		}
 		exitOnFailures(out.Summary)
 		return nil
 	}
@@ -119,6 +124,12 @@ func exitOnFailures(sum engine.Summary) {
 }
 
 func runExplore(a exploreArgs, jobs int, onRound func(engine.GrowthPoint)) (*engine.Runner, *engine.Config, engine.Exploration, error) {
+	if err := checkJobs(jobs); err != nil {
+		return nil, nil, engine.Exploration{}, err
+	}
+	if err := nonNegative(namedInt{"-rounds", a.Rounds}, namedInt{"-batch", a.Batch}); err != nil {
+		return nil, nil, engine.Exploration{}, err
+	}
 	lo, hi, err := engine.ParseSeeds(a.Seeds)
 	if err != nil {
 		return nil, nil, engine.Exploration{}, err
@@ -187,7 +198,7 @@ func viewExplore(r *engine.Runner, conf string, out engine.Exploration) exploreV
 		v.Failure = viewFailure(conf, *out.First)
 		s := out.First.Schedule(engine.Schedule{})
 		opts := exploreArtifact(conf, out.First)
-		withArtifacts(r, v.Failure, conf, s, opts)
+		withArtifacts(r, v.Failure, s, opts)
 		v.Failure.Replay = fmt.Sprintf("seedfall replay -c %s -seed %d -faults %s", conf, out.First.Seed, filepath.ToSlash(filepath.Join(v.Failure.Artifacts, engine.ArtifactFaults)))
 	}
 	return v

@@ -3,6 +3,7 @@ package main
 import (
 	"cmp"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -18,6 +19,9 @@ func cmdHook(args []string) error {
 		return err
 	}
 	seeds := os.Getenv("SEEDFALL_HOOK_SEEDS")
+	if seeds == "" {
+		return nil
+	}
 	var in struct {
 		StopHookActive bool   `json:"stop_hook_active"`
 		Cwd            string `json:"cwd"`
@@ -25,12 +29,14 @@ func cmdHook(args []string) error {
 	if err := json.NewDecoder(os.Stdin).Decode(&in); err != nil {
 		return fmt.Errorf("hook: read the Claude Code hook input from stdin: %w", err)
 	}
-	if seeds == "" || in.StopHookActive {
+	if in.StopHookActive {
 		return nil
 	}
-	ref := engine.ConfigRef{Path: filepath.Join(in.Cwd, cmp.Or(os.Getenv("SEEDFALL_HOOK_CONFIG"), "seedfall.json")), Profile: os.Getenv("SEEDFALL_HOOK_PROFILE")}
-	if _, err := os.Stat(ref.Path); err != nil {
+	ref := engine.ConfigRef{Path: hookConfig(in.Cwd, os.Getenv("SEEDFALL_HOOK_CONFIG")), Profile: os.Getenv("SEEDFALL_HOOK_PROFILE")}
+	if _, err := os.Stat(ref.Path); errors.Is(err, os.ErrNotExist) {
 		return nil
+	} else if err != nil {
+		return err
 	}
 	config := ref.String()
 	lo, hi, err := engine.ParseSeeds(seeds)
@@ -60,4 +66,12 @@ func cmdHook(args []string) error {
 		os.Exit(blockStop)
 	}
 	return nil
+}
+
+func hookConfig(cwd, configured string) string {
+	configured = cmp.Or(configured, "seedfall.json")
+	if filepath.IsAbs(configured) {
+		return configured
+	}
+	return filepath.Join(cwd, configured)
 }

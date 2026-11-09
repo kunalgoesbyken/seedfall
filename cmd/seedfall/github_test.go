@@ -168,3 +168,52 @@ func TestMarkedCommentOnlyMatchesOwnComments(t *testing.T) {
 		t.Fatalf("got comment %d, want 3", id)
 	}
 }
+
+func TestReportCommentRejectsBadTargetsBeforeLoadingTheReport(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "missing.html")
+	for _, repo := range []string{"", "o", "o/", "/r", "o/r/x", "o/../r", "o/r name", "o/..", "o/r;rm"} {
+		err := cmdComment([]string{"-report", missing, "-repo", repo, "-pr", "1"})
+		if err == nil || !strings.Contains(err.Error(), "-repo") {
+			t.Errorf("repo %q: %v", repo, err)
+		}
+	}
+	if err := cmdComment([]string{"-report", missing, "-repo", "o.x/r_1-2", "-pr", "0"}); err == nil || !strings.Contains(err.Error(), "-pr") {
+		t.Errorf("pr 0: %v", err)
+	}
+	if err := cmdIssue([]string{"-report", missing, "-repo", "bad"}); err == nil || !strings.Contains(err.Error(), "-repo") {
+		t.Errorf("issue repo: %v", err)
+	}
+}
+
+func TestReportCommentRejectsABodyWithAReport(t *testing.T) {
+	path, _ := writeTestReport(t)
+	if err := cmdComment([]string{"-report", path, "-body", path, "-dry-run"}); err == nil || !strings.Contains(err.Error(), "cannot be combined") {
+		t.Fatalf("-body with -report: %v", err)
+	}
+}
+
+func TestTokenLoginFallsBackOnlyForTheIntegrationRefusal(t *testing.T) {
+	useFakeGH(t, "")
+	t.Setenv(fakeGHUserEnv, "gh: Resource not accessible by integration (HTTP 403)")
+	if got, err := tokenLogin(); err != nil || got != actionsBot {
+		t.Fatalf("integration token: %q, %v", got, err)
+	}
+	t.Setenv(fakeGHUserEnv, "gh: Bad credentials (HTTP 401)")
+	if got, err := tokenLogin(); err == nil || !strings.Contains(err.Error(), "Bad credentials") {
+		t.Fatalf("bad credentials: %q, %v", got, err)
+	}
+	t.Setenv(fakeGHUserEnv, "")
+	if got, err := tokenLogin(); err != nil || got != fakeLogin {
+		t.Fatalf("user token: %q, %v", got, err)
+	}
+}
+
+func TestGHErrorNamesAnyNumberOfArguments(t *testing.T) {
+	ghCommand = filepath.Join(t.TempDir(), "no-such-gh")
+	t.Cleanup(func() { ghCommand = "gh" })
+	for _, args := range [][]string{nil, {"api"}, {"api", "user", "--jq"}} {
+		if _, err := gh("", args...); err == nil {
+			t.Errorf("gh %v succeeded", args)
+		}
+	}
+}

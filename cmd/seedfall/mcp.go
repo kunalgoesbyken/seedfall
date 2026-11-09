@@ -236,7 +236,7 @@ func newMCPServer() (*mcp.Server, error) {
 	}, toolInit)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "seedfall_run",
-		Description: "Sweep a seed range under simulated crashes, torn writes, fsync errors, disk corruption, full disks, partitions, clogs and slow nodes. First replays every schedule pinned in seedfall-regressions/ and stops at the first one that fails. Returns the regressions, the lowest failing seed with its fault schedule, trace tail, classification and artifacts_dir (report.json, trace.txt, a replayable faults.json, history and disk images), plus property coverage and, with faults.buggify on, how often each sim.Buggify site was reached, enabled and fired.",
+		Description: "Sweep a seed range under simulated crashes, torn writes, fsync errors, disk corruption, full disks, partitions, clogs and slow nodes. First replays every schedule pinned in " + engine.RegressionsDir + "/ and stops at the first one that fails. Returns the regressions, the lowest failing seed with its fault schedule, trace tail, classification and artifacts_dir (report.json, trace.txt, a replayable faults.json, history and disk images), plus property coverage and, with faults.buggify on, how often each sim.Buggify site was reached, enabled and fired.",
 	}, toolRun)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "seedfall_explore",
@@ -294,7 +294,7 @@ func newMCPServer() (*mcp.Server, error) {
 	}, toolMutate)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "seedfall_pin",
-		Description: "Pin a seed's fault schedule as a permanent regression: copy the schedule seedfall_shrink saved for it (or a given schedule, or else the seed's own faults) into seedfall-regressions/ next to the config, with the finding, seedfall version and date. seedfall_run, seedfall_verify, seedfall run and seedfalltest replay every pinned schedule before the sweep and fail if one fails. Returns the pinned file and whether the schedule passes now.",
+		Description: "Pin a seed's fault schedule as a permanent regression: copy the schedule seedfall_shrink saved for it (or a given schedule, or else the seed's own faults) into " + engine.RegressionsDir + "/ next to the config, with the finding, seedfall version and date. seedfall_run, seedfall_verify, seedfall run and seedfalltest replay every pinned schedule before the sweep and fail if one fails. Returns the pinned file and whether the schedule passes now.",
 	}, toolPin)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "seedfall_findings",
@@ -307,6 +307,9 @@ func newMCPServer() (*mcp.Server, error) {
 }
 
 func toolRun(_ context.Context, _ *mcp.CallToolRequest, a runArgs) (*mcp.CallToolResult, runView, error) {
+	if err := checkBatch(a.Batch, a.Batch != 0, a.UntilNovelty); err != nil {
+		return nil, runView{}, err
+	}
 	lo, hi, err := engine.ParseSeeds(a.Seeds)
 	if err != nil {
 		return nil, runView{}, err
@@ -355,7 +358,7 @@ func toolRun(_ context.Context, _ *mcp.CallToolRequest, a runArgs) (*mcp.CallToo
 	out.Elapsed = time.Since(started).Round(time.Millisecond).String()
 	if sum.First != nil {
 		out.Failure = viewFailure(a.ref().String(), *sum.First)
-		withArtifacts(r, out.Failure, a.ref().String(), engine.Schedule{}, engine.ArtifactOptions{Config: a.ref().String(), Original: sum.First})
+		withArtifacts(r, out.Failure, engine.Schedule{}, engine.ArtifactOptions{Config: a.ref().String(), Original: sum.First})
 	}
 	return nil, out, nil
 }
@@ -365,7 +368,7 @@ func toolReplay(_ context.Context, _ *mcp.CallToolRequest, a seedArgs) (*mcp.Cal
 	if err != nil {
 		return nil, seedView{}, err
 	}
-	sched, err := readSchedule(a.Faults)
+	sched, err := readSchedule(a.Faults, a.Seed)
 	if err != nil {
 		return nil, seedView{}, err
 	}
@@ -377,7 +380,7 @@ func toolReplay(_ context.Context, _ *mcp.CallToolRequest, a seedArgs) (*mcp.Cal
 		if a.Faults != "" {
 			opts.Label = "schedule"
 		}
-		withArtifacts(r, out.Failure, a.ref().String(), sched, opts)
+		withArtifacts(r, out.Failure, sched, opts)
 		return nil, out, nil
 	}
 	out.Trace = tail(res.Trace, mcpTraceTail)
@@ -393,12 +396,9 @@ func toolLogs(_ context.Context, _ *mcp.CallToolRequest, a logsArgs) (*mcp.CallT
 	if err != nil {
 		return nil, logsView{}, err
 	}
-	res, _, err := recordedRun(&a.configArgs, a.Seed, a.Faults, a.NetTrace)
+	res, err := recordedRun(&a.configArgs, filter, a.Seed, a.Faults, a.NetTrace)
 	if err != nil {
 		return nil, logsView{}, err
-	}
-	if unknown := filter.unknownNodes(res.Timeline.Nodes); unknown != "" {
-		return nil, logsView{}, fmt.Errorf("unknown node %q", unknown)
 	}
 	lines := filter.apply(res.Timeline.Logs)
 	out := logsView{Seed: a.Seed, Passed: !res.Failed, Reason: res.Reason, Total: len(res.Timeline.Logs), Matched: len(lines), Lines: []logView{}}
@@ -417,7 +417,7 @@ func toolDebug(_ context.Context, _ *mcp.CallToolRequest, a debugArgs) (*mcp.Cal
 	if err != nil {
 		return nil, debugView{}, err
 	}
-	sched, err := readSchedule(a.Faults)
+	sched, err := readSchedule(a.Faults, a.Seed)
 	if err != nil {
 		return nil, debugView{}, err
 	}
@@ -445,6 +445,9 @@ func toolDebug(_ context.Context, _ *mcp.CallToolRequest, a debugArgs) (*mcp.Cal
 }
 
 func toolCause(_ context.Context, _ *mcp.CallToolRequest, a causeArgs) (*mcp.CallToolResult, causeView, error) {
+	if err := nonNegative(namedInt{"points", a.Points}, namedInt{"branches", a.Branches}); err != nil {
+		return nil, causeView{}, err
+	}
 	r, _, err := load(a.ref())
 	if err != nil {
 		return nil, causeView{}, err
@@ -474,7 +477,7 @@ func toolInspect(_ context.Context, _ *mcp.CallToolRequest, a inspectArgs) (*mcp
 	if err != nil {
 		return nil, inspectView{}, err
 	}
-	sched, err := readSchedule(a.Faults)
+	sched, err := readSchedule(a.Faults, a.Seed)
 	if err != nil {
 		return nil, inspectView{}, err
 	}
@@ -507,7 +510,11 @@ func parseAt(s string) (time.Duration, error) {
 	if s == "" {
 		return 0, nil
 	}
-	return time.ParseDuration(s)
+	d, err := time.ParseDuration(s)
+	if err == nil && d < 0 {
+		return 0, fmt.Errorf("time %s cannot be negative", s)
+	}
+	return d, err
 }
 
 func viewFailure(config string, res engine.Result) *failureView {
@@ -525,14 +532,16 @@ func viewFailure(config string, res engine.Result) *failureView {
 	}
 }
 
-func withArtifacts(r *engine.Runner, view *failureView, config string, s engine.Schedule, opts engine.ArtifactOptions) {
+func withArtifacts(r *engine.Runner, view *failureView, s engine.Schedule, opts engine.ArtifactOptions) {
 	a, _, err := r.SaveArtifacts(view.Seed, s, opts)
 	if a.Classification.Verdict != "" {
 		view.Class = &a.Classification
 	}
-	if err == nil {
-		view.Artifacts = filepath.ToSlash(a.Dir)
+	if err != nil {
+		warnArtifacts(view.Seed, err)
+		return
 	}
+	view.Artifacts = filepath.ToSlash(a.Dir)
 }
 
 func buggifySites(c engine.BuggifySites) []buggifyView {

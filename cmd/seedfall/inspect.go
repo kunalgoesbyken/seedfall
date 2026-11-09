@@ -42,7 +42,7 @@ func cmdInspect(args []string) error {
 	if err != nil {
 		return err
 	}
-	sched, err := readSchedule(*faultsFile)
+	sched, err := readSchedule(*faultsFile, *seed)
 	if err != nil {
 		return err
 	}

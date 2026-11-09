@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -28,7 +29,7 @@ func TestScheduleFilesRoundTripAndOldArraysStillRead(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := readSchedule(path)
+	got, err := readSchedule(path, 1)
 	if err != nil || !reflect.DeepEqual(got, shrunk.Schedule) {
 		t.Fatalf("read back %+v (%v), want %+v", got, err, shrunk.Schedule)
 	}
@@ -40,14 +41,30 @@ func TestScheduleFilesRoundTripAndOldArraysStillRead(t *testing.T) {
 
 	legacy := filepath.Join(dir, "old.faults.json")
 	os.WriteFile(legacy, []byte(` [{"at": "1s", "kind": "crash", "node": "n1", "until": "2s"}]`), 0o644)
-	old, err := readSchedule(legacy)
+	old, err := readSchedule(legacy, 1)
 	if err != nil || len(old.Faults) != 1 || old.Duration != 0 || old.Ops != 0 {
 		t.Fatalf("a fault array read as %+v (%v)", old, err)
 	}
 	empty := filepath.Join(dir, "empty.faults.json")
 	os.WriteFile(empty, []byte(`{"seed": 3}`), 0o644)
-	if none, err := readSchedule(empty); err != nil || none.Faults == nil {
+	if none, err := readSchedule(empty, 3); err != nil || none.Faults == nil {
 		t.Fatalf("a schedule without faults must replay with no faults, not the seed's own: %+v (%v)", none, err)
+	}
+}
+
+func TestReadScheduleRejectsAScheduleForAnotherSeed(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "seed-4.faults.json")
+	if err := engine.WriteScheduleFile(path, engine.ScheduleFile{Seed: 4, Schedule: engine.Schedule{Faults: []engine.Fault{}, Ops: 12}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readSchedule(path, 5); err == nil || !strings.Contains(err.Error(), "is a schedule for seed 4, not 5") {
+		t.Fatalf("reading a seed 4 schedule for seed 5: %v", err)
+	}
+	if got, err := readSchedule(path, 4); err != nil || got.Ops != 12 {
+		t.Fatalf("reading it for seed 4: %+v, %v", got, err)
+	}
+	if got, err := readSchedule("", 5); err != nil || got.Faults != nil {
+		t.Fatalf("no file: %+v, %v", got, err)
 	}
 }
 

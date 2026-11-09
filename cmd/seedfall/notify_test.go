@@ -20,6 +20,7 @@ import (
 const (
 	fakeGHEnv        = "SEEDFALL_FAKE_GH"
 	fakeGHCommentEnv = "SEEDFALL_FAKE_GH_COMMENT"
+	fakeGHUserEnv    = "SEEDFALL_FAKE_GH_USER_ERROR"
 	fakeCommentID    = 77
 	fakeLogin        = "seedfall-bot"
 )
@@ -33,8 +34,6 @@ func TestMain(m *testing.M) {
 
 func fakeGH(log string, args []string) int {
 	switch strings.Join(args[:2], " ") {
-	case "issue list":
-		fmt.Print(`[{"title": "seedfall finding: crash · server", "url": "https://github.com/o/r/issues/1"}]`)
 	case "issue create":
 		body, _ := io.ReadAll(os.Stdin)
 		f, err := os.OpenFile(log, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
@@ -45,11 +44,18 @@ func fakeGH(log string, args []string) int {
 		fmt.Fprintf(f, "%s\n%s\n=====\n", strings.Join(args, " "), body)
 		fmt.Println("https://github.com/o/r/issues/2")
 	case "api --paginate":
-		if body := os.Getenv(fakeGHCommentEnv); body != "" {
+		if !strings.Contains(args[2], "/comments") {
+			fmt.Println(`{"title": "unrelated", "url": "https://github.com/o/r/issues/9"}`)
+			fmt.Println(`{"title": "seedfall finding: crash · server", "url": "https://github.com/o/r/issues/1"}`)
+		} else if body := os.Getenv(fakeGHCommentEnv); body != "" {
 			line, _ := json.Marshal(map[string]any{"id": fakeCommentID, "body": body, "author": fakeLogin})
 			fmt.Println(string(line))
 		}
 	case "api user":
+		if msg := os.Getenv(fakeGHUserEnv); msg != "" {
+			fmt.Fprintln(os.Stderr, msg)
+			return 1
+		}
 		fmt.Println(fakeLogin)
 	case "api --method":
 		body, _ := io.ReadAll(os.Stdin)

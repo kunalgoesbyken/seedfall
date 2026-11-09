@@ -25,6 +25,12 @@ func cmdCause(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if err := checkJobs(*jobs); err != nil {
+		return err
+	}
+	if err := nonNegative(namedInt{"-points", *points}, namedInt{"-branches", *branches}); err != nil {
+		return err
+	}
 	r, _, err := load(ca.ref())
 	if err != nil {
 		return err

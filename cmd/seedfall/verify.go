@@ -104,7 +104,7 @@ func (a verifyArgs) validate() error {
 	case a.AppMutants < 0:
 		return errors.New("-app-mutants cannot be negative")
 	}
-	return nil
+	return checkJobs(a.jobs)
 }
 
 func (a verifyArgs) command() string {
@@ -169,7 +169,7 @@ func verifyTargets(a verifyArgs) ([]verify.Target, uint64, error) {
 	}
 	var last uint64
 	if a.Seed != nil {
-		sched, err := readSchedule(a.Faults)
+		sched, err := readSchedule(a.Faults, *a.Seed)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -195,7 +195,7 @@ func reportTargets(config, path string) ([]verify.Target, uint64, error) {
 	var targets []verify.Target
 	for _, f := range rep.Findings {
 		if f.Example != nil && f.Example.Schedule != "" {
-			sched, err := readSchedule(f.Example.Schedule)
+			sched, err := readSchedule(f.Example.Schedule, f.Example.Seed)
 			if err != nil {
 				return nil, 0, err
 			}
@@ -219,7 +219,7 @@ func savedSchedule(config string, seed uint64, f report.Finding) ([]verify.Targe
 	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
-	sched, err := readSchedule(path)
+	sched, err := readSchedule(path, seed)
 	if err != nil {
 		return nil, err
 	}

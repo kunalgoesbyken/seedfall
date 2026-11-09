@@ -78,12 +78,9 @@ func traceSearch(a traceSearchArgs) (traceSearchView, error) {
 	if err != nil {
 		return traceSearchView{}, err
 	}
-	res, _, err := recordedRun(&a.configArgs, a.Seed, a.Faults, a.NetTrace)
+	res, err := recordedRun(&a.configArgs, filter, a.Seed, a.Faults, a.NetTrace)
 	if err != nil {
 		return traceSearchView{}, err
-	}
-	if unknown := filter.unknownNodes(res.Timeline.Nodes); unknown != "" {
-		return traceSearchView{}, fmt.Errorf("unknown node %q", unknown)
 	}
 	out := traceSearchView{Seed: a.Seed, Passed: !res.Failed, Reason: res.Reason, Total: len(res.Timeline.Logs)}
 	out.Windows, out.Matched = searchTrace(res.Timeline.Logs, filter, around, cmp.Or(a.Limit, defaultLogLimit))
