@@ -377,3 +377,31 @@ func TestGuestLinksSymlinksAndTimes(t *testing.T) {
 		t.Fatalf("guest failed: %s\n%s", res.Reason, strings.Join(res.Trace, "\n"))
 	}
 }
+
+func TestGuestSweepOutputOrderDoesNotDependOnParallelism(t *testing.T) {
+	r := guestRunner(t, false)
+	sweep := func(jobs int, keepGoing bool) (streamed, failed []uint64, passed int, first uint64) {
+		sum := Sweep(r, 1, 8, SweepOptions{Jobs: jobs, KeepGoing: keepGoing, OnResult: func(res Result) { streamed = append(streamed, res.Seed) }})
+		for _, f := range sum.Failures {
+			failed = append(failed, f.Seed)
+		}
+		if sum.First != nil {
+			first = sum.First.Seed
+		}
+		return streamed, failed, sum.Passed, first
+	}
+	for _, keepGoing := range []bool{true, false} {
+		streamed, failed, passed, first := sweep(1, keepGoing)
+		streamed4, failed4, passed4, first4 := sweep(4, keepGoing)
+		if !slices.Equal(streamed, streamed4) || !slices.Equal(failed, failed4) || passed != passed4 || first != first4 {
+			t.Errorf("keep going %v: 1 job streamed %v failed %v passed %d first %d, 4 jobs streamed %v failed %v passed %d first %d",
+				keepGoing, streamed, failed, passed, first, streamed4, failed4, passed4, first4)
+		}
+		if !slices.IsSorted(streamed4) || len(failed) == 0 {
+			t.Errorf("keep going %v: streamed %v, failed %v", keepGoing, streamed4, failed)
+		}
+		if !keepGoing && (len(streamed4) != int(first4) || failed4[len(failed4)-1] != first4) {
+			t.Errorf("without keep going the sweep must end at the first failing seed %d, streamed %v", first4, streamed4)
+		}
+	}
+}

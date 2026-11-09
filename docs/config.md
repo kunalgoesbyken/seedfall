@@ -19,6 +19,14 @@ Merging works the same way at every layer:
 
 Fields that no layer sets keep their defaults, as listed in the `seedfall://schema/config` MCP resource.
 
+The merged config is checked once, before anything is built or run, and a config that fails the check does not load:
+
+- a key that is not a config field is an error, in the file, in a profile and in `-set`, so a typo such as `crash_per_sc` cannot silently leave a fault off
+- every probability (`crash_on_io`, `fsync_eio`, `write_eio`, `write_enospc`, `read_eio`, `read_corrupt`, `lost_write`, `misdirected_write`, `mmap_early_writeback`, `udp_loss` and `udp_dup`) is between 0 and 1, and every `_per_sec` rate is 0 or more
+- every range (`latency`, `links[].latency`, `restart_after`, `partition_for`, `clog_for`, `clog_delay`, `slow_for`, `pause_for` and `disk_latency`) is `[min, max]` with `0 <= min <= max`
+- `duration` and `watchdog` are positive, and `clock_jump_max` is 0 or more
+- a node sets `pkg` or `wasm`, not both
+
 ### extends
 
 ```json
@@ -69,7 +77,7 @@ seedfall run -set 'nodes.server.args=["-sync","always"]' -seeds 1-50
 seedfall replay -seed 7 -set faults=resilient
 ```
 
-`-set path=value` overrides one value after every other layer, and can repeat. The path is a dot-separated list of keys. Inside a list, a part is either the `name` of an entry or its index, so `nodes.server.env.MODE` and `nodes.0.env.MODE` both work. Missing objects along the path are created. The value is read as JSON when it parses as JSON (`2`, `true`, `["-x"]`, `{}`) and as a plain string otherwise (`10s`, `resilient`). To set a string that looks like JSON, quote it: `-set 'nodes.server.env.PORT="7000"'`.
+`-set path=value` overrides one value after every other layer, and can repeat. The path is a dot-separated list of keys. Inside a list, a part is either the `name` of an entry or its index, so `nodes.server.env.MODE` and `nodes.0.env.MODE` both work. Missing objects along the path are created. The value is read as JSON when it parses as JSON (`2`, `true`, `["-x"]`, `{}`) and as a plain string otherwise (`10s`, `resilient`). To set a string that looks like JSON, quote it: `-set 'nodes.server.env.PORT="7000"'`. When the JSON reading does not fit the field, such as the number in `-set nodes.server.env.PORT=7000` for an `env` value, which must be a string, the value is used as a plain string instead.
 
 ## Fault presets
 

@@ -76,13 +76,30 @@ func TestMCPListsInitPromptsAndResources(t *testing.T) {
 		Properties map[string]struct {
 			Default json.RawMessage `json:"default"`
 			Enum    []string        `json:"enum"`
+			Minimum *float64        `json:"minimum"`
+			Maximum *float64        `json:"maximum"`
 		} `json:"properties"`
 	}
 	var schema struct {
-		Properties map[string]property `json:"properties"`
+		AdditionalProperties json.RawMessage     `json:"additionalProperties"`
+		Properties           map[string]property `json:"properties"`
 	}
 	if err := json.Unmarshal([]byte(read.Contents[0].Text), &schema); err != nil {
 		t.Fatal(err)
+	}
+	if string(schema.AdditionalProperties) != "false" {
+		t.Errorf("additionalProperties = %s, the loader rejects unknown keys", schema.AdditionalProperties)
+	}
+	faults := schema.Properties["faults"].Properties
+	for _, name := range engine.ProbabilityFields() {
+		if lo, hi := faults[name].Minimum, faults[name].Maximum; lo == nil || hi == nil || *lo != 0 || *hi != 1 {
+			t.Errorf("faults.%s bounds %v %v, want 0 and 1", name, lo, hi)
+		}
+	}
+	for _, name := range engine.RateFields() {
+		if lo := faults[name].Minimum; lo == nil || *lo != 0 || faults[name].Maximum != nil {
+			t.Errorf("faults.%s bounds %v %v, want a minimum of 0 only", name, lo, faults[name].Maximum)
+		}
 	}
 	if string(schema.Properties["duration"].Default) != `"30s"` {
 		t.Errorf("duration default = %s", schema.Properties["duration"].Default)

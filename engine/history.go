@@ -44,7 +44,7 @@ type history struct {
 	owners []string
 }
 
-func (h *history) checker() checker { return checkers[cmp.Or(h.model, defaultModel)] }
+func (h *history) checker() checker { return checkers[h.model] }
 
 func (h *history) call(now int64, raw []byte, owner string) (int32, error) {
 	var op HistoryOp
@@ -107,7 +107,7 @@ func (h *history) finished() []HistoryOp {
 func (h *history) check() HistoryCheck {
 	ops := h.finished()
 	res := h.checker().check(ops)
-	res.Model, res.Ops = cmp.Or(h.model, defaultModel), ops
+	res.Model, res.Ops = h.model, ops
 	return res
 }
 

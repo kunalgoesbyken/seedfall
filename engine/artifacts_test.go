@@ -117,3 +117,12 @@ func TestArtifactDirsDoNotCollideAcrossConfigs(t *testing.T) {
 		t.Fatalf("ArtifactDir = %s, want %s", got, want)
 	}
 }
+
+func TestReplayCommandQuotesTheFaultsPath(t *testing.T) {
+	if got, want := ReplayCommand("seedfall.json", 3, filepath.Join("out", "faults.json")), "seedfall replay -c seedfall.json -seed 3 -faults out/faults.json"; got != want {
+		t.Errorf("ReplayCommand = %s, want %s", got, want)
+	}
+	if got, want := ReplayCommand("seedfall.json", 3, filepath.Join("my dir", "it's", "faults.json")), `seedfall replay -c seedfall.json -seed 3 -faults 'my dir/it'\''s/faults.json'`; got != want {
+		t.Errorf("ReplayCommand = %s, want %s", got, want)
+	}
+}

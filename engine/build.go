@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"math"
 	"math/bits"
 	"os"
 	"os/exec"
@@ -65,12 +66,14 @@ func ParseSeeds(s string) (uint64, uint64, error) {
 	if err != nil {
 		return 0, 0, fmt.Errorf("bad seed range %q", s)
 	}
-	if !found {
-		return a, a, nil
+	b := a
+	if found {
+		if b, err = strconv.ParseUint(hi, 10, 64); err != nil || b < a {
+			return 0, 0, fmt.Errorf("bad seed range %q", s)
+		}
 	}
-	b, err := strconv.ParseUint(hi, 10, 64)
-	if err != nil || b < a {
-		return 0, 0, fmt.Errorf("bad seed range %q", s)
+	if b == math.MaxUint64 {
+		return 0, 0, fmt.Errorf("bad seed range %q: seed %d is the largest uint64, so the count of seeds or the next seed would wrap around, end the range at %d or lower", s, uint64(math.MaxUint64), uint64(math.MaxUint64-1))
 	}
 	return a, b, nil
 }

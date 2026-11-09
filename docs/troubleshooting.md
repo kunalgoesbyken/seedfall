@@ -112,6 +112,24 @@ config: node "<name>" has an invalid pkg "<pkg>"
 The config is checked before anything is built. Every node and the workload need a unique `name`, and every node needs a `pkg` (a Go package path, built for you) or a `wasm` file. [Configuration and faults](faults.md) lists every field.
 
 ```
+config: node "<name>" sets both pkg and wasm, use one
+<file>: json: unknown field "<name>"
+```
+
+A node names either a `pkg`, which seedfall builds into the `wasm`, or a prebuilt `wasm`, not both. An unknown field is a key that is not part of the config, usually a typo, in the file, a profile or a `-set`.
+
+```
+config: faults.<name> must be between 0 and 1, got <value>
+config: faults.<name> must not be negative, got <value>
+config: <range> must be [min, max] with 0 <= min <= max, got [<min>, <max>]
+config: duration must be positive, got <value>
+config: watchdog must be positive, got <value>
+config: faults.clock_jump_max must not be negative, got <value>
+```
+
+A probability is outside 0 to 1, a `_per_sec` rate is negative, a range has a negative or reversed bound, or a duration is not positive. [Config](config.md) lists which fields each rule covers.
+
+```
 config: no profile "<name>", have <profiles>
 config: no profile "<name>", the config has no profiles
 ```
@@ -138,6 +156,18 @@ config: preempt: interleave is shorthand for strategy random, but strategy is <n
 ```
 
 `preempt.strategy` is not one of the listed strategies, or `interleave` was combined with a different strategy ([how it works](how-it-works.md#strategies)).
+
+```
+bad seed range "<range>": seed 18446744073709551615 is the largest uint64, so the count of seeds or the next seed would wrap around, end the range at 18446744073709551614 or lower
+```
+
+A `-seeds` range cannot end at the largest 64-bit seed, because the sweep could not tell the end of the range from a wrap to seed 0.
+
+```
+the module cannot be instrumented for preemption or feedback: <reason>
+```
+
+`preempt.strategy`, `preempt.loops` or the feedback of `explore` needs the call counter that seedfall adds to Go wasip1 modules. A prebuilt `wasm` from another toolchain, or one that does not import `sched_yield`, cannot take it. Build the node from Go, or turn those settings off.
 
 ```
 -json and -report cannot be combined

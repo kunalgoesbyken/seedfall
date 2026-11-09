@@ -140,7 +140,7 @@ func TestModelVerdicts(t *testing.T) {
 }
 
 func TestHistoryRejectsMalformedCalls(t *testing.T) {
-	h := &history{}
+	h := &history{model: defaultModel}
 	for _, raw := range []string{"not json", `{"f":"delete","key":"x"}`, `{"f":"put","key":"x","value":7}`} {
 		if id, err := h.call(0, []byte(raw), "client#1"); id != -1 || err == nil {
 			t.Fatalf("call(%q) = %d, %v, want -1 and an error", raw, id, err)
@@ -169,7 +169,7 @@ func TestHistoryRejectsMalformedCalls(t *testing.T) {
 	if len(h.ops) != 1 || h.ops[0].End != 5 || h.ops[0].Status != StatusOk {
 		t.Fatalf("ops = %+v, want one put returned at 5", h.ops)
 	}
-	if got := (&history{}).check(); got.Checked {
+	if got := (&history{model: defaultModel}).check(); got.Checked {
 		t.Fatal("an empty history must not count as checked")
 	}
 }

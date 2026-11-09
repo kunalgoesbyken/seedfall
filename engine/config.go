@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -191,14 +192,23 @@ func Load(ref ConfigRef) (*Config, error) {
 			return nil, err
 		}
 	}
-	if err := json.Unmarshal(b, &cfg); err != nil {
+	if err := decodeConfig(b, &cfg); err != nil {
 		return nil, fmt.Errorf("%s: %w", ref, err)
 	}
 	cfg.Dir, cfg.Path, cfg.Profile, cfg.Sets, cfg.resolved = filepath.Dir(ref.Path), ref.Path, ref.Profile, ref.Sets, b
 	if err := cfg.validate(); err != nil {
-		return &cfg, err
+		return nil, err
 	}
-	return &cfg, cfg.loadDisks()
+	if err := cfg.loadDisks(); err != nil {
+		return nil, err
+	}
+	return &cfg, nil
+}
+
+func decodeConfig(b []byte, cfg *Config) error {
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.DisallowUnknownFields()
+	return dec.Decode(cfg)
 }
 
 func (c *Config) validate() error {
@@ -223,6 +233,9 @@ func (c *Config) validate() error {
 		if s.Pkg == "" && s.Wasm == "" {
 			return fmt.Errorf("config: node %q needs pkg or wasm", s.Name)
 		}
+		if s.Pkg != "" && s.Wasm != "" {
+			return fmt.Errorf("config: node %q sets both pkg and wasm, use one", s.Name)
+		}
 		if strings.HasPrefix(s.UpgradeTo, "-") {
 			return fmt.Errorf("config: node %q has an invalid upgrade_to %q", s.Name, s.UpgradeTo)
 		}
@@ -232,6 +245,9 @@ func (c *Config) validate() error {
 	}
 	if c.Faults.DiskBytes < 0 {
 		return errors.New("config: faults.disk_bytes is negative")
+	}
+	if err := c.validateBounds(); err != nil {
+		return err
 	}
 	if err := knownModel(c.Checker.Model); err != nil {
 		return fmt.Errorf("config: checker.model: %w", err)

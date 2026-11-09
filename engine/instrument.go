@@ -306,15 +306,21 @@ func countLoops(out, body, countdown []byte) ([]byte, error) {
 	return out, nil
 }
 
-func instrument(wasm []byte, loops, coverage bool) ([]byte, error) {
+func instrument(wasm []byte, required, loops, coverage bool) ([]byte, error) {
+	skip := func(why string) ([]byte, error) {
+		if required {
+			return nil, fmt.Errorf("the module cannot be instrumented for preemption or feedback: %s", why)
+		}
+		return wasm, nil
+	}
 	secs, ok := readSections(wasm)
 	imports, globals, exports, code := section(secs, secImport), section(secs, secGlobal), section(secs, secExport), section(secs, secCode)
 	if !ok || !builtByGo(secs) || imports == nil || globals == nil || exports == nil || code == nil {
-		return wasm, nil
+		return skip("it is not a Go wasip1 module")
 	}
 	yield, ok := importedFunc(imports.body, "wasi_snapshot_preview1", "sched_yield")
 	if !ok {
-		return wasm, nil
+		return skip("it does not import sched_yield")
 	}
 	words := uint64(0)
 	if coverage {
@@ -326,7 +332,7 @@ func instrument(wasm []byte, loops, coverage bool) ([]byte, error) {
 	}
 	globalBody, calls, ok := appendEntries(globals.body, newGlobals...)
 	if !ok {
-		return wasm, nil
+		return skip("its globals section cannot be extended")
 	}
 	newExports := [][]byte{exportEntry(callsExport, kindGlobal, calls), exportEntry(gExport, kindGlobal, goGlobalG)}
 	for word := range words {
@@ -334,7 +340,7 @@ func instrument(wasm []byte, loops, coverage bool) ([]byte, error) {
 	}
 	exportBody, _, ok := appendEntries(exports.body, newExports...)
 	if !ok {
-		return wasm, nil
+		return skip("its export section cannot be extended")
 	}
 	tick := countdown(calls, yield)
 	codeBody, err := rewriteBodies(code.body, func(i uint64, locals, body []byte) ([]byte, error) {
@@ -351,7 +357,7 @@ func instrument(wasm []byte, loops, coverage bool) ([]byte, error) {
 	case err != nil && loops:
 		return nil, fmt.Errorf("preempt.loops: %w", err)
 	case err != nil:
-		return wasm, nil
+		return skip(err.Error())
 	}
 	globals.body, exports.body, code.body = globalBody, exportBody, codeBody
 	out := append([]byte(nil), wasm[:8]...)

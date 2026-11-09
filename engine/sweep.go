@@ -2,6 +2,9 @@ package engine
 
 import (
 	"fmt"
+	"maps"
+	"math"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -188,11 +191,23 @@ func Sweep(r *Runner, lo, hi uint64, opts SweepOptions) Summary {
 
 func sweepAll(r *Runner, lo, hi uint64, opts SweepOptions, m *sweepMeter) Summary {
 	var (
-		next atomic.Uint64
-		mu   sync.Mutex
-		sum  = newSweepSummary(r)
-		wg   sync.WaitGroup
+		next    atomic.Uint64
+		mu      sync.Mutex
+		sum     = newSweepSummary(r)
+		wg      sync.WaitGroup
+		pending = map[uint64]Result{}
+		emit    = lo
+		bad     = uint64(math.MaxUint64)
 	)
+	deliver := func(res Result) {
+		if !opts.KeepGoing && sum.First != nil {
+			return
+		}
+		sum.record(res)
+		if opts.OnResult != nil {
+			opts.OnResult(res)
+		}
+	}
 	next.Store(lo)
 	for range max(opts.Jobs, 1) {
 		wg.Add(1)
@@ -201,22 +216,30 @@ func sweepAll(r *Runner, lo, hi uint64, opts SweepOptions, m *sweepMeter) Summar
 			for {
 				seed := next.Add(1) - 1
 				mu.Lock()
-				stop := seed > hi || (!opts.KeepGoing && sum.First != nil && seed > sum.First.Seed)
+				stop := seed > hi || (!opts.KeepGoing && seed > bad)
 				mu.Unlock()
 				if stop || m.expired(opts.Deadline) {
 					return
 				}
 				res := m.run(r, seed)
 				mu.Lock()
-				sum.record(res)
-				if opts.OnResult != nil {
-					opts.OnResult(res)
+				if res.Failed {
+					bad = min(bad, seed)
+				}
+				pending[seed] = res
+				for ready, ok := pending[emit]; ok; ready, ok = pending[emit] {
+					delete(pending, emit)
+					emit++
+					deliver(ready)
 				}
 				mu.Unlock()
 			}
 		}()
 	}
 	wg.Wait()
+	for _, seed := range slices.Sorted(maps.Keys(pending)) {
+		deliver(pending[seed])
+	}
 	return sum
 }
 

@@ -349,3 +349,28 @@ func TestGuestStartsFromASeededDiskAndUpgrades(t *testing.T) {
 		t.Errorf("trace does not report the upgrade on the first restart:\n%s", trace)
 	}
 }
+
+func TestSetFallsBackToAStringWhenTheJSONValueDoesNotFit(t *testing.T) {
+	dir := writeFiles(t, map[string]string{"seedfall.json": baseConfig})
+	path := filepath.Join(dir, "seedfall.json")
+	cfg, err := Load(ConfigRef{Path: path, Sets: []string{"nodes.a.env.PORT=8080", "nodes.a.env.DEBUG=true", "nodes.a.args=[\"-x\"]"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if env := cfg.Nodes[0].Env; env["PORT"] != "8080" || env["DEBUG"] != "true" || env["K"] != "1" {
+		t.Errorf("env = %v, want the numbers and booleans kept as strings", env)
+	}
+	if !slices.Equal(cfg.Nodes[0].Args, []string{"-x"}) {
+		t.Errorf("args = %v, a value that fits must stay JSON", cfg.Nodes[0].Args)
+	}
+	quoted, err := Load(ConfigRef{Path: path, Sets: []string{`nodes.a.env.PORT="7000"`}})
+	if err != nil || quoted.Nodes[0].Env["PORT"] != "7000" {
+		t.Errorf("quoted value: %v, %v", quoted, err)
+	}
+	if _, err := Load(ConfigRef{Path: path, Sets: []string{"watchdog=5"}}); err == nil {
+		t.Error("a bare number for a duration was accepted")
+	}
+	if _, err := Load(ConfigRef{Path: path, Sets: []string{"faults.torn_writes=maybe"}}); err == nil {
+		t.Error("a word for a bool was accepted")
+	}
+}

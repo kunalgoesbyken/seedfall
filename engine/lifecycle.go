@@ -90,6 +90,8 @@ func (w *world) unfinished() *node {
 	if w.finally != nil && w.finally.starts > 0 {
 		return w.finally
 	}
-	i := slices.IndexFunc(w.nodes, func(n *node) bool { return n.workload && !n.done })
-	return w.nodes[i]
+	if i := slices.IndexFunc(w.nodes, func(n *node) bool { return n.workload && !n.done }); i >= 0 {
+		return w.nodes[i]
+	}
+	return w.nodes[0]
 }

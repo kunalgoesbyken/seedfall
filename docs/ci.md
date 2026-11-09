@@ -170,7 +170,7 @@ This repository's own [`ci.yml`](../.github/workflows/ci.yml) sweeps several exa
 
 ## Machine-readable output
 
-`seedfall run -json` sweeps every seed in the range and prints one JSON object per line as each seed finishes, then a summary object. Seeds finish in parallel, so lines are not in seed order.
+`seedfall run -json` sweeps every seed in the range and prints one JSON object per line, then a summary object. Seeds run in parallel but the lines come out in seed order, so the output is the same for any `-j`.
 
 ```sh
 seedfall run -c seedfall.always.json -seeds 1-100 -json | jq -c 'select(.type == "seed" and .passed == false)'
