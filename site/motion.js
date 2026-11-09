@@ -19,13 +19,8 @@ function revealOnScroll(selector) {
 function copyButtons() {
   document.querySelectorAll('[data-copy]').forEach((button) => button.addEventListener('click', async () => {
     await navigator.clipboard.writeText(button.dataset.copy);
-    const label = button.querySelector('.copy');
     button.classList.add('copied');
-    label.textContent = 'copied';
-    setTimeout(() => {
-      button.classList.remove('copied');
-      label.textContent = 'copy';
-    }, 1500);
+    setTimeout(() => button.classList.remove('copied'), 1500);
   }));
 }
 

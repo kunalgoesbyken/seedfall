@@ -56,6 +56,10 @@ h1 em, h2 em { font-style: italic; color: var(--ember); }
 .center-row { justify-content: center; }
 .install { display: inline-flex; align-items: center; gap: 12px; height: 48px; padding: 0 16px; border-radius: 8px; border: 1px solid var(--line); background: rgba(0, 0, 0, 0.35); color: var(--text); font-family: var(--mono); font-size: 13.5px; cursor: pointer; max-width: 100%; overflow: hidden; white-space: nowrap; }
 .install .prompt { color: var(--ember); }
+.install .prompt::before { content: "$"; }
+.install .copy::after { content: "copy"; }
+.install.copied .copy::after { content: "copied"; }
+.install .prompt, .install .copy { user-select: none; }
 .install .copy { margin-left: 6px; padding: 3px 8px; border-radius: 5px; background: rgba(255, 154, 90, 0.15); color: var(--ember); font-size: 12px; }
 
 .demo video { display: block; width: 100%; height: auto; border-radius: 10px; background: var(--ink); }
@@ -119,6 +123,12 @@ td:first-child { font-weight: 500; }
 td.y { color: #2f6b34; }
 td.n { color: #a2412f; }
 td.m { color: #8a6a1f; }
+table.compare { font-size: 13.5px; }
+table.compare td { min-width: 9em; }
+table.compare td a { color: inherit; text-decoration: underline; text-decoration-color: var(--line-dark); text-underline-offset: 3px; }
+table.compare td.na { color: var(--dark-dim); }
+table.commands td:first-child { white-space: nowrap; }
+table.commands td:nth-child(2) { background: none; color: var(--dark-dim); }
 .note { margin-top: 18px; font-size: 13.5px; color: var(--dark-dim); }
 
 .final { padding: 140px 0; background: radial-gradient(700px 380px at 50% 100%, rgba(255, 154, 90, 0.18), transparent 70%), var(--ink); border-top: 1px solid var(--line); }

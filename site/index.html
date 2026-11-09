@@ -37,16 +37,16 @@
       <h1>Every crash, torn write and partition.<br><em>Replayable from one seed.</em></h1>
       <p class="lede">seedfall runs your unmodified Go services inside a simulated world, then crashes them mid-write, loses their fsyncs and partitions their network. When something breaks, you get the seed, the exact fault schedule and a trace. Runs on the stock Go toolchain and costs nothing.</p>
       <div class="cta">
-        <button class="install" data-copy="go install github.com/kunalgoesbyken/seedfall/cmd/seedfall@latest"><span class="prompt">$</span><span class="cmd">go install github.com/kunalgoesbyken/seedfall/cmd/seedfall@latest</span><span class="copy">copy</span></button>
+        <button class="install" data-copy="go install github.com/kunalgoesbyken/seedfall/cmd/seedfall@latest"><span class="prompt" aria-hidden="true"></span><span class="cmd">go install github.com/kunalgoesbyken/seedfall/cmd/seedfall@latest</span><span class="copy" aria-hidden="true"></span></button>
       </div>
-      <a class="textlink" href="#proof">See the 5 bugs it found in real Go systems &rarr;</a>
+      <a class="textlink" href="#proof">See the bugs it found in real Go systems &rarr;</a>
     </div>
     <figure class="demo">
       <video autoplay muted loop playsinline preload="metadata" poster="media/seedfall-demo.jpg" width="1128" height="940" aria-describedby="demo-caption">
         <source src="media/seedfall-demo.webm" type="video/webm">
         <source src="media/seedfall-demo.mp4" type="video/mp4">
       </video>
-      <figcaption id="demo-caption">A real terminal: <code>seedfall run</code> finds seed 1 losing acknowledged entry 27 in rosedblabs/wal, then <code>seedfall shrink</code> cuts 26 faults to 2. Waits trimmed, shrink at 4&times; speed.</figcaption>
+      <figcaption id="demo-caption">A real terminal: <code>seedfall run</code> finds seed 1 losing acknowledged entry 27 in rosedblabs/wal, then <code>seedfall shrink</code> cuts 26 faults to 2.</figcaption>
     </figure>
   </div>
   <div class="wrap runs-on">
@@ -127,6 +127,11 @@ property       seeds reached  seeds true
         <p>Your code uses plain <code>os.File</code>. A crash keeps only what was synced, optionally a torn prefix of pending writes. fsync can fail with <code>EIO</code> the way Linux really does it, keeping the data readable but not durable.</p>
       </div>
       <div>
+        <p class="kicker">Disk faults</p>
+        <h4>A disk that misbehaves</h4>
+        <p>A full disk that returns <code>ENOSPC</code>, read and write <code>EIO</code>, corrupted reads, lost and misdirected writes that fsync reports as done, bits flipped by a crash or by bit rot, and slow fsyncs. Each one is a fault in the schedule, so it replays and shrinks.</p>
+      </div>
+      <div>
         <p class="kicker">Crashes</p>
         <h4>Crash mid-operation</h4>
         <p>Nodes die while idle or in the middle of a disk write. Each node is its own wasm instance, so a restart starts from a clean process over the surviving disk.</p>
@@ -134,7 +139,7 @@ property       seeds reached  seeds true
       <div>
         <p class="kicker">Network</p>
         <h4>Zero-code networking</h4>
-        <p>Partitions, latency and resets for plain <code>net.Listen</code>, <code>net/http</code> and hashicorp/raft's stock TCP transport, or through a one-line <code>sim.Listen</code>.</p>
+        <p>Partitions in Jepsen's topologies, one-way clogs, FoundationDB-style swizzles, connection resets and per-link latency for plain <code>net.Listen</code>, <code>net/http</code> and hashicorp/raft's stock TCP transport, or through a one-line <code>sim.Listen</code>. UDP gets seeded latency, reordering, loss and duplication.</p>
       </div>
       <div>
         <p class="kicker">Correctness</p>
@@ -152,6 +157,16 @@ property       seeds reached  seeds true
         <p><code>seedfall shrink</code> drops faults while the failure persists and saves a schedule that replays exactly. 37 faults became 2 on the fsyncgate bug.</p>
       </div>
       <div>
+        <p class="kicker">Timeline</p>
+        <h4>See the run</h4>
+        <p>Every failure gets <code>timeline.html</code>, a space-time diagram of node lives, messages, faults and recorded operations beside a filterable trace. <code>seedfall debug -at 1.7s</code> stops a replay there to look at nodes, live disks and messages in flight, then step or branch.</p>
+      </div>
+      <div>
+        <p class="kicker">Disk state</p>
+        <h4>Inspect the disk at the failure</h4>
+        <p><code>seedfall inspect</code> shows each node's simulated disk at the failure or any virtual time: which bytes are durable, which a crash would lose, which directory entries are not durable yet and where the last crash tore a write. <code>-out</code> exports the durable image.</p>
+      </div>
+      <div>
         <p class="kicker">Page cache</p>
         <h4>Out-of-order writeback</h4>
         <p>Turn on <code>reorder_writes</code> and unsynced writes reach the disk page by page, in any order, so a crash can keep a later page and lose an earlier one. It found a store that refuses to open after one such crash.</p>
@@ -165,6 +180,21 @@ property       seeds reached  seeds true
         <p class="kicker">Dependencies</p>
         <h4>bbolt, pebble and badger</h4>
         <p>With <code>compat_overlay</code>, stores that need <code>mmap</code> or <code>flock</code> build for <code>wasip1</code> unmodified. seedfall swaps in small shims for the calls WASI lacks, and every durability point is still a real fsync on the simulated disk.</p>
+      </div>
+      <div>
+        <p class="kicker">Onboarding</p>
+        <h4>Start from your module</h4>
+        <p><code>seedfall init</code> finds your main packages, reports every package that will not build for <code>wasip1</code> with the import chain to it and the shim that covers it, and scaffolds <code>seedfall.json</code> and a workload. Existing files are kept.</p>
+      </div>
+      <div>
+        <p class="kicker">Config</p>
+        <h4>Profiles and presets</h4>
+        <p><code>extends</code> builds one config on another, <code>profiles</code> keeps every variant in one file (<code>-profile nofsync</code>), <code>-set</code> overrides one value, and fault presets from <code>none</code> to <code>everything</code> replace hand-tuned rates.</p>
+      </div>
+      <div>
+        <p class="kicker">Proof of fix</p>
+        <h4>Grade the checks, then prove the fix</h4>
+        <p><code>seedfall mutate</code> silently breaks fsync, renames, truncation or TCP under your nodes, or mutates your own source with <code>-app</code>, and reports which mutants your sweep missed. <code>seedfall verify</code> replays the failing schedules, sweeps enough fresh seeds for 95% confidence and writes a Markdown proof for the pull request.</p>
       </div>
     </div>
   </div>
@@ -362,10 +392,11 @@ n2#2 | panic: log not found
     <div>
       <p class="eyebrow">For AI coding agents</p>
       <h2>Let the agent prove it's crash-safe</h2>
-      <p class="sub left">Agents write more storage and replication code than anyone can review. <code>seedfall mcp</code> gives Claude Code, Cursor and other agents four tools: sweep seeds, replay one exactly, shrink a failure to its faults, and find the moment it became inevitable. The agent reads the fault schedule, fixes the bug, and attaches the passing sweep to its pull request. Your own agent does the reasoning, so no API key or hosted service is involved.</p>
+      <p class="sub left">Agents write more storage and replication code than anyone can review. <code>seedfall mcp</code> gives Claude Code, Cursor and other agents 17 MCP tools, one for each command an agent needs: onboard a module, check the machine, sweep or explore seeds, replay, read and search the trace, debug, shrink, edit a schedule, find the cause, inspect the disk, check a history, grade the checks with mutants, pin a regression, read findings and verify a fix. The agent reads the fault schedule, fixes the bug, and attaches the passing sweep to its pull request. Your own agent does the reasoning, so no API key or hosted service is involved.</p>
+      <p class="setup-note" id="mcp-tools"><code>seedfall_init</code> <code>seedfall_doctor</code> <code>seedfall_run</code> <code>seedfall_explore</code> <code>seedfall_replay</code> <code>seedfall_logs</code> <code>seedfall_trace_search</code> <code>seedfall_debug</code> <code>seedfall_shrink</code> <code>seedfall_faults_edit</code> <code>seedfall_cause</code> <code>seedfall_inspect</code> <code>seedfall_check</code> <code>seedfall_mutate</code> <code>seedfall_pin</code> <code>seedfall_findings</code> <code>seedfall_verify</code></p>
       <div class="setup">
         <p class="setup-step">1. Install seedfall</p>
-        <button class="install" data-copy="go install github.com/kunalgoesbyken/seedfall/cmd/seedfall@latest"><span class="prompt">$</span><span class="cmd">go install github.com/kunalgoesbyken/seedfall/cmd/seedfall@latest</span><span class="copy">copy</span></button>
+        <button class="install" data-copy="go install github.com/kunalgoesbyken/seedfall/cmd/seedfall@latest"><span class="prompt" aria-hidden="true"></span><span class="cmd">go install github.com/kunalgoesbyken/seedfall/cmd/seedfall@latest</span><span class="copy" aria-hidden="true"></span></button>
         <p class="setup-step">2. Connect your agent</p>
         <div class="tabs" role="tablist" aria-label="Agent">
           <button role="tab" id="tab-claude" aria-controls="panel-claude" aria-selected="true"><svg class="logo" aria-hidden="true"><use href="#claude"/></svg>Claude Code</button>
@@ -375,9 +406,9 @@ n2#2 | panic: log not found
           <button role="tab" id="tab-gha" aria-controls="panel-gha" aria-selected="false" tabindex="-1"><svg class="logo" aria-hidden="true"><use href="#gha"/></svg>GitHub Actions</button>
         </div>
         <div class="panel" role="tabpanel" id="panel-claude" aria-labelledby="tab-claude">
-          <button class="install" data-copy="claude plugin install seedfall --marketplace kunalgoesbyken/seedfall"><span class="prompt">$</span><span class="cmd">claude plugin install seedfall --marketplace kunalgoesbyken/seedfall</span><span class="copy">copy</span></button>
+          <button class="install" data-copy="claude plugin install seedfall --marketplace kunalgoesbyken/seedfall"><span class="prompt" aria-hidden="true"></span><span class="cmd">claude plugin install seedfall --marketplace kunalgoesbyken/seedfall</span><span class="copy" aria-hidden="true"></span></button>
           <p class="setup-note">The plugin adds the MCP server, four skills (setup, properties, triage, fix and prove) and an opt-in Stop hook. For the MCP server only:</p>
-          <button class="install" data-copy="claude mcp add seedfall -- seedfall mcp"><span class="prompt">$</span><span class="cmd">claude mcp add seedfall -- seedfall mcp</span><span class="copy">copy</span></button>
+          <button class="install" data-copy="claude mcp add seedfall -- seedfall mcp"><span class="prompt" aria-hidden="true"></span><span class="cmd">claude mcp add seedfall -- seedfall mcp</span><span class="copy" aria-hidden="true"></span></button>
         </div>
         <div class="panel" role="tabpanel" id="panel-cursor" aria-labelledby="tab-cursor" hidden>
           <a class="add-btn" href="cursor://anysphere.cursor-deeplink/mcp/install?name=seedfall&amp;config=eyJjb21tYW5kIjoic2VlZGZhbGwiLCJhcmdzIjpbIm1jcCJdfQ=="><svg class="logo" aria-hidden="true"><use href="#cursor"/></svg>Add to Cursor</a>
@@ -386,13 +417,13 @@ n2#2 | panic: log not found
           <a class="add-btn" href="vscode:mcp/install?%7B%22name%22%3A%22seedfall%22%2C%22command%22%3A%22seedfall%22%2C%22args%22%3A%5B%22mcp%22%5D%7D"><svg class="logo" aria-hidden="true"><use href="#mcp"/></svg>Add to VS Code</a>
         </div>
         <div class="panel" role="tabpanel" id="panel-other" aria-labelledby="tab-other" hidden>
-          <button class="install" data-copy="{&quot;mcpServers&quot;: {&quot;seedfall&quot;: {&quot;command&quot;: &quot;seedfall&quot;, &quot;args&quot;: [&quot;mcp&quot;]}}}"><span class="cmd">{&quot;mcpServers&quot;: {&quot;seedfall&quot;: {&quot;command&quot;: &quot;seedfall&quot;, &quot;args&quot;: [&quot;mcp&quot;]}}}</span><span class="copy">copy</span></button>
+          <button class="install" data-copy="{&quot;mcpServers&quot;: {&quot;seedfall&quot;: {&quot;command&quot;: &quot;seedfall&quot;, &quot;args&quot;: [&quot;mcp&quot;]}}}"><span class="cmd">{&quot;mcpServers&quot;: {&quot;seedfall&quot;: {&quot;command&quot;: &quot;seedfall&quot;, &quot;args&quot;: [&quot;mcp&quot;]}}}</span><span class="copy" aria-hidden="true"></span></button>
           <p class="setup-note">Paste into any MCP client that reads an <code>mcpServers</code> config. For the same skills in any agent that reads <code>SKILL.md</code>:</p>
-          <button class="install" data-copy="npx skills add kunalgoesbyken/seedfall"><span class="prompt">$</span><span class="cmd">npx skills add kunalgoesbyken/seedfall</span><span class="copy">copy</span></button>
+          <button class="install" data-copy="npx skills add kunalgoesbyken/seedfall"><span class="prompt" aria-hidden="true"></span><span class="cmd">npx skills add kunalgoesbyken/seedfall</span><span class="copy" aria-hidden="true"></span></button>
         </div>
         <div class="panel" role="tabpanel" id="panel-gha" aria-labelledby="tab-gha" hidden>
-          <button class="install" data-copy="- uses: kunalgoesbyken/seedfall@v0.2.0"><span class="cmd">- uses: kunalgoesbyken/seedfall@v0.2.0</span><span class="copy">copy</span></button>
-          <p class="setup-note">Add it as a step after <code>actions/checkout</code>. Each run uploads an HTML triage report that groups failures and gives a replay command for each.</p>
+          <button class="install" data-copy="- uses: kunalgoesbyken/seedfall@main"><span class="cmd">- uses: kunalgoesbyken/seedfall@main</span><span class="copy" aria-hidden="true"></span></button>
+          <p class="setup-note">Add it as a step after <code>actions/checkout</code>. It runs <code>run</code>, <code>verify</code> or <code>mutate</code>, uploads an HTML triage report with a replay command for each failure, and annotates source lines. With <code>comment: "true"</code> and <code>pull-requests: write</code> it posts one pull request comment and updates it on every run. Inputs newer than v0.2.0 need <code>@main</code> until the next release.</p>
         </div>
       </div>
     </div>
@@ -413,30 +444,29 @@ seedfall_cause  { "config": "seedfall.json", "seed": 1 }
 <section class="light" id="compare">
   <div class="wrap">
     <p class="eyebrow center">Compare</p>
-    <h2 class="center">Why another DST tool</h2>
-    <p class="sub center">Every Go option so far requires you to give something up.</p>
-    <div class="table-scroll">
-      <table>
-        <thead><tr><th></th><th>seedfall</th><th>gosim forks</th><th>faultline &amp; co.</th><th>testing/synctest</th><th>Antithesis</th></tr></thead>
+    <h2 class="center">How it compares</h2>
+    <p class="sub center">What each tool's own documentation says. Every cell links to its source; n/a means the source does not say.</p>
+    <div class="table-scroll" id="compare-table">
+      <table class="compare">
+        <thead><tr><th></th><th>seedfall</th><th>gosim</th><th>testing/synctest</th><th>Antithesis</th><th>Jepsen</th><th>madsim</th><th>turmoil</th></tr></thead>
         <tbody>
-          <tr><td>Stock Go toolchain</td><td class="y">yes</td><td class="n">needs linkname flags</td><td class="y">yes</td><td class="y">yes</td><td class="y">yes</td></tr>
-          <tr><td>Code changes</td><td class="y">none with net_overlay</td><td class="y">none</td><td class="n">inject net and fs everywhere</td><td class="n">fakes required</td><td class="y">none</td></tr>
-          <tr><td>Multi-process crash + restart</td><td class="y">yes</td><td class="y">yes</td><td class="m">partial</td><td class="n">no</td><td class="y">yes</td></tr>
-          <tr><td>Torn writes, lost fsync</td><td class="y">yes</td><td class="m">lost writes</td><td class="m">varies</td><td class="n">no</td><td class="y">yes</td></tr>
-          <tr><td>Controls goroutine order</td><td class="y">yes</td><td class="y">yes</td><td class="m">varies</td><td class="n">no</td><td class="y">yes</td></tr>
-          <tr><td>Process pauses, clock jumps</td><td class="y">yes</td><td class="m">not documented</td><td class="m">varies</td><td class="n">no</td><td class="y">yes</td></tr>
-          <tr><td>fsync errors, clock skew</td><td class="y">yes</td><td class="m">not documented</td><td class="m">varies</td><td class="n">no</td><td class="m">clock only</td></tr>
-          <tr><td>Runs Antithesis SDK assertions</td><td class="y">yes, unchanged</td><td class="n">no</td><td class="n">no</td><td class="n">no</td><td class="y">yes</td></tr>
-          <tr><td>Coverage properties</td><td class="y">yes</td><td class="n">no</td><td class="n">no</td><td class="n">no</td><td class="y">yes</td></tr>
-          <tr><td>Durability mutation testing</td><td class="y">yes</td><td class="n">no</td><td class="n">no</td><td class="n">no</td><td class="m">agent skill</td></tr>
-          <tr><td>Causality: P(fail) over time</td><td class="y">yes</td><td class="n">no</td><td class="n">no</td><td class="n">no</td><td class="y">yes</td></tr>
-          <tr><td>MCP server for agents</td><td class="y">yes</td><td class="n">no</td><td class="n">no</td><td class="n">no</td><td class="m">agent skills</td></tr>
-          <tr><td>Windows</td><td class="y">yes</td><td class="n">no</td><td class="y">yes</td><td class="y">yes</td><td class="n">SaaS</td></tr>
-          <tr><td>Price</td><td class="y">free, Apache-2.0</td><td class="y">free</td><td class="y">free</td><td class="y">free</td><td class="n">from $17,520/yr</td></tr>
+          <tr><td>Language</td><td><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/README.md">Go</a></td><td><a href="https://github.com/jellevandenhooff/gosim">Go</a></td><td><a href="https://pkg.go.dev/testing/synctest">Go standard library, since Go 1.25</a></td><td><a href="https://antithesis.com/docs/">SDKs for Go, Java, C, C++, JavaScript, Python, Rust and .NET</a></td><td><a href="https://github.com/jepsen-io/jepsen">Clojure library</a></td><td><a href="https://github.com/madsim-rs/madsim">Rust, a tokio-like async runtime</a></td><td><a href="https://github.com/tokio-rs/turmoil">Rust crates</a></td></tr>
+          <tr><td>Replays a failure exactly</td><td><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/README.md">yes, same seed, same run, byte for byte</a></td><td><a href="https://github.com/jellevandenhooff/gosim">yes, including goroutine interleavings</a></td><td class="na">n/a</td><td><a href="https://antithesis.com/docs/">yes, the simulation is deterministic</a></td><td class="na">n/a</td><td><a href="https://github.com/madsim-rs/madsim">yes, deterministic simulation</a></td><td><a href="https://github.com/tokio-rs/turmoil">yes, faults from a seeded RNG</a></td></tr>
+          <tr><td>How it runs your code</td><td><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/how-it-works.md">each node built for GOOS=wasip1 with the stock Go toolchain and run on wazero</a></td><td><a href="https://github.com/jellevandenhooff/gosim/blob/main/docs/design.md">translates Go code to call into its own simulated runtime</a></td><td><a href="https://pkg.go.dev/testing/synctest">goroutines in a bubble with a fake clock that advances when all are durably blocked</a></td><td><a href="https://antithesis.com/docs/">runs your containers in its own simulation environment</a></td><td><a href="https://github.com/jepsen-io/jepsen">a control node drives real database nodes over SSH</a></td><td class="na">n/a</td><td><a href="https://github.com/tokio-rs/turmoil">many hosts in a single thread</a></td></tr>
+          <tr><td>Code changes</td><td><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/README.md">none with net_overlay, or one sim.Listen line</a></td><td><a href="https://github.com/jellevandenhooff/gosim">standard Go; tests run with gosim test instead of go test</a></td><td><a href="https://pkg.go.dev/testing/synctest">the network has to be faked</a></td><td class="na">n/a</td><td class="na">n/a</td><td><a href="https://github.com/madsim-rs/madsim">replace tokio and tonic with madsim crates and build with --cfg madsim</a></td><td><a href="https://github.com/tokio-rs/turmoil">drop-in replacements for tokio::net and std::fs</a></td></tr>
+          <tr><td>Crash and restart</td><td><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/README.md">each node is its own wasm instance; a restart boots fresh over the surviving disk</a></td><td><a href="https://github.com/jellevandenhooff/gosim">simulated machines that crash and restart</a></td><td class="na">n/a</td><td><a href="https://antithesis.com/docs/product/writing_tests/controlling_faults/fault_types/">node stop and node kill, restarted after a delay</a></td><td><a href="https://github.com/jepsen-io/jepsen">kills processes with killall -9</a></td><td><a href="https://github.com/madsim-rs/madsim">kill a process</a></td><td><a href="https://github.com/tokio-rs/turmoil">crashes</a></td></tr>
+          <tr><td>Disk faults</td><td><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/faults.md">torn writes, out-of-order writeback, fsync EIO, full disks, read and write errors, lost and misdirected writes, bit rot</a></td><td><a href="https://github.com/jellevandenhooff/gosim/blob/main/docs/design.md">lost writes; file system calls are split into operations persisted or lost on crash</a></td><td class="na">n/a</td><td class="na">n/a</td><td class="na">n/a</td><td class="na">n/a</td><td><a href="https://github.com/tokio-rs/turmoil">torn writes on a simulated filesystem</a></td></tr>
+          <tr><td>Network faults</td><td><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/faults.md">partitions, one-way clogs, swizzles, connection resets, per-link latency, UDP loss and duplication</a></td><td><a href="https://github.com/jellevandenhooff/gosim">flaky networks and latency</a></td><td><a href="https://pkg.go.dev/testing/synctest">none; the docs say to avoid the network</a></td><td><a href="https://antithesis.com/docs/product/writing_tests/controlling_faults/fault_types/">partitions, clogs, latency and dropped packets</a></td><td><a href="https://github.com/jepsen-io/jepsen">iptables network manipulation</a></td><td><a href="https://github.com/madsim-rs/madsim">disconnect the network</a></td><td><a href="https://github.com/tokio-rs/turmoil">latency, drops and partitions</a></td></tr>
+          <tr><td>Clock faults</td><td><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/faults.md">wall-clock skew and jumps</a></td><td class="na">n/a</td><td class="na">n/a</td><td><a href="https://antithesis.com/docs/product/writing_tests/controlling_faults/fault_types/">clock jumps forward and back</a></td><td><a href="https://github.com/jepsen-io/jepsen">clock skew</a></td><td class="na">n/a</td><td class="na">n/a</td></tr>
+          <tr><td>Process pauses</td><td><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/faults.md">pauses and slow nodes</a></td><td class="na">n/a</td><td class="na">n/a</td><td><a href="https://antithesis.com/docs/product/writing_tests/controlling_faults/fault_types/">container pauses and thread pauses</a></td><td class="na">n/a</td><td class="na">n/a</td><td class="na">n/a</td></tr>
+          <tr><td>Goroutine scheduling</td><td><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/faults.md">seeded preemption: random, pct and calls strategies</a></td><td><a href="https://github.com/jellevandenhooff/gosim/blob/main/docs/design.md">seeded cooperative scheduling</a></td><td class="na">n/a</td><td class="na">n/a</td><td class="na">n/a</td><td class="na">n/a</td><td class="na">n/a</td></tr>
+          <tr><td>For coding agents</td><td><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/agents.md">MCP server, agent skills and a Claude Code plugin</a></td><td class="na">n/a</td><td class="na">n/a</td><td><a href="https://antithesis.com/docs/">CLI, API and agent skills</a></td><td class="na">n/a</td><td class="na">n/a</td><td class="na">n/a</td></tr>
+          <tr><td>Windows</td><td><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/README.md">yes</a></td><td><a href="https://github.com/jellevandenhooff/gosim">should work, not tested</a></td><td class="na">n/a</td><td class="na">n/a</td><td class="na">n/a</td><td class="na">n/a</td><td class="na">n/a</td></tr>
+          <tr><td>Price and license</td><td><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/LICENSE">free, Apache-2.0</a></td><td><a href="https://github.com/jellevandenhooff/gosim">free, MIT</a></td><td><a href="https://pkg.go.dev/testing/synctest">free, part of Go</a></td><td><a href="https://aws.amazon.com/marketplace/pp/prodview-vnk6a33g3b3mu">AWS Marketplace: $17,520 per 12-month base commit (checked 2026-11-09)</a></td><td class="na">n/a</td><td><a href="https://github.com/madsim-rs/madsim">free, Apache-2.0</a></td><td><a href="https://github.com/tokio-rs/turmoil">free, MIT</a></td></tr>
         </tbody>
       </table>
     </div>
-    <p class="note center">Antithesis price from its AWS Marketplace listing. gosim needs <code>-checklinkname=0</code> and private runtime contracts.</p>
+    <p class="note center">Data in <a href="compare.json">compare.json</a>, sources fetched 2026-11-09. madsim and turmoil are for Rust, Jepsen tests real clusters from Clojure.</p>
   </div>
 </section>
 
@@ -475,6 +505,39 @@ conn, err := sim.Dial("tcp", "server:7000")</pre>
 $ seedfall replay -seed 9
 $ seedfall shrink -seed 9</pre>
       </div>
+    </div>
+    <div class="table-scroll" id="commands">
+      <table class="commands">
+        <tbody>
+          <tr><td><code>seedfall init</code></td><td>Find the main packages, report what will not build for wasip1, scaffold seedfall.json with profiles and a workload</td></tr>
+          <tr><td><code>seedfall doctor</code></td><td>Check Go, wasip1 builds, net_overlay, caches and memory, and print fixes</td></tr>
+          <tr><td><code>seedfall run</code></td><td>Sweep a seed range; -check runs each seed twice, -report writes a triage report</td></tr>
+          <tr><td><code>seedfall explore</code></td><td>Branch from runs that reached something new, to find failures a sweep misses</td></tr>
+          <tr><td><code>seedfall replay</code></td><td>Replay one seed exactly; -html writes its timeline</td></tr>
+          <tr><td><code>seedfall logs</code></td><td>Replay and filter the trace by node, pattern and virtual time</td></tr>
+          <tr><td><code>seedfall debug</code></td><td>Stop a replay at a virtual time and look at nodes, live disks and messages in flight</td></tr>
+          <tr><td><code>seedfall trace grep</code></td><td>Search the trace with the lines of every node around each match</td></tr>
+          <tr><td><code>seedfall trace diff</code></td><td>Find the first line where two traces part</td></tr>
+          <tr><td><code>seedfall shrink</code></td><td>Cut a failure down to the faults, durations and workload size that matter</td></tr>
+          <tr><td><code>seedfall faults</code></td><td>Remove, shift or add faults in a schedule, checked against the config</td></tr>
+          <tr><td><code>seedfall cause</code></td><td>Plot the probability of failing over time and find the fault where it jumps</td></tr>
+          <tr><td><code>seedfall inspect</code></td><td>Show every node's disk at the failure: durable, pending and torn bytes</td></tr>
+          <tr><td><code>seedfall check</code></td><td>Re-check a recorded operation history against a model</td></tr>
+          <tr><td><code>seedfall mutate</code></td><td>Break fsync, renames or TCP under the nodes, or mutate the source, to grade the checks</td></tr>
+          <tr><td><code>seedfall pin</code></td><td>Keep a schedule as a regression replayed before every sweep</td></tr>
+          <tr><td><code>seedfall findings</code></td><td>Read a triage report's findings and run history back</td></tr>
+          <tr><td><code>seedfall verify</code></td><td>Replay the failing schedules, sweep for 95% confidence and write a Markdown proof</td></tr>
+          <tr><td><code>seedfall report notify</code></td><td>Post new and regressed findings to a Slack or Discord webhook</td></tr>
+          <tr><td><code>seedfall report issue</code></td><td>File a GitHub issue for each finding that has no open one</td></tr>
+          <tr><td><code>seedfall report github</code></td><td>Write GitHub annotations, outputs and the pull request comment Markdown</td></tr>
+          <tr><td><code>seedfall report comment</code></td><td>Post or update one pull request comment</td></tr>
+          <tr><td><code>seedfall mcp</code></td><td>Serve the commands to coding agents over MCP</td></tr>
+          <tr><td><code>seedfall hook</code></td><td>Claude Code Stop hook that blocks the stop on a failing sweep</td></tr>
+          <tr><td><code>seedfall schema</code></td><td>Print every command and MCP tool as JSON</td></tr>
+          <tr><td><code>seedfall version</code></td><td>Print the build version</td></tr>
+          <tr><td><code>seedfall help</code></td><td>Show usage, or one command's flags</td></tr>
+        </tbody>
+      </table>
     </div>
   </div>
 </section>

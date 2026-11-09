@@ -1,0 +1,338 @@
+[
+ {
+  "tool": "seedfall",
+  "column": "Language",
+  "value": "Go",
+  "source": "https://github.com/kunalgoesbyken/seedfall/blob/main/README.md"
+ },
+ {
+  "tool": "seedfall",
+  "column": "Replays a failure exactly",
+  "value": "yes, same seed, same run, byte for byte",
+  "source": "https://github.com/kunalgoesbyken/seedfall/blob/main/README.md"
+ },
+ {
+  "tool": "seedfall",
+  "column": "How it runs your code",
+  "value": "each node built for GOOS=wasip1 with the stock Go toolchain and run on wazero",
+  "source": "https://github.com/kunalgoesbyken/seedfall/blob/main/docs/how-it-works.md"
+ },
+ {
+  "tool": "seedfall",
+  "column": "Code changes",
+  "value": "none with net_overlay, or one sim.Listen line",
+  "source": "https://github.com/kunalgoesbyken/seedfall/blob/main/README.md"
+ },
+ {
+  "tool": "seedfall",
+  "column": "Crash and restart",
+  "value": "each node is its own wasm instance; a restart boots fresh over the surviving disk",
+  "source": "https://github.com/kunalgoesbyken/seedfall/blob/main/README.md"
+ },
+ {
+  "tool": "seedfall",
+  "column": "Disk faults",
+  "value": "torn writes, out-of-order writeback, fsync EIO, full disks, read and write errors, lost and misdirected writes, bit rot",
+  "source": "https://github.com/kunalgoesbyken/seedfall/blob/main/docs/faults.md"
+ },
+ {
+  "tool": "seedfall",
+  "column": "Network faults",
+  "value": "partitions, one-way clogs, swizzles, connection resets, per-link latency, UDP loss and duplication",
+  "source": "https://github.com/kunalgoesbyken/seedfall/blob/main/docs/faults.md"
+ },
+ {
+  "tool": "seedfall",
+  "column": "Clock faults",
+  "value": "wall-clock skew and jumps",
+  "source": "https://github.com/kunalgoesbyken/seedfall/blob/main/docs/faults.md"
+ },
+ {
+  "tool": "seedfall",
+  "column": "Process pauses",
+  "value": "pauses and slow nodes",
+  "source": "https://github.com/kunalgoesbyken/seedfall/blob/main/docs/faults.md"
+ },
+ {
+  "tool": "seedfall",
+  "column": "Goroutine scheduling",
+  "value": "seeded preemption: random, pct and calls strategies",
+  "source": "https://github.com/kunalgoesbyken/seedfall/blob/main/docs/faults.md"
+ },
+ {
+  "tool": "seedfall",
+  "column": "For coding agents",
+  "value": "MCP server, agent skills and a Claude Code plugin",
+  "source": "https://github.com/kunalgoesbyken/seedfall/blob/main/docs/agents.md"
+ },
+ {
+  "tool": "seedfall",
+  "column": "Windows",
+  "value": "yes",
+  "source": "https://github.com/kunalgoesbyken/seedfall/blob/main/README.md"
+ },
+ {
+  "tool": "seedfall",
+  "column": "Price and license",
+  "value": "free, Apache-2.0",
+  "source": "https://github.com/kunalgoesbyken/seedfall/blob/main/LICENSE"
+ },
+ {
+  "tool": "gosim",
+  "column": "Language",
+  "value": "Go",
+  "source": "https://github.com/jellevandenhooff/gosim"
+ },
+ {
+  "tool": "gosim",
+  "column": "Replays a failure exactly",
+  "value": "yes, including goroutine interleavings",
+  "source": "https://github.com/jellevandenhooff/gosim"
+ },
+ {
+  "tool": "gosim",
+  "column": "How it runs your code",
+  "value": "translates Go code to call into its own simulated runtime",
+  "source": "https://github.com/jellevandenhooff/gosim/blob/main/docs/design.md"
+ },
+ {
+  "tool": "gosim",
+  "column": "Code changes",
+  "value": "standard Go; tests run with gosim test instead of go test",
+  "source": "https://github.com/jellevandenhooff/gosim"
+ },
+ {
+  "tool": "gosim",
+  "column": "Crash and restart",
+  "value": "simulated machines that crash and restart",
+  "source": "https://github.com/jellevandenhooff/gosim"
+ },
+ {
+  "tool": "gosim",
+  "column": "Disk faults",
+  "value": "lost writes; file system calls are split into operations persisted or lost on crash",
+  "source": "https://github.com/jellevandenhooff/gosim/blob/main/docs/design.md"
+ },
+ {
+  "tool": "gosim",
+  "column": "Network faults",
+  "value": "flaky networks and latency",
+  "source": "https://github.com/jellevandenhooff/gosim"
+ },
+ {
+  "tool": "gosim",
+  "column": "Goroutine scheduling",
+  "value": "seeded cooperative scheduling",
+  "source": "https://github.com/jellevandenhooff/gosim/blob/main/docs/design.md"
+ },
+ {
+  "tool": "gosim",
+  "column": "Windows",
+  "value": "should work, not tested",
+  "source": "https://github.com/jellevandenhooff/gosim"
+ },
+ {
+  "tool": "gosim",
+  "column": "Price and license",
+  "value": "free, MIT",
+  "source": "https://github.com/jellevandenhooff/gosim"
+ },
+ {
+  "tool": "testing/synctest",
+  "column": "Language",
+  "value": "Go standard library, since Go 1.25",
+  "source": "https://pkg.go.dev/testing/synctest"
+ },
+ {
+  "tool": "testing/synctest",
+  "column": "How it runs your code",
+  "value": "goroutines in a bubble with a fake clock that advances when all are durably blocked",
+  "source": "https://pkg.go.dev/testing/synctest"
+ },
+ {
+  "tool": "testing/synctest",
+  "column": "Code changes",
+  "value": "the network has to be faked",
+  "source": "https://pkg.go.dev/testing/synctest"
+ },
+ {
+  "tool": "testing/synctest",
+  "column": "Network faults",
+  "value": "none; the docs say to avoid the network",
+  "source": "https://pkg.go.dev/testing/synctest"
+ },
+ {
+  "tool": "testing/synctest",
+  "column": "Price and license",
+  "value": "free, part of Go",
+  "source": "https://pkg.go.dev/testing/synctest"
+ },
+ {
+  "tool": "Antithesis",
+  "column": "Language",
+  "value": "SDKs for Go, Java, C, C++, JavaScript, Python, Rust and .NET",
+  "source": "https://antithesis.com/docs/"
+ },
+ {
+  "tool": "Antithesis",
+  "column": "Replays a failure exactly",
+  "value": "yes, the simulation is deterministic",
+  "source": "https://antithesis.com/docs/"
+ },
+ {
+  "tool": "Antithesis",
+  "column": "How it runs your code",
+  "value": "runs your containers in its own simulation environment",
+  "source": "https://antithesis.com/docs/"
+ },
+ {
+  "tool": "Antithesis",
+  "column": "Crash and restart",
+  "value": "node stop and node kill, restarted after a delay",
+  "source": "https://antithesis.com/docs/product/writing_tests/controlling_faults/fault_types/"
+ },
+ {
+  "tool": "Antithesis",
+  "column": "Network faults",
+  "value": "partitions, clogs, latency and dropped packets",
+  "source": "https://antithesis.com/docs/product/writing_tests/controlling_faults/fault_types/"
+ },
+ {
+  "tool": "Antithesis",
+  "column": "Clock faults",
+  "value": "clock jumps forward and back",
+  "source": "https://antithesis.com/docs/product/writing_tests/controlling_faults/fault_types/"
+ },
+ {
+  "tool": "Antithesis",
+  "column": "Process pauses",
+  "value": "container pauses and thread pauses",
+  "source": "https://antithesis.com/docs/product/writing_tests/controlling_faults/fault_types/"
+ },
+ {
+  "tool": "Antithesis",
+  "column": "For coding agents",
+  "value": "CLI, API and agent skills",
+  "source": "https://antithesis.com/docs/"
+ },
+ {
+  "tool": "Antithesis",
+  "column": "Price and license",
+  "value": "AWS Marketplace: $17,520 per 12-month base commit (checked 2026-11-09)",
+  "source": "https://aws.amazon.com/marketplace/pp/prodview-vnk6a33g3b3mu"
+ },
+ {
+  "tool": "Jepsen",
+  "column": "Language",
+  "value": "Clojure library",
+  "source": "https://github.com/jepsen-io/jepsen"
+ },
+ {
+  "tool": "Jepsen",
+  "column": "How it runs your code",
+  "value": "a control node drives real database nodes over SSH",
+  "source": "https://github.com/jepsen-io/jepsen"
+ },
+ {
+  "tool": "Jepsen",
+  "column": "Crash and restart",
+  "value": "kills processes with killall -9",
+  "source": "https://github.com/jepsen-io/jepsen"
+ },
+ {
+  "tool": "Jepsen",
+  "column": "Network faults",
+  "value": "iptables network manipulation",
+  "source": "https://github.com/jepsen-io/jepsen"
+ },
+ {
+  "tool": "Jepsen",
+  "column": "Clock faults",
+  "value": "clock skew",
+  "source": "https://github.com/jepsen-io/jepsen"
+ },
+ {
+  "tool": "madsim",
+  "column": "Language",
+  "value": "Rust, a tokio-like async runtime",
+  "source": "https://github.com/madsim-rs/madsim"
+ },
+ {
+  "tool": "madsim",
+  "column": "Replays a failure exactly",
+  "value": "yes, deterministic simulation",
+  "source": "https://github.com/madsim-rs/madsim"
+ },
+ {
+  "tool": "madsim",
+  "column": "Code changes",
+  "value": "replace tokio and tonic with madsim crates and build with --cfg madsim",
+  "source": "https://github.com/madsim-rs/madsim"
+ },
+ {
+  "tool": "madsim",
+  "column": "Crash and restart",
+  "value": "kill a process",
+  "source": "https://github.com/madsim-rs/madsim"
+ },
+ {
+  "tool": "madsim",
+  "column": "Network faults",
+  "value": "disconnect the network",
+  "source": "https://github.com/madsim-rs/madsim"
+ },
+ {
+  "tool": "madsim",
+  "column": "Price and license",
+  "value": "free, Apache-2.0",
+  "source": "https://github.com/madsim-rs/madsim"
+ },
+ {
+  "tool": "turmoil",
+  "column": "Language",
+  "value": "Rust crates",
+  "source": "https://github.com/tokio-rs/turmoil"
+ },
+ {
+  "tool": "turmoil",
+  "column": "Replays a failure exactly",
+  "value": "yes, faults from a seeded RNG",
+  "source": "https://github.com/tokio-rs/turmoil"
+ },
+ {
+  "tool": "turmoil",
+  "column": "How it runs your code",
+  "value": "many hosts in a single thread",
+  "source": "https://github.com/tokio-rs/turmoil"
+ },
+ {
+  "tool": "turmoil",
+  "column": "Code changes",
+  "value": "drop-in replacements for tokio::net and std::fs",
+  "source": "https://github.com/tokio-rs/turmoil"
+ },
+ {
+  "tool": "turmoil",
+  "column": "Crash and restart",
+  "value": "crashes",
+  "source": "https://github.com/tokio-rs/turmoil"
+ },
+ {
+  "tool": "turmoil",
+  "column": "Disk faults",
+  "value": "torn writes on a simulated filesystem",
+  "source": "https://github.com/tokio-rs/turmoil"
+ },
+ {
+  "tool": "turmoil",
+  "column": "Network faults",
+  "value": "latency, drops and partitions",
+  "source": "https://github.com/tokio-rs/turmoil"
+ },
+ {
+  "tool": "turmoil",
+  "column": "Price and license",
+  "value": "free, MIT",
+  "source": "https://github.com/tokio-rs/turmoil"
+ }
+]

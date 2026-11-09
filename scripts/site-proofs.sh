@@ -9,7 +9,7 @@ marker="seedfall-proof-page"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
-extract() { sed -n "$1" "$site/index.html" | sed -E 's|(<a [^>]*href=")#|\1../#|g; s|href="proof/"|href="./"|g; s|href="proof/|href="|g'; }
+extract() { sed -n "$1" "$site/index.html" | sed -E 's|(<a [^>]*href=")#|\1../#|g; s|href="proof/"|href="./"|g; s|href="proof/|href="|g; s|(src=")([^":/]+")|\1../\2|g'; }
 sprite="$(grep -m1 'class="sprite"' "$site/index.html")"
 header="$(extract '/<header class="nav">/,/<\/header>/p')"
 footer="$(extract '/<footer class="foot">/,/<\/footer>/p')"
@@ -71,3 +71,14 @@ $footer
 EOF
   echo "wrote ${page#"$root"/}"
 done
+
+missing=0
+for md in "$src"/*.md; do
+  name="$(basename "$md" .md)"
+  [ "$name" = README ] && page="$out/index.html" || page="$out/$name.html"
+  if [ ! -s "$page" ]; then
+    echo "no proof page for docs/findings/$name.md" >&2
+    missing=1
+  fi
+done
+exit "$missing"

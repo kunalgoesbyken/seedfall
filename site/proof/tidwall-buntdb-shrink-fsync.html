@@ -32,7 +32,7 @@
     <p class="eyebrow">Proof</p>
     <h1>Shrink renames the rewritten AOF over the database without fsyncing it, so a crash after a shrink can wipe the database</h1>
     <article class="prose">
-<p><strong>Upstream:</strong> <a href="https://github.com/tidwall/buntdb/issues/126">tidwall/buntdb#126</a></p>
+<p><strong>Upstream:</strong> <a href="https://github.com/tidwall/buntdb/issues/126">tidwall/buntdb#126</a>, closed by <a href="https://github.com/tidwall/buntdb/commit/6a23821fdfd51ab6e375b8f82407b6589cad907f">6a23821</a>, which adds the fsync before close in <code>Shrink</code></p>
 <p><strong>Repo:</strong> tidwall/buntdb (tested on v1.3.2)
 <strong>Severity:</strong> a crash after a background shrink can lose acknowledged writes, up to the whole database, even with <code>SyncPolicy: Always</code>.</p>
 <h2>Summary</h2>
@@ -106,7 +106,7 @@ seedfall replay -c seedfall.shrink.json -seed 27
 <footer class="foot">
   <div class="wrap foot-row">
     <a class="brand" href="../#"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
-    <p>Built by <a href="https://github.com/kunalgoesbyken">Kunal Roy Choudhury</a> · on <a href="https://wazero.io">wazero</a> · also by Kunal: <a href="https://gostman.com">Gostman</a>, an open-source API client whose collections run as <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/gostman.md">seedfall workloads</a></p>
+    <p>Built by <a href="https://github.com/kunalgoesbyken">Kunal Roy Choudhury</a> · on <a href="https://wazero.io">wazero</a> · also by Kunal: <a class="promo" href="https://gostman.com"><img src="../gostman.svg" alt="" width="16" height="16">Gostman</a>, an open-source API client whose collections run as <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/gostman.md">seedfall workloads</a></p>
   </div>
 </footer>
 </body>

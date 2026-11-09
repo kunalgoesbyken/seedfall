@@ -1,6 +1,6 @@
 # Shrink renames the rewritten AOF over the database without fsyncing it, so a crash after a shrink can wipe the database
 
-**Upstream:** [tidwall/buntdb#126](https://github.com/tidwall/buntdb/issues/126)
+**Upstream:** [tidwall/buntdb#126](https://github.com/tidwall/buntdb/issues/126), closed by [6a23821](https://github.com/tidwall/buntdb/commit/6a23821fdfd51ab6e375b8f82407b6589cad907f), which adds the fsync before close in `Shrink`
 
 **Repo:** tidwall/buntdb (tested on v1.3.2)
 **Severity:** a crash after a background shrink can lose acknowledged writes, up to the whole database, even with `SyncPolicy: Always`.

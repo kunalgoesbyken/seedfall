@@ -32,7 +32,7 @@
     <p class="eyebrow">Proof</p>
     <h1>Findings</h1>
     <article class="prose">
-<p>Bugs that seedfall found in open-source Go projects. Each report has the root cause with file and line references, a deterministic replay command, and a patched copy that was verified to pass. Each one is reported upstream; the link is at the top of each report.</p>
+<p>Bugs that seedfall found in open-source Go projects. Each report has the root cause with file and line references, a deterministic replay command, and a patched copy that was verified to pass. The Upstream column links each report filed upstream, with its status on 2026-11-09; the same link is at the top of each report.</p>
 <div class="table-scroll"><table>
 <thead>
 <tr>
@@ -41,6 +41,7 @@
 <th>Affects</th>
 <th>Minimal schedule</th>
 <th>Fix verified</th>
+<th>Upstream</th>
 </tr>
 </thead>
 <tbody><tr>
@@ -49,6 +50,7 @@
 <td>Any filesystem</td>
 <td>1 crash mid-I/O, 1 crash</td>
 <td>150 seeds</td>
+<td><a href="https://github.com/nats-io/nats-server/issues/8872">nats-server#8872</a>, open</td>
 </tr>
 <tr>
 <td><a href="rosedblabs-wal-torn-tail.html">rosedblabs/wal</a> v1.3.8</td>
@@ -56,6 +58,7 @@
 <td>Any filesystem</td>
 <td>2 crashes</td>
 <td>1,000 seeds</td>
+<td><a href="https://github.com/rosedblabs/wal/issues/51">wal#51</a>, open</td>
 </tr>
 <tr>
 <td><a href="tidwall-buntdb-shrink-fsync.html">tidwall/buntdb</a> v1.3.2</td>
@@ -63,6 +66,7 @@
 <td>Filesystems without rename-over-write heuristics</td>
 <td>4 crashes, 1 partition</td>
 <td>300 seeds</td>
+<td><a href="https://github.com/tidwall/buntdb/issues/126">buntdb#126</a>, fixed in <a href="https://github.com/tidwall/buntdb/commit/6a23821fdfd51ab6e375b8f82407b6589cad907f">6a23821</a></td>
 </tr>
 <tr>
 <td><a href="tidwall-wal-torn-tail.html">tidwall/wal</a> v1.2.1</td>
@@ -70,6 +74,7 @@
 <td>Any filesystem</td>
 <td>1 crash</td>
 <td>1,500 seeds</td>
+<td><a href="https://github.com/tidwall/wal/issues/43">wal#43</a>, open</td>
 </tr>
 <tr>
 <td><a href="hashicorp-raft-snapshot-dir-fsync.html">hashicorp/raft</a> v1.8</td>
@@ -77,6 +82,7 @@
 <td>Strict POSIX filesystems</td>
 <td>1 crash</td>
 <td>120 seeds</td>
+<td><a href="https://github.com/hashicorp/raft/issues/744">raft#744</a>, open</td>
 </tr>
 <tr>
 <td><a href="nutsdb-bucket-meta-fsync.html">nutsdb/nutsdb</a> v1.1.0</td>
@@ -84,6 +90,7 @@
 <td>Any filesystem</td>
 <td>1 crash</td>
 <td>300 seeds</td>
+<td><a href="https://github.com/nutsdb/nutsdb/issues/695">nutsdb#695</a>, open</td>
 </tr>
 <tr>
 <td><a href="nutsdb-torn-tail-crc.html">nutsdb/nutsdb</a> v1.1.0</td>
@@ -91,6 +98,7 @@
 <td>Any filesystem</td>
 <td>1 crash mid-I/O</td>
 <td>300 seeds</td>
+<td><a href="https://github.com/nutsdb/nutsdb/issues/696">nutsdb#696</a>, open</td>
 </tr>
 <tr>
 <td><a href="nutsdb-rotation-dir-fsync-and-eio.html">nutsdb/nutsdb</a> v1.1.0</td>
@@ -98,6 +106,7 @@
 <td>Strict POSIX; fsync errors</td>
 <td>1 crash; 1 EIO, 1 crash</td>
 <td>300 seeds</td>
+<td><a href="https://github.com/nutsdb/nutsdb/issues/697">nutsdb#697</a>, open</td>
 </tr>
 <tr>
 <td><a href="bitcask-config-json-torn.html">prologic/bitcask</a> v2.2.0</td>
@@ -105,6 +114,7 @@
 <td>Any filesystem</td>
 <td>1 crash mid-I/O</td>
 <td>300 seeds</td>
+<td>no link recorded</td>
 </tr>
 <tr>
 <td><a href="bitcask-autorecovery-torn-tail.html">prologic/bitcask</a> v2.2.0</td>
@@ -112,6 +122,7 @@
 <td>Any filesystem</td>
 <td>1 crash mid-I/O</td>
 <td>300 seeds</td>
+<td>no link recorded</td>
 </tr>
 <tr>
 <td><a href="bitcask-recovered-datafile-fsync.html">prologic/bitcask</a> v2.2.0</td>
@@ -119,6 +130,7 @@
 <td>Any filesystem</td>
 <td>3 faults</td>
 <td>300 seeds</td>
+<td>no link recorded</td>
 </tr>
 <tr>
 <td><a href="bitcask-rotation-dir-fsync-and-eio.html">prologic/bitcask</a> v2.2.0</td>
@@ -126,6 +138,7 @@
 <td>Strict POSIX; fsync errors</td>
 <td>1 crash; 1 EIO, 1 crash</td>
 <td>300 seeds</td>
+<td>no link recorded</td>
 </tr>
 <tr>
 <td><a href="diskv-rename-dir-fsync.html">peterbourgon/diskv</a> v3.0.1</td>
@@ -133,6 +146,15 @@
 <td>Strict POSIX</td>
 <td>3 faults</td>
 <td>300 seeds</td>
+<td><a href="https://github.com/peterbourgon/diskv/issues/83">diskv#83</a>, open</td>
+</tr>
+<tr>
+<td><a href="bbolt-create-dir-fsync.html">etcd-io/bbolt</a> v1.5.0</td>
+<td><code>Open</code> creates the database file and syncs its data but never fsyncs the directory, so one crash can lose the file with every committed transaction. Not filed yet</td>
+<td>Strict POSIX</td>
+<td>1 crash</td>
+<td>300 seeds</td>
+<td>not filed yet</td>
 </tr>
 <tr>
 <td><a href="jmsadair-raft-state-file-fsync.html">jmsadair/raft</a> v0.2.0</td>
@@ -140,6 +162,7 @@
 <td>Any filesystem</td>
 <td>1 crash</td>
 <td>150 seeds (all four fixes)</td>
+<td>not filed: repository no longer public</td>
 </tr>
 <tr>
 <td><a href="jmsadair-raft-log-torn-tail.html">jmsadair/raft</a> v0.2.0</td>
@@ -147,6 +170,7 @@
 <td>Any filesystem</td>
 <td>1 crash</td>
 <td>150 seeds</td>
+<td>not filed: repository no longer public</td>
 </tr>
 <tr>
 <td><a href="jmsadair-raft-tmp-snapshot-dir.html">jmsadair/raft</a> v0.2.0</td>
@@ -154,6 +178,7 @@
 <td>Any filesystem</td>
 <td>1 crash</td>
 <td>150 seeds</td>
+<td>not filed: repository no longer public</td>
 </tr>
 <tr>
 <td><a href="jmsadair-raft-snapshot-wall-clock-order.html">jmsadair/raft</a> v0.2.0</td>
@@ -161,6 +186,7 @@
 <td>Any filesystem</td>
 <td>1 clock jump, 2 crashes</td>
 <td>100 seeds</td>
+<td>not filed: repository no longer public</td>
 </tr>
 </tbody></table>
 <p>Systems that passed (no false alarms):</p>
@@ -205,7 +231,7 @@
 <footer class="foot">
   <div class="wrap foot-row">
     <a class="brand" href="../#"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
-    <p>Built by <a href="https://github.com/kunalgoesbyken">Kunal Roy Choudhury</a> · on <a href="https://wazero.io">wazero</a> · also by Kunal: <a href="https://gostman.com">Gostman</a>, an open-source API client whose collections run as <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/gostman.md">seedfall workloads</a></p>
+    <p>Built by <a href="https://github.com/kunalgoesbyken">Kunal Roy Choudhury</a> · on <a href="https://wazero.io">wazero</a> · also by Kunal: <a class="promo" href="https://gostman.com"><img src="../gostman.svg" alt="" width="16" height="16">Gostman</a>, an open-source API client whose collections run as <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/gostman.md">seedfall workloads</a></p>
   </div>
 </footer>
 </body>

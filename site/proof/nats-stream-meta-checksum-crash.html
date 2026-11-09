@@ -32,7 +32,7 @@
     <p class="eyebrow">Proof</p>
     <h1>A crash during stream creation leaves meta.inf without meta.sum, and the stream then disappears on every later restart</h1>
     <article class="prose">
-<p><strong>Upstream:</strong> being filed with nats-io/nats-server</p>
+<p><strong>Upstream:</strong> <a href="https://github.com/nats-io/nats-server/issues/8872">nats-io/nats-server#8872</a></p>
 <p><strong>Repo:</strong> nats-io/nats-server (tested on v2.15.2, single server, JetStream file storage, <code>sync_always: true</code>)
 <strong>Severity:</strong> acknowledged messages become invisible after a restart. The stream accepts and acknowledges publishes normally after the first restart, and is silently skipped on every restart after that. No strict-POSIX assumptions needed: this reproduces with ordinary &quot;a rename and an fsynced file are durable&quot; semantics.</p>
 <h2>Summary</h2>
@@ -85,7 +85,7 @@ if err != nil &amp;&amp; os.IsNotExist(err) || fi != nil &amp;&amp; fi.Size() ==
 <footer class="foot">
   <div class="wrap foot-row">
     <a class="brand" href="../#"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
-    <p>Built by <a href="https://github.com/kunalgoesbyken">Kunal Roy Choudhury</a> · on <a href="https://wazero.io">wazero</a> · also by Kunal: <a href="https://gostman.com">Gostman</a>, an open-source API client whose collections run as <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/gostman.md">seedfall workloads</a></p>
+    <p>Built by <a href="https://github.com/kunalgoesbyken">Kunal Roy Choudhury</a> · on <a href="https://wazero.io">wazero</a> · also by Kunal: <a class="promo" href="https://gostman.com"><img src="../gostman.svg" alt="" width="16" height="16">Gostman</a>, an open-source API client whose collections run as <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/gostman.md">seedfall workloads</a></p>
   </div>
 </footer>
 </body>
