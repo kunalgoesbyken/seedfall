@@ -62,7 +62,7 @@ tr.fail td { color: var(--bad); }
 </div>
 <script>
 const T = {{.Data}};
-const laneW = 170, rowH = 18, left = 96, top = 40, opW = 5;
+const laneW = 170, rowH = 18, left = 96, plotTop = 40, opW = 5;
 const kindNames = ["lives", "messages", "ops", "faults", "marks"];
 const engineLane = "engine";
 const state = { nodes: new Set([...T.nodes, engineLane]), kinds: new Set(kindNames), from: 0, to: Infinity, grep: null };
@@ -131,7 +131,7 @@ function yOf(times) {
       const mid = (lo + hi) >> 1;
       times[mid] < t ? (lo = mid + 1) : (hi = mid);
     }
-    return top + lo * rowH;
+    return plotTop + lo * rowH;
   };
 }
 
@@ -164,14 +164,14 @@ function render() {
   const v = visible();
   const times = rows(v);
   const y = yOf(times);
-  const height = top + Math.max(times.length, 1) * rowH + rowH;
+  const height = plotTop + Math.max(times.length, 1) * rowH + rowH;
   const width = left + nodes.length * laneW;
   const out = [`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><defs>`];
   for (const [kind, color] of Object.entries(msgColors)) {
     out.push(`<marker id="arrow-${kind}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" style="fill:${color}"/></marker>`);
   }
   out.push("</defs>");
-  times.forEach((t, i) => out.push(`<text x="8" y="${top + i * rowH + 4}">${secs(t)}</text>`));
+  times.forEach((t, i) => out.push(`<text x="8" y="${plotTop + i * rowH + 4}">${secs(t)}</text>`));
   for (const f of v.faults) {
     const hit = f.nodes ? f.nodes.filter(n => n in lane) : nodes;
     if (!hit.length) continue;
@@ -182,7 +182,7 @@ function render() {
   }
   nodes.forEach(n => {
     out.push(`<text class="head" x="${lane[n]}" y="18" text-anchor="middle">${esc(n)}</text>`);
-    out.push(`<line x1="${lane[n]}" y1="${top - 8}" x2="${lane[n]}" y2="${height}" style="stroke:var(--line);stroke-dasharray:2 4"/>`);
+    out.push(`<line x1="${lane[n]}" y1="${plotTop - 8}" x2="${lane[n]}" y2="${height}" style="stroke:var(--line);stroke-dasharray:2 4"/>`);
   });
   for (const l of v.lives) {
     const y0 = y(Math.max(l.start, state.from)), y1 = y(Math.min(endOf(l.end), state.to));
