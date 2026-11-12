@@ -22,6 +22,8 @@
   <a href="https://github.com/kunalgoesbyken/seedfall/actions/workflows/regress.yml"><img src="https://github.com/kunalgoesbyken/seedfall/actions/workflows/regress.yml/badge.svg" alt="regress"></a>
 </p>
 
+![seedfall: a failure shrunk from 33 faults to 2, then replayed exactly from one seed](docs/assets/readme-card.webp)
+
 ---
 
 seedfall is for people who write Go services that keep data: databases, queues, caches, anything that writes to disk or talks to other nodes. Those services usually pass their tests and then lose data in production, because the bug needs a crash at one particular moment, or a network split at another. Normal tests almost never hit that moment, and when production does, you can't reproduce it.
