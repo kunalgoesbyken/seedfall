@@ -13,6 +13,9 @@
 <article class="page">
 <p class="back"><a href="./">&larr; Findings</a></p>
 <h1 id="acknowledged-writes-can-be-lost-after-a-datafile-rotation-no-directory-fsync-or-after-a-failed-fsync-offset-not-rewound">Acknowledged writes can be lost after a datafile rotation (no directory fsync) or after a failed fsync (offset not rewound)</h1>
+<blockquote>
+<p><strong>In plain words:</strong> Confirmed writes can be lost when it starts a new data file, or when the disk reports an error while saving.</p>
+</blockquote>
 <p><strong>Repo:</strong> prologic/bitcask on git.mills.io, module <code>go.mills.io/bitcask/v2</code> (tested on v2.2.0, which is <code>main</code> at a5ea7328ad)
 <strong>Severity:</strong> lower than the <code>config.json</code> and auto-recovery issues. Both need a less common event, a crash shortly after a rotation or an fsync error, and both lose acknowledged writes silently with <code>WithSyncWrites(true)</code>.</p>
 <h2 id="1-a-new-datafile-is-created-without-fsyncing-the-directory">1. A new datafile is created without fsyncing the directory</h2>

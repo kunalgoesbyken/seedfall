@@ -13,6 +13,9 @@
 <article class="page">
 <p class="back"><a href="./">&larr; Findings</a></p>
 <h1 id="the-term-and-vote-file-is-renamed-into-place-without-an-fsync-and-one-crash-leaves-a-node-that-can-never-restart">The term and vote file is renamed into place without an fsync, and one crash leaves a node that can never restart</h1>
+<blockquote>
+<p><strong>In plain words:</strong> One crash can empty the file that records the node's vote, and the node never starts again.</p>
+</blockquote>
 <p><strong>Upstream:</strong> not filed. The GitHub repository is no longer public, so there is nowhere to report it; v0.2.0 is still served by proxy.golang.org.</p>
 <p><strong>Repo:</strong> jmsadair/raft (tested on v0.2.0, the latest release, commit <code>8dd4cdc</code>; the GitHub repository is no longer public, the module is still served by proxy.golang.org)
 <strong>Severity:</strong> a single power loss or OS crash at the wrong moment leaves <code>state/state.bin</code> empty or truncated. <code>NewRaft</code> then fails on every start, so the node is down until an operator intervenes, and deleting the file to get it running again throws away its vote, which risks two leaders in one term. Two such nodes in a 3-node cluster take the cluster down. No strict-POSIX assumptions needed.</p>

@@ -183,7 +183,7 @@ A partition or a clog that stops or jams a link also drops a datagram sent acros
 
 ## File system models
 
-`reorder_writes` turns on out-of-order writeback at a crash. `fs_model` says which states a crash may then leave behind. A model that is too weak reports bugs your file system cannot produce; one that is too strong misses bugs it can. The models follow Table 1 of ALICE ([All File Systems Are Not Created Equal](https://www.usenix.org/system/files/conference/osdi14/osdi14-paper-pillai.pdf), OSDI '14), which measured these properties on real file systems.
+`reorder_writes` turns on out-of-order writeback at a crash. `fs_model` says which states a crash may then leave behind. A model that is too weak reports bugs your file system cannot produce; one that is too strong misses bugs it can. The models follow Table 1 of ALICE ([All File Systems Are Not Created Equal](https://www.usenix.org/conference/osdi14/technical-sessions/presentation/pillai), OSDI '14), which measured these properties on real file systems.
 
 | `fs_model` | File contents | Directory operations (`strict_dirs`) | Matches |
 |---|---|---|---|

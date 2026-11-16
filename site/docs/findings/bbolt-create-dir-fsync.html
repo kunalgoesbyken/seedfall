@@ -13,6 +13,9 @@
 <article class="page">
 <p class="back"><a href="./">&larr; Findings</a></p>
 <h1 id="open-creates-the-database-file-without-fsyncing-its-directory-so-one-crash-can-lose-the-whole-database">Open creates the database file without fsyncing its directory, so one crash can lose the whole database</h1>
+<blockquote>
+<p><strong>In plain words:</strong> A crash soon after a new database is created can lose the whole file, with every transaction it committed.</p>
+</blockquote>
 <p><strong>Upstream:</strong> not filed yet.</p>
 <p><strong>Repo:</strong> etcd-io/bbolt (tested on v1.5.0, the latest release)
 <strong>Severity:</strong> low. It needs a filesystem where a new file's name is durable only after the parent directory is fsynced, plus a crash before anything else syncs that directory. On such filesystems every transaction committed with fsync and acknowledged after <code>Open</code> can disappear together with the file.</p>

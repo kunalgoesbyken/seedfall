@@ -13,6 +13,9 @@
 <article class="page">
 <p class="back"><a href="./">&larr; Findings</a></p>
 <h1 id="tidwallwal-cant-reopen-after-a-crash-mid-append-and-the-pending-fix-22-leaves-stale-bytes-that-corrupt-the-log-after-the-next-segment-rotation">tidwall/wal can't reopen after a crash mid-append, and the pending fix (#22) leaves stale bytes that corrupt the log after the next segment rotation</h1>
+<blockquote>
+<p><strong>In plain words:</strong> One crash during a write and the log can never be opened again. The pending upstream fix is incomplete.</p>
+</blockquote>
 <p><strong>Upstream:</strong> <a href="https://github.com/tidwall/wal/issues/43">tidwall/wal#43</a>, following up on #21 and PR #22</p>
 <p><strong>Repo:</strong> tidwall/wal (tested on v1.2.1, default options, <code>NoSync: false</code>)
 <strong>Status upstream:</strong> the first half is known: issue #21, open since June 2023, and PR #22, unmerged. The second and third parts below are not reported.</p>

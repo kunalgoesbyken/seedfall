@@ -13,6 +13,9 @@
 <article class="page">
 <p class="back"><a href="./">&larr; Findings</a></p>
 <h1 id="autorecovery-fails-on-ordinary-torn-tails-so-open-errors-out-after-a-crash-mid-put">AutoRecovery fails on ordinary torn tails, so Open errors out after a crash mid-Put</h1>
+<blockquote>
+<p><strong>In plain words:</strong> Its crash recovery fails on the most common kind of crash damage, so the database won't open after a crash during a write.</p>
+</blockquote>
 <p><strong>Repo:</strong> prologic/bitcask on git.mills.io, module <code>go.mills.io/bitcask/v2</code> (tested on v2.2.0, which is <code>main</code> at a5ea7328ad)
 <strong>Severity:</strong> after a crash in the middle of an unacknowledged <code>Put</code>, <code>Open</code> with <code>WithAutoRecovery(true)</code> (the default) returns an error instead of truncating the torn record. In one of the two cases, every later <code>Open</code> fails too.</p>
 <p><code>CheckAndRecover</code> (internal/data/recover.go:19) is supposed to make a crash mid-write harmless: it copies the valid prefix of the last datafile into <code>&lt;file&gt;.recovered</code>, renames it over the datafile and deletes the index. Two bugs make it fail on exactly the input it exists for.</p>

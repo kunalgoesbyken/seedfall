@@ -13,6 +13,9 @@
 <article class="page">
 <p class="back"><a href="./">&larr; Findings</a></p>
 <h1 id="autorecovery-renames-an-unsynced-copy-over-the-last-datafile-so-a-second-crash-can-wipe-acknowledged-writes">AutoRecovery renames an unsynced copy over the last datafile, so a second crash can wipe acknowledged writes</h1>
+<blockquote>
+<p><strong>In plain words:</strong> Its crash recovery puts back a data file that isn't safely on disk yet, so a second crash can wipe confirmed writes.</p>
+</blockquote>
 <p><strong>Repo:</strong> prologic/bitcask on git.mills.io, module <code>go.mills.io/bitcask/v2</code> (tested on v2.2.0, which is <code>main</code> at a5ea7328ad)
 <strong>Severity:</strong> loses acknowledged, fsynced writes, up to the whole last datafile, with <code>WithSyncWrites(true)</code> and <code>WithAutoRecovery(true)</code>.</p>
 <h2 id="summary">Summary</h2>

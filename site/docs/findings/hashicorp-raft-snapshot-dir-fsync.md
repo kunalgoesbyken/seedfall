@@ -1,5 +1,7 @@
 # FileSnapshotStore doesn't fsync the snapshot directory before rename, so a crash can leave an empty snapshot after logs were compacted
 
+> **In plain words:** One crash while saving a snapshot leaves a node that crashes every time it starts.
+
 **Upstream:** [hashicorp/raft#744](https://github.com/hashicorp/raft/issues/744)
 
 **Repo:** hashicorp/raft (tested on v1.8.0)

@@ -13,6 +13,9 @@
 <article class="page">
 <p class="back"><a href="./">&larr; Findings</a></p>
 <h1 id="filesnapshotstore-doesnt-fsync-the-snapshot-directory-before-rename-so-a-crash-can-leave-an-empty-snapshot-after-logs-were-compacted">FileSnapshotStore doesn't fsync the snapshot directory before rename, so a crash can leave an empty snapshot after logs were compacted</h1>
+<blockquote>
+<p><strong>In plain words:</strong> One crash while saving a snapshot leaves a node that crashes every time it starts.</p>
+</blockquote>
 <p><strong>Upstream:</strong> <a href="https://github.com/hashicorp/raft/issues/744">hashicorp/raft#744</a></p>
 <p><strong>Repo:</strong> hashicorp/raft (tested on v1.8.0)
 <strong>Severity:</strong> a node can't restart (it panics in <code>NewRaft</code>). This needs strict POSIX directory-durability semantics.</p>

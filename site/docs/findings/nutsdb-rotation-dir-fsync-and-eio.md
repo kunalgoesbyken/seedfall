@@ -1,5 +1,7 @@
 # Acknowledged writes can be lost after a data-file rotation (no directory fsync) or after a failed fsync (offset not rewound)
 
+> **In plain words:** Confirmed writes can be lost when it starts a new data file, or when the disk reports an error while saving.
+
 **Upstream:** [nutsdb/nutsdb#697](https://github.com/nutsdb/nutsdb/issues/697)
 
 **Repo:** nutsdb/nutsdb (tested on v1.1.0, still present on `main` at 39d6badd)

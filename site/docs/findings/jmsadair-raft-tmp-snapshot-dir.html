@@ -13,6 +13,9 @@
 <article class="page">
 <p class="back"><a href="./">&larr; Findings</a></p>
 <h1 id="a-crash-while-a-snapshot-is-being-written-leaves-a-temporary-directory-that-makes-every-later-start-fail">A crash while a snapshot is being written leaves a temporary directory that makes every later start fail</h1>
+<blockquote>
+<p><strong>In plain words:</strong> A crash while taking a snapshot leaves a leftover folder that stops the node from starting.</p>
+</blockquote>
 <p><strong>Upstream:</strong> not filed. The GitHub repository is no longer public, so there is nowhere to report it; v0.2.0 is still served by proxy.golang.org.</p>
 <p><strong>Repo:</strong> jmsadair/raft (tested on v0.2.0, the latest release, commit <code>8dd4cdc</code>; the GitHub repository is no longer public, the module is still served by proxy.golang.org)
 <strong>Severity:</strong> low. One ordinary crash (<code>kill -9</code>, OOM kill, power loss) during a snapshot makes the next start fail with a misleading error. A second start succeeds. No torn writes or strict-POSIX assumptions needed; reproduced on a real filesystem.</p>

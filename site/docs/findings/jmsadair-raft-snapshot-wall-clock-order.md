@@ -1,5 +1,7 @@
 # Snapshots are ordered by wall-clock time, so after the clock steps back a restart loads an old snapshot and the node never starts again
 
+> **In plain words:** If the machine's clock moves backwards, the node later loads an old snapshot and never starts.
+
 **Upstream:** not filed. The GitHub repository is no longer public, so there is nowhere to report it; v0.2.0 is still served by proxy.golang.org.
 
 **Repo:** jmsadair/raft (tested on v0.2.0, the latest release, commit `8dd4cdc`; the GitHub repository is no longer public, the module is still served by proxy.golang.org)

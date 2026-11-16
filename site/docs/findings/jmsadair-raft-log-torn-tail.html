@@ -13,6 +13,9 @@
 <article class="page">
 <p class="back"><a href="./">&larr; Findings</a></p>
 <h1 id="a-crash-in-the-middle-of-a-log-append-makes-the-node-unable-to-restart-now-or-after-its-next-restart">A crash in the middle of a log append makes the node unable to restart, now or after its next restart</h1>
+<blockquote>
+<p><strong>In plain words:</strong> Damage from a crash mid-write is never cleaned up, so the node either fails every restart or quietly loses entries written after it.</p>
+</blockquote>
 <p><strong>Upstream:</strong> not filed. The GitHub repository is no longer public, so there is nowhere to report it; v0.2.0 is still served by proxy.golang.org.</p>
 <p><strong>Repo:</strong> jmsadair/raft (tested on v0.2.0, the latest release, commit <code>8dd4cdc</code>; the GitHub repository is no longer public, the module is still served by proxy.golang.org)
 <strong>Severity:</strong> one crash while an entry is being appended to <code>log/log.bin</code> leaves a node that fails <code>NewRaft</code> on every start until an operator repairs or deletes its log. The interrupted entry was never acknowledged, so nothing requires keeping it. No strict-POSIX assumptions needed: only that a crash can persist a prefix of the unsynced bytes. The second variant below does not even need a power loss: the length and the body are separate <code>write</code> calls, so a <code>kill -9</code> or OOM kill between them leaves exactly that tail.</p>

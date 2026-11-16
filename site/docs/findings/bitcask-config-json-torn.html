@@ -13,6 +13,9 @@
 <article class="page">
 <p class="back"><a href="./">&larr; Findings</a></p>
 <h1 id="open-rewrites-configjson-in-place-without-fsync-so-a-crash-can-leave-the-database-permanently-unopenable">Open rewrites config.json in place without fsync, so a crash can leave the database permanently unopenable</h1>
+<blockquote>
+<p><strong>In plain words:</strong> It rewrites its settings file every time it opens. A crash at that moment damages the file, and the database never opens again.</p>
+</blockquote>
 <p><strong>Repo:</strong> prologic/bitcask on git.mills.io, module <code>go.mills.io/bitcask/v2</code> (tested on v2.2.0, which is <code>main</code> at a5ea7328ad; v1.0.2 has the same code)
 <strong>Severity:</strong> one crash at the wrong moment and every later <code>Open</code> fails with <code>ErrBadConfig</code> until someone repairs or deletes <code>config.json</code> by hand. No data is lost, but the database stays down.</p>
 <h2 id="summary">Summary</h2>

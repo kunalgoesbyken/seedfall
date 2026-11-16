@@ -1,5 +1,7 @@
 # A crash during stream creation leaves meta.inf without meta.sum, and the stream then disappears on every later restart
 
+> **In plain words:** A crash while a stream is created makes it forget every message it confirms from then on, at the next restart.
+
 **Upstream:** [nats-io/nats-server#8872](https://github.com/nats-io/nats-server/issues/8872)
 
 **Repo:** nats-io/nats-server (tested on v2.15.2, single server, JetStream file storage, `sync_always: true`)

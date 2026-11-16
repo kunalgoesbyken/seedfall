@@ -1,5 +1,7 @@
 # A crash in the middle of a log append makes the node unable to restart, now or after its next restart
 
+> **In plain words:** Damage from a crash mid-write is never cleaned up, so the node either fails every restart or quietly loses entries written after it.
+
 **Upstream:** not filed. The GitHub repository is no longer public, so there is nowhere to report it; v0.2.0 is still served by proxy.golang.org.
 
 **Repo:** jmsadair/raft (tested on v0.2.0, the latest release, commit `8dd4cdc`; the GitHub repository is no longer public, the module is still served by proxy.golang.org)

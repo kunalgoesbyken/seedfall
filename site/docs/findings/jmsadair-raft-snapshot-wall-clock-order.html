@@ -13,6 +13,9 @@
 <article class="page">
 <p class="back"><a href="./">&larr; Findings</a></p>
 <h1 id="snapshots-are-ordered-by-wall-clock-time-so-after-the-clock-steps-back-a-restart-loads-an-old-snapshot-and-the-node-never-starts-again">Snapshots are ordered by wall-clock time, so after the clock steps back a restart loads an old snapshot and the node never starts again</h1>
+<blockquote>
+<p><strong>In plain words:</strong> If the machine's clock moves backwards, the node later loads an old snapshot and never starts.</p>
+</blockquote>
 <p><strong>Upstream:</strong> not filed. The GitHub repository is no longer public, so there is nowhere to report it; v0.2.0 is still served by proxy.golang.org.</p>
 <p><strong>Repo:</strong> jmsadair/raft (tested on v0.2.0, the latest release, commit <code>8dd4cdc</code>; the GitHub repository is no longer public, the module is still served by proxy.golang.org)
 <strong>Severity:</strong> a backward wall-clock step (an NTP step, a VM restored from a snapshot, a manual clock fix) followed by one snapshot and one restart leaves a node that fails <code>NewRaft</code> on every start. No disk faults needed.</p>

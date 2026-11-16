@@ -13,6 +13,9 @@
 <article class="page">
 <p class="back"><a href="./">&larr; Findings</a></p>
 <h1 id="shrink-renames-the-rewritten-aof-over-the-database-without-fsyncing-it-so-a-crash-after-a-shrink-can-wipe-the-database">Shrink renames the rewritten AOF over the database without fsyncing it, so a crash after a shrink can wipe the database</h1>
+<blockquote>
+<p><strong>In plain words:</strong> When it compacts its file, it never makes sure the new file is on disk. A crash afterwards can bring the database back empty or partial.</p>
+</blockquote>
 <p><strong>Upstream:</strong> <a href="https://github.com/tidwall/buntdb/issues/126">tidwall/buntdb#126</a>, closed by <a href="https://github.com/tidwall/buntdb/commit/6a23821fdfd51ab6e375b8f82407b6589cad907f">6a23821</a>, which adds the fsync before close in <code>Shrink</code></p>
 <p><strong>Repo:</strong> tidwall/buntdb (tested on v1.3.2)
 <strong>Severity:</strong> a crash after a background shrink can lose acknowledged writes, up to the whole database, even with <code>SyncPolicy: Always</code>.</p>

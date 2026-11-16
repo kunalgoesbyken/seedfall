@@ -445,7 +445,7 @@
 <p><code>op</code> is the number of the datagram the sender sent, and the fault fires on that datagram whatever its destination; <code>to</code> is a record of where it went. Both replay exactly, shrink like any fault recorded at runtime, can be edited with <code>seedfall faults</code>, and join swarm testing. They do not apply when <code>faults</code> is off for either end of the datagram, or during a quiet period or the recovery phase. Semantics of sockets and addresses are in <a href="networking.html#udp">networking.md</a>.</p>
 <h2 id="disk-faults">Disk faults</h2>
 <h2 id="file-system-models">File system models</h2>
-<p><code>reorder_writes</code> turns on out-of-order writeback at a crash. <code>fs_model</code> says which states a crash may then leave behind. A model that is too weak reports bugs your file system cannot produce; one that is too strong misses bugs it can. The models follow Table 1 of ALICE (<a href="https://www.usenix.org/system/files/conference/osdi14/osdi14-paper-pillai.pdf">All File Systems Are Not Created Equal</a>, OSDI '14), which measured these properties on real file systems.</p>
+<p><code>reorder_writes</code> turns on out-of-order writeback at a crash. <code>fs_model</code> says which states a crash may then leave behind. A model that is too weak reports bugs your file system cannot produce; one that is too strong misses bugs it can. The models follow Table 1 of ALICE (<a href="https://www.usenix.org/conference/osdi14/technical-sessions/presentation/pillai">All File Systems Are Not Created Equal</a>, OSDI '14), which measured these properties on real file systems.</p>
 <div class="table"><table>
 <thead>
 <tr>

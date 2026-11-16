@@ -13,6 +13,9 @@
 <article class="page">
 <p class="back"><a href="./">&larr; Findings</a></p>
 <h1 id="acknowledged-writes-can-be-lost-after-a-data-file-rotation-no-directory-fsync-or-after-a-failed-fsync-offset-not-rewound">Acknowledged writes can be lost after a data-file rotation (no directory fsync) or after a failed fsync (offset not rewound)</h1>
+<blockquote>
+<p><strong>In plain words:</strong> Confirmed writes can be lost when it starts a new data file, or when the disk reports an error while saving.</p>
+</blockquote>
 <p><strong>Upstream:</strong> <a href="https://github.com/nutsdb/nutsdb/issues/697">nutsdb/nutsdb#697</a></p>
 <p><strong>Repo:</strong> nutsdb/nutsdb (tested on v1.1.0, still present on <code>main</code> at 39d6badd)
 <strong>Severity:</strong> lower than <a href="https://github.com/nutsdb/nutsdb/issues/695">nutsdb#695</a> and <a href="https://github.com/nutsdb/nutsdb/issues/696">nutsdb#696</a>. Both need a less common event, a crash shortly after a rotation or an fsync error, and both lose acknowledged writes silently.</p>

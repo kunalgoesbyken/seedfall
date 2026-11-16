@@ -1,5 +1,7 @@
 # AutoRecovery renames an unsynced copy over the last datafile, so a second crash can wipe acknowledged writes
 
+> **In plain words:** Its crash recovery puts back a data file that isn't safely on disk yet, so a second crash can wipe confirmed writes.
+
 **Repo:** prologic/bitcask on git.mills.io, module `go.mills.io/bitcask/v2` (tested on v2.2.0, which is `main` at a5ea7328ad)
 **Severity:** loses acknowledged, fsynced writes, up to the whole last datafile, with `WithSyncWrites(true)` and `WithAutoRecovery(true)`.
 
