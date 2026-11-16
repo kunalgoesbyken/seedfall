@@ -1,4 +1,4 @@
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 from harness.tools import Tool, string_params
 
@@ -10,8 +10,9 @@ class Workspace:
         self.root = Path(root).resolve()
 
     def resolve(self, relative: str) -> Path:
+        rooted = PureWindowsPath(relative).anchor or PurePosixPath(relative).anchor
         target = (self.root / relative).resolve()
-        if not target.is_relative_to(self.root):
+        if rooted or not target.is_relative_to(self.root):
             raise ValueError(f"path {relative!r} escapes the workspace")
         return target
 
