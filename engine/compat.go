@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"cmp"
 	"embed"
 	"encoding/json"
 	"errors"
@@ -132,20 +133,17 @@ func moduleCopy(copies map[string]string, out string, mod goModule) (string, err
 const unixModule, unixPackage = "golang.org/x/sys", "golang.org/x/sys/unix"
 
 func addUnixShim(cfg *Config, copies map[string]string, out string) error {
-	cmd := exec.Command("go", "list", "-m", "-json", unixModule)
+	cmd := exec.Command("go", "mod", "download", "-json", unixModule)
 	cmd.Dir = cfg.Dir
-	b, err := cmd.Output()
-	if err != nil {
-		return fmt.Errorf("compat overlay: finding %s: %w", unixModule, err)
+	b, runErr := cmd.Output()
+	var mod struct {
+		goModule
+		Error string
 	}
-	var mod goModule
-	if err := json.Unmarshal(b, &mod); err != nil {
-		return fmt.Errorf("compat overlay: %s: %w", unixModule, err)
+	if err := json.Unmarshal(b, &mod); err != nil || mod.Dir == "" {
+		return fmt.Errorf("compat overlay: downloading %s: %s", unixModule, cmp.Or(mod.Error, fmt.Sprint(errors.Join(runErr, err))))
 	}
-	if mod.Dir == "" {
-		return fmt.Errorf("compat overlay: %s is not downloaded; run go mod download %s", unixModule, unixModule)
-	}
-	root, err := moduleCopy(copies, out, mod)
+	root, err := moduleCopy(copies, out, mod.goModule)
 	if err != nil {
 		return err
 	}

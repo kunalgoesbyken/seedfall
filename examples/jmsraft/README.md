@@ -9,7 +9,7 @@ The network runs through `net_overlay`, and the library's stock gRPC transport w
 | `seedfall.json` | crashes, partitions, torn writes, crashes during disk I/O: fails on seed 4. 125 of 150 seeds fail, every one with a node that cannot restart from its own disk: three bugs, below. With the three fixed, 150 seeds pass, linearizable |
 | `seedfall.strict.json` | adds strict POSIX directories: fails on seed 2. The library never fsyncs a directory. With directory fsyncs added to the three fixes, 150 seeds pass |
 | `seedfall.eio.json` | adds fsync `EIO`: fails on seed 5. The library exits on a failed fsync, but the restarted process trusts the page cache (fsyncgate), and a later crash leaves a zero-filled hole that replays as empty entries, without a checksum to catch it |
-| `clock.json` | crashes and wall-clock jumps, no disk faults: fails on seed 13, a node that loads an old snapshot after its clock stepped back. With the four fixes, 100 seeds pass |
+| `clock.json` | crashes and wall-clock jumps, no disk faults: fails on seed 28, a node that loads an old snapshot after its clock stepped back. With the four fixes, 100 seeds pass |
 | `pause.json` | process pauses and wall-clock jumps, linearizable reads: passes (100 seeds tested) |
 | `pause.lease.json` | the same with lease-based reads: fails on seed 11 with the snapshot ordering bug; nothing else fails. With the four fixes, 100 seeds pass, linearizable |
 | `grpc.json` | the stock gRPC transport, crashes and partitions, no disk faults: passes (40 seeds tested). Without preemption, seed 8 reported a false watchdog livelock after two crashes |
@@ -34,7 +34,7 @@ The first three take one fault each.
   ```
 - [Snapshots are ordered by wall-clock time](../../docs/findings/jmsadair-raft-snapshot-wall-clock-order.md): after the clock steps back, a restart loads an old snapshot behind the compacted log, and the node never starts again.
   ```sh
-  seedfall replay -c clock.json -seed 13 -faults snapshotorder.faults.json
+  seedfall replay -c clock.json -seed 28 -faults snapshotorder.faults.json
   ```
 
 The upstream GitHub repository is no longer public; v0.2.0 is still served by the Go module proxy.
