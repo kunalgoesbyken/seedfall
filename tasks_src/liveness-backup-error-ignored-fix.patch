@@ -1,0 +1,13 @@
+--- a/server/main.go
++++ b/server/main.go
+@@ -92,7 +92,9 @@
+ 		return fmt.Sprint(s.value)
+ 	}
+ 	if s.backup != nil {
+-		s.backup.forward(id, timeout)
++		if err := s.backup.forward(id, timeout); err != nil {
++			return "ERR " + err.Error()
++		}
+ 	}
+ 	if _, err := s.log.WriteString(id + "\n"); err != nil {
+ 		return "ERR " + err.Error()

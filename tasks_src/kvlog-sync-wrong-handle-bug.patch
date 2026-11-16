@@ -1,0 +1,28 @@
+--- a/server/main.go
++++ b/server/main.go
+@@ -23,6 +23,7 @@
+ type store struct {
+ 	mu     sync.Mutex
+ 	file   *os.File
++	dir    string
+ 	values map[string]string
+ }
+ 
+@@ -89,7 +90,7 @@
+ 			return nil, err
+ 		}
+ 	}
+-	return &store{file: f, values: values}, nil
++	return &store{file: f, dir: filepath.Dir(path), values: values}, nil
+ }
+ 
+ func parse(data []byte) (map[string]string, int, bool, bool) {
+@@ -132,7 +133,7 @@
+ 	if _, err := s.file.WriteString(s.encode(k, v)); err != nil {
+ 		return err
+ 	}
+-	if err := s.file.Sync(); err != nil {
++	if err := syncDir(s.dir); err != nil {
+ 		return s.failedSync(end, err)
+ 	}
+ 	s.values[k] = v

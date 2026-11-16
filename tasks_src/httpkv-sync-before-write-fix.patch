@@ -1,0 +1,16 @@
+--- a/server/main.go
++++ b/server/main.go
+@@ -120,11 +120,11 @@
+ 	}
+ 	s.mu.Lock()
+ 	defer s.mu.Unlock()
+-	if err := s.file.Sync(); err != nil {
++	if _, err := io.WriteString(s.file, line); err != nil {
+ 		http.Error(w, err.Error(), http.StatusInternalServerError)
+ 		return
+ 	}
+-	if _, err := io.WriteString(s.file, line); err != nil {
++	if err := s.file.Sync(); err != nil {
+ 		http.Error(w, err.Error(), http.StatusInternalServerError)
+ 		return
+ 	}

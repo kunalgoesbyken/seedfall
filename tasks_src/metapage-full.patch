@@ -1,0 +1,47 @@
+--- a/server/main.go
++++ b/server/main.go
+@@ -23,18 +23,16 @@
+ )
+ 
+ type store struct {
+-	mu       sync.Mutex
+-	file     *os.File
+-	values   map[string]string
+-	seq      uint64
+-	size     int64
+-	syncBody bool
++	mu     sync.Mutex
++	file   *os.File
++	values map[string]string
++	seq    uint64
++	size   int64
+ }
+ 
+ func main() {
+ 	addr := flag.String("addr", ":7000", "listen address")
+ 	dir := flag.String("dir", "data", "data directory")
+-	syncBody := flag.Bool("sync-body", false, "fsync the record before writing the meta slot that commits it")
+ 	flag.Parse()
+ 
+ 	if err := os.MkdirAll(*dir, 0o755); err != nil {
+@@ -49,7 +47,6 @@
+ 			log.Fatal(err)
+ 		}
+ 	}
+-	s.syncBody = *syncBody
+ 	ln, err := sim.Listen("tcp", *addr)
+ 	if err != nil {
+ 		log.Fatal(err)
+@@ -121,10 +118,8 @@
+ 	if _, err := s.file.WriteAt([]byte(rec), metaSize+s.size); err != nil {
+ 		return err
+ 	}
+-	if s.syncBody {
+-		if err := s.file.Sync(); err != nil {
+-			return err
+-		}
++	if err := s.file.Sync(); err != nil {
++		return err
+ 	}
+ 	seq, size := s.seq+1, s.size+int64(len(rec))
+ 	if _, err := s.file.WriteAt(encodeSlot(seq, size), int64(seq%2)*slotSize); err != nil {

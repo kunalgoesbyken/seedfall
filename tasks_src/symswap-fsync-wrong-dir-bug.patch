@@ -1,0 +1,20 @@
+--- a/server/main.go
++++ b/server/main.go
+@@ -104,7 +104,7 @@
+ 	if err := writeSynced(filepath.Join(s.dir, name), b.String()); err != nil {
+ 		return err
+ 	}
+-	if err := fsyncDir(s.dir); err != nil {
++	if err := fsyncDir(filepath.Dir(s.dir)); err != nil {
+ 		return err
+ 	}
+ 	tmp := filepath.Join(s.dir, "current.tmp")
+@@ -115,7 +115,7 @@
+ 	if err := os.Rename(tmp, filepath.Join(s.dir, currentLink)); err != nil {
+ 		return err
+ 	}
+-	if err := fsyncDir(s.dir); err != nil {
++	if err := fsyncDir(filepath.Dir(s.dir)); err != nil {
+ 		return err
+ 	}
+ 	if next > 2 {

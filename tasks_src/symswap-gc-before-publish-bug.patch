@@ -1,0 +1,17 @@
+--- a/server/main.go
++++ b/server/main.go
+@@ -115,11 +115,11 @@
+ 	if err := os.Rename(tmp, filepath.Join(s.dir, currentLink)); err != nil {
+ 		return err
+ 	}
++	if next > 1 {
++		os.Remove(filepath.Join(s.dir, fmt.Sprintf("gen.%d", next-1)))
++	}
+ 	if err := fsyncDir(s.dir); err != nil {
+ 		return err
+-	}
+-	if next > 2 {
+-		os.Remove(filepath.Join(s.dir, fmt.Sprintf("gen.%d", next-2)))
+ 	}
+ 	s.gen, s.values = next, values
+ 	return nil

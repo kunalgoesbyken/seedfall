@@ -1,0 +1,10 @@
+--- a/server/main.go
++++ b/server/main.go
+@@ -108,7 +108,6 @@
+ 		return err
+ 	}
+ 	tmp := filepath.Join(s.dir, "current.tmp")
+-	os.Remove(tmp)
+ 	if err := os.Symlink(name, tmp); err != nil {
+ 		return err
+ 	}

@@ -1,0 +1,46 @@
+--- a/server/main.go
++++ b/server/main.go
+@@ -13,20 +13,17 @@
+ )
+ 
+ type store struct {
+-	sync   bool
+ 	mu     sync.Mutex
+ 	file   *os.File
+ 	values map[string]string
+ }
+ 
+ func main() {
+-	fsync := flag.Bool("fsync", true, "fsync before acknowledging a write")
+ 	flag.Parse()
+ 	s, err := open("data", "kv.log")
+ 	if err != nil {
+ 		log.Fatal(err)
+ 	}
+-	s.sync = *fsync
+ 	http.HandleFunc("/put", s.putForm)
+ 	http.HandleFunc("/get", s.getForm)
+ 	http.HandleFunc("PUT /kv/{key}", s.putPath)
+@@ -127,7 +124,7 @@
+ 		http.Error(w, err.Error(), http.StatusInternalServerError)
+ 		return
+ 	}
+-	if err := s.persist(); err != nil {
++	if err := s.file.Sync(); err != nil {
+ 		http.Error(w, err.Error(), http.StatusInternalServerError)
+ 		return
+ 	}
+@@ -158,13 +155,6 @@
+ 	fmt.Fprint(w, v)
+ }
+ 
+-func (s *store) persist() error {
+-	if !s.sync {
+-		return nil
+-	}
+-	return s.file.Sync()
+-}
+-
+ func health(w http.ResponseWriter, _ *http.Request) {
+ 	fmt.Fprint(w, "OK")
+ }

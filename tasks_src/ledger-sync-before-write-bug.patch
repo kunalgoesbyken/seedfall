@@ -1,0 +1,15 @@
+--- a/server/main.go
++++ b/server/main.go
+@@ -122,10 +122,10 @@
+ 	if err != nil {
+ 		return "ERR"
+ 	}
+-	if _, err := fmt.Fprintf(l.file, "%d\n", n); err != nil {
++	if err := l.file.Sync(); err != nil {
+ 		return "ERR"
+ 	}
+-	if err := l.file.Sync(); err != nil {
++	if _, err := fmt.Fprintf(l.file, "%d\n", n); err != nil {
+ 		return "ERR"
+ 	}
+ 	l.total += n

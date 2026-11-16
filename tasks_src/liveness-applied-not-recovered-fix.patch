@@ -1,0 +1,12 @@
+--- a/server/main.go
++++ b/server/main.go
+@@ -61,7 +61,8 @@
+ 		panic(err)
+ 	}
+ 	s := &store{applied: map[string]bool{}}
+-	for range strings.Fields(string(data)) {
++	for _, id := range strings.Fields(string(data)) {
++		s.applied[id] = true
+ 		s.value++
+ 	}
+ 	if s.log, err = os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644); err != nil {

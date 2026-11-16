@@ -1,0 +1,18 @@
+--- a/server/main.go
++++ b/server/main.go
+@@ -107,9 +107,12 @@
+ 	if err := fsyncDir(s.dir); err != nil {
+ 		return err
+ 	}
+-	link := filepath.Join(s.dir, currentLink)
+-	os.Remove(link)
+-	if err := os.Symlink(name, link); err != nil {
++	tmp := filepath.Join(s.dir, "current.tmp")
++	os.Remove(tmp)
++	if err := os.Symlink(name, tmp); err != nil {
++		return err
++	}
++	if err := os.Rename(tmp, filepath.Join(s.dir, currentLink)); err != nil {
+ 		return err
+ 	}
+ 	if err := fsyncDir(s.dir); err != nil {

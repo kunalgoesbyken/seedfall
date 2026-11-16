@@ -55,3 +55,40 @@ def write_patch(name, before, after):
     with open(os.path.join(PATCHES, name + ".patch"), "w", newline="") as f:
         f.write(text)
     return after
+
+
+def gofmt(tree):
+    import subprocess
+
+    out = {}
+    for path, text in tree.items():
+        if not path.endswith(".go"):
+            out[path] = text
+            continue
+        run = subprocess.run(["gofmt"], input=text.encode(), capture_output=True)
+        if run.returncode:
+            sys.exit("gofmt rejected %s: %s" % (path, run.stderr.decode()))
+        out[path] = run.stdout.decode()
+    return out
+
+
+def bug_patches(task, correct, buggy, cheat):
+    write_patch(task + "-bug", correct, buggy)
+    write_patch(task + "-fix", buggy, correct)
+    if cheat is not None:
+        write_patch(task + "-cheat", buggy, edit(buggy, cheat))
+
+
+def go(text):
+    if text.startswith("\n"):
+        text = text[1:]
+    out = []
+    for line in text.split("\n"):
+        stripped = line.lstrip(" ")
+        width = len(line) - len(stripped)
+        out.append("\t" * (width // 4) + " " * (width % 4) + stripped)
+    return "\n".join(out)
+
+
+def E(path, old, new):
+    return (path, go(old), go(new))

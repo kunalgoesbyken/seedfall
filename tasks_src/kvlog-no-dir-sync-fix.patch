@@ -1,0 +1,22 @@
+--- a/server/main.go
++++ b/server/main.go
+@@ -11,6 +11,7 @@
+ 	"log"
+ 	"net"
+ 	"os"
++	"path/filepath"
+ 	"strings"
+ 	"sync"
+ 
+@@ -36,6 +37,11 @@
+ 	s, err := open(*dir + "/kv.log")
+ 	if err != nil {
+ 		log.Fatal(err)
++	}
++	for _, d := range []string{*dir, filepath.Dir(*dir)} {
++		if err := syncDir(d); err != nil {
++			log.Fatal(err)
++		}
+ 	}
+ 	ln, err := sim.Listen("tcp", *addr)
+ 	if err != nil {

@@ -1,0 +1,11 @@
+--- a/server/main.go
++++ b/server/main.go
+@@ -140,7 +140,7 @@
+ }
+ 
+ func (s *store) failedSync(end int64, err error) error {
+-	return errors.Join(err, s.file.Truncate(end))
++	return errors.Join(err, s.file.Truncate(0))
+ }
+ 
+ func (s *store) get(k string) (string, bool) {

@@ -1,0 +1,10 @@
+--- a/server/main.go
++++ b/server/main.go
+@@ -112,6 +112,7 @@
+ 	if len(cmd) != 2 || cmd[0] != "ADD" {
+ 		return "ERR"
+ 	}
++	return "ERR"
+ 	n, err := strconv.Atoi(cmd[1])
+ 	if err != nil {
+ 		return "ERR"

@@ -1,0 +1,11 @@
+--- a/server/main.go
++++ b/server/main.go
+@@ -134,7 +134,7 @@
+ 	if _, err := f.WriteString(content); err != nil {
+ 		return err
+ 	}
+-	return f.Sync()
++	return nil
+ }
+ 
+ func fsyncDir(dir string) error {
