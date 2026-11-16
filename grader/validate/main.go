@@ -20,6 +20,8 @@ const (
 	floorFraction    = 2
 )
 
+var jobs int
+
 type row struct {
 	Task        string  `json:"task"`
 	Kept        bool    `json:"kept"`
@@ -49,6 +51,7 @@ func run() error {
 	baselines := flag.String("baselines", "baselines.json", "progress floors file written by -calibrate")
 	report := flag.String("report", "validation.json", "write the validation table as JSON")
 	src := flag.String("seedfall", "", "seedfall source directory, default SEEDFALL_SRC or the module the grader links")
+	flag.IntVar(&jobs, "j", 0, "parallel runs per grade, default all CPUs")
 	saltEnv := flag.String("salt-env", "SEEDFALL_GYM_SALT", "environment variable holding the salt, the dev salt is used when it is empty")
 	flag.Parse()
 	source, err := gym.SeedfallSource(*src)
@@ -85,7 +88,7 @@ func run() error {
 
 func grade(t gym.Task, workspace, source string, seeds []uint64) (gym.Report, float64, error) {
 	started := time.Now()
-	rep, err := gym.Grade(gym.Options{Task: t, Workspace: workspace, SeedfallSrc: source, Seeds: seeds})
+	rep, err := gym.Grade(gym.Options{Task: t, Workspace: workspace, SeedfallSrc: source, Seeds: seeds, Jobs: jobs})
 	return rep, time.Since(started).Seconds(), err
 }
 

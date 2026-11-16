@@ -66,3 +66,50 @@ func TestResolveVariantsInheritAndMerge(t *testing.T) {
 		t.Fatal("variant merge mutated the parent")
 	}
 }
+
+func splitFixture() []Spec {
+	var specs []Spec
+	for i, g := range []struct{ system, class string }{{"a", "x"}, {"a", "y"}, {"b", "x"}, {"b", "z"}, {"c", "x"}, {"c", "y"}, {"d", "w"}, {"e", "w"}} {
+		for j := range 2 + i%2 {
+			specs = append(specs, Spec{ID: g.system + "-" + g.class + "-" + string(rune('0'+j)), System: g.system, BugClass: g.class})
+		}
+	}
+	return specs
+}
+
+func TestAssignSplitsKeepsGroupsWhole(t *testing.T) {
+	specs := splitFixture()
+	s := AssignSplits(specs, 0.25)
+	if len(s.Train)+len(s.HeldOut) != len(specs) {
+		t.Fatalf("%d train and %d held out of %d tasks", len(s.Train), len(s.HeldOut), len(specs))
+	}
+	split := map[string]string{}
+	for _, id := range s.HeldOut {
+		split[id] = SplitHeldOut
+	}
+	for _, id := range s.Train {
+		if split[id] != "" {
+			t.Fatalf("%s is in both splits", id)
+		}
+		split[id] = SplitTrain
+	}
+	for _, spec := range specs {
+		if split[spec.ID] != s.Groups[GroupKey(spec)] {
+			t.Fatalf("%s is %s but its group %q is %s", spec.ID, split[spec.ID], GroupKey(spec), s.Groups[GroupKey(spec)])
+		}
+	}
+	if len(s.HeldOut) == 0 || len(s.HeldOut) > len(specs)/3 {
+		t.Fatalf("%d held out of %d tasks", len(s.HeldOut), len(specs))
+	}
+}
+
+func TestAssignSplitsIsDeterministicAndOrderFree(t *testing.T) {
+	specs := splitFixture()
+	a := AssignSplits(specs, 0.25)
+	reversed := slices.Clone(specs)
+	slices.Reverse(reversed)
+	b := AssignSplits(reversed, 0.25)
+	if !slices.Equal(a.Train, b.Train) || !slices.Equal(a.HeldOut, b.HeldOut) {
+		t.Fatal("the split depends on manifest order")
+	}
+}

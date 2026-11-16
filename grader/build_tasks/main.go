@@ -13,9 +13,11 @@ import (
 )
 
 const (
-	baselinesFile = "baselines.json"
-	cheatsDir     = "cheats"
-	solutionPatch = "fix.patch"
+	baselinesFile  = "baselines.json"
+	cheatsDir      = "cheats"
+	solutionPatch  = "fix.patch"
+	splitsFile     = "splits.json"
+	defaultHeldOut = 0.25
 )
 
 type builder struct {
@@ -42,6 +44,8 @@ func run() error {
 	cheats := flag.String("cheats", cheatsDir, "output directory for generated cheats")
 	baselines := flag.String("baselines", baselinesFile, "calibrated progress floors written by validate -calibrate")
 	only := flag.String("only", "", "build only this task id")
+	splits := flag.String("splits", splitsFile, "train and held-out split written when every task is built")
+	heldOut := flag.Float64("held-out", defaultHeldOut, "fraction of tasks held out, whole system and bug class groups at a time")
 	flag.Parse()
 	var b builder
 	b.patchDir, b.out, b.cheats = *patches, *out, *cheats
@@ -68,7 +72,10 @@ func run() error {
 		}
 		fmt.Println("built", s.ID)
 	}
-	return nil
+	if *only != "" {
+		return nil
+	}
+	return gym.WriteJSON(*splits, gym.AssignSplits(specs, *heldOut))
 }
 
 func (b builder) build(s gym.Spec) error {
