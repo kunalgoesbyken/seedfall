@@ -22,7 +22,10 @@
   <a href="https://github.com/kunalgoesbyken/seedfall/actions/workflows/regress.yml"><img src="https://github.com/kunalgoesbyken/seedfall/actions/workflows/regress.yml/badge.svg" alt="regress"></a>
 </p>
 
-![seedfall: a failure shrunk from 33 faults to 2, then replayed exactly from one seed](docs/assets/readme-card.webp)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme-card-dark.webp">
+  <img src="docs/assets/readme-card-light.webp" alt="seedfall shrink on seed 1: a lost acknowledged write cut down from 33 faults to 2">
+</picture>
 
 ---
 

@@ -79,6 +79,29 @@ figcaption { margin-top: 0.5rem; font-size: 0.875rem; color: var(--muted); }
 
 .callout { margin: 2rem 0; padding: 1rem 1.25rem; background: var(--wash); border-left: 3px solid var(--fault); }
 
+.links { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1.25rem; }
+.links a { padding: 0.25rem 0.75rem; font-size: 0.8125rem; font-weight: 500; color: var(--fg); text-decoration: none; border: 1px solid var(--rule); border-radius: 999px; }
+.links a:hover { background: var(--wash); }
+
+.abstract { margin: 2rem 0; padding: 1.25rem 1.5rem; background: var(--wash); border: 1px solid var(--rule-soft); }
+.abstract h2 { margin: 0 0 0.5rem; font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.abstract p { font-size: 0.9375rem; }
+
+.install { position: relative; padding-right: 4.5rem; }
+.copy { position: absolute; top: 50%; right: 0.5rem; transform: translateY(-50%); padding: 0.2rem 0.6rem; font: inherit; font-family: var(--sans); font-size: 0.75rem; color: var(--muted); background: var(--bg); border: 1px solid var(--rule); border-radius: 4px; cursor: pointer; }
+.copy:hover { color: var(--fg); }
+
+.paper { counter-reset: section; }
+.paper > h2::before { counter-increment: section; content: counter(section) ". "; color: var(--faint); }
+.cite { font-size: 0.8125em; color: var(--muted); text-decoration: none; }
+.cite:hover { text-decoration: underline; }
+caption { padding-bottom: 0.75rem; caption-side: top; text-align: left; font-size: 0.875rem; color: var(--muted); }
+
+.references ol { padding-left: 1.75rem; font-size: 0.8125rem; color: var(--muted); }
+.references li { margin-top: 0.5rem; }
+.references li:target { color: var(--fg); }
+.references a { color: var(--fg); }
+
 .foot { margin-top: 4rem; font-size: 0.875rem; color: var(--faint); }
 
 @media (min-width: 768px) {

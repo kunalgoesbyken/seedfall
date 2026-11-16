@@ -7,17 +7,35 @@
 <meta name="description" content="Open-source crash testing for Go services. seedfall runs your service in a simulated world, crashes it at awkward moments, breaks its disk and network, and replays every failure exactly from one number.">
 <link rel="canonical" href="https://seedfall.kunalrc.xyz/">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
+<meta property="og:type" content="article">
+<meta property="og:title" content="seedfall: crash testing for Go services">
+<meta property="og:description" content="Crash a Go service at the worst moment, shrink the failure to the faults that matter, and replay it exactly from one number.">
+<meta property="og:url" content="https://seedfall.kunalrc.xyz/">
+<meta property="og:image" content="https://seedfall.kunalrc.xyz/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="preload" href="fonts/inter.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="theme.css">
 <link rel="stylesheet" href="site.css">
 <script type="module" src="crash.js"></script>
+<script type="module" src="copy.js"></script>
 </head>
 <body>
-<article class="page">
+<article class="page paper">
 
 <h1>seedfall: crash testing for Go services</h1>
 <p class="lede">Deterministic simulation testing on the stock Go toolchain</p>
 <p class="meta">November 2026 · Kunal Roy Choudhury</p>
+
+<p class="links"><a href="https://github.com/kunalgoesbyken/seedfall">Code</a><a href="docs/">Docs</a><a href="#break-it-yourself">Demo</a><a href="demo/kvlog-seed-1.html">Real trace</a><a href="docs/findings/">Bugs found</a></p>
+
+<section class="abstract">
+<h2>Abstract</h2>
+<p>Storage code loses acknowledged writes when it crashes at the wrong moment, and that moment is almost impossible to hit in a test or to reproduce after production hits it. seedfall runs unmodified Go services in a deterministic simulation on WebAssembly, injects crashes, torn writes and network faults, and names every run by one seed, so each failure replays byte for byte. A shrinker cuts the failure to the few faults that cause it. It has found crash bugs in 10 open-source Go storage projects. Because a seed is a reproducible test case, the same machinery also works as a grader for coding agents and for agents operating a live cluster.</p>
+</section>
+
+<pre class="install" data-copy><code>go install github.com/kunalgoesbyken/seedfall/cmd/seedfall@latest</code></pre>
 
 <div class="stats">
 <div><b>10</b><span>Go storage projects with crash bugs</span></div>
@@ -33,9 +51,9 @@
 <figcaption>Figure 1. A real bug in four panels, from one of the examples. Seed 1 does this every time.</figcaption>
 </figure>
 
-<p>I built <strong>seedfall</strong> to hit those moments on purpose. It runs your Go service in a simulated world, crashes it, breaks its disk and network, and names every run with one number. Give it the same number and you get the same run, byte for byte, on any machine.</p>
+<p>I built <strong>seedfall</strong> to hit those moments on purpose, the way FoundationDB tests itself in simulation <a class="cite" href="#ref-1">[1, 2]</a>. It runs your Go service in a simulated world, crashes it, breaks its disk and network, and names every run with one number. Give it the same number and you get the same run, byte for byte, on any machine.</p>
 
-<h2>Break it yourself</h2>
+<h2 id="break-it-yourself">Break it yourself</h2>
 
 <p>Here's that bug as a toy you can click. The server appends <code>key=value</code> lines to a log and syncs before it says saved. Press <em>crash mid-put</em>, then <em>put</em> again, and watch the next line glue itself onto the torn one.</p>
 
@@ -73,9 +91,9 @@
 
 <p>Each node is compiled with Go's <code>GOOS=wasip1</code> target and runs on <a href="https://wazero.io">wazero</a>. On that target, everything nondeterministic leaves the program through three calls: random bytes, the clock, and sleep. seedfall answers all three itself and fakes the disk and network too, so your code keeps using plain <code>os.File</code> and <code>net</code>.</p>
 
-<p>Time only moves when the scheduler says so, which makes a 10 minute timeout free. The disk keeps a write visible right away but only keeps it across a crash after <code>fsync</code>, and a crash can leave a torn prefix of whatever was pending. The network can delay, reorder, reset and partition.</p>
+<p>Time only moves when the scheduler says so, which makes a 10 minute timeout free. The disk keeps a write visible right away but only keeps it across a crash after <code>fsync</code>, and a crash can leave a torn prefix of whatever was pending <a class="cite" href="#ref-5">[5]</a>. The network can delay, reorder, reset and partition.</p>
 
-<p>When a run breaks one of your checks, <code>seedfall shrink</code> replays it with fewer faults and keeps a cut only if it still fails the same way. Here it is on <code>examples/kvlog</code>, a small key-value server that syncs before it says "saved":</p>
+<p>When a run breaks one of your checks, <code>seedfall shrink</code> replays it with fewer faults and keeps a cut only if it still fails the same way, which is delta debugging <a class="cite" href="#ref-3">[3]</a>. Here it is on <code>examples/kvlog</code>, a small key-value server that syncs before it says "saved":</p>
 
 <pre><code>$ seedfall run -c seedfall.always.json -seeds 1-100
 FAIL seed 1 at t=2.891820635s (737 scheduler steps, 445ms real)
@@ -106,10 +124,11 @@ faults before the failure (2):
 
 <h2>What it found</h2>
 
-<p>I pointed it at open-source Go storage projects. Status as of 2026-11-09:</p>
+<p>I pointed it at open-source Go storage projects:</p>
 
 <div class="table">
 <table>
+<caption>Table 1. Crash bugs found, status as of 2026-11-09.</caption>
 <thead><tr><th>Project</th><th>What breaks</th><th>Status</th></tr></thead>
 <tbody>
 <tr><td><strong>NATS JetStream</strong></td><td>A crash while a stream is being created loses the stream and its acknowledged messages.</td><td><a href="https://github.com/nats-io/nats-server/issues/8872">#8872</a>, open</td></tr>
@@ -126,7 +145,7 @@ faults before the failure (2):
 </table>
 </div>
 
-<p>A strict file system is one where a created or renamed file survives a crash only once its directory is synced. Not everything broke: hashicorp/raft passed 600 seeds and etcd-io/raft passed 100. I also asked Claude for a crash-safe key-value store nine times with the same prompt. All nine passed their own tests, and seedfall found two that can refuse to open forever after one specific crash.</p>
+<p>A strict file system is one where a created or renamed file survives a crash only once its directory is synced <a class="cite" href="#ref-4">[4]</a>. Not everything broke: hashicorp/raft passed 600 seeds and etcd-io/raft passed 100. I also asked Claude for a crash-safe key-value store nine times with the same prompt. All nine passed their own tests, and seedfall found two that can refuse to open forever after one specific crash.</p>
 
 <h2>Seeds as a grader</h2>
 
@@ -154,7 +173,7 @@ faults before the failure (2):
 {"cmd":"step","op":{"kind":"restart","node":"n1","args":["300ms"]}}
 {"cmd":"verify","seeds":[2,3,4,5]}</code></pre>
 
-<p>The test scenario is a 3-node etcd-io/raft key-value store with three clients, under planned crashes and partitions. The operator has to roll every node to version 2 by 12s. It fails if client availability drops under 40% in any 2s window, if a node isn't on version 2 by the deadline, or if the history isn't linearizable. I wrote four action lists and ran each one on seeds 1 to 21:</p>
+<p>The test scenario is a 3-node etcd-io/raft key-value store with three clients, under planned crashes and partitions. The operator has to roll every node to version 2 by 12s. It fails if client availability drops under 40% in any 2s window, if a node isn't on version 2 by the deadline, or if the history isn't linearizable <a class="cite" href="#ref-6">[6]</a>. I wrote four action lists and ran each one on seeds 1 to 21:</p>
 
 <section class="board">
 <div class="board-head">Seeds passed, out of 21</div>
@@ -177,6 +196,19 @@ faults before the failure (2):
 <li>An operator-mode action list replays at fixed virtual times, so it can't react to what a different seed does. One episode runs at a time per process.</li>
 <li>Operator mode has one scenario and one task so far. It shows the grading works. It isn't a benchmark of agents.</li>
 </ul>
+
+<section class="references">
+<h2>References</h2>
+<ol>
+<li id="ref-1">J. Zhou et al. <a href="https://www.foundationdb.org/files/fdb-paper.pdf">FoundationDB: A Distributed Unbundled Transactional Key Value Store</a>. SIGMOD 2021.</li>
+<li id="ref-2">W. Wilson. <a href="https://www.youtube.com/watch?v=4fFDFbi3toc">Testing Distributed Systems w/ Deterministic Simulation</a>. Strange Loop 2014.</li>
+<li id="ref-3">A. Zeller and R. Hildebrandt. <a href="https://doi.org/10.1109/32.988498">Simplifying and Isolating Failure-Inducing Input</a>. IEEE TSE 28(2), 2002.</li>
+<li id="ref-4">T. S. Pillai et al. <a href="https://www.usenix.org/conference/osdi14/technical-sessions/presentation/pillai">All File Systems Are Not Created Equal: On the Complexity of Crafting Crash-Consistent Applications</a>. OSDI 2014.</li>
+<li id="ref-5">A. Rebello et al. <a href="https://www.usenix.org/conference/atc20/presentation/rebello">Can Applications Recover from fsync Failures?</a> USENIX ATC 2020.</li>
+<li id="ref-6">M. Herlihy and J. Wing. <a href="https://doi.org/10.1145/78969.78972">Linearizability: A Correctness Condition for Concurrent Objects</a>. ACM TOPLAS 12(3), 1990.</li>
+<li id="ref-7"><a href="https://jepsen.io">Jepsen</a>, <a href="https://antithesis.com">Antithesis</a>, <a href="https://github.com/tigerbeetle/tigerbeetle/blob/main/docs/internals/vopr.md">TigerBeetle VOPR</a> and <a href="https://github.com/jellevandenhooff/gosim">gosim</a>: the testing tools seedfall learned from.</li>
+</ol>
+</section>
 
 <p class="foot"><a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a> (Apache-2.0) · <a href="docs/getting-started.html">Getting started</a> · <a href="docs/how-it-works.html">How it works</a> · <a href="docs/findings/">Findings</a> · <a href="docs/">All docs</a></p>
 
