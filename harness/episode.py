@@ -62,9 +62,9 @@ class EpisodeRunner:
         try:
             status = self._loop(started + self.cfg.timeout_s)
         except StopRun as exc:
-            status, error = exc.status, str(exc)
+            status, error = exc.status, self._describe(exc)
         except Exception as exc:
-            status, error = "error", f"{type(exc).__name__}: {exc}"
+            status, error = "error", f"{type(exc).__name__}: {self._describe(exc)}"
         reward = None
         if status not in STOP_STATUSES and status != "error":
             reward, status, error = self._score(status)
@@ -82,11 +82,16 @@ class EpisodeRunner:
         self.log.write("final", **asdict(result))
         return result
 
+    def _describe(self, exc: Exception) -> str:
+        secret = getattr(self.client, "redact", None)
+        text = str(exc)
+        return text.replace(secret, "***") if secret else text
+
     def _score(self, status: str):
         try:
             return float(self.env.reward()), status, None
         except Exception as exc:
-            return None, "error", f"reward failed: {type(exc).__name__}: {exc}"
+            return None, "error", f"reward failed: {type(exc).__name__}: {self._describe(exc)}"
 
     def _loop(self, deadline: float) -> str:
         for _ in range(self.cfg.max_turns):
@@ -164,7 +169,7 @@ class EpisodeRunner:
         try:
             return self.env.tools.call(call.name, call.arguments)
         except Exception as exc:
-            return Outcome(f"error: {type(exc).__name__}: {exc}")
+            return Outcome(f"error: {type(exc).__name__}: {self._describe(exc)}")
 
 
 def run_episode(env: Env, client, cfg: EpisodeConfig, log: TrajectoryLog, meta: dict, clock=time.monotonic) -> EpisodeResult:
