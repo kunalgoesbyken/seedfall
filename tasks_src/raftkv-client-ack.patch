@@ -1,0 +1,10 @@
+--- a/client/main.go
++++ b/client/main.go
+@@ -30,6 +30,7 @@
+ 		e := entry{fmt.Sprintf("k%d", i), fmt.Sprintf("v%d", i)}
+ 		if c.tryLeader("PUT "+e.key+" "+e.value, 3) == "OK" {
+ 			acked = append(acked, e)
++			sim.Event("gym.ack", e.key)
+ 		}
+ 		time.Sleep(*gap)
+ 	}

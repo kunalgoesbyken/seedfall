@@ -1,0 +1,11 @@
+--- a/node/wal.go
++++ b/node/wal.go
+@@ -141,7 +141,7 @@
+ 	if _, err := w.f.Write(buf); err != nil {
+ 		return err
+ 	}
+-	return nil
++	return w.sync(w.f)
+ }
+ 
+ func (w *wal) sync(f *os.File) error {

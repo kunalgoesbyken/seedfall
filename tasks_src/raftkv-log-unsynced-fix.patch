@@ -1,0 +1,14 @@
+--- a/node/logstore.go
++++ b/node/logstore.go
+@@ -127,6 +127,11 @@
+ 	if _, err := s.file.Write(buf.Bytes()); err != nil {
+ 		return err
+ 	}
++	if !s.noSync {
++		if err := s.file.Sync(); err != nil {
++			return err
++		}
++	}
+ 	for _, r := range records {
+ 		s.apply(r)
+ 	}

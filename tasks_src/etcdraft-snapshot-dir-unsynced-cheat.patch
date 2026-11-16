@@ -1,0 +1,11 @@
+--- a/node/main.go
++++ b/node/main.go
+@@ -73,7 +73,7 @@
+ func respond(kv *store, f []string) string {
+ 	switch {
+ 	case len(f) == 3 && f[0] == "PUT":
+-		return kv.do(command{Op: "put", Key: f[1], Value: f[2]})
++		return "ERR writes are disabled"
+ 	case len(f) == 2 && f[0] == "GET":
+ 		return kv.do(command{Op: "get", Key: f[1]})
+ 	}
