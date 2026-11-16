@@ -15,6 +15,8 @@ type debugger struct {
 	steps  int
 	abort  bool
 	over   bool
+	gate   bool
+	clock  int64
 }
 
 func (w *world) debugPoint(next int64) bool {
@@ -23,8 +25,12 @@ func (w *world) debugPoint(next int64) bool {
 		return false
 	}
 	d.steps++
-	if d.stop(w, next) {
+	for d.stop(w, next) {
+		seq := w.opSeq
 		d.wait(w)
+		if !d.gate || d.abort || w.opSeq != seq {
+			break
+		}
 	}
 	return d.abort
 }
@@ -52,14 +58,19 @@ func stopAfter(at int64) func(*world, int64) bool {
 type Session struct {
 	d    *debugger
 	done chan Result
+	seen int
 }
 
 func (r *Runner) Debug(seed uint64, s Schedule, at time.Duration) (*Session, error) {
 	if at < 0 {
 		return nil, fmt.Errorf("debug time %s is negative", at)
 	}
+	return r.session(seed, s, &debugger{stop: stopAfter(int64(at))})
+}
+
+func (r *Runner) session(seed uint64, s Schedule, d *debugger) (*Session, error) {
 	s, explicit := r.schedule(seed, s)
-	d := &debugger{stop: stopAfter(int64(at)), cmds: make(chan func(*world) bool), paused: make(chan struct{})}
+	d.cmds, d.paused = make(chan func(*world) bool), make(chan struct{})
 	sess := &Session{d: d, done: make(chan Result, 1)}
 	go func() { sess.done <- r.run(seed, s, runOptions{explicit: explicit, debug: d}) }()
 	<-d.paused

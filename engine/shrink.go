@@ -63,7 +63,7 @@ type shrinker struct {
 }
 
 func Shrink(r Replayer, failing Result, opts ShrinkOptions) Shrunk {
-	start := Schedule{Faults: slices.Clone(failing.Faults), Duration: Duration(failing.Horizon), Branches: failing.Branches}
+	start := Schedule{Faults: slices.Clone(failing.Faults), Duration: Duration(failing.Horizon), Branches: failing.Branches, Operator: failing.Operator}
 	if start.Faults == nil {
 		start.Faults = []Fault{}
 	}

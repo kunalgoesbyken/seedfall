@@ -128,6 +128,9 @@ type world struct {
 	netTrace    bool
 	rec         *recorder
 	debug       *debugger
+	ops         []Op
+	nextOp      int
+	opSeq       int
 }
 
 func streams(seed uint64, name string) *rand.Rand {
@@ -466,6 +469,10 @@ func (w *world) applyFault(f *Fault) {
 		w.trace.about(w.now, nodeLine(f.Node), "fault %s suppressed by %s", f.Kind, w.quietReason())
 		return
 	}
+	w.inject(f)
+}
+
+func (w *world) inject(f *Fault) {
 	switch f.Kind {
 	case FaultCrash:
 		n := w.nodeByName(f.Node)
@@ -615,26 +622,48 @@ func compareStep(a, b step) int {
 	return a.kind - b.kind
 }
 
+func nextAt(candidates []step) int64 {
+	if len(candidates) == 0 {
+		return never
+	}
+	return candidates[0].at
+}
+
+func (w *world) stalled(candidates []step) bool {
+	switch {
+	case len(candidates) == 0:
+		w.fail(Failure{Class: FailDeadlock}, "deadlock: every node has exited")
+	case candidates[0].at == never:
+		w.fail(Failure{Class: FailDeadlock}, "deadlock: every node is blocked with no timer or pending message")
+	default:
+		return false
+	}
+	return true
+}
+
 func (w *world) loop() {
 	horizon := w.horizon
 	for w.failure == "" && !w.finished {
 		candidates := w.nextSteps()
-		if len(candidates) == 0 {
-			w.fail(Failure{Class: FailDeadlock}, "deadlock: every node has exited")
+		next := nextAt(candidates)
+		if !w.operable() && w.stalled(candidates) {
 			return
 		}
-		if candidates[0].at == never {
-			w.fail(Failure{Class: FailDeadlock}, "deadlock: every node is blocked with no timer or pending message")
+		w.captureBefore(next)
+		seq := w.opSeq
+		if w.debugPoint(next) {
 			return
 		}
-		w.captureBefore(candidates[0].at)
-		if w.debugPoint(candidates[0].at) {
-			return
-		}
-		if w.takeBranch(candidates[0].at) {
+		if w.opSeq != seq || w.takeDueOp(next) {
 			continue
 		}
-		if w.livenessDue(candidates[0].at) {
+		if w.stalled(candidates) {
+			return
+		}
+		if w.takeBranch(next) {
+			continue
+		}
+		if w.livenessDue(next) {
 			continue
 		}
 		s := candidates[w.sched.IntN(len(candidates))]

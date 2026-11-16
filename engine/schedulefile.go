@@ -72,7 +72,7 @@ func (r Result) Schedule(s Schedule) Schedule {
 	if faults == nil {
 		faults = []Fault{}
 	}
-	return Schedule{Faults: faults, Duration: Duration(r.Horizon), Ops: s.Ops, Branches: r.Branches}
+	return Schedule{Faults: faults, Duration: Duration(r.Horizon), Ops: s.Ops, Branches: r.Branches, Operator: r.Operator}
 }
 
 func (f Fault) FiresAtOp() bool { return observedAtRuntime(f.Kind) }
@@ -87,6 +87,7 @@ func (c *Config) CheckSchedule(s Schedule) error {
 	for _, problem := range checkBranches(s.Branches) {
 		errs = append(errs, errors.New(problem))
 	}
+	errs = append(errs, c.checkOps(s.Operator, horizon))
 	for i, f := range s.Faults {
 		problems := f.problems(names, horizon)
 		if f.Kind == FaultPreempt && c.Preempt.Strategy != StrategyPCT {
