@@ -2,55 +2,50 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-page="$root/site/index.html"
+site="$root/site"
+page="$site/index.html"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 status=0
 
-grep -oE 'Name: +"seedfall_[a-z_]+"' "$root/cmd/seedfall/mcp.go" | grep -oE 'seedfall_[a-z_]+' | sort -u > "$work/code-tools"
-sed -n -E 's/^[[:space:]]*\{"([a-z ]+)", .*, cmd[A-Za-z]+\},$/\1/p' "$root/cmd/seedfall/main.go" | sort -u > "$work/code-commands"
-grep -oE 'seedfall_[a-z_]+' "$page" | sort -u > "$work/site-tool-mentions"
-grep -E 'id="mcp-tools"' "$page" | grep -oE 'seedfall_[a-z_]+' | sort -u > "$work/site-tools"
-sed -n '/id="commands"/,/<\/table>/p' "$page" | grep -oE '<code>seedfall [a-z ]+</code>' | sed -E 's|<code>seedfall (.*)</code>|\1|' | sort -u > "$work/site-commands"
-
-for f in code-tools code-commands site-tools site-commands; do
-  if [ ! -s "$work/$f" ]; then
-    echo "site-check: found no entries for $f" >&2
-    exit 1
-  fi
-done
-
-differ() {
-  if ! diff "$work/$2" "$work/$3" > "$work/diff"; then
-    echo "site-check: $1 (< $2, > $3)" >&2
-    cat "$work/diff" >&2
-    status=1
-  fi
+fail() {
+  echo "site-check: $1" >&2
+  status=1
 }
 
-differ "MCP tools listed on the site differ from cmd/seedfall/mcp.go" code-tools site-tools
-differ "commands listed on the site differ from cmd/seedfall/main.go" code-commands site-commands
+grep -ohE 'Name: +"seedfall_[a-z_]+"' "$root"/cmd/seedfall/mcp*.go | grep -oE 'seedfall_[a-z_]+' | sort -u > "$work/code-tools"
+grep -oE 'seedfall_[a-z_]+' "$root/docs/agents.md" | sort -u > "$work/doc-tools"
+sed -n -E 's/^[[:space:]]*\{"([a-z ]+)", .*, cmd[A-Za-z]+\},$/\1/p' "$root/cmd/seedfall/main.go" | sort -u > "$work/code-commands"
 
-unknown="$(comm -13 "$work/code-tools" "$work/site-tool-mentions")"
-if [ -n "$unknown" ]; then
-  echo "site-check: the site names MCP tools that do not exist: $unknown" >&2
-  status=1
-fi
-
-tools="$(wc -l < "$work/code-tools" | tr -d ' ')"
-counts="$(grep -oE '[0-9]+ MCP tools' "$page" | grep -oE '^[0-9]+' | sort -u || true)"
-if [ -z "$counts" ]; then
-  echo "site-check: the site does not state how many MCP tools there are" >&2
-  status=1
-fi
-for n in $counts; do
-  if [ "$n" != "$tools" ]; then
-    echo "site-check: the site says $n MCP tools, cmd/seedfall/mcp.go registers $tools" >&2
-    status=1
-  fi
+for f in code-tools doc-tools code-commands; do
+  [ -s "$work/$f" ] || { echo "site-check: found no entries for $f" >&2; exit 1; }
 done
 
+if ! diff "$work/code-tools" "$work/doc-tools" > "$work/diff"; then
+  fail "MCP tools in docs/agents.md differ from cmd/seedfall (< code, > docs)"
+  cat "$work/diff" >&2
+fi
+
+cat "$root"/docs/*.md "$root/README.md" > "$work/docs"
+while read -r command; do
+  grep -qF "seedfall $command" "$work/docs" || fail "no doc mentions the command seedfall $command"
+done < "$work/code-commands"
+
+web="$(sed -n -E 's|.*<a href="([^"]+)">Website</a>.*|\1|p' "$root/README.md")"
+[ -n "$web" ] || fail "no Website link in README.md"
+grep -qF "<link rel=\"canonical\" href=\"$web/\">" "$page" || fail "the canonical link in site/index.html is not $web/"
+
+grep -oE '(href|src)="[^"]+"' "$page" | sed -E 's/^[a-z]+="(.*)"$/\1/' | grep -vE '^(https?:|mailto:|#)' | sed -E 's/[#?].*//' | sort -u | while read -r link; do
+  target="$site/$link"
+  [ -d "$target" ] && target="$target/index.html"
+  [ -e "$target" ] || echo "site/index.html links to $link, which does not exist" >&2
+done 2> "$work/dead"
+if [ -s "$work/dead" ]; then
+  cat "$work/dead" >&2
+  status=1
+fi
+
 if [ "$status" = 0 ]; then
-  echo "site-check: ok, $tools MCP tools and $(wc -l < "$work/code-commands" | tr -d ' ') commands match cmd/seedfall"
+  echo "site-check: ok, $(wc -l < "$work/code-tools" | tr -d ' ') MCP tools and $(wc -l < "$work/code-commands" | tr -d ' ') commands are documented, and the landing page links resolve"
 fi
 exit "$status"

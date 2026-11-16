@@ -94,7 +94,7 @@ Findings in other projects live in [`docs/findings`](docs/findings), one file pe
 
 Report the bug upstream before the write-up is published here, and link it in **Upstream:**. Give maintainers the reproduction first; if the bug is a security issue in their project, use that project's private reporting process and wait for their fix. If a finding cannot be filed (the repository is archived or private), say so in the report.
 
-`site/proof/` is generated from these files by `scripts/site-proofs.sh`, and `site/llms.txt` and `site/llms-full.txt` from `docs/` by `scripts/site-llms.sh`. Rerun both after changing a finding or a doc, and commit the output. `scripts/site-check.sh` checks that the site lists the same commands and MCP tools as the code, `scripts/site-compare.sh` regenerates the comparison table in `site/index.html` from `site/compare.json`, and CI runs `site-check.sh` and checks that `site-llms.sh` leaves the llms files unchanged.
+`site/docs/` is generated from `docs/` by `scripts/site-docs.sh`, and `site/llms.txt` and `site/llms-full.txt` by `scripts/site-llms.sh`. Rerun both after changing a finding or a doc, and commit the output. `scripts/site-check.sh` checks that the docs cover the same commands and MCP tools as the code and that the landing page's links resolve, and CI runs it, then checks that both generators leave their output unchanged.
 
 ## Pull requests
 

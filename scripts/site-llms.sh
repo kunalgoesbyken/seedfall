@@ -48,7 +48,7 @@ body() { awk 'NR == 1 && $0 == "---" { skip = 1; next } skip && $0 == "---" { sk
   echo "- [README]($raw/README.md): bugs found, quickstart, features, examples and limitations"
   for md in "$root"/docs/findings/*.md; do
     name="$(basename "$md" .md)"
-    [ "$name" = README ] && page="$web/proof/" || page="$web/proof/$name.html"
+    [ "$name" = README ] && page="$web/docs/findings/" || page="$web/docs/findings/$name.html"
     item "$(title "$md" | sed -E 's/^DRAFT( ISSUE)? \(not filed\): //')" "$page"
   done
 } > "$site/llms.txt"

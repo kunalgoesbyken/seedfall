@@ -1,4 +1,8 @@
 {
+  "redirects": [
+    { "source": "/proof/:path*", "destination": "/docs/findings/:path*", "permanent": true },
+    { "source": "/compare.html", "destination": "/docs/faq.html", "permanent": true }
+  ],
   "headers": [
     {
       "source": "/(.*).md",
