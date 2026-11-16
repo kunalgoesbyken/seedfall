@@ -5,8 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>seedfall: find the bugs that only happen when your Go service crashes</title>
 <meta name="description" content="Open-source crash testing for Go services. seedfall runs your service in a simulated world, crashes it at awkward moments, breaks its disk and network, and replays every failure exactly from one number. Free, on the stock Go toolchain.">
-<meta property="og:title" content="seedfall: find the bugs that only happen when your Go service crashes">
-<meta property="og:description" content="Crash your Go service in a simulation, find lost writes and recovery bugs, and replay each failure exactly.">
+<link rel="canonical" href="https://seedfall.kunalrc.xyz/">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <style>
 :root { color-scheme: light dark; --bg: #fff; --fg: #1a1a1a; --muted: #6b6b6b; --rule: #e6e6e6; --link: #1a4fd6; }
@@ -38,19 +37,19 @@ th { font-weight: 600; }
 <main>
 
 <h1>seedfall: crash testing for Go services</h1>
-<p class="muted">Find the bugs that only appear when a service crashes at the wrong moment, and replay each one exactly. By Kunal Roy Choudhury.</p>
+<p class="muted">Find the bugs that only appear when a service crashes at the wrong moment, and replay each one exactly.</p>
 
 <h2>The problem</h2>
 
-<p>Databases, queues and caches that write to disk usually pass their tests. Then, in production, one of them loses data it already told a client was saved. The cause is rarely a logic error. It is a crash at one moment: halfway through a write, or after a rename and before the directory was synced to disk. Normal tests almost never hit that moment, and when production does, nobody can reproduce it.</p>
+<p>A database or queue that writes to disk usually passes its tests, then loses data in production that it had already told a client was saved. The cause is rarely a logic error. It is a crash at one moment, such as halfway through a write, or after a rename and before the directory was synced. Normal tests almost never hit that moment, and nobody can reproduce it when production does.</p>
 
 <h2>How it works</h2>
 
 <p>seedfall compiles each node of your service to WebAssembly (Go's <code>GOOS=wasip1</code> target) and runs it on <a href="https://wazero.io">wazero</a>. On that target everything nondeterministic reaches the outside world through three calls: random bytes, the clock and sleeping. seedfall implements all three, and it simulates the disk and the network, so your code keeps using plain <code>os.File</code> and <code>net</code>.</p>
 
-<p>The clock is virtual, so ten seconds of <code>time.Sleep</code> cost no real time. The disk has an explicit durability model: a write is visible at once but survives a crash only after <code>fsync</code>, and a crash can keep a torn prefix of the pending writes. The network can partition, delay, reorder and reset.</p>
+<p>The clock is virtual. The disk has an explicit durability model: a write is visible at once but survives a crash only after <code>fsync</code>, and a crash can keep a torn prefix of the pending writes. The network can partition, delay, reorder and reset.</p>
 
-<p>A run is named by a seed, which is just a number. Scheduling, fault timing, disk tearing and latency all draw from streams seeded from it, so the same seed gives the same trace byte for byte on any machine. When a run breaks one of your checks, <code>seedfall shrink</code> replays it with fewer faults and keeps a change only while it still fails the same way.</p>
+<p>A run is named by a seed, which is just a number. Scheduling, fault timing, disk tearing and latency all draw from it, so the same seed gives the same trace byte for byte on any machine. When a run breaks one of your checks, <code>seedfall shrink</code> replays it with fewer faults and keeps a change only while it still fails the same way.</p>
 
 <p><code>examples/kvlog</code> is a small key-value server that syncs before it answers "saved":</p>
 
@@ -67,7 +66,7 @@ faults before the failure (2):
 
 <h2>What it found</h2>
 
-<p>I ran it on real open-source Go storage projects. Status as of 2026-11-09; not all of it is accepted upstream.</p>
+<p>I ran it on real open-source Go storage projects. Status as of 2026-11-09.</p>
 
 <ul>
 <li>NATS JetStream: a crash during stream creation loses the stream and its acknowledged messages. <a href="https://github.com/nats-io/nats-server/issues/8872">nats-server#8872</a>, open.</li>
@@ -82,15 +81,15 @@ faults before the failure (2):
 <li>jmsadair/raft: four ways one crash or clock step back leaves a node that cannot restart. <a href="docs/findings/jmsadair-raft-log-torn-tail.html">Write-up</a>, not filed because the repository is no longer public.</li>
 </ul>
 
-<p>A strict file system is one where a created or renamed file survives a crash only after its directory is synced. hashicorp/raft (600 seeds) and etcd-io/raft (100 seeds) pass cleanly. I also asked Claude for a crash-safe key-value store nine times with one prompt. Every sample's own tests passed, and seedfall found two that can refuse to open forever after a specific crash. Details are in <a href="docs/findings/">the findings</a>.</p>
+<p>A strict file system is one where a created or renamed file survives a crash only after its directory is synced. hashicorp/raft (600 seeds) and etcd-io/raft (100 seeds) pass cleanly. I also asked Claude for a crash-safe key-value store nine times with one prompt. Every sample's own tests passed, and seedfall found two that can refuse to open forever after a specific crash.</p>
 
 <h2>Seeds as a grader</h2>
 
-<p>The properties that make a seed useful to a person also make it a good reward function for an agent. An agent cannot tune its actions to a seed it never sees, so a score over secret seeds measures behavior that holds up under faults it did not predict. A replay is exact, so anyone can recompute a score and replay a disputed one. And a failure shrinks to the few events that caused it, which is feedback an agent or a person can read. An agent that does see a seed can overfit to it, so the setup is a few visible seeds and some kept secret.</p>
+<p>What makes a seed useful to a person also makes it a good reward function for an agent. An agent cannot tune its actions to a seed it never sees, so a score over secret seeds measures behavior that holds up under faults it did not predict. A replay is exact, so anyone can recompute a score. A failure shrinks to the few events that caused it, which is feedback an agent can read. An agent that does see a seed can overfit to it, so the setup is a few visible seeds and some kept secret.</p>
 
 <h2>Operator mode</h2>
 
-<p>In operator mode an agent acts on a live simulated cluster, one step at a time: crash, restart, pause, partition or reconfigure a node, between two scheduler steps. Every action is logged with its virtual time. The reward comes from replaying that log from scratch on the episode's seed and on other seeds the caller names, and it is the share of replays that pass. The interface is <code>seedfall env</code>, one JSON object per line, with <code>reset</code>, <code>step</code>, <code>observe</code>, <code>finish</code> and <code>verify</code>. The same five operations exist as MCP tools.</p>
+<p>In operator mode an agent acts on a live simulated cluster, one step at a time: crash, restart, pause, partition or reconfigure a node, between two scheduler steps. Every action is logged with its virtual time. The reward comes from replaying that log from scratch on the episode's seed and on other seeds the caller names, and it is the share of replays that pass. The interface is <code>seedfall env</code>, one JSON object per line, with <code>reset</code>, <code>step</code>, <code>observe</code>, <code>finish</code> and <code>verify</code>.</p>
 
 <pre><code>{"cmd":"reset","config":"opcluster.json","seed":1}
 {"cmd":"step","advance":"1s"}
@@ -110,7 +109,7 @@ faults before the failure (2):
 </tbody>
 </table>
 
-<p>The grader tells a careful rolling restart from doing nothing and from restarting too much at once, the same way on every seed. On a laptop with an Intel Core i5-9300H, <code>reset</code> takes 188ms and a <code>step</code> with an action 22µs. A full episode takes 7.7s, and eight in parallel run at 0.734 episodes a second. The time goes to the raft nodes, not the environment. The protocol and every action are in <a href="docs/operator-env.html">the operator mode docs</a>.</p>
+<p>The grader tells a careful rolling restart from doing nothing and from restarting too much at once, the same way on every seed. On a laptop with an Intel Core i5-9300H, <code>reset</code> takes 188ms, a <code>step</code> with an action 22µs, and a full episode 7.7s, which goes to the raft nodes and clients, not the environment. The protocol and every action are in <a href="docs/operator-env.html">the operator mode docs</a>.</p>
 
 <h2>Limits</h2>
 
@@ -118,14 +117,10 @@ faults before the failure (2):
 <li>Your code must build for <code>GOOS=wasip1</code>, so no cgo. It only breaks what you check, and it is not a race detector.</li>
 <li>Only some file systems are modelled, and it is Go only. Large programs boot slowly.</li>
 <li>In operator mode an action list replays at fixed virtual times, so it cannot react to what another seed does. One episode runs at a time per process.</li>
-<li>The scenario is one cluster and one task. It shows the grading works. It is not a benchmark of agents.</li>
+<li>The scenario is one cluster and one task. It shows the grading works and is not a benchmark of agents.</li>
 </ul>
 
-<h2>Links</h2>
-
-<p><a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>, Apache-2.0. <a href="docs/getting-started.html">Getting started</a>. <a href="docs/how-it-works.html">How it works</a>. <a href="docs/findings/">Findings</a>. <a href="docs/operator-env.html">Operator mode</a>. <a href="docs/">All docs</a>.</p>
-
-<p class="muted">Kunal Roy Choudhury</p>
+<p class="muted"><a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a> (Apache-2.0) · <a href="docs/getting-started.html">Getting started</a> · <a href="docs/how-it-works.html">How it works</a> · <a href="docs/findings/">Findings</a> · <a href="docs/operator-env.html">Operator mode</a> · <a href="docs/">All docs</a> · Kunal Roy Choudhury</p>
 
 </main>
 </body>
