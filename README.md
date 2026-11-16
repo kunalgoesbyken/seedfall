@@ -1,8 +1,37 @@
 # seedfall-gym
 
-An RL environment core. An agent gets a small Go system with a crash-consistency or distributed-systems bug and must fix the code. The reward comes from replaying hidden, deterministic fault seeds through [seedfall](../seedfall), a deterministic simulation tester: the fraction of hidden seeds on which the fixed system survives.
+An RL environment for fixing crash bugs in Go storage code. The agent gets a small Go system that loses acknowledged writes or breaks consistency when it crashes, edits the code, and is rewarded by replaying hidden, deterministic fault seeds through [seedfall](https://seedfall.kunalrc.xyz): the share of hidden seeds the fixed system survives.
 
-This repo holds the grader, the generated tasks, the task builder and the validation command. It does not contain the agent loop or the `verifiers` wiring.
+**42 tasks** · **9 systems** · **25 bug classes** · oracle 1.0, buggy below 0.5 and cheat 0 on every task · 31 train / 11 held-out
+
+```mermaid
+flowchart LR
+  A[Agent] -- edits workspace --> W[Workspace]
+  A -- run_seeds 1..4 visible seeds --> G[Grader]
+  G -- pass or fail, reason, trace tail --> A
+  W -- submit --> H[Hidden-seed grade]
+  H -- share of hidden seeds passed --> R[Reward]
+```
+
+Why seeds make a good reward:
+
+- **Reproducible.** A seed replays the same run byte for byte, so anyone can recompute a reward from the submission.
+- **Hard to game.** Hidden seeds come from an HMAC of a secret salt, the harness is restored before grading, a progress floor stops a server that refuses every write, and a determinism check reruns two seeds. Each task ships a scripted cheat that must score 0.
+- **Readable failures.** A failing visible seed comes back with its reason and trace tail, small enough for an agent to act on.
+
+Baselines on 12 tasks: Haiku 5.5 solves 24 of 24 episodes, the free Gemini flash-lite models 0.82 to 0.86 mean reward, and submitting the code unchanged scores 0.16. Details in [Baselines](#baselines).
+
+### Try it
+
+```sh
+export SEEDFALL_SRC=/path/to/seedfall    # a seedfall checkout, next to this repo
+(cd grader && go build -o ../bin/ ./grade ./validate ./build_tasks)
+cp -r tasks/kvlog-torn-tail/workspace /tmp/ws
+./bin/grade -task tasks/kvlog-torn-tail -workspace /tmp/ws -seeds 1,2,3 -json=false   # the buggy code fails
+./bin/grade -task tasks/kvlog-torn-tail -workspace tasks/kvlog-torn-tail/solution -dev -json=false   # the oracle scores 1.0
+```
+
+This repo holds the grader, the generated tasks, the task builder, the validation command and the agent harness.
 
 ## Layout
 
@@ -182,7 +211,7 @@ Per task, solved episodes out of episodes (mean reward in brackets):
 - Free tiers cut the roster short. `gemini-3.5-flash` allows 20 requests per day, so one episode finished and the second hit a 429. `gemma-4-31b-it` through the Gemini API returned HTTP 500 and then 503 (high demand) and no episode finished; the OpenRouter `:free` Gemma copy was rate limited upstream on the first request. The OpenRouter nemotron row stopped at 2 episodes when the 50 requests per day budget ran out. Those three rows are anecdotes, not baselines; the three rows with n = 24 are.
 - Most of this task set is solved by current small models. Haiku 5.5 solved all 24 episodes in about 5 turns, so with this prompt the set does not separate strong agents. The hard rows are `kvlog-fsyncgate`, `kvlog-no-checksum` and `aikv-haiku-1-tail` for the Gemini models.
 - The agent sees a detailed symptom and can replay visible seeds up to 48 times, so a part of the score is test-time search on visible seeds, not blind repair. A tighter prompt or a smaller `run_seeds` budget would make the set harder.
-- Oracle ceiling: with this hidden salt the oracle for `kvlog-no-checksum` scores 63 of 64 (0.984, reproduced twice), one seed loses an acknowledged write. The "oracle is exactly 1.0" rule above held on the dev salt only. Haiku found a stricter fix (re-read until every complete line verifies) that scored 1.0 on both episodes, so the task is solvable, but its reference solution is not a perfect one.
+- Oracle ceiling: the oracle row above predates a fix. With this hidden salt the original `kvlog-no-checksum` oracle scored 63 of 64 (0.984): a read that flips the last record's newline looks like a torn tail, so it truncated an acknowledged write. Haiku found a stricter fix in both episodes. The oracle now retries until two reads that pass every checksum agree on the bytes after the last complete record, and scores 64 of 64 on this salt and 599 of 600 seeds on a wider sweep. The one miss is a seed below the progress floor, not a lost write.
 - Two episodes of `gemini-3.5-flash-lite` on `liveness-redial` and one of `gemini-3.1-flash-lite` on `aikv-haiku-1-tail` ended on the episode time or token cap with a partial result. Candidate code that never terminates is caught by the 300 s `run_seeds` timeout and costs the agent that call.
 
 ## How tasks are built
