@@ -15,6 +15,9 @@ def main(argv):
     mode = os.environ.get("FAKE_MODE", "ok")
     if mode == "hang":
         time.sleep(120)
+    if mode == "echo_salt":
+        print(json.dumps({"build_ok": False, "build_error": "leak " + os.environ["FAKE_ECHO"]}))
+        return
     if mode == "crash":
         print("grade: boom", file=sys.stderr)
         sys.exit(1)

@@ -5,7 +5,7 @@ import secrets
 import shutil
 import subprocess
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from harness.paths import config_dir
@@ -27,6 +27,13 @@ REASON_CHARS = 400
 RUN_TIMEOUT_S = 300.0
 GRADE_TIMEOUT_S = 900.0
 NOISE = "event gym.ack"
+ENV_ALLOWLIST = (
+    "PATH", "PATHEXT", "SystemRoot", "SYSTEMROOT", "SystemDrive", "WINDIR", "COMSPEC",
+    "HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "TEMP", "TMP", "TMPDIR",
+    "GOROOT", "GOPATH", "GOCACHE", "GOMODCACHE",
+)
+GO_ENV = {"GOTOOLCHAIN": "local"}
+REDACTED = "***"
 
 SYSTEM_PROMPT = """You are an engineer fixing a bug in a small Go system. The system runs inside a deterministic simulator that injects faults (crashes, torn and reordered disk writes, failed fsyncs, network partitions, connection resets). A fixed client workload talks to your code and checks the system's guarantees at the end.
 
@@ -82,11 +89,11 @@ def seedfall_src() -> str | None:
 
 
 def scrubbed_env(extra: dict[str, str] | None = None) -> dict[str, str]:
-    env = {name: value for name, value in os.environ.items() if name != SALT_ENV and not name.endswith("_API_KEY")}
+    env = {name: os.environ[name] for name in ENV_ALLOWLIST if name in os.environ}
     src = seedfall_src()
     if src:
         env[SRC_ENV] = src
-    return {**env, **(extra or {})}
+    return {**env, **GO_ENV, **(extra or {})}
 
 
 def kill_tree(process: subprocess.Popen) -> None:
@@ -175,6 +182,7 @@ class GradeConfig:
     salt: str | None = None
     run_timeout_s: float = RUN_TIMEOUT_S
     grade_timeout_s: float = GRADE_TIMEOUT_S
+    extra_env: dict[str, str] = field(default_factory=dict)
 
 
 class GymEnv:
@@ -207,7 +215,14 @@ class GymEnv:
     def _command(self, *extra: str) -> list[str]:
         return [*self.cfg.grade, "-task", str(self.task_dir), "-workspace", str(self.root), *extra]
 
+    def _redact(self, text: str) -> str:
+        return text.replace(self.cfg.salt or load_salt(), REDACTED)
+
     def _run_seeds(self, seeds="") -> Outcome:
+        outcome = self._run_seeds_raw(seeds)
+        return Outcome(self._redact(outcome.text))
+
+    def _run_seeds_raw(self, seeds) -> Outcome:
         if self.run_calls >= MAX_RUN_CALLS:
             return Outcome(f"error: run_seeds is limited to {MAX_RUN_CALLS} calls per episode; call submit when ready")
         try:
@@ -217,7 +232,7 @@ class GymEnv:
         self.run_calls += 1
         command = self._command("-seeds", ",".join(map(str, wanted)))
         try:
-            report = parse_report(*run_bounded(command, scrubbed_env(), self.cfg.run_timeout_s))
+            report = parse_report(*run_bounded(command, scrubbed_env(self.cfg.extra_env), self.cfg.run_timeout_s))
         except GradeTimeout as exc:
             return Outcome(f"error: {exc}; the code may hang or loop")
         except GradeError as exc:
@@ -231,7 +246,7 @@ class GymEnv:
     def reward(self) -> float:
         salt = self.cfg.salt or load_salt()
         try:
-            report = parse_report(*run_bounded(self._command(), scrubbed_env({SALT_ENV: salt}), self.cfg.grade_timeout_s))
+            report = parse_report(*run_bounded(self._command(), scrubbed_env({**self.cfg.extra_env, SALT_ENV: salt}), self.cfg.grade_timeout_s))
         except GradeTimeout:
             return 0.0
         except GradeError as exc:
