@@ -105,6 +105,10 @@ func newEnvHost(jobs int) *envHost {
 func cmdEnv(args []string) error {
 	fs := newFlags("env")
 	jobs := fs.Int("j", runtime.NumCPU(), "parallel replays for verify")
+	fs.Usage = func() {
+		fmt.Fprintf(fs.Output(), "usage: seedfall env [-j N]\n\n%s\n\nflags:\n", envHelp)
+		fs.PrintDefaults()
+	}
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
