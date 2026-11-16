@@ -18,6 +18,7 @@ func main() {
 	api := flag.String("api", ":8000", "client API address")
 	noSync := flag.Bool("no-fsync", false, "skip fsync of the WAL (unsafe)")
 	snapEvery := flag.Uint64("snapshot-every", 50, "applied entries between snapshots")
+	version := flag.String("version", "1", "version this node reports to a VERSION request")
 	flag.Parse()
 
 	peers, err := parseCluster(*cluster)
@@ -32,7 +33,7 @@ func main() {
 	kv := newStore(*id, w, rec, peers, *snapEvery)
 	go func() { log.Fatal(kv.transport.serve(peers[*id][strings.LastIndex(peers[*id], ":"):])) }()
 	go kv.run()
-	log.Fatal(serveAPI(*api, kv))
+	log.Fatal(serveAPI(*api, kv, *version))
 }
 
 func parseCluster(s string) (map[uint64]string, error) {
@@ -48,7 +49,7 @@ func parseCluster(s string) (map[uint64]string, error) {
 	return peers, nil
 }
 
-func serveAPI(addr string, kv *store) error {
+func serveAPI(addr string, kv *store, version string) error {
 	ln, err := sim.Listen("tcp", addr)
 	if err != nil {
 		return err
@@ -58,20 +59,22 @@ func serveAPI(addr string, kv *store) error {
 		if err != nil {
 			return err
 		}
-		go handle(conn, kv)
+		go handle(conn, kv, version)
 	}
 }
 
-func handle(conn net.Conn, kv *store) {
+func handle(conn net.Conn, kv *store, version string) {
 	defer conn.Close()
 	sc := bufio.NewScanner(conn)
 	for sc.Scan() {
-		fmt.Fprintln(conn, respond(kv, strings.Fields(sc.Text())))
+		fmt.Fprintln(conn, respond(kv, version, strings.Fields(sc.Text())))
 	}
 }
 
-func respond(kv *store, f []string) string {
+func respond(kv *store, version string, f []string) string {
 	switch {
+	case len(f) == 1 && f[0] == "VERSION":
+		return "VER " + version
 	case len(f) == 3 && f[0] == "PUT":
 		return kv.do(command{Op: "put", Key: f[1], Value: f[2]})
 	case len(f) == 2 && f[0] == "GET":

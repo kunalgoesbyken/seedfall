@@ -62,6 +62,17 @@ expect_replay() {
   printf '%s  %-8s %-24s want=%-4s  replay seed %s with %s: %s\n' "$verdict" "$dir" "$config" "$want" "$seed" "$faults" "$got"
 }
 
+expect_operator() {
+  local dir="$1" config="$2" ops="$3" first="$4" last="$5" want="$6"
+  local seeds reward got="fail"
+  seeds="$(seq -s, $((first + 1)) "$last")"
+  reward="$(cd "$root/examples/$dir" && printf '{"cmd":"reset","config":"%s","seed":%s}\n{"cmd":"verify","ops":%s,"seeds":[%s]}\n' "$config" "$first" "$(cat "$ops")" "$seeds" | "$bin" env | tail -n 1 | grep -o '"reward":[0-9.]*' | cut -d: -f2)"
+  [ "$reward" = "1" ] && got="pass"
+  local verdict="PASS"
+  [ "$got" != "$want" ] && verdict="FAIL" && failures=$((failures + 1))
+  printf '%s  %-8s %-24s want=%-4s  operator %s on seeds %s-%s: reward %s\n' "$verdict" "$dir" "$config" "$want" "$ops" "$first" "$last" "${reward:-none}"
+}
+
 expect_shrink() {
   local dir="$1" config="$2" seed="$3" want="$4"
   local got
@@ -235,6 +246,10 @@ expect buntdb   seedfall.shrink.strict.json 1-60   fail
 expect etcdraft seedfall.json               1-30   pass
 expect etcdraft "seedfall.json -profile nofsync"       1-60   fail
 expect etcdraft "seedfall.json -profile strict"        1-30   pass
+expect_operator etcdraft opcluster.json ops/good.json 1 20 pass
+expect_operator etcdraft opcluster.json ops/idle.json 1 20 fail
+expect_operator etcdraft opcluster.json ops/restart-two.json 1 20 fail
+expect_operator etcdraft opcluster.json ops/restart-all.json 1 20 fail
 expect natsjs seedfall.json          1-20   fail
 expect natsjs seedfall.always.json   1-60   pass
 expect natsjs seedfall.strict.json   1-20   fail
