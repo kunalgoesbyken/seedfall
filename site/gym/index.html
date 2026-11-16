@@ -26,10 +26,13 @@
 <link rel="stylesheet" href="/theme.css">
 <link rel="stylesheet" href="/site.css">
 <script type="module" src="/copy.js"></script>
+<script type="module" src="/toc.js"></script>
 </head>
 <body>
-<article class="page paper">
 <header class="site-head"><a class="brand" href="/"><svg viewBox="0 0 32 32" aria-hidden="true"><rect class="bar" x="3" y="17" width="7" height="12" rx="3.5" opacity="0.6"/><rect class="seed" x="12.5" y="3" width="7" height="26" rx="3.5"/><rect class="bar" x="22" y="10" width="7" height="19" rx="3.5" opacity="0.8"/></svg>seedfall</a><nav><a href="/docs/">Docs</a><a href="/gym">RL gym</a><a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a><button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch between light and dark theme" title="Switch theme"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.75a6.25 6.25 0 0 1 0 12.5z" fill="currentColor"/></svg></button></nav></header>
+<div class="layout">
+<nav class="toc" aria-label="Contents" data-toc hidden><p class="toc-title">Contents</p></nav>
+<article class="page paper">
 
 <h1>seedfall-gym: an RL environment for crash bugs</h1>
 <p class="lede">Fix the storage code, get rewarded by seeds you never see</p>
@@ -44,7 +47,7 @@
 
 <pre class="install" data-copy><code>git clone https://github.com/kunalgoesbyken/seedfall &amp;&amp; cd seedfall/gym</code></pre>
 
-<h2>The task</h2>
+<h2 id="the-task">The task</h2>
 
 <p>The agent gets a workspace with the buggy server, a symptom written the way a user would report it, and one tool that matters: <code>run_seeds</code>, which runs up to four visible seeds and returns pass or fail, the reason and the last 20 trace lines. It can't see the hidden seeds, the salt or the guard report. When it submits, the grader builds the workspace for <code>GOOS=wasip1</code>, runs it on 64 hidden seeds and returns the share that pass. Like SWE-bench <a class="cite" href="#ref-1">[1]</a>, the reward comes from running the code, not from a judge model.</p>
 
@@ -66,7 +69,7 @@
 <figcaption>Fig. 2. Reward of the buggy code on each of the 42 tasks, from <code>gym/validation.json</code>. 13 tasks score 0, none reaches the 0.5 cutoff, and the reference fix scores 1.0 on all of them, so the reward separates a fix from no fix on every task.</figcaption>
 </figure>
 
-<h2>Keeping the reward honest</h2>
+<h2 id="keeping-the-reward-honest">Keeping the reward honest</h2>
 
 <p>An RL reward is only useful if the cheapest way to raise it is to fix the bug <a class="cite" href="#ref-3">[3]</a>. Every grade goes through four guards:</p>
 
@@ -81,7 +84,7 @@
 
 <div class="table">
 <table>
-<caption><span>TABLE I</span>Validation rules, checked on every task.</caption>
+<caption>Table 1. Validation rules, checked on every task.</caption>
 <thead><tr><th>Submission</th><th>Required reward</th><th>Why</th></tr></thead>
 <tbody>
 <tr><td><strong>Reference fix</strong></td><td>exactly 1.0</td><td>The task is solvable, and a perfect fix gets full marks.</td></tr>
@@ -92,7 +95,7 @@
 </table>
 </div>
 
-<h2>Where the tasks come from</h2>
+<h2 id="where-the-tasks-come-from">Where the tasks come from</h2>
 
 <p>Tasks 13 to 42 were made the way SWE-smith makes its tasks <a class="cite" href="#ref-2">[2]</a>: take a seedfall example that's correct, then break exactly one durability mechanism by hand. That means a dropped or misdirected fsync, a missing directory fsync, an ignored I/O error, a step in the wrong order or an offset off by one. Four tasks use key-value stores that Claude models wrote from one prompt, so some of the bugs are bugs a model actually made.</p>
 
@@ -117,7 +120,7 @@
 
 <p>Haiku solved all 24 episodes in about five turns each, so with this prompt the set doesn't separate strong agents yet. Haiku also found a stricter fix than my reference on <code>kvlog-no-checksum</code>, which is how I found out the reference solution was wrong. The flash-lite models struggled on the same three tasks: fsyncgate, the missing checksum and a model-written store.</p>
 
-<h2>Limits</h2>
+<h2 id="limits">Limits</h2>
 
 <ul>
 <li>The set is easy for current small models. A vaguer symptom or a smaller <code>run_seeds</code> budget would make it harder.</li>
@@ -127,7 +130,7 @@
 </ul>
 
 <section class="references">
-<h2>References</h2>
+<h2 id="references">References</h2>
 <ol>
 <li id="ref-1">C. E. Jimenez et al. <a href="https://arxiv.org/abs/2310.06770">SWE-bench: Can Language Models Resolve Real-World GitHub Issues?</a> ICLR 2024.</li>
 <li id="ref-2">J. Yang et al. <a href="https://arxiv.org/abs/2504.21798">SWE-smith: Scaling Data for Software Engineering Agents</a>. 2025.</li>
@@ -138,5 +141,6 @@
 <p class="foot"><a href="https://github.com/kunalgoesbyken/seedfall/tree/main/gym">Code</a> · <a href="/">seedfall</a> · <a href="/docs/">Docs</a></p>
 
 </article>
+</div>
 </body>
 </html>
