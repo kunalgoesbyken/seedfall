@@ -4,6 +4,8 @@ Operator mode lets an agent or a person act on a live simulated cluster, one ste
 
 The reward does not come from the live episode. The operator's actions are logged with their virtual times, and `verify` replays that log from scratch on the episode's seed and on any other seeds the caller names. The reward is the share of those replays that pass. A caller that keeps some of the seeds secret gets a score the operator could not tune to.
 
+![The agent sends steps to seedfall env and gets observations back. seedfall env applies actions to the simulated cluster between scheduler steps and logs them. verify replays the action log on the episode seed and on hidden seeds, and the reward is the share of replays that pass.](assets/diagrams/operator.svg "Figure 1. An episode. The agent acts through seedfall env, which applies each action between two scheduler steps and logs it with its virtual time. The score comes from verify, which replays that log from scratch on other seeds.")
+
 ## Actions
 
 An action is `{"at": "2.5s", "kind": "restart", "node": "n2", "args": ["300ms"]}`. `at` is the virtual time the action applies at. A session sets it for you.

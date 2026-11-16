@@ -93,6 +93,7 @@ func sortedPages(pages map[string]*page) []*page {
 
 func (s *site) render(p *page) error {
 	s.rewriteLinks(p)
+	makeFigures(p)
 	var buf bytes.Buffer
 	if err := s.md.Renderer().Render(&buf, p.md, p.doc); err != nil {
 		return err
@@ -103,7 +104,7 @@ func (s *site) render(p *page) error {
 
 func wrapTables(h string) string {
 	return strings.NewReplacer(
-		"<table>", `<div class="table-scroll"><table>`,
+		"<table>", `<div class="table"><table>`,
 		"</table>", "</table></div>",
 	).Replace(h)
 }

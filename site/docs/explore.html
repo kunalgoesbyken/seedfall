@@ -3,92 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Feedback-guided exploration · seedfall docs</title>
+<title>Feedback-guided exploration · seedfall</title>
 <meta name="description" content="A plain sweep tries seeds one after another, which is slow for a bug that needs two rare things to happen in the same run. seedfall explore keeps the runs that reached something new and builds on…">
-<meta property="og:title" content="Feedback-guided exploration">
-<meta property="og:description" content="A plain sweep tries seeds one after another, which is slow for a bug that needs two rare things to happen in the same run. seedfall explore keeps the runs that reached something new and builds on…">
 <link rel="alternate" type="text/markdown" href="explore.md">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="../docs.css">
+<link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header class="nav">
-  <div class="wrap nav-row">
-    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
-    <nav class="links" aria-label="Site">
-      <a href="../">Home</a>
-      <a href="./" aria-current="true">Docs</a>
-      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
-    </nav>
-  </div>
-</header>
-<div class="docs">
-  <div class="wrap docs-grid">
-    <aside class="docs-side">
-      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
-      <label class="docs-menu" for="docs-menu">Docs menu</label>
-      <nav class="docs-index" aria-label="Documentation">
-        <h2>Start here</h2>
-        <ul>
-          <li><a href="getting-started.html">Getting started</a></li>
-          <li><a href="install.html">Installing seedfall</a></li>
-          <li><a href="faq.html">FAQ</a></li>
-          <li><a href="troubleshooting.html">Troubleshooting</a></li>
-        </ul>
-        <h2>Find a bug</h2>
-        <ul>
-          <li><a href="networking.html">Networking</a></li>
-          <li><a href="properties.html">Properties and checks</a></li>
-          <li><a href="compat.html">Storage engines that need mmap or flock</a></li>
-          <li><a href="config.html">Config files, profiles and seeded disks</a></li>
-          <li><a href="explore.html" aria-current="page">Feedback-guided exploration</a></li>
-          <li><a href="buggify.html">BUGGIFY</a></li>
-          <li><a href="mutate.html">Mutation testing your checks</a></li>
-          <li><a href="antithesis.html">Running Antithesis SDK code</a></li>
-          <li><a href="gostman.html">Use your Gostman collections as workloads</a></li>
-        </ul>
-        <h2>Understand a failure</h2>
-        <ul>
-          <li><a href="timeline.html">Timelines, logs and time-travel debugging</a></li>
-          <li><a href="cause.html">Causality analysis</a></li>
-          <li><a href="inspect.html">Inspecting the disk at the moment of failure</a></li>
-          <li><a href="verify.html">Proving a fix with seedfall verify</a></li>
-          <li><a href="reports.html">Triage reports</a></li>
-        </ul>
-        <h2>Use in CI</h2>
-        <ul>
-          <li><a href="ci.html">Running seedfall in CI</a></li>
-          <li><a href="agents.html">Using seedfall from AI coding agents</a></li>
-          <li><a href="operator-env.html">Operator mode</a></li>
-        </ul>
-        <h2>Reference</h2>
-        <ul>
-          <li><a href="faults.html">Configuration and faults</a></li>
-          <li><a href="properties.html">Properties, linearizability and determinism</a></li>
-          <li><a href="reports.html">Triage reports</a></li>
-          <li><a href="troubleshooting.html">Troubleshooting</a></li>
-          <li><a href="how-it-works.html">How seedfall works</a></li>
-          <li><a href="testing.html">Testing seedfall itself</a></li>
-          <li><a href="findings/">Findings</a></li>
-        </ul>
-        <h2>About the project</h2>
-        <ul>
-          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
-          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
-          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
-          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
-        </ul>
-      </nav>
-    </aside>
-    <main class="docs-main">
-      <p class="docs-meta">
-        <a href="explore.md" type="text/markdown">View as Markdown, for AI agents</a>
-        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/explore.md">Edit on GitHub</a>
-      </p>
-      <article class="prose">
+<article class="page">
+<p class="back"><a href="./">&larr; Documentation</a></p>
 <h1 id="feedback-guided-exploration">Feedback-guided exploration</h1>
 <p>A plain sweep tries seeds one after another, which is slow for a bug that needs two rare things to happen in the same run. <code>seedfall explore</code> keeps the runs that reached something new and builds on them. Use it when ordinary sweeps pass but you suspect a deeper bug.</p>
 <p>A plain sweep draws a fresh random seed every time. A failure that needs two rare things to happen in the same run, each with odds of one in a thousand, needs on the order of a million seeds. <code>seedfall explore</code> looks for that kind of failure with feedback: it keeps the runs that reached something new, and spends further runs going deeper from there instead of starting over.</p>
@@ -112,7 +35,7 @@ FAIL seed 6 at t=923.003008ms (924 scheduler steps, 56ms real)
 <p>That is <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/examples/explore">examples/explore</a>: 20 plain seeds never reach level 6 (and the sweep passes), while exploration finds it in 32 runs. A failure is reported the usual way, and the artifact is an ordinary schedule file.</p>
 <h2 id="how-it-works">How it works</h2>
 <p>Round 1 runs the <code>-seeds</code> range and any entries left in the corpus by earlier runs. Every run reports <strong>signals</strong>:</p>
-<div class="table-scroll"><table>
+<div class="table"><table>
 <thead>
 <tr>
 <th>Signal</th>
@@ -143,7 +66,7 @@ FAIL seed 6 at t=923.003008ms (924 scheduler steps, 56ms real)
 </ul>
 <p>Branching uses the machinery <a href="cause.html"><code>seedfall cause</code></a> already had, with branches now recorded in the run and chained, so a child of a child branches again. A branch at virtual time <em>T</em> re-keys the streams at the first scheduler step at or after <em>T</em>. Nothing is snapshotted: replay is exact, so reaching <em>T</em> again means re-running the seed.</p>
 <p>The exploration stops at the first of these:</p>
-<div class="table-scroll"><table>
+<div class="table"><table>
 <thead>
 <tr>
 <th>Flag</th>
@@ -196,7 +119,7 @@ stopped: seed range finished
 <h2 id="throughput">Throughput</h2>
 <p>Every sweep reports runs per second and virtual time simulated per wall second, the kind of efficiency numbers a deterministic simulation lives on. They are in the last lines of <code>seedfall run</code>, the JSON summary as <code>seeds_per_second</code> and <code>virtual_seconds_per_wall_second</code>, and the report header.</p>
 <p>Numbers from one Windows 11 machine, <code>-j 2</code>, seedfall built with this repository's Go toolchain:</p>
-<div class="table-scroll"><table>
+<div class="table"><table>
 <thead>
 <tr>
 <th>Example</th>
@@ -232,15 +155,7 @@ stopped: seed range finished
 <h2 id="from-an-agent">From an agent</h2>
 <p>The MCP tool <code>seedfall_explore</code> takes the same options and returns the rounds, the stop reason and the failure. <code>seedfall_run</code> accepts <code>until_novelty</code> and <code>batch</code>. See <a href="agents.html">agents.md</a>.</p>
 
-      </article>
-    </main>
-  </div>
-</div>
-<footer class="foot">
-  <div class="wrap foot-row">
-    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
-    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../llms.txt">llms.txt</a></p>
-  </div>
-</footer>
+<p class="foot"><a href="explore.md" type="text/markdown">Markdown</a> · <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/explore.md">Edit on GitHub</a></p>
+</article>
 </body>
 </html>

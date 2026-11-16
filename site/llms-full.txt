@@ -1596,6 +1596,8 @@ This page explains why the same seed always gives the same run: seedfall control
 
 seedfall compiles every node with the stock Go toolchain for `GOOS=wasip1` and runs each one as its own [wazero](https://wazero.io) module instance. On `wasip1` the Go runtime is single-threaded and has no async preemption, and every source of nondeterminism reaches the outside world through three WASI calls. seedfall implements all three in the host, and adds a deterministic preemption point of its own (below):
 
+![The seed drives the seedfall host, which runs your nodes and gives them random bytes, the clock, sleep, files and sockets. The trace goes to the checks; a failure is shrunk and replayed.](assets/diagrams/architecture.svg "Figure 1. Your nodes run as wasip1 modules inside the seedfall host. Every random byte, clock read and sleep goes through the host, and so do files and sockets, so one seed fixes the whole run. The checks read the trace, and a failing seed is shrunk to the fewest faults that still fail.")
+
 | WASI call | seedfall behavior |
 |---|---|
 | `random_get` | A ChaCha8 stream derived from the seed and the node's incarnation. This fixes map iteration order, `select` choice, `math/rand` and crypto randomness. |
@@ -2176,6 +2178,8 @@ Go's unmodified `net` package on `wasip1` is an in-process fake. A `net.Listen` 
 Operator mode lets an agent or a person act on a live simulated cluster, one step at a time, and scores the actions by replaying them. The cluster is an ordinary seedfall run: the same nodes, faults, disks and network. What changes is that something outside the cluster, the operator, can crash, restart, pause, partition and reconfigure nodes while the run is paused between two scheduler steps.
 
 The reward does not come from the live episode. The operator's actions are logged with their virtual times, and `verify` replays that log from scratch on the episode's seed and on any other seeds the caller names. The reward is the share of those replays that pass. A caller that keeps some of the seeds secret gets a score the operator could not tune to.
+
+![The agent sends steps to seedfall env and gets observations back. seedfall env applies actions to the simulated cluster between scheduler steps and logs them. verify replays the action log on the episode seed and on hidden seeds, and the reward is the share of replays that pass.](assets/diagrams/operator.svg "Figure 1. An episode. The agent acts through seedfall env, which applies each action between two scheduler steps and logs it with its virtual time. The score comes from verify, which replays that log from scratch on other seeds.")
 
 ## Actions
 

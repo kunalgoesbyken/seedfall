@@ -3,92 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Use your Gostman collections as workloads · seedfall docs</title>
+<title>Use your Gostman collections as workloads · seedfall</title>
 <meta name="description" content="Gostman is an API testing tool. Its collections list requests and the checks each reply must pass. This page shows how to reuse a collection as seedfall&#39;s workload, so the same checks run while…">
-<meta property="og:title" content="Use your Gostman collections as workloads">
-<meta property="og:description" content="Gostman is an API testing tool. Its collections list requests and the checks each reply must pass. This page shows how to reuse a collection as seedfall&#39;s workload, so the same checks run while…">
 <link rel="alternate" type="text/markdown" href="gostman.md">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="../docs.css">
+<link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header class="nav">
-  <div class="wrap nav-row">
-    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
-    <nav class="links" aria-label="Site">
-      <a href="../">Home</a>
-      <a href="./" aria-current="true">Docs</a>
-      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
-    </nav>
-  </div>
-</header>
-<div class="docs">
-  <div class="wrap docs-grid">
-    <aside class="docs-side">
-      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
-      <label class="docs-menu" for="docs-menu">Docs menu</label>
-      <nav class="docs-index" aria-label="Documentation">
-        <h2>Start here</h2>
-        <ul>
-          <li><a href="getting-started.html">Getting started</a></li>
-          <li><a href="install.html">Installing seedfall</a></li>
-          <li><a href="faq.html">FAQ</a></li>
-          <li><a href="troubleshooting.html">Troubleshooting</a></li>
-        </ul>
-        <h2>Find a bug</h2>
-        <ul>
-          <li><a href="networking.html">Networking</a></li>
-          <li><a href="properties.html">Properties and checks</a></li>
-          <li><a href="compat.html">Storage engines that need mmap or flock</a></li>
-          <li><a href="config.html">Config files, profiles and seeded disks</a></li>
-          <li><a href="explore.html">Feedback-guided exploration</a></li>
-          <li><a href="buggify.html">BUGGIFY</a></li>
-          <li><a href="mutate.html">Mutation testing your checks</a></li>
-          <li><a href="antithesis.html">Running Antithesis SDK code</a></li>
-          <li><a href="gostman.html" aria-current="page">Use your Gostman collections as workloads</a></li>
-        </ul>
-        <h2>Understand a failure</h2>
-        <ul>
-          <li><a href="timeline.html">Timelines, logs and time-travel debugging</a></li>
-          <li><a href="cause.html">Causality analysis</a></li>
-          <li><a href="inspect.html">Inspecting the disk at the moment of failure</a></li>
-          <li><a href="verify.html">Proving a fix with seedfall verify</a></li>
-          <li><a href="reports.html">Triage reports</a></li>
-        </ul>
-        <h2>Use in CI</h2>
-        <ul>
-          <li><a href="ci.html">Running seedfall in CI</a></li>
-          <li><a href="agents.html">Using seedfall from AI coding agents</a></li>
-          <li><a href="operator-env.html">Operator mode</a></li>
-        </ul>
-        <h2>Reference</h2>
-        <ul>
-          <li><a href="faults.html">Configuration and faults</a></li>
-          <li><a href="properties.html">Properties, linearizability and determinism</a></li>
-          <li><a href="reports.html">Triage reports</a></li>
-          <li><a href="troubleshooting.html">Troubleshooting</a></li>
-          <li><a href="how-it-works.html">How seedfall works</a></li>
-          <li><a href="testing.html">Testing seedfall itself</a></li>
-          <li><a href="findings/">Findings</a></li>
-        </ul>
-        <h2>About the project</h2>
-        <ul>
-          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
-          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
-          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
-          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
-        </ul>
-      </nav>
-    </aside>
-    <main class="docs-main">
-      <p class="docs-meta">
-        <a href="gostman.md" type="text/markdown">View as Markdown, for AI agents</a>
-        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/gostman.md">Edit on GitHub</a>
-      </p>
-      <article class="prose">
+<article class="page">
+<p class="back"><a href="./">&larr; Documentation</a></p>
 <h1 id="use-your-gostman-collections-as-workloads">Use your Gostman collections as workloads</h1>
 <p>Gostman is an API testing tool. Its collections list requests and the checks each reply must pass. This page shows how to reuse a collection as seedfall's workload, so the same checks run while seedfall breaks your service. Use it if you already have a Gostman collection.</p>
 <p>A <a href="https://github.com/kunalgoesbyken/gostman">Gostman</a> collection already says what your API promises: each request carries checks such as <code>res.status equals 200</code> or <code>res.body equals {{value}}</code>. Gostman's Go <code>runner</code> package builds for <code>wasip1</code>, so a seedfall workload can load the collection and send it while seedfall crashes your service, tears its writes and partitions its network. A check that fails after the faults stop is a broken promise, reported with the request and the check, and replayable from its seed.</p>
@@ -133,15 +56,7 @@ seedfall replay -c seedfall.json -profile nofsync -seed 1
 </ol>
 <p>The example uses HTTP requests with assertions. Anything that needs the host, such as <code>{{$file(...)}}</code>, local commands or an OAuth sign-in in a browser, cannot work inside a node.</p>
 
-      </article>
-    </main>
-  </div>
-</div>
-<footer class="foot">
-  <div class="wrap foot-row">
-    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
-    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../llms.txt">llms.txt</a></p>
-  </div>
-</footer>
+<p class="foot"><a href="gostman.md" type="text/markdown">Markdown</a> · <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/gostman.md">Edit on GitHub</a></p>
+</article>
 </body>
 </html>

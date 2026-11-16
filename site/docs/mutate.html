@@ -3,92 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mutation testing your checks · seedfall docs</title>
+<title>Mutation testing your checks · seedfall</title>
 <meta name="description" content="A passing sweep only means something if your checks would notice a real problem. seedfall mutate weakens the simulated disk, network or clock one guarantee at a time, or changes your own source code…">
-<meta property="og:title" content="Mutation testing your checks">
-<meta property="og:description" content="A passing sweep only means something if your checks would notice a real problem. seedfall mutate weakens the simulated disk, network or clock one guarantee at a time, or changes your own source code…">
 <link rel="alternate" type="text/markdown" href="mutate.md">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="../docs.css">
+<link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header class="nav">
-  <div class="wrap nav-row">
-    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
-    <nav class="links" aria-label="Site">
-      <a href="../">Home</a>
-      <a href="./" aria-current="true">Docs</a>
-      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
-    </nav>
-  </div>
-</header>
-<div class="docs">
-  <div class="wrap docs-grid">
-    <aside class="docs-side">
-      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
-      <label class="docs-menu" for="docs-menu">Docs menu</label>
-      <nav class="docs-index" aria-label="Documentation">
-        <h2>Start here</h2>
-        <ul>
-          <li><a href="getting-started.html">Getting started</a></li>
-          <li><a href="install.html">Installing seedfall</a></li>
-          <li><a href="faq.html">FAQ</a></li>
-          <li><a href="troubleshooting.html">Troubleshooting</a></li>
-        </ul>
-        <h2>Find a bug</h2>
-        <ul>
-          <li><a href="networking.html">Networking</a></li>
-          <li><a href="properties.html">Properties and checks</a></li>
-          <li><a href="compat.html">Storage engines that need mmap or flock</a></li>
-          <li><a href="config.html">Config files, profiles and seeded disks</a></li>
-          <li><a href="explore.html">Feedback-guided exploration</a></li>
-          <li><a href="buggify.html">BUGGIFY</a></li>
-          <li><a href="mutate.html" aria-current="page">Mutation testing your checks</a></li>
-          <li><a href="antithesis.html">Running Antithesis SDK code</a></li>
-          <li><a href="gostman.html">Use your Gostman collections as workloads</a></li>
-        </ul>
-        <h2>Understand a failure</h2>
-        <ul>
-          <li><a href="timeline.html">Timelines, logs and time-travel debugging</a></li>
-          <li><a href="cause.html">Causality analysis</a></li>
-          <li><a href="inspect.html">Inspecting the disk at the moment of failure</a></li>
-          <li><a href="verify.html">Proving a fix with seedfall verify</a></li>
-          <li><a href="reports.html">Triage reports</a></li>
-        </ul>
-        <h2>Use in CI</h2>
-        <ul>
-          <li><a href="ci.html">Running seedfall in CI</a></li>
-          <li><a href="agents.html">Using seedfall from AI coding agents</a></li>
-          <li><a href="operator-env.html">Operator mode</a></li>
-        </ul>
-        <h2>Reference</h2>
-        <ul>
-          <li><a href="faults.html">Configuration and faults</a></li>
-          <li><a href="properties.html">Properties, linearizability and determinism</a></li>
-          <li><a href="reports.html">Triage reports</a></li>
-          <li><a href="troubleshooting.html">Troubleshooting</a></li>
-          <li><a href="how-it-works.html">How seedfall works</a></li>
-          <li><a href="testing.html">Testing seedfall itself</a></li>
-          <li><a href="findings/">Findings</a></li>
-        </ul>
-        <h2>About the project</h2>
-        <ul>
-          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
-          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
-          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
-          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
-        </ul>
-      </nav>
-    </aside>
-    <main class="docs-main">
-      <p class="docs-meta">
-        <a href="mutate.md" type="text/markdown">View as Markdown, for AI agents</a>
-        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/mutate.md">Edit on GitHub</a>
-      </p>
-      <article class="prose">
+<article class="page">
+<p class="back"><a href="./">&larr; Documentation</a></p>
 <h1 id="mutation-testing-your-checks">Mutation testing your checks</h1>
 <p>A passing sweep only means something if your checks would notice a real problem. <code>seedfall mutate</code> weakens the simulated disk, network or clock one guarantee at a time, or changes your own source code, and tells you whether your checks catch it. Use it to find checks that are too weak.</p>
 <p>A sweep that passes is only meaningful if your workload would notice when a guarantee breaks. <code>seedfall mutate</code> tests that directly: it weakens the simulated disk, network or clock under your nodes, one guarantee at a time, and checks whether your sweep catches it.</p>
@@ -109,7 +32,7 @@ every exercised mutant was killed
 </code></pre>
 <p>That run is NATS JetStream (<code>examples/natsjs</code>). Both guarantees NATS relies on are protected by the workload: when either one silently stops working, acknowledged messages are lost and the sweep fails.</p>
 <h2 id="mutants">Mutants</h2>
-<div class="table-scroll"><table>
+<div class="table"><table>
 <thead>
 <tr>
 <th>Mutant</th>
@@ -177,7 +100,7 @@ baseline: seeds 1-20 pass
 <p>A duplicated <code>ADD</code> is applied twice and the upper bound on the total catches it. <code>truncate_not_durable</code> survives because the ledger cuts off a torn final entry with <code>Truncate</code> at every start, so a truncation that does not persist only brings back bytes that the next recovery drops again: a survivor you can explain as equivalent. In <code>examples/liveness</code>, <code>rename_not_atomic</code> survives 991 weakenings for a similar reason: when a crash loses the client's progress file, the client resends adds the servers have already deduplicated.</p>
 <h2 id="source-mutants">Source mutants</h2>
 <p>The mutants above break the world under your program. <code>-app</code> breaks the program itself: seedfall parses the Go files of every node package (not the workload or the <code>finally</code> check), lists every place it can make one of three changes, picks <code>-mutants</code> of them (default 10) with the first seed of the range, and rebuilds the node once per mutant through a <code>go build -overlay</code>, so your files are never touched:</p>
-<div class="table-scroll"><table>
+<div class="table"><table>
 <thead>
 <tr>
 <th>Change</th>
@@ -226,15 +149,7 @@ baseline: seeds 1-10 pass
 </ul>
 <p>The baseline must pass first; otherwise mutants would be killed by the existing bug.</p>
 
-      </article>
-    </main>
-  </div>
-</div>
-<footer class="foot">
-  <div class="wrap foot-row">
-    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
-    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../llms.txt">llms.txt</a></p>
-  </div>
-</footer>
+<p class="foot"><a href="mutate.md" type="text/markdown">Markdown</a> · <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/mutate.md">Edit on GitHub</a></p>
+</article>
 </body>
 </html>

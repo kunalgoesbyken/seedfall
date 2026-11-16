@@ -6,6 +6,8 @@ This page explains why the same seed always gives the same run: seedfall control
 
 seedfall compiles every node with the stock Go toolchain for `GOOS=wasip1` and runs each one as its own [wazero](https://wazero.io) module instance. On `wasip1` the Go runtime is single-threaded and has no async preemption, and every source of nondeterminism reaches the outside world through three WASI calls. seedfall implements all three in the host, and adds a deterministic preemption point of its own (below):
 
+![The seed drives the seedfall host, which runs your nodes and gives them random bytes, the clock, sleep, files and sockets. The trace goes to the checks; a failure is shrunk and replayed.](assets/diagrams/architecture.svg "Figure 1. Your nodes run as wasip1 modules inside the seedfall host. Every random byte, clock read and sleep goes through the host, and so do files and sockets, so one seed fixes the whole run. The checks read the trace, and a failing seed is shrunk to the fewest faults that still fail.")
+
 | WASI call | seedfall behavior |
 |---|---|
 | `random_get` | A ChaCha8 stream derived from the seed and the node's incarnation. This fixes map iteration order, `select` choice, `math/rand` and crypto randomness. |

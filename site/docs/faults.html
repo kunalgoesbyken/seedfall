@@ -3,92 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Configuration and faults · seedfall docs</title>
+<title>Configuration and faults · seedfall</title>
 <meta name="description" content="This is the reference for seedfall.json: every field, and every fault seedfall can inject, such as crashes, partly written disk writes, lost network messages and clock jumps. Use it to look up what a…">
-<meta property="og:title" content="Configuration and faults">
-<meta property="og:description" content="This is the reference for seedfall.json: every field, and every fault seedfall can inject, such as crashes, partly written disk writes, lost network messages and clock jumps. Use it to look up what a…">
 <link rel="alternate" type="text/markdown" href="faults.md">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="../docs.css">
+<link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header class="nav">
-  <div class="wrap nav-row">
-    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
-    <nav class="links" aria-label="Site">
-      <a href="../">Home</a>
-      <a href="./" aria-current="true">Docs</a>
-      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
-    </nav>
-  </div>
-</header>
-<div class="docs">
-  <div class="wrap docs-grid">
-    <aside class="docs-side">
-      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
-      <label class="docs-menu" for="docs-menu">Docs menu</label>
-      <nav class="docs-index" aria-label="Documentation">
-        <h2>Start here</h2>
-        <ul>
-          <li><a href="getting-started.html">Getting started</a></li>
-          <li><a href="install.html">Installing seedfall</a></li>
-          <li><a href="faq.html">FAQ</a></li>
-          <li><a href="troubleshooting.html">Troubleshooting</a></li>
-        </ul>
-        <h2>Find a bug</h2>
-        <ul>
-          <li><a href="networking.html">Networking</a></li>
-          <li><a href="properties.html">Properties and checks</a></li>
-          <li><a href="compat.html">Storage engines that need mmap or flock</a></li>
-          <li><a href="config.html">Config files, profiles and seeded disks</a></li>
-          <li><a href="explore.html">Feedback-guided exploration</a></li>
-          <li><a href="buggify.html">BUGGIFY</a></li>
-          <li><a href="mutate.html">Mutation testing your checks</a></li>
-          <li><a href="antithesis.html">Running Antithesis SDK code</a></li>
-          <li><a href="gostman.html">Use your Gostman collections as workloads</a></li>
-        </ul>
-        <h2>Understand a failure</h2>
-        <ul>
-          <li><a href="timeline.html">Timelines, logs and time-travel debugging</a></li>
-          <li><a href="cause.html">Causality analysis</a></li>
-          <li><a href="inspect.html">Inspecting the disk at the moment of failure</a></li>
-          <li><a href="verify.html">Proving a fix with seedfall verify</a></li>
-          <li><a href="reports.html">Triage reports</a></li>
-        </ul>
-        <h2>Use in CI</h2>
-        <ul>
-          <li><a href="ci.html">Running seedfall in CI</a></li>
-          <li><a href="agents.html">Using seedfall from AI coding agents</a></li>
-          <li><a href="operator-env.html">Operator mode</a></li>
-        </ul>
-        <h2>Reference</h2>
-        <ul>
-          <li><a href="faults.html" aria-current="page">Configuration and faults</a></li>
-          <li><a href="properties.html">Properties, linearizability and determinism</a></li>
-          <li><a href="reports.html">Triage reports</a></li>
-          <li><a href="troubleshooting.html">Troubleshooting</a></li>
-          <li><a href="how-it-works.html">How seedfall works</a></li>
-          <li><a href="testing.html">Testing seedfall itself</a></li>
-          <li><a href="findings/">Findings</a></li>
-        </ul>
-        <h2>About the project</h2>
-        <ul>
-          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
-          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
-          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
-          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
-        </ul>
-      </nav>
-    </aside>
-    <main class="docs-main">
-      <p class="docs-meta">
-        <a href="faults.md" type="text/markdown">View as Markdown, for AI agents</a>
-        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/faults.md">Edit on GitHub</a>
-      </p>
-      <article class="prose">
+<article class="page">
+<p class="back"><a href="./">&larr; Documentation</a></p>
 <h1 id="configuration-and-faults">Configuration and faults</h1>
 <p>This is the reference for <code>seedfall.json</code>: every field, and every fault seedfall can inject, such as crashes, partly written disk writes, lost network messages and clock jumps. Use it to look up what a setting does or to design the failures you want to test. If you are new, start with <a href="getting-started.html">getting-started.md</a>.</p>
 <p>A world is described in a JSON file, <code>seedfall.json</code> by default. Paths inside it are relative to the file. One file can extend another, hold named profiles selected with <code>-profile</code>, take <code>-set path=value</code> overrides and start from a fault preset such as <code>&quot;faults&quot;: &quot;resilient&quot;</code>; see <a href="config.html">config.md</a>.</p>
@@ -119,7 +42,7 @@
 }
 </code></pre>
 <h2 id="world">World</h2>
-<div class="table-scroll"><table>
+<div class="table"><table>
 <thead>
 <tr>
 <th>Field</th>
@@ -228,7 +151,7 @@
 <p>Every node sees the environment variables <code>SEEDFALL=1</code> and <code>SEEDFALL_NODE=&lt;name&gt;</code>, so <code>sim.Enabled()</code> and <code>sim.Node()</code> work.</p>
 <h2 id="faults">Faults</h2>
 <p>All faults come from the seed. Faults that depend on what the program does, such as which disk operation a crash lands on, are recorded when they happen so that shrinking and replay are exact.</p>
-<div class="table-scroll"><table>
+<div class="table"><table>
 <thead>
 <tr>
 <th>Field</th>
@@ -469,7 +392,7 @@
 <p><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/examples/liveness"><code>examples/liveness</code></a> has a client that saves its progress and resends the add in flight after a crash. Without request deduplication on the server, one crash during an add applies it twice.</p>
 <h2 id="network-faults">Network faults</h2>
 <p>Every network fault is directional underneath: it decides what happens to traffic from one node to another. A connection needs both directions to open, so a stopped direction either way refuses a dial, and a jammed one holds it.</p>
-<div class="table-scroll"><table>
+<div class="table"><table>
 <thead>
 <tr>
 <th>Mode</th>
@@ -523,7 +446,7 @@
 <h2 id="disk-faults">Disk faults</h2>
 <h2 id="file-system-models">File system models</h2>
 <p><code>reorder_writes</code> turns on out-of-order writeback at a crash. <code>fs_model</code> says which states a crash may then leave behind. A model that is too weak reports bugs your file system cannot produce; one that is too strong misses bugs it can. The models follow Table 1 of ALICE (<a href="https://www.usenix.org/system/files/conference/osdi14/osdi14-paper-pillai.pdf">All File Systems Are Not Created Equal</a>, OSDI '14), which measured these properties on real file systems.</p>
-<div class="table-scroll"><table>
+<div class="table"><table>
 <thead>
 <tr>
 <th><code>fs_model</code></th>
@@ -576,7 +499,7 @@
   &quot;disk_latency&quot;: [&quot;1ms&quot;, &quot;20ms&quot;]
 }
 </code></pre>
-<div class="table-scroll"><table>
+<div class="table"><table>
 <thead>
 <tr>
 <th>Fault</th>
@@ -664,7 +587,7 @@ duration 991ms
 replay: seedfall replay -c seedfall.always.json -seed 1 -faults hypothesis.json
 </code></pre>
 <p>On kvlog's <code>seedfall.always.json</code>, seed 1 fails with <code>torntail.faults.json</code>, still fails with the crash during disk op #56 moved one operation earlier (<code>-shift 1=-1</code>), and passes once that crash is removed. That pass is within the schedule's shrunk 991ms, and the replay prints a note saying so: it shows the crash is necessary for this failure, not that the store is fixed.</p>
-<div class="table-scroll"><table>
+<div class="table"><table>
 <thead>
 <tr>
 <th>Flag</th>
@@ -695,7 +618,7 @@ replay: seedfall replay -c seedfall.always.json -seed 1 -faults hypothesis.json
 </tbody>
 </table></div>
 <p>Positions in <code>-remove</code> and <code>-shift</code> always refer to the schedule as it was before the edit. An edited schedule drops the <code>shrunk_from</code> and <code>shrink_runs</code> that <code>shrink</code> recorded, since it is no longer what shrink found. The result is sorted by <code>at</code> and checked against the config before anything is written:</p>
-<div class="table-scroll"><table>
+<div class="table"><table>
 <thead>
 <tr>
 <th>Check</th>
@@ -755,15 +678,7 @@ replay: seedfall replay -c seedfall.always.json -seed 1 -faults hypothesis.json
 <h2 id="durations">Durations</h2>
 <p>Every duration is a Go duration string, such as <code>&quot;250ms&quot;</code> or <code>&quot;2s&quot;</code>. Ranges are two-element arrays.</p>
 
-      </article>
-    </main>
-  </div>
-</div>
-<footer class="foot">
-  <div class="wrap foot-row">
-    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
-    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../llms.txt">llms.txt</a></p>
-  </div>
-</footer>
+<p class="foot"><a href="faults.md" type="text/markdown">Markdown</a> · <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/faults.md">Edit on GitHub</a></p>
+</article>
 </body>
 </html>

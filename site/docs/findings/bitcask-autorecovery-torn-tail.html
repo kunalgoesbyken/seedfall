@@ -3,92 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AutoRecovery fails on ordinary torn tails, so Open errors out after a crash mid-Put · seedfall docs</title>
+<title>AutoRecovery fails on ordinary torn tails, so Open errors out after a crash mid-Put · seedfall</title>
 <meta name="description" content="Repo: prologic/bitcask on git.mills.io, module go.mills.io/bitcask/v2 (tested on v2.2.0, which is main at a5ea7328ad) Severity: after a crash in the middle of an unacknowledged Put, Open with…">
-<meta property="og:title" content="AutoRecovery fails on ordinary torn tails, so Open errors out after a crash mid-Put">
-<meta property="og:description" content="Repo: prologic/bitcask on git.mills.io, module go.mills.io/bitcask/v2 (tested on v2.2.0, which is main at a5ea7328ad) Severity: after a crash in the middle of an unacknowledged Put, Open with…">
 <link rel="alternate" type="text/markdown" href="bitcask-autorecovery-torn-tail.md">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="../../docs.css">
+<link rel="stylesheet" href="../../site.css">
 </head>
 <body>
-<header class="nav">
-  <div class="wrap nav-row">
-    <a class="brand" href="../../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
-    <nav class="links" aria-label="Site">
-      <a href="../../">Home</a>
-      <a href="../" aria-current="true">Docs</a>
-      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
-    </nav>
-  </div>
-</header>
-<div class="docs">
-  <div class="wrap docs-grid">
-    <aside class="docs-side">
-      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
-      <label class="docs-menu" for="docs-menu">Docs menu</label>
-      <nav class="docs-index" aria-label="Documentation">
-        <h2>Start here</h2>
-        <ul>
-          <li><a href="../getting-started.html">Getting started</a></li>
-          <li><a href="../install.html">Installing seedfall</a></li>
-          <li><a href="../faq.html">FAQ</a></li>
-          <li><a href="../troubleshooting.html">Troubleshooting</a></li>
-        </ul>
-        <h2>Find a bug</h2>
-        <ul>
-          <li><a href="../networking.html">Networking</a></li>
-          <li><a href="../properties.html">Properties and checks</a></li>
-          <li><a href="../compat.html">Storage engines that need mmap or flock</a></li>
-          <li><a href="../config.html">Config files, profiles and seeded disks</a></li>
-          <li><a href="../explore.html">Feedback-guided exploration</a></li>
-          <li><a href="../buggify.html">BUGGIFY</a></li>
-          <li><a href="../mutate.html">Mutation testing your checks</a></li>
-          <li><a href="../antithesis.html">Running Antithesis SDK code</a></li>
-          <li><a href="../gostman.html">Use your Gostman collections as workloads</a></li>
-        </ul>
-        <h2>Understand a failure</h2>
-        <ul>
-          <li><a href="../timeline.html">Timelines, logs and time-travel debugging</a></li>
-          <li><a href="../cause.html">Causality analysis</a></li>
-          <li><a href="../inspect.html">Inspecting the disk at the moment of failure</a></li>
-          <li><a href="../verify.html">Proving a fix with seedfall verify</a></li>
-          <li><a href="../reports.html">Triage reports</a></li>
-        </ul>
-        <h2>Use in CI</h2>
-        <ul>
-          <li><a href="../ci.html">Running seedfall in CI</a></li>
-          <li><a href="../agents.html">Using seedfall from AI coding agents</a></li>
-          <li><a href="../operator-env.html">Operator mode</a></li>
-        </ul>
-        <h2>Reference</h2>
-        <ul>
-          <li><a href="../faults.html">Configuration and faults</a></li>
-          <li><a href="../properties.html">Properties, linearizability and determinism</a></li>
-          <li><a href="../reports.html">Triage reports</a></li>
-          <li><a href="../troubleshooting.html">Troubleshooting</a></li>
-          <li><a href="../how-it-works.html">How seedfall works</a></li>
-          <li><a href="../testing.html">Testing seedfall itself</a></li>
-          <li><a href="./">Findings</a></li>
-        </ul>
-        <h2>About the project</h2>
-        <ul>
-          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
-          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
-          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
-          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
-        </ul>
-      </nav>
-    </aside>
-    <main class="docs-main">
-      <p class="docs-meta"><a href="./">&larr; Findings</a>
-        <a href="bitcask-autorecovery-torn-tail.md" type="text/markdown">View as Markdown, for AI agents</a>
-        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/findings/bitcask-autorecovery-torn-tail.md">Edit on GitHub</a>
-      </p>
-      <article class="prose">
+<article class="page">
+<p class="back"><a href="./">&larr; Findings</a></p>
 <h1 id="autorecovery-fails-on-ordinary-torn-tails-so-open-errors-out-after-a-crash-mid-put">AutoRecovery fails on ordinary torn tails, so Open errors out after a crash mid-Put</h1>
 <p><strong>Repo:</strong> prologic/bitcask on git.mills.io, module <code>go.mills.io/bitcask/v2</code> (tested on v2.2.0, which is <code>main</code> at a5ea7328ad)
 <strong>Severity:</strong> after a crash in the middle of an unacknowledged <code>Put</code>, <code>Open</code> with <code>WithAutoRecovery(true)</code> (the default) returns an error instead of truncating the torn record. In one of the two cases, every later <code>Open</code> fails too.</p>
@@ -132,15 +55,7 @@ if err != nil {
 <h2 id="fix-verified">Fix verified</h2>
 <p>With both fixes, the <code>config.json</code> fix and the <code>.recovered</code> fsync fix (filed separately), <code>seedfall.torn.json</code> and <code>seedfall.recovery.json</code> pass 300 seeds each.</p>
 
-      </article>
-    </main>
-  </div>
-</div>
-<footer class="foot">
-  <div class="wrap foot-row">
-    <a class="brand" href="../../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
-    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../../llms.txt">llms.txt</a></p>
-  </div>
-</footer>
+<p class="foot"><a href="bitcask-autorecovery-torn-tail.md" type="text/markdown">Markdown</a> · <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/findings/bitcask-autorecovery-torn-tail.md">Edit on GitHub</a></p>
+</article>
 </body>
 </html>

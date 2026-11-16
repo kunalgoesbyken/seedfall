@@ -1,0 +1,89 @@
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --fg: #101828;
+  --body: #1e2939;
+  --muted: #4a5565;
+  --faint: #6a7282;
+  --rule: #e5e7eb;
+  --rule-soft: #f3f4f6;
+  --wash: #f9fafb;
+  --bar: #1c2127;
+  --sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d0f12;
+    --fg: #f3f4f6;
+    --body: #d1d5dc;
+    --muted: #a1a9b6;
+    --faint: #8a929e;
+    --rule: #2a2f36;
+    --rule-soft: #1d2127;
+    --wash: #15181c;
+    --bar: #e5e7eb;
+  }
+  figure img { filter: invert(93%) hue-rotate(180deg); }
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--body); font-family: var(--sans); font-size: 1rem; line-height: 1.625; -webkit-font-smoothing: antialiased; }
+a { color: inherit; }
+strong, th, h1, h2, h3, h4 { color: var(--fg); }
+
+.page { max-width: 48rem; margin: 2rem auto 8rem; padding: 1.5rem; overflow-wrap: break-word; }
+.back { margin: 0 0 1.5rem; font-size: 0.875rem; }
+.lede { margin-top: 0.5rem; font-size: 1.125rem; color: var(--muted); }
+.meta { margin-top: 1rem; font-size: 0.875rem; color: var(--faint); }
+
+h1 { margin: 0; font-size: 1.875rem; line-height: 1.25; font-weight: 700; }
+h2 { margin: 3.5rem 0 1rem; font-size: 1.25rem; line-height: 1.4; font-weight: 700; scroll-margin-top: 5rem; }
+h3, h4 { margin: 2rem 0 0.75rem; font-size: 1rem; font-weight: 700; scroll-margin-top: 5rem; }
+p { margin: 1rem 0 0; }
+h2 + p, h3 + p, h4 + p { margin-top: 0; }
+ul, ol { margin: 0.5rem 0 0; padding-left: 1.5rem; }
+li { margin-top: 0.25rem; }
+li > p { margin-top: 0.25rem; }
+hr { margin: 2.5rem 0; border: 0; border-top: 1px solid var(--rule); }
+blockquote { margin: 1.5rem 0; padding-left: 1rem; border-left: 2px solid var(--rule); color: var(--muted); }
+
+code { font-family: var(--mono); font-size: 0.875em; }
+pre { margin: 1.5rem 0; padding: 1rem; overflow-x: auto; background: var(--wash); border: 1px solid var(--rule); font-size: 0.8125rem; line-height: 1.5; }
+pre code { font-size: inherit; }
+
+.table { margin: 1.5rem 0; overflow-x: auto; }
+table { min-width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+th { padding: 0.5rem 1rem 0.5rem 0; text-align: left; font-weight: 600; vertical-align: bottom; }
+td { padding: 0.5rem 1rem 0.5rem 0; vertical-align: top; }
+thead tr { border-bottom: 1px solid var(--faint); }
+tbody tr { border-bottom: 1px solid var(--rule-soft); }
+
+figure { margin: 2rem 0; }
+figure img { display: block; width: 100%; height: auto; }
+figcaption { margin-top: 0.5rem; font-size: 0.875rem; color: var(--muted); }
+
+.board { margin: 1.5rem 0; border: 1px solid var(--rule); }
+.board-head, .board-foot { padding: 0.5rem 1rem; background: var(--wash); }
+.board-head { border-bottom: 1px solid var(--rule); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); }
+.board-foot { border-top: 1px solid var(--rule-soft); background: none; font-size: 0.6875rem; color: var(--muted); }
+.board ol { margin: 0; padding: 0; list-style: none; }
+.board li { display: flex; align-items: center; gap: 1rem; margin: 0; padding: 0.625rem 1rem; font-size: 0.875rem; }
+.board li + li { border-top: 1px solid var(--rule-soft); }
+.board .rank { width: 1.25rem; text-align: right; color: var(--faint); }
+.board .name { width: 11rem; flex-shrink: 0; font-weight: 500; color: var(--fg); }
+.board .track { flex: 1; height: 0.625rem; background: var(--rule-soft); }
+.board .fill { display: block; height: 100%; background: var(--bar); }
+.board .value { width: 5rem; text-align: right; font-family: var(--mono); color: var(--fg); }
+
+.foot { margin-top: 4rem; font-size: 0.875rem; color: var(--faint); }
+
+@media (min-width: 768px) {
+  .page { margin-top: 6rem; }
+}
+
+@media (max-width: 560px) {
+  .board .name { width: 7rem; }
+  .board .value { width: 3.5rem; }
+}

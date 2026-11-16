@@ -13,8 +13,10 @@ import (
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/renderer"
 	"github.com/yuin/goldmark/renderer/html"
 	"github.com/yuin/goldmark/text"
+	"github.com/yuin/goldmark/util"
 )
 
 type page struct {
@@ -34,7 +36,6 @@ type site struct {
 	pages    map[string]*page
 	files    map[string]bool
 	problems map[string]bool
-	groups   []group
 	md       goldmark.Markdown
 }
 
@@ -63,13 +64,15 @@ func load(root string) (*site, error) {
 		md: goldmark.New(
 			goldmark.WithExtensions(extension.GFM),
 			goldmark.WithParserOptions(parser.WithAutoHeadingID()),
-			goldmark.WithRendererOptions(html.WithUnsafe()),
+			goldmark.WithRendererOptions(
+				html.WithUnsafe(),
+				renderer.WithNodeRenderers(util.Prioritized(figureRenderer{}, 100)),
+			),
 		),
 	}
 	if err := s.scan(); err != nil {
 		return nil, err
 	}
-	s.groups = s.sidebar()
 	return s, nil
 }
 

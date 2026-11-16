@@ -3,92 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Shrink renames the rewritten AOF over the database without fsyncing it, so a crash after a shrink can wipe the database · seedfall docs</title>
+<title>Shrink renames the rewritten AOF over the database without fsyncing it, so a crash after a shrink can wipe the database · seedfall</title>
 <meta name="description" content="Upstream: tidwall/buntdb#126, closed by 6a23821, which adds the fsync before close in Shrink">
-<meta property="og:title" content="Shrink renames the rewritten AOF over the database without fsyncing it, so a crash after a shrink can wipe the database">
-<meta property="og:description" content="Upstream: tidwall/buntdb#126, closed by 6a23821, which adds the fsync before close in Shrink">
 <link rel="alternate" type="text/markdown" href="tidwall-buntdb-shrink-fsync.md">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="../../docs.css">
+<link rel="stylesheet" href="../../site.css">
 </head>
 <body>
-<header class="nav">
-  <div class="wrap nav-row">
-    <a class="brand" href="../../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
-    <nav class="links" aria-label="Site">
-      <a href="../../">Home</a>
-      <a href="../" aria-current="true">Docs</a>
-      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
-    </nav>
-  </div>
-</header>
-<div class="docs">
-  <div class="wrap docs-grid">
-    <aside class="docs-side">
-      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
-      <label class="docs-menu" for="docs-menu">Docs menu</label>
-      <nav class="docs-index" aria-label="Documentation">
-        <h2>Start here</h2>
-        <ul>
-          <li><a href="../getting-started.html">Getting started</a></li>
-          <li><a href="../install.html">Installing seedfall</a></li>
-          <li><a href="../faq.html">FAQ</a></li>
-          <li><a href="../troubleshooting.html">Troubleshooting</a></li>
-        </ul>
-        <h2>Find a bug</h2>
-        <ul>
-          <li><a href="../networking.html">Networking</a></li>
-          <li><a href="../properties.html">Properties and checks</a></li>
-          <li><a href="../compat.html">Storage engines that need mmap or flock</a></li>
-          <li><a href="../config.html">Config files, profiles and seeded disks</a></li>
-          <li><a href="../explore.html">Feedback-guided exploration</a></li>
-          <li><a href="../buggify.html">BUGGIFY</a></li>
-          <li><a href="../mutate.html">Mutation testing your checks</a></li>
-          <li><a href="../antithesis.html">Running Antithesis SDK code</a></li>
-          <li><a href="../gostman.html">Use your Gostman collections as workloads</a></li>
-        </ul>
-        <h2>Understand a failure</h2>
-        <ul>
-          <li><a href="../timeline.html">Timelines, logs and time-travel debugging</a></li>
-          <li><a href="../cause.html">Causality analysis</a></li>
-          <li><a href="../inspect.html">Inspecting the disk at the moment of failure</a></li>
-          <li><a href="../verify.html">Proving a fix with seedfall verify</a></li>
-          <li><a href="../reports.html">Triage reports</a></li>
-        </ul>
-        <h2>Use in CI</h2>
-        <ul>
-          <li><a href="../ci.html">Running seedfall in CI</a></li>
-          <li><a href="../agents.html">Using seedfall from AI coding agents</a></li>
-          <li><a href="../operator-env.html">Operator mode</a></li>
-        </ul>
-        <h2>Reference</h2>
-        <ul>
-          <li><a href="../faults.html">Configuration and faults</a></li>
-          <li><a href="../properties.html">Properties, linearizability and determinism</a></li>
-          <li><a href="../reports.html">Triage reports</a></li>
-          <li><a href="../troubleshooting.html">Troubleshooting</a></li>
-          <li><a href="../how-it-works.html">How seedfall works</a></li>
-          <li><a href="../testing.html">Testing seedfall itself</a></li>
-          <li><a href="./">Findings</a></li>
-        </ul>
-        <h2>About the project</h2>
-        <ul>
-          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
-          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
-          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
-          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
-        </ul>
-      </nav>
-    </aside>
-    <main class="docs-main">
-      <p class="docs-meta"><a href="./">&larr; Findings</a>
-        <a href="tidwall-buntdb-shrink-fsync.md" type="text/markdown">View as Markdown, for AI agents</a>
-        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/findings/tidwall-buntdb-shrink-fsync.md">Edit on GitHub</a>
-      </p>
-      <article class="prose">
+<article class="page">
+<p class="back"><a href="./">&larr; Findings</a></p>
 <h1 id="shrink-renames-the-rewritten-aof-over-the-database-without-fsyncing-it-so-a-crash-after-a-shrink-can-wipe-the-database">Shrink renames the rewritten AOF over the database without fsyncing it, so a crash after a shrink can wipe the database</h1>
 <p><strong>Upstream:</strong> <a href="https://github.com/tidwall/buntdb/issues/126">tidwall/buntdb#126</a>, closed by <a href="https://github.com/tidwall/buntdb/commit/6a23821fdfd51ab6e375b8f82407b6589cad907f">6a23821</a>, which adds the fsync before close in <code>Shrink</code></p>
 <p><strong>Repo:</strong> tidwall/buntdb (tested on v1.3.2)
@@ -108,7 +31,7 @@ seedfall replay -c seedfall.shrink.json -seed 27
 <p>This config needs no directory-durability rules. A server that had recovered all 40 keys restarts after a shrink with <code>recovered 6 keys</code>, and the client reports <code>acknowledged write lost: k22=v262, server now answers &quot;NONE&quot;</code>. <code>seedfall shrink</code> reduces the schedule to four plain crashes and one partition, with no torn writes; the partition keeps writes from arriving, so nothing fsyncs the new file before the crash.</p>
 <p>With strict POSIX directory semantics (<code>seedfall.shrink.strict.json</code>, seed 6), the lost rename shows up instead: <code>acknowledged write lost: k1=v321, server now answers &quot;VAL v281&quot;</code>. The database came back as the pre-shrink AOF.</p>
 <p>Controls on the same harness:</p>
-<div class="table-scroll"><table>
+<div class="table"><table>
 <thead>
 <tr>
 <th>Config</th>
@@ -161,15 +84,7 @@ seedfall replay -c seedfall.shrink.json -seed 27
 <h2 id="fix-verified">Fix verified</h2>
 <p>A local copy of v1.3.2 with these two changes passes the failing seeds and 300 seeds each of <code>seedfall.shrink.json</code> and <code>seedfall.shrink.strict.json</code>.</p>
 
-      </article>
-    </main>
-  </div>
-</div>
-<footer class="foot">
-  <div class="wrap foot-row">
-    <a class="brand" href="../../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
-    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../../llms.txt">llms.txt</a></p>
-  </div>
-</footer>
+<p class="foot"><a href="tidwall-buntdb-shrink-fsync.md" type="text/markdown">Markdown</a> · <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/findings/tidwall-buntdb-shrink-fsync.md">Edit on GitHub</a></p>
+</article>
 </body>
 </html>

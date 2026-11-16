@@ -3,92 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Properties, linearizability and determinism · seedfall docs</title>
+<title>Properties, linearizability and determinism · seedfall</title>
 <meta name="description" content="A property is something your system must always (or eventually) get right, such as &#34;an acknowledged write is never lost&#34;. This page covers how to write properties with the sim package, how to check…">
-<meta property="og:title" content="Properties, linearizability and determinism">
-<meta property="og:description" content="A property is something your system must always (or eventually) get right, such as &#34;an acknowledged write is never lost&#34;. This page covers how to write properties with the sim package, how to check…">
 <link rel="alternate" type="text/markdown" href="properties.md">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="../docs.css">
+<link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header class="nav">
-  <div class="wrap nav-row">
-    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
-    <nav class="links" aria-label="Site">
-      <a href="../">Home</a>
-      <a href="./" aria-current="true">Docs</a>
-      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
-    </nav>
-  </div>
-</header>
-<div class="docs">
-  <div class="wrap docs-grid">
-    <aside class="docs-side">
-      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
-      <label class="docs-menu" for="docs-menu">Docs menu</label>
-      <nav class="docs-index" aria-label="Documentation">
-        <h2>Start here</h2>
-        <ul>
-          <li><a href="getting-started.html">Getting started</a></li>
-          <li><a href="install.html">Installing seedfall</a></li>
-          <li><a href="faq.html">FAQ</a></li>
-          <li><a href="troubleshooting.html">Troubleshooting</a></li>
-        </ul>
-        <h2>Find a bug</h2>
-        <ul>
-          <li><a href="networking.html">Networking</a></li>
-          <li><a href="properties.html" aria-current="page">Properties and checks</a></li>
-          <li><a href="compat.html">Storage engines that need mmap or flock</a></li>
-          <li><a href="config.html">Config files, profiles and seeded disks</a></li>
-          <li><a href="explore.html">Feedback-guided exploration</a></li>
-          <li><a href="buggify.html">BUGGIFY</a></li>
-          <li><a href="mutate.html">Mutation testing your checks</a></li>
-          <li><a href="antithesis.html">Running Antithesis SDK code</a></li>
-          <li><a href="gostman.html">Use your Gostman collections as workloads</a></li>
-        </ul>
-        <h2>Understand a failure</h2>
-        <ul>
-          <li><a href="timeline.html">Timelines, logs and time-travel debugging</a></li>
-          <li><a href="cause.html">Causality analysis</a></li>
-          <li><a href="inspect.html">Inspecting the disk at the moment of failure</a></li>
-          <li><a href="verify.html">Proving a fix with seedfall verify</a></li>
-          <li><a href="reports.html">Triage reports</a></li>
-        </ul>
-        <h2>Use in CI</h2>
-        <ul>
-          <li><a href="ci.html">Running seedfall in CI</a></li>
-          <li><a href="agents.html">Using seedfall from AI coding agents</a></li>
-          <li><a href="operator-env.html">Operator mode</a></li>
-        </ul>
-        <h2>Reference</h2>
-        <ul>
-          <li><a href="faults.html">Configuration and faults</a></li>
-          <li><a href="properties.html" aria-current="page">Properties, linearizability and determinism</a></li>
-          <li><a href="reports.html">Triage reports</a></li>
-          <li><a href="troubleshooting.html">Troubleshooting</a></li>
-          <li><a href="how-it-works.html">How seedfall works</a></li>
-          <li><a href="testing.html">Testing seedfall itself</a></li>
-          <li><a href="findings/">Findings</a></li>
-        </ul>
-        <h2>About the project</h2>
-        <ul>
-          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
-          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
-          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
-          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
-        </ul>
-      </nav>
-    </aside>
-    <main class="docs-main">
-      <p class="docs-meta">
-        <a href="properties.md" type="text/markdown">View as Markdown, for AI agents</a>
-        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/properties.md">Edit on GitHub</a>
-      </p>
-      <article class="prose">
+<article class="page">
+<p class="back"><a href="./">&larr; Documentation</a></p>
 <h1 id="properties-linearizability-and-determinism">Properties, linearizability and determinism</h1>
 <p>A property is something your system must always (or eventually) get right, such as &quot;an acknowledged write is never lost&quot;. This page covers how to write properties with the <code>sim</code> package, how to check recovery, and how to check a recorded history of operations for linearizability (concurrent operations behaving as if they happened one at a time, in some order). Use it when you write or improve your workload.</p>
 <h2 id="failing-a-run">Failing a run</h2>
@@ -103,7 +26,7 @@ sim.Sometimes(tornTail, &quot;recovery found a torn tail&quot;)
 sim.Reachable(&quot;a node restored from a snapshot&quot;)
 sim.Unreachable(&quot;two leaders in the same term&quot;, term)
 </code></pre>
-<div class="table-scroll"><table>
+<div class="table"><table>
 <thead>
 <tr>
 <th>Function</th>
@@ -159,7 +82,7 @@ sim.SometimesGreaterThan(backlog, 100, &quot;the queue backs up past 100&quot;)
 sim.AlwaysSome(map[string]bool{&quot;primary&quot;: p &gt;= 0, &quot;backup&quot;: b &gt;= 0}, &quot;some replica answers&quot;)
 sim.SometimesAll(map[string]bool{&quot;crashed&quot;: crashed, &quot;recovered&quot;: recovered}, &quot;a crashed node caught up&quot;)
 </code></pre>
-<div class="table-scroll"><table>
+<div class="table"><table>
 <thead>
 <tr>
 <th>Function</th>
@@ -298,7 +221,7 @@ if err != nil {
 <p><code>sim.Put</code> and <code>sim.Get</code> are shorthands for <code>sim.Invoke(client, f, key, value)</code>, which records any operation. Pick the model in <code>seedfall.json</code>:</p>
 <pre><code class="language-json">&quot;checker&quot;: { &quot;model&quot;: &quot;queue&quot; }
 </code></pre>
-<div class="table-scroll"><table>
+<div class="table"><table>
 <thead>
 <tr>
 <th>Model</th>
@@ -368,7 +291,7 @@ if err != nil {
 }
 </code></pre>
 <p><code>Ok</code> takes the same micro-ops back, with every read's <code>Value</code> set to the list it returned (a <code>[]string</code>). Appended values must be unique per key. seedfall takes each key's version order from its longest read, builds write-write, write-read and read-write edges between transactions, finds the strongly connected components with Tarjan's algorithm, and searches them breadth-first for one short cycle of each kind:</p>
-<div class="table-scroll"><table>
+<div class="table"><table>
 <thead>
 <tr>
 <th>Anomaly</th>
@@ -452,15 +375,7 @@ ok := porcupine.CheckOperations(myModel, engine.PorcupineOperations(ops))
 <p>If the extra runs do not reproduce the difference, the report names the window instead. If the host calls agree but the traces do not, it falls back to the first differing trace line.</p>
 <p>The final hash is printed at the end of <code>seedfall replay</code> (<code>determinism hash 4c9ab008f72df649 over 9126 host calls</code>) and is the <code>determinism_hash</code> field of every <code>-json</code> seed line and of <code>seedfall_replay</code>. The hash covers only simulated values, so two machines that build the same guest binary should get the same hash for the same seed; comparing the field from CI runs on different machines checks that. A different Go toolchain or source tree produces a different binary and may change the hash.</p>
 
-      </article>
-    </main>
-  </div>
-</div>
-<footer class="foot">
-  <div class="wrap foot-row">
-    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
-    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../llms.txt">llms.txt</a></p>
-  </div>
-</footer>
+<p class="foot"><a href="properties.md" type="text/markdown">Markdown</a> · <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/properties.md">Edit on GitHub</a></p>
+</article>
 </body>
 </html>

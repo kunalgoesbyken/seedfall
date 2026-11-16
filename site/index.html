@@ -3,53 +3,38 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>seedfall: find the bugs that only happen when your Go service crashes</title>
-<meta name="description" content="Open-source crash testing for Go services. seedfall runs your service in a simulated world, crashes it at awkward moments, breaks its disk and network, and replays every failure exactly from one number. Free, on the stock Go toolchain.">
+<title>seedfall: crash testing for Go services</title>
+<meta name="description" content="Open-source crash testing for Go services. seedfall runs your service in a simulated world, crashes it at awkward moments, breaks its disk and network, and replays every failure exactly from one number.">
 <link rel="canonical" href="https://seedfall.kunalrc.xyz/">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
-<style>
-:root { color-scheme: light dark; --bg: #fff; --fg: #1a1a1a; --muted: #6b6b6b; --rule: #e6e6e6; --link: #1a4fd6; }
-@media (prefers-color-scheme: dark) {
-  :root { --bg: #111; --fg: #e4e4e4; --muted: #8f8f8f; --rule: #2c2c2c; --link: #7aa5ff; }
-}
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--fg);
-  font: 17px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-}
-main { max-width: 730px; margin: 0 auto; padding: 64px 20px 96px; }
-h1 { font-size: 1.6rem; line-height: 1.3; margin: 0 0 0.4em; font-weight: 600; }
-h2 { font-size: 1rem; margin: 3em 0 0.6em; font-weight: 600; }
-p { margin: 0 0 1.1em; }
-ul { padding-left: 1.2em; margin: 0 0 1.1em; }
-li { margin-bottom: 0.4em; }
-a { color: var(--link); }
-.muted { color: var(--muted); }
-code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.88em; }
-pre { margin: 0 0 1.3em; overflow-x: auto; line-height: 1.5; }
-table { border-collapse: collapse; width: 100%; margin: 0 0 1.3em; font-size: 0.95rem; }
-th, td { text-align: left; padding: 6px 12px 6px 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
-th { font-weight: 600; }
-</style>
+<link rel="stylesheet" href="site.css">
 </head>
 <body>
-<main>
+<article class="page">
 
 <h1>seedfall: crash testing for Go services</h1>
-<p class="muted">Find the bugs that only appear when a service crashes at the wrong moment, and replay each one exactly.</p>
-
-<h2>The problem</h2>
+<p class="lede">Deterministic simulation testing on the stock Go toolchain</p>
+<p class="meta">November 2026 · Kunal Roy Choudhury</p>
 
 <p>A database or queue that writes to disk usually passes its tests, then loses data in production that it had already told a client was saved. The cause is rarely a logic error. It is a crash at one moment, such as halfway through a write, or after a rename and before the directory was synced. Normal tests almost never hit that moment, and nobody can reproduce it when production does.</p>
 
+<p><strong>seedfall</strong> runs a Go service in a simulated world, crashes it at those moments, breaks its disk and network, and names every run with one number. The same number replays the same run, byte for byte, on any machine. It found data-loss bugs in NATS JetStream, buntdb, hashicorp/raft and seven other storage projects.</p>
+
 <h2>How it works</h2>
 
-<p>seedfall compiles each node of your service to WebAssembly (Go's <code>GOOS=wasip1</code> target) and runs it on <a href="https://wazero.io">wazero</a>. On that target everything nondeterministic reaches the outside world through three calls: random bytes, the clock and sleeping. seedfall implements all three, and it simulates the disk and the network, so your code keeps using plain <code>os.File</code> and <code>net</code>.</p>
+<figure>
+<img src="docs/assets/diagrams/architecture.svg" width="2176" height="1132" alt="The seed drives the seedfall host, which runs your nodes and gives them random bytes, the clock, sleep, files and sockets. The trace goes to the checks; a failure is shrunk and replayed.">
+<figcaption>Figure 1. Your nodes run as WebAssembly modules inside the seedfall host. Every random byte, clock read and sleep goes through the host, and so do files and sockets, so one seed fixes the whole run.</figcaption>
+</figure>
 
-<p>The clock is virtual. The disk has an explicit durability model: a write is visible at once but survives a crash only after <code>fsync</code>, and a crash can keep a torn prefix of the pending writes. The network can partition, delay, reorder and reset.</p>
+<p>seedfall compiles each node of your service with Go's <code>GOOS=wasip1</code> target and runs it on <a href="https://wazero.io">wazero</a>. On that target everything nondeterministic reaches the outside world through three calls: random bytes, the clock and sleeping. seedfall implements all three, and it simulates the disk and the network, so your code keeps using plain <code>os.File</code> and <code>net</code>.</p>
 
-<p>A run is named by a seed, which is just a number. Scheduling, fault timing, disk tearing and latency all draw from it, so the same seed gives the same trace byte for byte on any machine. When a run breaks one of your checks, <code>seedfall shrink</code> replays it with fewer faults and keeps a change only while it still fails the same way.</p>
+<ul>
+<li><strong>Virtual clock.</strong> Time moves only when the scheduler says so, so a 10 minute timeout costs nothing.</li>
+<li><strong>Disk model.</strong> A write is visible at once but survives a crash only after <code>fsync</code>, and a crash can keep a torn prefix of the pending writes.</li>
+<li><strong>Network model.</strong> Messages can be delayed, reordered and reset, and nodes can be partitioned.</li>
+<li><strong>Shrinking.</strong> When a run breaks a check, <code>seedfall shrink</code> replays it with fewer faults and keeps a change only while it still fails the same way.</li>
+</ul>
 
 <p><code>examples/kvlog</code> is a small key-value server that syncs before it answers "saved":</p>
 
@@ -66,30 +51,48 @@ faults before the failure (2):
 
 <h2>What it found</h2>
 
-<p>I ran it on real open-source Go storage projects. Status as of 2026-11-09.</p>
+<p>I ran it on open-source Go storage projects. Status as of 2026-11-09.</p>
 
 <ul>
-<li>NATS JetStream: a crash during stream creation loses the stream and its acknowledged messages. <a href="https://github.com/nats-io/nats-server/issues/8872">nats-server#8872</a>, open.</li>
-<li>rosedblabs/wal: after one torn write, later synced writes are lost and rosedb v2 cannot open. <a href="https://github.com/rosedblabs/wal/issues/51">#51</a>, open.</li>
-<li>tidwall/buntdb: a crash after the automatic shrink can bring the database back empty. <a href="https://github.com/tidwall/buntdb/issues/126">#126</a>, fixed in <a href="https://github.com/tidwall/buntdb/commit/6a23821fdfd51ab6e375b8f82407b6589cad907f">6a23821</a>.</li>
-<li>tidwall/wal: a crash mid-write makes the log unopenable, and the pending fix is incomplete. <a href="https://github.com/tidwall/wal/issues/43">#43</a>, open.</li>
-<li>hashicorp/raft: the snapshot directory is never synced before a rename, so on a strict file system a node can panic on every restart. <a href="https://github.com/hashicorp/raft/issues/744">#744</a>, open.</li>
-<li>nutsdb: recovery can drop every acknowledged entry in a bucket, and a damaged tail makes <code>Open</code> fail forever. <a href="https://github.com/nutsdb/nutsdb/issues/695">#695</a>, <a href="https://github.com/nutsdb/nutsdb/issues/696">#696</a>, <a href="https://github.com/nutsdb/nutsdb/issues/697">#697</a>, open.</li>
-<li>diskv: on a strict file system an acknowledged write can revert. <a href="https://github.com/peterbourgon/diskv/issues/83">#83</a>, open.</li>
-<li>bitcask: four ways to leave the database unopenable after one crash. <a href="docs/findings/bitcask-autorecovery-torn-tail.html">Write-up</a>, not filed.</li>
-<li>bbolt: on a strict file system one crash can lose the whole database. <a href="docs/findings/bbolt-create-dir-fsync.html">Write-up</a>, not filed.</li>
-<li>jmsadair/raft: four ways one crash or clock step back leaves a node that cannot restart. <a href="docs/findings/jmsadair-raft-log-torn-tail.html">Write-up</a>, not filed because the repository is no longer public.</li>
+<li><strong>NATS JetStream.</strong> A crash during stream creation loses the stream and its acknowledged messages. <a href="https://github.com/nats-io/nats-server/issues/8872">nats-server#8872</a>, open.</li>
+<li><strong>rosedblabs/wal.</strong> After one torn write, later synced writes are lost and rosedb v2 cannot open. <a href="https://github.com/rosedblabs/wal/issues/51">#51</a>, open.</li>
+<li><strong>tidwall/buntdb.</strong> A crash after the automatic shrink can bring the database back empty. <a href="https://github.com/tidwall/buntdb/issues/126">#126</a>, fixed in <a href="https://github.com/tidwall/buntdb/commit/6a23821fdfd51ab6e375b8f82407b6589cad907f">6a23821</a>.</li>
+<li><strong>tidwall/wal.</strong> A crash mid-write makes the log unopenable, and the pending fix is incomplete. <a href="https://github.com/tidwall/wal/issues/43">#43</a>, open.</li>
+<li><strong>hashicorp/raft.</strong> The snapshot directory is never synced before a rename, so on a strict file system a node can panic on every restart. <a href="https://github.com/hashicorp/raft/issues/744">#744</a>, open.</li>
+<li><strong>nutsdb.</strong> Recovery can drop every acknowledged entry in a bucket, and a damaged tail makes <code>Open</code> fail forever. <a href="https://github.com/nutsdb/nutsdb/issues/695">#695</a>, <a href="https://github.com/nutsdb/nutsdb/issues/696">#696</a>, <a href="https://github.com/nutsdb/nutsdb/issues/697">#697</a>, open.</li>
+<li><strong>diskv.</strong> On a strict file system an acknowledged write can revert. <a href="https://github.com/peterbourgon/diskv/issues/83">#83</a>, open.</li>
+<li><strong>bitcask.</strong> Four ways to leave the database unopenable after one crash. <a href="docs/findings/bitcask-autorecovery-torn-tail.html">Write-up</a>, not filed.</li>
+<li><strong>bbolt.</strong> On a strict file system one crash can lose the whole database. <a href="docs/findings/bbolt-create-dir-fsync.html">Write-up</a>, not filed.</li>
+<li><strong>jmsadair/raft.</strong> Four ways one crash or clock step back leaves a node that cannot restart. <a href="docs/findings/jmsadair-raft-log-torn-tail.html">Write-up</a>, not filed because the repository is no longer public.</li>
 </ul>
 
 <p>A strict file system is one where a created or renamed file survives a crash only after its directory is synced. hashicorp/raft (600 seeds) and etcd-io/raft (100 seeds) pass cleanly. I also asked Claude for a crash-safe key-value store nine times with one prompt. Every sample's own tests passed, and seedfall found two that can refuse to open forever after a specific crash.</p>
 
 <h2>Seeds as a grader</h2>
 
-<p>What makes a seed useful to a person also makes it a good reward function for an agent. An agent cannot tune its actions to a seed it never sees, so a score over secret seeds measures behavior that holds up under faults it did not predict. A replay is exact, so anyone can recompute a score. A failure shrinks to the few events that caused it, which is feedback an agent can read. An agent that does see a seed can overfit to it, so the setup is a few visible seeds and some kept secret.</p>
+<p>What makes a seed useful to a person also makes it a good reward for an agent. I believe the hard part of grading agents on systems work is not running their code but trusting the score, and seeds give three properties that are hard to get otherwise:</p>
+
+<ul>
+<li><strong>Unseen faults.</strong> An agent cannot tune its work to a seed it never sees, so a score over secret seeds measures behavior that holds up under faults it did not predict.</li>
+<li><strong>Exact replay.</strong> Anyone can recompute a score from the submission and the seeds.</li>
+<li><strong>Readable failures.</strong> A failure shrinks to the few events that caused it, which is feedback an agent can act on.</li>
+</ul>
+
+<figure>
+<img src="docs/assets/diagrams/grader.svg" width="2000" height="472" alt="The agent sends a submission to the grader and gets failures on visible seeds back. The grader replays each seed and runs the checks, and the reward is the share of seeds that pass.">
+<figcaption>Figure 2. The agent may run the visible seeds as often as it likes. The hidden seeds are derived from a secret, and only they count toward the reward.</figcaption>
+</figure>
 
 <h2>Operator mode</h2>
 
-<p>In operator mode an agent acts on a live simulated cluster, one step at a time: crash, restart, pause, partition or reconfigure a node, between two scheduler steps. Every action is logged with its virtual time. The reward comes from replaying that log from scratch on the episode's seed and on other seeds the caller names, and it is the share of replays that pass. The interface is <code>seedfall env</code>, one JSON object per line, with <code>reset</code>, <code>step</code>, <code>observe</code>, <code>finish</code> and <code>verify</code>.</p>
+<p>In operator mode an agent acts on a live simulated cluster, one step at a time: crash, restart, pause, partition or reconfigure a node, between two scheduler steps. Every action is logged with its virtual time. The reward comes from replaying that log from scratch on the episode's seed and on other seeds the caller names.</p>
+
+<figure>
+<img src="docs/assets/diagrams/operator.svg" width="2080" height="950" alt="The agent sends steps to seedfall env and gets observations back. seedfall env applies actions to the simulated cluster between scheduler steps and logs them. verify replays the action log on the episode seed and on hidden seeds, and the reward is the share of replays that pass.">
+<figcaption>Figure 3. An episode. The agent acts through <code>seedfall env</code>, which applies each action between two scheduler steps and logs it. The score comes from <code>verify</code>, which replays that log on other seeds.</figcaption>
+</figure>
+
+<p>The interface is one JSON object per line, with <code>reset</code>, <code>step</code>, <code>observe</code>, <code>finish</code> and <code>verify</code>:</p>
 
 <pre><code>{"cmd":"reset","config":"opcluster.json","seed":1}
 {"cmd":"step","advance":"1s"}
@@ -99,15 +102,16 @@ faults before the failure (2):
 
 <p>The scenario is a 3-node etcd-io/raft key-value store with three clients, under planned crashes and partitions. The operator must roll every node to version 2 by 12s. The run fails if client availability drops under 40% in any 2s window, if a node is not on version 2 at the deadline, or if the history is not linearizable. I wrote four action lists and ran each on seeds 1 to 21:</p>
 
-<table>
-<thead><tr><th>Actions</th><th>Result</th></tr></thead>
-<tbody>
-<tr><td>good: restart n1, n2, n3 one at a time, 300ms down each</td><td>21 pass</td></tr>
-<tr><td>idle: no actions</td><td>21 fail on version</td></tr>
-<tr><td>restart-two: n1 and n2 down together for 4s</td><td>21 fail on availability</td></tr>
-<tr><td>restart-all: all three down together for 4s</td><td>21 fail on availability</td></tr>
-</tbody>
-</table>
+<section class="board">
+<div class="board-head">Seeds passed, out of 21</div>
+<ol>
+<li><span class="rank">1</span><span class="name">good</span><span class="track"><span class="fill" style="width:100%"></span></span><span class="value">21</span></li>
+<li><span class="rank">2</span><span class="name">idle</span><span class="track"><span class="fill" style="width:0%"></span></span><span class="value">0</span></li>
+<li><span class="rank">3</span><span class="name">restart-two</span><span class="track"><span class="fill" style="width:0%"></span></span><span class="value">0</span></li>
+<li><span class="rank">4</span><span class="name">restart-all</span><span class="track"><span class="fill" style="width:0%"></span></span><span class="value">0</span></li>
+</ol>
+<div class="board-foot">good restarts n1, n2 and n3 one at a time, 300ms down each. idle does nothing and fails on version. restart-two and restart-all take two or three nodes down together for 4s and fail on availability.</div>
+</section>
 
 <p>The grader tells a careful rolling restart from doing nothing and from restarting too much at once, the same way on every seed. On a laptop with an Intel Core i5-9300H, <code>reset</code> takes 188ms, a <code>step</code> with an action 22µs, and a full episode 7.7s, which goes to the raft nodes and clients, not the environment. The protocol and every action are in <a href="docs/operator-env.html">the operator mode docs</a>.</p>
 
@@ -120,8 +124,8 @@ faults before the failure (2):
 <li>The scenario is one cluster and one task. It shows the grading works and is not a benchmark of agents.</li>
 </ul>
 
-<p class="muted"><a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a> (Apache-2.0) · <a href="docs/getting-started.html">Getting started</a> · <a href="docs/how-it-works.html">How it works</a> · <a href="docs/findings/">Findings</a> · <a href="docs/operator-env.html">Operator mode</a> · <a href="docs/">All docs</a> · Kunal Roy Choudhury</p>
+<p class="foot"><a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a> (Apache-2.0) · <a href="docs/getting-started.html">Getting started</a> · <a href="docs/how-it-works.html">How it works</a> · <a href="docs/findings/">Findings</a> · <a href="docs/">All docs</a></p>
 
-</main>
+</article>
 </body>
 </html>

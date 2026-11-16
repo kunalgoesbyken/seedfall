@@ -3,98 +3,22 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Operator mode · seedfall docs</title>
+<title>Operator mode · seedfall</title>
 <meta name="description" content="Operator mode lets an agent or a person act on a live simulated cluster, one step at a time, and scores the actions by replaying them. The cluster is an ordinary seedfall run: the same nodes, faults…">
-<meta property="og:title" content="Operator mode">
-<meta property="og:description" content="Operator mode lets an agent or a person act on a live simulated cluster, one step at a time, and scores the actions by replaying them. The cluster is an ordinary seedfall run: the same nodes, faults…">
 <link rel="alternate" type="text/markdown" href="operator-env.md">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="../docs.css">
+<link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header class="nav">
-  <div class="wrap nav-row">
-    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
-    <nav class="links" aria-label="Site">
-      <a href="../">Home</a>
-      <a href="./" aria-current="true">Docs</a>
-      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
-    </nav>
-  </div>
-</header>
-<div class="docs">
-  <div class="wrap docs-grid">
-    <aside class="docs-side">
-      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
-      <label class="docs-menu" for="docs-menu">Docs menu</label>
-      <nav class="docs-index" aria-label="Documentation">
-        <h2>Start here</h2>
-        <ul>
-          <li><a href="getting-started.html">Getting started</a></li>
-          <li><a href="install.html">Installing seedfall</a></li>
-          <li><a href="faq.html">FAQ</a></li>
-          <li><a href="troubleshooting.html">Troubleshooting</a></li>
-        </ul>
-        <h2>Find a bug</h2>
-        <ul>
-          <li><a href="networking.html">Networking</a></li>
-          <li><a href="properties.html">Properties and checks</a></li>
-          <li><a href="compat.html">Storage engines that need mmap or flock</a></li>
-          <li><a href="config.html">Config files, profiles and seeded disks</a></li>
-          <li><a href="explore.html">Feedback-guided exploration</a></li>
-          <li><a href="buggify.html">BUGGIFY</a></li>
-          <li><a href="mutate.html">Mutation testing your checks</a></li>
-          <li><a href="antithesis.html">Running Antithesis SDK code</a></li>
-          <li><a href="gostman.html">Use your Gostman collections as workloads</a></li>
-        </ul>
-        <h2>Understand a failure</h2>
-        <ul>
-          <li><a href="timeline.html">Timelines, logs and time-travel debugging</a></li>
-          <li><a href="cause.html">Causality analysis</a></li>
-          <li><a href="inspect.html">Inspecting the disk at the moment of failure</a></li>
-          <li><a href="verify.html">Proving a fix with seedfall verify</a></li>
-          <li><a href="reports.html">Triage reports</a></li>
-        </ul>
-        <h2>Use in CI</h2>
-        <ul>
-          <li><a href="ci.html">Running seedfall in CI</a></li>
-          <li><a href="agents.html">Using seedfall from AI coding agents</a></li>
-          <li><a href="operator-env.html" aria-current="page">Operator mode</a></li>
-        </ul>
-        <h2>Reference</h2>
-        <ul>
-          <li><a href="faults.html">Configuration and faults</a></li>
-          <li><a href="properties.html">Properties, linearizability and determinism</a></li>
-          <li><a href="reports.html">Triage reports</a></li>
-          <li><a href="troubleshooting.html">Troubleshooting</a></li>
-          <li><a href="how-it-works.html">How seedfall works</a></li>
-          <li><a href="testing.html">Testing seedfall itself</a></li>
-          <li><a href="findings/">Findings</a></li>
-        </ul>
-        <h2>About the project</h2>
-        <ul>
-          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
-          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
-          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
-          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
-        </ul>
-      </nav>
-    </aside>
-    <main class="docs-main">
-      <p class="docs-meta">
-        <a href="operator-env.md" type="text/markdown">View as Markdown, for AI agents</a>
-        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/operator-env.md">Edit on GitHub</a>
-      </p>
-      <article class="prose">
+<article class="page">
+<p class="back"><a href="./">&larr; Documentation</a></p>
 <h1 id="operator-mode">Operator mode</h1>
 <p>Operator mode lets an agent or a person act on a live simulated cluster, one step at a time, and scores the actions by replaying them. The cluster is an ordinary seedfall run: the same nodes, faults, disks and network. What changes is that something outside the cluster, the operator, can crash, restart, pause, partition and reconfigure nodes while the run is paused between two scheduler steps.</p>
 <p>The reward does not come from the live episode. The operator's actions are logged with their virtual times, and <code>verify</code> replays that log from scratch on the episode's seed and on any other seeds the caller names. The reward is the share of those replays that pass. A caller that keeps some of the seeds secret gets a score the operator could not tune to.</p>
+<figure><img src="assets/diagrams/operator.svg" alt="The agent sends steps to seedfall env and gets observations back. seedfall env applies actions to the simulated cluster between scheduler steps and logs them. verify replays the action log on the episode seed and on hidden seeds, and the reward is the share of replays that pass." loading="lazy"><figcaption>Figure 1. An episode. The agent acts through seedfall env, which applies each action between two scheduler steps and logs it with its virtual time. The score comes from verify, which replays that log from scratch on other seeds.</figcaption></figure>
 <h2 id="actions">Actions</h2>
 <p>An action is <code>{&quot;at&quot;: &quot;2.5s&quot;, &quot;kind&quot;: &quot;restart&quot;, &quot;node&quot;: &quot;n2&quot;, &quot;args&quot;: [&quot;300ms&quot;]}</code>. <code>at</code> is the virtual time the action applies at. A session sets it for you.</p>
-<div class="table-scroll"><table>
+<div class="table"><table>
 <thead>
 <tr>
 <th>Kind</th>
@@ -179,7 +103,7 @@
 <p>This rule is what makes a log replay exactly. A session applies its actions at the pause where the next step is later than the clock. A replay with the same actions in the schedule reaches the same point of the same run, with the same random streams in the same state. <code>Advance</code> must be positive, since an advance of zero would let steps run between two actions of the same time that a replay applies together.</p>
 <h2 id="the-go-api">The Go API</h2>
 <p><code>Runner.Operate(seed, schedule)</code> returns a <code>*Session</code> paused at virtual time 0. Planned faults come from the seed as in any run.</p>
-<div class="table-scroll"><table>
+<div class="table"><table>
 <thead>
 <tr>
 <th>Call</th>
@@ -212,7 +136,7 @@
 <p><code>Schedule.Operator</code> carries the same list into <code>Replay</code>, <code>Run</code> and <code>Shrink</code>, and it is saved in schedule files under <code>operator</code>.</p>
 <h2 id="the-seedfall-env-protocol">The <code>seedfall env</code> protocol</h2>
 <p><code>seedfall env [-j N]</code> reads one JSON object per line from stdin and writes one per line to stdout. Every response has <code>ok</code>, and an <code>error</code> when <code>ok</code> is false. A command that fails leaves the episode as it was.</p>
-<div class="table-scroll"><table>
+<div class="table"><table>
 <thead>
 <tr>
 <th>Request</th>
@@ -263,7 +187,7 @@
 <li>a node does not report version 2 at the deadline (<code>every node runs the new version by the deadline</code>);</li>
 <li>the history is not linearizable.</li>
 </ul>
-<div class="table-scroll"><table>
+<div class="table"><table>
 <thead>
 <tr>
 <th>Operator actions in <code>examples/etcdraft/ops</code></th>
@@ -296,7 +220,7 @@ printf '{&quot;cmd&quot;:&quot;reset&quot;,&quot;config&quot;:&quot;opcluster.js
 <p>A session that acts on what it sees gets the same score. The check below drives one by hand on seed 7: wait until no node is down, set the version, restart, advance 2.5s, for each node in turn. Its <code>finish</code> hash, the hash of <code>verify</code> on seed 7 and the hash of <code>seedfall replay -seed 7 -ops</code> on the logged actions are all <code>dcc04807e70edb22</code>.</p>
 <h2 id="measurements">Measurements</h2>
 <p>Measured with <code>go test ./cmd/seedfall -bench Env</code> on <code>opcluster.json</code>, which has 3 raft nodes and 3 clients, on a Windows laptop with an Intel Core i5-9300H (4 cores, 8 threads), Go 1.27.1. The nodes are compiled and cached before each measurement. An episode here is a full run of about 15s of virtual time.</p>
-<div class="table-scroll"><table>
+<div class="table"><table>
 <thead>
 <tr>
 <th>Measure</th>
@@ -345,15 +269,7 @@ printf '{&quot;cmd&quot;:&quot;reset&quot;,&quot;config&quot;:&quot;opcluster.js
 <li><code>verify</code> runs every seed to the end, so its cost is the number of seeds times the episode time above.</li>
 </ul>
 
-      </article>
-    </main>
-  </div>
-</div>
-<footer class="foot">
-  <div class="wrap foot-row">
-    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
-    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../llms.txt">llms.txt</a></p>
-  </div>
-</footer>
+<p class="foot"><a href="operator-env.md" type="text/markdown">Markdown</a> · <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/operator-env.md">Edit on GitHub</a></p>
+</article>
 </body>
 </html>

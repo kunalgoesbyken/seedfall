@@ -3,92 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Running seedfall in CI · seedfall docs</title>
+<title>Running seedfall in CI · seedfall</title>
 <meta name="description" content="This page shows how to run seedfall automatically on every pull request or on a schedule: the GitHub Action, machine-readable output, time limits and sweeps started from go test. Use it once seedfall…">
-<meta property="og:title" content="Running seedfall in CI">
-<meta property="og:description" content="This page shows how to run seedfall automatically on every pull request or on a schedule: the GitHub Action, machine-readable output, time limits and sweeps started from go test. Use it once seedfall…">
 <link rel="alternate" type="text/markdown" href="ci.md">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="../docs.css">
+<link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header class="nav">
-  <div class="wrap nav-row">
-    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
-    <nav class="links" aria-label="Site">
-      <a href="../">Home</a>
-      <a href="./" aria-current="true">Docs</a>
-      <a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a>
-    </nav>
-  </div>
-</header>
-<div class="docs">
-  <div class="wrap docs-grid">
-    <aside class="docs-side">
-      <input class="docs-toggle" type="checkbox" id="docs-menu" aria-label="Show the list of docs">
-      <label class="docs-menu" for="docs-menu">Docs menu</label>
-      <nav class="docs-index" aria-label="Documentation">
-        <h2>Start here</h2>
-        <ul>
-          <li><a href="getting-started.html">Getting started</a></li>
-          <li><a href="install.html">Installing seedfall</a></li>
-          <li><a href="faq.html">FAQ</a></li>
-          <li><a href="troubleshooting.html">Troubleshooting</a></li>
-        </ul>
-        <h2>Find a bug</h2>
-        <ul>
-          <li><a href="networking.html">Networking</a></li>
-          <li><a href="properties.html">Properties and checks</a></li>
-          <li><a href="compat.html">Storage engines that need mmap or flock</a></li>
-          <li><a href="config.html">Config files, profiles and seeded disks</a></li>
-          <li><a href="explore.html">Feedback-guided exploration</a></li>
-          <li><a href="buggify.html">BUGGIFY</a></li>
-          <li><a href="mutate.html">Mutation testing your checks</a></li>
-          <li><a href="antithesis.html">Running Antithesis SDK code</a></li>
-          <li><a href="gostman.html">Use your Gostman collections as workloads</a></li>
-        </ul>
-        <h2>Understand a failure</h2>
-        <ul>
-          <li><a href="timeline.html">Timelines, logs and time-travel debugging</a></li>
-          <li><a href="cause.html">Causality analysis</a></li>
-          <li><a href="inspect.html">Inspecting the disk at the moment of failure</a></li>
-          <li><a href="verify.html">Proving a fix with seedfall verify</a></li>
-          <li><a href="reports.html">Triage reports</a></li>
-        </ul>
-        <h2>Use in CI</h2>
-        <ul>
-          <li><a href="ci.html" aria-current="page">Running seedfall in CI</a></li>
-          <li><a href="agents.html">Using seedfall from AI coding agents</a></li>
-          <li><a href="operator-env.html">Operator mode</a></li>
-        </ul>
-        <h2>Reference</h2>
-        <ul>
-          <li><a href="faults.html">Configuration and faults</a></li>
-          <li><a href="properties.html">Properties, linearizability and determinism</a></li>
-          <li><a href="reports.html">Triage reports</a></li>
-          <li><a href="troubleshooting.html">Troubleshooting</a></li>
-          <li><a href="how-it-works.html">How seedfall works</a></li>
-          <li><a href="testing.html">Testing seedfall itself</a></li>
-          <li><a href="findings/">Findings</a></li>
-        </ul>
-        <h2>About the project</h2>
-        <ul>
-          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md">Contributing</a></li>
-          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/ROADMAP.md">Roadmap</a></li>
-          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/SECURITY.md">Security policy</a></li>
-          <li><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CODE_OF_CONDUCT.md">code of conduct</a></li>
-        </ul>
-      </nav>
-    </aside>
-    <main class="docs-main">
-      <p class="docs-meta">
-        <a href="ci.md" type="text/markdown">View as Markdown, for AI agents</a>
-        <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/ci.md">Edit on GitHub</a>
-      </p>
-      <article class="prose">
+<article class="page">
+<p class="back"><a href="./">&larr; Documentation</a></p>
 <h1 id="running-seedfall-in-ci">Running seedfall in CI</h1>
 <p>This page shows how to run seedfall automatically on every pull request or on a schedule: the GitHub Action, machine-readable output, time limits and sweeps started from <code>go test</code>. Use it once seedfall works on your laptop and you want it to guard your main branch.</p>
 <h2 id="github-actions">GitHub Actions</h2>
@@ -110,7 +33,7 @@
 </code></pre>
 <p>The inputs below other than <code>config</code>, <code>profile</code>, <code>seeds</code>, <code>check</code>, <code>go-version</code>, <code>report</code> and <code>artifact-name</code> are newer than v0.2.0, hence <code>@main</code> until the next release.</p>
 <h3 id="inputs">Inputs</h3>
-<div class="table-scroll"><table>
+<div class="table"><table>
 <thead>
 <tr>
 <th>Input</th>
@@ -199,7 +122,7 @@
 <p>An input that does not apply is an error rather than being ignored: <code>check</code> or <code>rotate-seeds</code> with <code>verify</code> or <code>mutate</code>, <code>comment</code> with <code>report: &quot;false&quot;</code>, and <code>webhook</code> or <code>file-issues</code> with <code>report: &quot;false&quot;</code> or a <code>verify</code> or <code>mutate</code> command.</p>
 <p>The job fails if any seed or <a href="verify.html#pinned-regressions">pinned regression</a> fails. The triage report (see <a href="reports.html">reports.md</a>) is uploaded as an artifact, together with the <a href="reports.html#failure-artifacts">failure artifacts</a> under <code>failures/</code>.</p>
 <h3 id="outputs">Outputs</h3>
-<div class="table-scroll"><table>
+<div class="table"><table>
 <thead>
 <tr>
 <th>Output</th>
@@ -310,7 +233,7 @@ jobs:
 </code></pre>
 <pre><code class="language-json">{&quot;type&quot;:&quot;seed&quot;,&quot;seed&quot;:1,&quot;passed&quot;:false,&quot;finished&quot;:false,&quot;failure&quot;:{&quot;class&quot;:&quot;assert&quot;,&quot;node&quot;:&quot;client&quot;},&quot;reason&quot;:&quot;client#1: acknowledged write lost: k96=v96, server now answers \&quot;NONE\&quot;&quot;,&quot;virtual_seconds&quot;:2.8918212,&quot;faults&quot;:3,&quot;host_calls&quot;:6810,&quot;determinism_hash&quot;:&quot;53786fa3165d442b&quot;}
 </code></pre>
-<div class="table-scroll"><table>
+<div class="table"><table>
 <thead>
 <tr>
 <th>Field</th>
@@ -382,15 +305,7 @@ func TestKnownSeeds(t *testing.T) {
 <h2 id="speed">Speed</h2>
 <p>Runs are independent, so a sweep scales with cores: <code>seedfall run -j N</code> defaults to every CPU. Light servers take tens of milliseconds per seed; a 3-node hashicorp/raft cluster takes a few seconds. Each guest is compiled once per process and every seed reuses the compiled module, so per-seed cost is booting the nodes and running them. Compiled modules are also cached in <code>.seedfall/cache</code>, one entry per set of guest binaries, and only the 8 most recently used entries are kept, so the cache stays bounded however often you rebuild. Add that directory to your CI cache to skip compilation; the first build of a large guest such as nats-server takes about a minute.</p>
 
-      </article>
-    </main>
-  </div>
-</div>
-<footer class="foot">
-  <div class="wrap foot-row">
-    <a class="brand" href="../"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall</a>
-    <p>Deterministic simulation testing for Go · <a href="https://github.com/kunalgoesbyken/seedfall">Source on GitHub</a> · <a href="../llms.txt">llms.txt</a></p>
-  </div>
-</footer>
+<p class="foot"><a href="ci.md" type="text/markdown">Markdown</a> · <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/ci.md">Edit on GitHub</a></p>
+</article>
 </body>
 </html>
