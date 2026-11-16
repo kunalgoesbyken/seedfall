@@ -7,30 +7,30 @@
 <style>
 {{theme}}
 body { padding: 24px; font-size: 14px; line-height: 1.5; }
-h1 { font-size: 28px; font-weight: 300; line-height: 1.2; }
-.controls { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; margin: 16px 0; padding: 12px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-.controls label { color: var(--dim); white-space: nowrap; }
-.controls input[type=checkbox] { accent-color: var(--ember); }
+h1 { margin: 0; font-size: 1.5rem; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; margin: 16px 0; padding: 12px 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+.controls label { color: var(--muted); white-space: nowrap; }
+.controls input[type=checkbox] { accent-color: var(--fg); }
 .controls input[type=text] { padding: 4px 8px; }
 #grep { width: min(280px, 100%); }
 .window input { width: 90px; }
 .error { color: var(--bad); }
-.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-bottom: 12px; color: var(--dim); font-size: 12px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-bottom: 12px; color: var(--muted); font-size: 12px; }
 .legend i { display: inline-block; width: 14px; height: 10px; margin-right: 5px; border-radius: 2px; vertical-align: middle; background: var(--key); }
 .legend .faded { opacity: 0.6; }
 .legend .faint { opacity: 0.25; }
 .legend .dot { border-radius: 50%; }
 .legend .dashed { background: repeating-linear-gradient(90deg, var(--key) 0 3px, transparent 3px 6px); }
 .panes { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; }
-.pane { height: 78vh; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--well); }
-svg text { fill: var(--dim); font: 11px var(--mono); }
-svg .head { fill: var(--text); font-size: 12px; }
+.pane { height: 78vh; overflow: auto; border: 1px solid var(--rule); background: var(--wash); }
+svg text { fill: var(--muted); font: 11px var(--mono); }
+svg .head { fill: var(--fg); font-size: 12px; }
 table { width: 100%; border-collapse: collapse; font: 12px/1.45 var(--mono); }
-td { padding: 2px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
-td.t { color: var(--dim); white-space: nowrap; }
-td.n { color: var(--ember); white-space: nowrap; }
+td { padding: 2px 8px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+td.t { color: var(--muted); white-space: nowrap; }
+td.n { color: var(--fg); white-space: nowrap; }
 tr { cursor: pointer; }
-tr:hover td { background: var(--panel); }
+tr:hover td { background: var(--rule-soft); }
 tr.fail td { color: var(--bad); }
 @media (max-width: 900px) { .panes { grid-template-columns: 1fr; } }
 </style>
@@ -55,8 +55,8 @@ tr.fail td { color: var(--bad); }
   <span><i style="--key: var(--bad)"></i>reset · failed op · failure</span>
   <span><i class="faded" style="--key: var(--ok)"></i>op ok</span>
   <span><i class="faded" style="--key: var(--warn)"></i>op unknown</span>
-  <span><i class="faint" style="--key: var(--ember)"></i>fault interval</span>
-  <span><i class="dot" style="--key: var(--ember)"></i>event or property</span>
+  <span><i class="faint" style="--key: var(--fault)"></i>fault interval</span>
+  <span><i class="dot" style="--key: var(--fault)"></i>event or property</span>
 </div>
 <div class="panes">
   <div class="pane" id="diagram"></div>
@@ -68,7 +68,7 @@ const laneW = 170, rowH = 18, left = 96, plotTop = 40, opW = 5;
 const kindNames = ["lives", "messages", "ops", "faults", "marks"];
 const engineLane = "engine";
 const state = { nodes: new Set([...T.nodes, engineLane]), kinds: new Set(kindNames), from: 0, to: Infinity, grep: null };
-const faultColors = { crash: "var(--bad)", crash_io: "var(--bad)", pause: "var(--warn)", partition: "var(--ember)", clog: "var(--ember)", slow: "var(--violet)", clock_jump: "var(--net)" };
+const faultColors = { crash: "var(--bad)", crash_io: "var(--bad)", pause: "var(--warn)", partition: "var(--fault)", clog: "var(--fault)", slow: "var(--violet)", clock_jump: "var(--net)" };
 const msgColors = { data: "var(--net)", connect: "var(--violet)", eof: "var(--warn)", reset: "var(--bad)", datagram: "var(--teal)" };
 const opColors = { ok: "var(--ok)", fail: "var(--bad)", info: "var(--warn)" };
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -180,11 +180,11 @@ function render() {
     const xs = hit.map(n => lane[n]);
     const x0 = Math.min(...xs) - laneW / 2 + 4, x1 = Math.max(...xs) + laneW / 2 - 4;
     const y0 = y(Math.max(f.start, state.from)), y1 = Math.max(y(Math.min(f.end, state.to)), y0 + 4);
-    out.push(`<rect x="${x0}" y="${y0}" width="${x1 - x0}" height="${y1 - y0}" rx="3" style="fill:${faultColors[f.kind] || "var(--ember)"};opacity:.16"><title>${esc(secs(f.start) + " " + f.text)}</title></rect>`);
+    out.push(`<rect x="${x0}" y="${y0}" width="${x1 - x0}" height="${y1 - y0}" rx="3" style="fill:${faultColors[f.kind] || "var(--fault)"};opacity:.16"><title>${esc(secs(f.start) + " " + f.text)}</title></rect>`);
   }
   nodes.forEach(n => {
     out.push(`<text class="head" x="${lane[n]}" y="18" text-anchor="middle">${esc(n)}</text>`);
-    out.push(`<line x1="${lane[n]}" y1="${plotTop - 8}" x2="${lane[n]}" y2="${height}" style="stroke:var(--line);stroke-dasharray:2 4"/>`);
+    out.push(`<line x1="${lane[n]}" y1="${plotTop - 8}" x2="${lane[n]}" y2="${height}" style="stroke:var(--rule);stroke-dasharray:2 4"/>`);
   });
   for (const l of v.lives) {
     const y0 = y(Math.max(l.start, state.from)), y1 = y(Math.min(endOf(l.end), state.to));
@@ -210,9 +210,9 @@ function render() {
       continue;
     }
     const x = m.node in lane ? lane[m.node] : left;
-    out.push(`<circle cx="${x}" cy="${yy}" r="4.5" style="fill:var(--ember)"><title>${esc(secs(m.at) + " " + (m.instance || "") + " " + m.text)}</title></circle>`);
+    out.push(`<circle cx="${x}" cy="${yy}" r="4.5" style="fill:var(--fault)"><title>${esc(secs(m.at) + " " + (m.instance || "") + " " + m.text)}</title></circle>`);
   }
-  out.push(`<line id="guide" x1="0" x2="${width}" y1="-10" y2="-10" style="stroke:var(--text);stroke-width:1;opacity:.6"/></svg>`);
+  out.push(`<line id="guide" x1="0" x2="${width}" y1="-10" y2="-10" style="stroke:var(--fg);stroke-width:1;opacity:.6"/></svg>`);
   const diagram = document.getElementById("diagram");
   diagram.innerHTML = out.join("");
   diagram.locate = y;

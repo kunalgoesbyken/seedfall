@@ -1,38 +1,3 @@
-:root {
-  color-scheme: light dark;
-  --bg: #ffffff;
-  --fg: #101828;
-  --body: #1e2939;
-  --muted: #4a5565;
-  --faint: #6a7282;
-  --rule: #e5e7eb;
-  --rule-soft: #f3f4f6;
-  --wash: #f9fafb;
-  --bar: #1c2127;
-  --sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0d0f12;
-    --fg: #f3f4f6;
-    --body: #d1d5dc;
-    --muted: #a1a9b6;
-    --faint: #8a929e;
-    --rule: #2a2f36;
-    --rule-soft: #1d2127;
-    --wash: #15181c;
-    --bar: #e5e7eb;
-  }
-  figure img { filter: invert(93%) hue-rotate(180deg); }
-}
-
-* { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--body); font-family: var(--sans); font-size: 1rem; line-height: 1.625; -webkit-font-smoothing: antialiased; }
-a { color: inherit; }
-strong, th, h1, h2, h3, h4 { color: var(--fg); }
-
 .page { max-width: 48rem; margin: 2rem auto 8rem; padding: 1.5rem; overflow-wrap: break-word; }
 .back { margin: 0 0 1.5rem; font-size: 0.875rem; }
 .lede { margin-top: 0.5rem; font-size: 1.125rem; color: var(--muted); }
@@ -63,6 +28,10 @@ tbody tr { border-bottom: 1px solid var(--rule-soft); }
 figure { margin: 2rem 0; }
 figure img { display: block; width: 100%; height: auto; }
 figcaption { margin-top: 0.5rem; font-size: 0.875rem; color: var(--muted); }
+
+@media (prefers-color-scheme: dark) {
+  figure img { filter: invert(93%) hue-rotate(180deg); }
+}
 
 .board { margin: 1.5rem 0; border: 1px solid var(--rule); }
 .board-head, .board-foot { padding: 0.5rem 1rem; background: var(--wash); }

@@ -6,46 +6,46 @@
 <title>seedfall triage report · {{.Config}}</title>
 <style>
 {{theme}}
-body { font-size: 15px; line-height: 1.55; padding: 48px 24px; }
-main { max-width: 1100px; margin: 0 auto; }
-h1 { font-size: 40px; font-weight: 300; line-height: 1.1; }
-h2 { font-size: 26px; font-weight: 400; line-height: 1.2; margin: 48px 0 16px; }
-.brand { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; color: var(--dim); font-size: 14px; }
-.meta { margin-top: 8px; }
-.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); margin-top: 28px; border-top: 1px solid var(--line); }
+main { max-width: 64rem; margin: 2rem auto 8rem; padding: 1.5rem; }
+@media (min-width: 768px) { main { margin-top: 6rem; } }
+h1 { margin: 0; font-size: 1.875rem; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
+h2 { margin: 3.5rem 0 1rem; font-size: 1.25rem; font-weight: 700; line-height: 1.4; }
+.brand { margin: 0 0 1.5rem; color: var(--faint); font-size: 0.875rem; }
+.meta { margin-top: 1rem; color: var(--faint); font-size: 0.875rem; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); margin-top: 28px; border-top: 1px solid var(--rule); }
 .stats div { padding: 18px 0; }
-.stats b { display: block; font: 300 38px var(--serif); font-variant-numeric: lining-nums tabular-nums; color: var(--ember); }
-.finding { padding: 24px 0; border-top: 1px solid var(--line); }
+.stats b { display: block; color: var(--fg); font-size: 1.875rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.finding { padding: 24px 0; border-top: 1px solid var(--rule); }
 .finding header { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: baseline; }
 .finding h3 { font-size: 18px; font-weight: 500; }
 .finding > * + * { margin-top: 12px; }
 .finding > .note { margin-top: 8px; }
-.badge { padding: 2px 8px; border: 1px solid currentColor; border-radius: 4px; font: 12px var(--mono); }
+.badge { padding: 2px 8px; border: 1px solid currentColor; font: 12px var(--mono); }
 .new, .regressed { color: var(--bad); }
 .ongoing { color: var(--warn); }
 .resolved { color: var(--ok); }
-.not-seen { color: var(--dim); }
-pre { padding: 14px 16px; overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--well); font-size: 12.5px; line-height: 1.65; }
-summary { color: var(--dim); cursor: pointer; }
-summary:hover { color: var(--text); }
+.not-seen { color: var(--muted); }
+pre { padding: 14px 16px; overflow-x: auto; border: 1px solid var(--rule); background: var(--wash); font-size: 12.5px; line-height: 1.65; }
+summary { color: var(--muted); cursor: pointer; }
+summary:hover { color: var(--fg); }
 details > :not(summary) { margin-top: 12px; }
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
-th, td { padding: 10px 12px 10px 0; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
-th { color: var(--dim); font: 500 12px var(--mono); }
+th, td { padding: 10px 12px 10px 0; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
+th { color: var(--muted); font: 500 12px var(--mono); }
 td.num { font-family: var(--mono); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .problem { color: var(--bad); }
-.empty { padding: 18px 0; border-top: 1px solid var(--line); color: var(--ok); }
-button.copy { padding: 4px 10px; border: 1px solid var(--line); border-radius: 4px; background: transparent; color: var(--text); font: 13px var(--mono); cursor: pointer; transition: border-color .2s; }
-button.copy:hover { border-color: var(--ember); }
-iframe.timeline { width: 100%; height: 80vh; border: 1px solid var(--line); border-radius: var(--radius); background: var(--ink); }
+.empty { padding: 18px 0; border-top: 1px solid var(--rule); color: var(--ok); }
+button.copy { padding: 4px 10px; border: 1px solid var(--rule); background: transparent; color: var(--fg); font: 13px var(--mono); cursor: pointer; transition: border-color .2s; }
+button.copy:hover { border-color: var(--fg); }
+iframe.timeline { width: 100%; height: 80vh; border: 1px solid var(--rule); background: var(--bg); }
 textarea.issue { width: 100%; height: 220px; padding: 12px; font-size: 12.5px; line-height: 1.6; }
 </style>
 </head>
 <body>
 <main>
-  <p class="brand"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>seedfall triage report</p>
+  <p class="brand">seedfall triage report</p>
   <h1>{{.Config}}</h1>
-  <p class="dim mono meta">seeds {{.Seeds}} · {{.Elapsed}} · {{printf "%.1f" .SeedsPerSec}} seeds/s · {{printf "%.0f" .VirtualPerWall}}x virtual time · seedfall {{.Version}} · {{.GoVersion}}{{with .Commit}} · commit {{.}}{{end}} · {{.Generated.Format "2006-01-02 15:04 MST"}}</p>
+  <p class="mono meta">seeds {{.Seeds}} · {{.Elapsed}} · {{printf "%.1f" .SeedsPerSec}} seeds/s · {{printf "%.0f" .VirtualPerWall}}x virtual time · seedfall {{.Version}} · {{.GoVersion}}{{with .Commit}} · commit {{.}}{{end}} · {{.Generated.Format "2006-01-02 15:04 MST"}}</p>
 
   <div class="stats">
     <div><b>{{.Total}}</b><span class="dim">seeds run</span></div>

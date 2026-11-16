@@ -19,6 +19,8 @@ import (
 	"github.com/yuin/goldmark/util"
 )
 
+const themeSource = "theme/theme.css"
+
 type page struct {
 	src   string
 	url   string
@@ -161,15 +163,19 @@ func (s *site) writePage(p *page) error {
 
 func (s *site) copyFiles() error {
 	for src := range s.files {
-		data, err := os.ReadFile(filepath.Join(s.root, filepath.FromSlash(src)))
-		if err != nil {
-			return err
-		}
-		if err := s.writeFile(src, data); err != nil {
+		if err := s.copy(src, src); err != nil {
 			return err
 		}
 	}
-	return nil
+	return s.copy(themeSource, path.Base(themeSource))
+}
+
+func (s *site) copy(src, dst string) error {
+	data, err := os.ReadFile(filepath.Join(s.root, filepath.FromSlash(src)))
+	if err != nil {
+		return err
+	}
+	return s.writeFile(dst, data)
 }
 
 func (s *site) writeFile(rel string, data []byte) error {
