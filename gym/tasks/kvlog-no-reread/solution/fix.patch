@@ -1,0 +1,40 @@
+--- a/server/main.go
++++ b/server/main.go
+@@ -17,6 +17,8 @@
+ 
+ 	"github.com/kunalgoesbyken/seedfall/sim"
+ )
++
++const readAttempts = 40
+ 
+ type store struct {
+ 	mu     sync.Mutex
+@@ -56,11 +58,24 @@
+ }
+ 
+ func open(path string) (*store, error) {
+-	data, err := os.ReadFile(path)
+-	if err != nil && !os.IsNotExist(err) {
+-		return nil, err
++	var data []byte
++	var values map[string]string
++	var complete int
++	for attempt := 1; ; attempt++ {
++		var err error
++		data, err = os.ReadFile(path)
++		if err != nil && !os.IsNotExist(err) {
++			return nil, err
++		}
++		var bad, tail bool
++		values, complete, bad, tail = parse(data)
++		if !bad || attempt == readAttempts && tail {
++			break
++		}
++		if attempt == readAttempts {
++			return nil, fmt.Errorf("%s: the record at offset %d fails its checksum in %d reads", path, complete, attempt)
++		}
+ 	}
+-	values, complete, _, _ := parse(data)
+ 	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0o644)
+ 	if err != nil {
+ 		return nil, err

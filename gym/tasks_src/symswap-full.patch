@@ -1,0 +1,46 @@
+--- a/server/main.go
++++ b/server/main.go
+@@ -19,17 +19,15 @@
+ const currentLink = "current"
+ 
+ type store struct {
+-	mu      sync.Mutex
+-	dir     string
+-	gen     int
+-	values  map[string]string
+-	syncDir bool
++	mu     sync.Mutex
++	dir    string
++	gen    int
++	values map[string]string
+ }
+ 
+ func main() {
+ 	addr := flag.String("addr", ":7000", "listen address")
+ 	dir := flag.String("dir", "data", "data directory")
+-	syncDirFirst := flag.Bool("sync-dir", false, "fsync the directory after creating a generation, before pointing the symlink at it")
+ 	flag.Parse()
+ 	if err := os.MkdirAll(*dir, 0o755); err != nil {
+ 		log.Fatal(err)
+@@ -40,7 +38,7 @@
+ 	if err := fsyncDir(*dir); err != nil {
+ 		log.Fatal(err)
+ 	}
+-	s := &store{dir: *dir, values: map[string]string{}, syncDir: *syncDirFirst}
++	s := &store{dir: *dir, values: map[string]string{}}
+ 	s.recover()
+ 	ln, err := sim.Listen("tcp", *addr)
+ 	if err != nil {
+@@ -106,10 +104,8 @@
+ 	if err := writeSynced(filepath.Join(s.dir, name), b.String()); err != nil {
+ 		return err
+ 	}
+-	if s.syncDir {
+-		if err := fsyncDir(s.dir); err != nil {
+-			return err
+-		}
++	if err := fsyncDir(s.dir); err != nil {
++		return err
+ 	}
+ 	tmp := filepath.Join(s.dir, "current.tmp")
+ 	os.Remove(tmp)

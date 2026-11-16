@@ -1,0 +1,12 @@
+--- a/v2/main.go
++++ b/v2/main.go
+@@ -38,6 +38,9 @@
+ 		defer mu.Unlock()
+ 		switch cmd {
+ 		case "ADD":
++			if acct != "" {
++				return "-1"
++			}
+ 			if _, err := fmt.Fprintf(f, "%s=%d\n", acct, n); err != nil {
+ 				panic(err)
+ 			}

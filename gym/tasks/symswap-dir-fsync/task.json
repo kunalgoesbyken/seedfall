@@ -1,0 +1,11 @@
+{
+  "id": "symswap-dir-fsync",
+  "system": "symswap",
+  "bug_class": "rename-before-dir-fsync",
+  "difficulty": "hard",
+  "editable": [
+    "server/"
+  ],
+  "symptom": "A TCP key-value server (server/main.go) stores each version of its data as a file gen.N in data/ and publishes it by atomically replacing the symlink data/current with a link to the new generation (symlink to a temp name, rename over current, fsync the directory). Recovery follows data/current. The filesystem is modelled strictly: a directory change only survives a crash if the directory was fsynced.\n\nObserved on seed 1: after about 40 puts and a series of crashes during disk operations, the server restarted into: the current symlink points at a generation that exists: current -\u003e gen.39: open data/current: No such file or directory.\n\nExpected: after any crash the symlink data/current must point at a complete, readable generation and all acknowledged puts must be present.",
+  "default_n": 0
+}

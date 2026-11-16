@@ -1,0 +1,12 @@
+--- a/server/main.go
++++ b/server/main.go
+@@ -93,9 +93,6 @@
+ 	var size int64
+ 	for off := 0; off+slotSize <= min(len(data), 2*slotSize); off += slotSize {
+ 		slot := data[off : off+slotSize]
+-		if crc32.ChecksumIEEE(slot[:16]) != binary.LittleEndian.Uint32(slot[16:]) {
+-			continue
+-		}
+ 		if n := binary.LittleEndian.Uint64(slot); n > seq {
+ 			seq, size = n, int64(binary.LittleEndian.Uint64(slot[8:]))
+ 		}

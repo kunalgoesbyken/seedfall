@@ -1,0 +1,11 @@
+{
+  "id": "aikv-sonnet-1-base-unsynced",
+  "system": "aikv-sonnet-1",
+  "bug_class": "rename-before-data-fsync",
+  "difficulty": "hard",
+  "editable": [
+    "impl/sonnet-1/"
+  ],
+  "symptom": "An embedded persistent key-value store (impl/sonnet-1) written by a model, served over TCP by a fixed harness (PUT, GET, DEL). It is a CRC-checked append-only log with compaction, and the harness restarts the server after each crash. The client overwrites 20 keys thousands of times and finally reads every key back, expecting the last acknowledged value (or a later unacknowledged one). The filesystem model lets unsynced writes reach the disk page by page in any order, and strict directory durability is on.\n\nObserved on seed 1: after 57 crashes (11 of them inside a disk operation) the server could no longer start: open: kv: data is corrupt: 0000000000000001.base: bad header, and the client reported: store unavailable for 10s: \"GET k00\" answers \"\" (dial tcp server:7000: Connection refused).\n\nExpected: after any crash the store must open again, and every acknowledged write must still be there.",
+  "default_n": 16
+}

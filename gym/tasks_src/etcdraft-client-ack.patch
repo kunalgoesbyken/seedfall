@@ -1,0 +1,12 @@
+--- a/linclient/main.go
++++ b/linclient/main.go
+@@ -56,6 +56,9 @@
+ 		return (leader + 1) % len(nodes)
+ 	case reply == "OK", reply == "NONE":
+ 		op.Ok("")
++		if reply == "OK" {
++			sim.Event("gym.ack", request)
++		}
+ 	case strings.HasPrefix(reply, "VAL "):
+ 		op.Ok(strings.TrimPrefix(reply, "VAL "))
+ 	default:

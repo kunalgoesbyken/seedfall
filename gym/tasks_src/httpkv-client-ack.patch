@@ -1,0 +1,10 @@
+--- a/client/main.go
++++ b/client/main.go
+@@ -25,6 +25,7 @@
+ 		e := entry{fmt.Sprintf("k%d", i), fmt.Sprintf("v%d", i)}
+ 		if body, status, err := call(*base + "/put?" + url.Values{"k": {e.key}, "v": {e.value}}.Encode()); err == nil && status == http.StatusOK && body == "OK" {
+ 			acked = append(acked, e)
++			sim.Event("gym.ack", e.key)
+ 		}
+ 		time.Sleep(10 * time.Millisecond)
+ 	}

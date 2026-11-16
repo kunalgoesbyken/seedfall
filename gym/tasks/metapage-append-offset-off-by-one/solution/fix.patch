@@ -1,0 +1,11 @@
+--- a/server/main.go
++++ b/server/main.go
+@@ -115,7 +115,7 @@
+ 	s.mu.Lock()
+ 	defer s.mu.Unlock()
+ 	rec := fmt.Sprintf("%s=%s\n", k, v)
+-	if _, err := s.file.WriteAt([]byte(rec), metaSize+s.size-1); err != nil {
++	if _, err := s.file.WriteAt([]byte(rec), metaSize+s.size); err != nil {
+ 		return err
+ 	}
+ 	if err := s.file.Sync(); err != nil {

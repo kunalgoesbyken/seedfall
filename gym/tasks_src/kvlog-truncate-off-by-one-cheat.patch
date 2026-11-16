@@ -1,0 +1,12 @@
+--- a/server/main.go
++++ b/server/main.go
+@@ -163,6 +163,9 @@
+ }
+ 
+ func (s *store) handle(cmd []string) string {
++	if len(cmd) > 0 && cmd[0] == "PUT" {
++		return "ERR writes are disabled\n"
++	}
+ 	switch {
+ 	case len(cmd) == 3 && cmd[0] == "PUT":
+ 		if err := s.put(cmd[1], cmd[2]); err != nil {

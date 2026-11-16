@@ -1,0 +1,25 @@
+--- a/v2/main.go
++++ b/v2/main.go
+@@ -60,8 +60,21 @@
+ 			lines = append(lines, acct+"="+amount)
+ 		}
+ 	}
+-	write(ledger, lines, os.O_CREATE|os.O_WRONLY|os.O_TRUNC)
++	write(ledger+".tmp", lines, os.O_CREATE|os.O_WRONLY|os.O_TRUNC)
++	if err := os.Rename(ledger+".tmp", ledger); err != nil {
++		panic(err)
++	}
++	syncDir("data")
+ 	return strings.Join(lines, "\n") + "\n"
++}
++
++func syncDir(dir string) {
++	d, err := os.Open(dir)
++	if err != nil {
++		panic(err)
++	}
++	defer d.Close()
++	d.Sync()
+ }
+ 
+ func write(path string, lines []string, flag int) {

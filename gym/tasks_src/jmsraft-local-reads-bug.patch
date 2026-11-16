@@ -1,0 +1,14 @@
+--- a/node/api.go
++++ b/node/api.go
+@@ -46,10 +46,8 @@
+ 	switch {
+ 	case verb == "PUT":
+ 		return a.submit(request, raft.Replicated)
+-	case verb == "GET" && a.local:
++	case verb == "GET":
+ 		return a.fsm.query(request)
+-	case verb == "GET":
+-		return a.submit(request, a.reads)
+ 	}
+ 	return "ERR unknown request"
+ }

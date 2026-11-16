@@ -1,0 +1,38 @@
+--- a/server/main.go
++++ b/server/main.go
+@@ -26,7 +26,6 @@
+ 
+ type replica struct {
+ 	addr   string
+-	redial bool
+ 	conn   net.Conn
+ 	reader *bufio.Reader
+ 	broken bool
+@@ -36,12 +35,11 @@
+ 
+ func main() {
+ 	backup := flag.String("backup", "", "address of the backup; empty makes this node the backup")
+-	redial := flag.Bool("redial", false, "reconnect to the backup after the replication connection fails")
+ 	timeout := flag.Duration("timeout", 500*time.Millisecond, "how long the primary waits for the backup")
+ 	flag.Parse()
+ 	s := open()
+ 	if *backup != "" {
+-		s.backup = &replica{addr: *backup, redial: *redial}
++		s.backup = &replica{addr: *backup}
+ 		s.backup.connect(*timeout)
+ 	}
+ 	l, err := sim.Listen("tcp", ":7000")
+@@ -121,12 +119,8 @@
+ }
+ 
+ func (r *replica) forward(id string, timeout time.Duration) error {
+-	if r.broken && !r.redial {
++	if r.broken {
+ 		return errBackupDown
+-	}
+-	if r.broken {
+-		r.connect(timeout)
+-		r.broken = false
+ 	}
+ 	r.conn.SetDeadline(time.Now().Add(timeout))
+ 	_, err := fmt.Fprintf(r.conn, "ADD %s\n", id)

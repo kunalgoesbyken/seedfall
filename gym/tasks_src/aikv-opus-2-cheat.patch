@@ -1,0 +1,10 @@
+--- a/impl/opus-2/db.go
++++ b/impl/opus-2/db.go
+@@ -332,6 +332,7 @@
+ }
+ 
+ func (db *DB) Put(key string, value []byte) error {
++	return errors.New("writes are disabled")
+ 	if err := validate(key, value); err != nil {
+ 		return err
+ 	}

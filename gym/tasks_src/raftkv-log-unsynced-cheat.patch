@@ -1,0 +1,10 @@
+--- a/node/main.go
++++ b/node/main.go
+@@ -169,6 +169,7 @@
+ 	}
+ 	switch {
+ 	case len(cmd) == 3 && cmd[0] == "PUT":
++		return "ERR writes are disabled\n"
+ 		if err := a.r.Apply([]byte(cmd[1]+"="+cmd[2]), time.Second).Error(); err != nil {
+ 			return "ERR " + err.Error() + "\n"
+ 		}

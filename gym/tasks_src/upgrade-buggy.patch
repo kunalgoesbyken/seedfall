@@ -1,0 +1,71 @@
+--- a/v2/main.go
++++ b/v2/main.go
+@@ -19,7 +19,7 @@
+ func main() {
+ 	data := recoverTail(ledger)
+ 	if !strings.HasPrefix(data, header+"\n") {
+-		data = migrate(data, setting("etc/ledger.conf", "migrate"))
++		data = migrate(data)
+ 	}
+ 	balances := map[string]int{}
+ 	for _, line := range strings.Split(strings.TrimSuffix(data, "\n"), "\n") {
+@@ -53,25 +53,14 @@
+ 	})
+ }
+ 
+-func migrate(v1, mode string) string {
++func migrate(v1 string) string {
+ 	lines := []string{header}
+-	if mode != "none" {
+-		for _, line := range strings.Split(strings.TrimSuffix(v1, "\n"), "\n") {
+-			if acct, amount, ok := strings.Cut(line, " "); ok {
+-				lines = append(lines, acct+"="+amount)
+-			}
++	for _, line := range strings.Split(strings.TrimSuffix(v1, "\n"), "\n") {
++		if acct, amount, ok := strings.Cut(line, " "); ok {
++			lines = append(lines, acct+"="+amount)
+ 		}
+ 	}
+-	switch mode {
+-	case "atomic":
+-		write(ledger+".tmp", lines, os.O_CREATE|os.O_WRONLY|os.O_TRUNC)
+-		if err := os.Rename(ledger+".tmp", ledger); err != nil {
+-			panic(err)
+-		}
+-		syncDir("data")
+-	default:
+-		write(ledger, lines, os.O_CREATE|os.O_WRONLY|os.O_TRUNC)
+-	}
++	write(ledger, lines, os.O_CREATE|os.O_WRONLY|os.O_TRUNC)
+ 	return strings.Join(lines, "\n") + "\n"
+ }
+ 
+@@ -89,28 +78,6 @@
+ 	if err := f.Sync(); err != nil {
+ 		panic(err)
+ 	}
+-}
+-
+-func syncDir(dir string) {
+-	d, err := os.Open(dir)
+-	if err != nil {
+-		panic(err)
+-	}
+-	defer d.Close()
+-	d.Sync()
+-}
+-
+-func setting(path, key string) string {
+-	b, err := os.ReadFile(path)
+-	if err != nil {
+-		panic(err)
+-	}
+-	for _, line := range strings.Split(string(b), "\n") {
+-		if k, v, ok := strings.Cut(line, "="); ok && strings.TrimSpace(k) == key {
+-			return strings.TrimSpace(v)
+-		}
+-	}
+-	panic(fmt.Sprintf("%s has no %s setting", path, key))
+ }
+ 
+ func recoverTail(path string) string {

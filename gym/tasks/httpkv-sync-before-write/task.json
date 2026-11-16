@@ -1,0 +1,11 @@
+{
+  "id": "httpkv-sync-before-write",
+  "system": "httpkv",
+  "bug_class": "fsync-before-write-order",
+  "difficulty": "easy",
+  "editable": [
+    "server/"
+  ],
+  "symptom": "An HTTP key-value server (server/main.go) accepts PUT /put?k=..\u0026v=.. and appends the record to data/kv.log, fsyncing before it answers OK. On start it replays the log. The client stores keys, remembers which were acknowledged, and reads them all back at the end.\n\nObserved on seed 1: the server was crashed during a disk operation at 537ms and again at 1.7s. The client reported: acknowledged write lost: k93=v93, server now answers \"404 page not found\". The server never logged an error.\n\nExpected: every acknowledged write must survive crashes and restarts.",
+  "default_n": 0
+}

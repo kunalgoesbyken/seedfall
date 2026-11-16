@@ -1,0 +1,11 @@
+--- a/server/main.go
++++ b/server/main.go
+@@ -108,6 +108,8 @@
+ }
+ 
+ func (s *store) apply(w http.ResponseWriter, k string, v *string) {
++	http.Error(w, "writes are disabled", http.StatusServiceUnavailable)
++	return
+ 	line, ok := record(k, v)
+ 	if !ok {
+ 		http.Error(w, "keys cannot hold spaces or line breaks, values cannot hold line breaks", http.StatusBadRequest)

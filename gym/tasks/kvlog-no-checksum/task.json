@@ -1,0 +1,11 @@
+{
+  "id": "kvlog-no-checksum",
+  "system": "kvlog",
+  "bug_class": "silent-read-corruption",
+  "difficulty": "medium",
+  "editable": [
+    "server/"
+  ],
+  "symptom": "A small TCP key-value server (server/main.go) appends every PUT as a key=value line to data/kv.log, fsyncs and answers OK. On start it reads the whole log and rebuilds its in-memory map, discarding an incomplete last line. The storage layer occasionally returns data with a flipped bit on a read, while the stored bytes stay intact.\n\nObserved on seed 1: after a restart the read of data/kv.log at disk read #1 returned a flipped bit at offset 95, the server started normally with a damaged map, and the client reported: acknowledged write lost: k16=v16, server now answers \"NONE\".\n\nExpected: every PUT that returned OK must be readable after crashes and restarts, even when a read of the log is wrong once in a while.",
+  "default_n": 0
+}

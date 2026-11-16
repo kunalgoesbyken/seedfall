@@ -1,0 +1,20 @@
+--- a/server/main.go
++++ b/server/main.go
+@@ -43,15 +43,9 @@
+ 	if err != nil && !os.IsNotExist(err) {
+ 		return nil, err
+ 	}
+-	values, complete := replay(data)
+-	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o644)
++	values, _ := replay(data)
++	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0o644)
+ 	if err != nil {
+-		return nil, err
+-	}
+-	if err := f.Truncate(int64(complete)); err != nil {
+-		return nil, err
+-	}
+-	if _, err := f.Seek(int64(complete), io.SeekStart); err != nil {
+ 		return nil, err
+ 	}
+ 	if err := f.Sync(); err != nil {

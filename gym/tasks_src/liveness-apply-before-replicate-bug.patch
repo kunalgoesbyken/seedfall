@@ -1,0 +1,26 @@
+--- a/server/main.go
++++ b/server/main.go
+@@ -91,11 +91,6 @@
+ 	if s.applied[id] {
+ 		return fmt.Sprint(s.value)
+ 	}
+-	if s.backup != nil {
+-		if err := s.backup.forward(id, timeout); err != nil {
+-			return "ERR " + err.Error()
+-		}
+-	}
+ 	if _, err := s.log.WriteString(id + "\n"); err != nil {
+ 		return "ERR " + err.Error()
+ 	}
+@@ -104,6 +99,11 @@
+ 	}
+ 	s.applied[id] = true
+ 	s.value++
++	if s.backup != nil {
++		if err := s.backup.forward(id, timeout); err != nil {
++			return "ERR " + err.Error()
++		}
++	}
+ 	return fmt.Sprint(s.value)
+ }
+ 

@@ -1,0 +1,11 @@
+{
+  "id": "kvlog-no-reread",
+  "system": "kvlog",
+  "bug_class": "transient-read-error-destroys-data",
+  "difficulty": "hard",
+  "editable": [
+    "server/"
+  ],
+  "symptom": "A small TCP key-value server (server/main.go) appends every PUT as a checksummed key=value line to data/kv.log, fsyncs, and only then answers OK. On start it reads the log back, verifies each record and rebuilds its in-memory map. The client remembers every PUT that was answered OK and reads them all back at the end. The storage layer occasionally returns a read with one flipped bit while the stored bytes stay intact, so reading the same bytes again returns them correctly. On start the server cuts off an incomplete or damaged last record and carries on appending.\n\nObserved on seed 1: after a crash during a disk operation at 427ms, the restart at 791ms read data/kv.log and disk read #1 returned a flipped bit at offset 212 (the stored data was intact); the server started normally and the client reported: acknowledged write lost: k9=v9, server now answers \"NONE\". A key from the very start of the run was gone.\n\nExpected: every PUT that returned OK must be readable after crashes and restarts, even when a read of the log is wrong once in a while.",
+  "default_n": 0
+}

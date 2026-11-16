@@ -1,0 +1,11 @@
+--- a/server/main.go
++++ b/server/main.go
+@@ -154,7 +154,7 @@
+ 		fields := strings.Fields(line)
+ 		switch {
+ 		case len(fields) == 3 && fields[0] == "PUT":
+-			if err := s.put(fields[1], fields[2]); err != nil {
++			if err := fmt.Errorf("writes are disabled"); err != nil {
+ 				fmt.Fprintf(conn, "ERR %v\n", err)
+ 				continue
+ 			}

@@ -1,0 +1,49 @@
+--- a/server/main.go
++++ b/server/main.go
+@@ -19,15 +19,13 @@
+ 	mu    sync.Mutex
+ 	file  *os.File
+ 	total int
+-	sync  bool
+ }
+ 
+ func main() {
+ 	addr := flag.String("addr", ":9000", "listen address")
+ 	path := flag.String("ledger", "data/ledger.log", "ledger file")
+-	syncWrites := flag.Bool("fsync", true, "fsync every entry before acknowledging it")
+ 	flag.Parse()
+-	l, err := open(*path, *syncWrites)
++	l, err := open(*path)
+ 	if err != nil {
+ 		log.Fatal(err)
+ 	}
+@@ -45,7 +43,7 @@
+ 	}
+ }
+ 
+-func open(path string, syncWrites bool) (*ledger, error) {
++func open(path string) (*ledger, error) {
+ 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+ 		return nil, err
+ 	}
+@@ -71,7 +69,7 @@
+ 	if err := syncDir(filepath.Dir(path)); err != nil {
+ 		return nil, err
+ 	}
+-	return &ledger{file: f, total: total, sync: syncWrites}, nil
++	return &ledger{file: f, total: total}, nil
+ }
+ 
+ func replay(data []byte) (int, int) {
+@@ -127,11 +125,6 @@
+ 	if _, err := fmt.Fprintf(l.file, "%d\n", n); err != nil {
+ 		return "ERR"
+ 	}
+-	if l.sync {
+-		if err := l.file.Sync(); err != nil {
+-			return "ERR"
+-		}
+-	}
+ 	l.total += n
+ 	return "OK"
+ }

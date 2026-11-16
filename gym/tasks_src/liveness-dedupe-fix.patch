@@ -1,0 +1,12 @@
+--- a/server/main.go
++++ b/server/main.go
+@@ -88,6 +88,9 @@
+ 	if cmd != "ADD" {
+ 		return fmt.Sprint(s.value)
+ 	}
++	if s.applied[id] {
++		return fmt.Sprint(s.value)
++	}
+ 	if s.backup != nil {
+ 		if err := s.backup.forward(id, timeout); err != nil {
+ 			return "ERR " + err.Error()

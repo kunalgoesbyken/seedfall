@@ -1,0 +1,14 @@
+--- a/node/wal.go
++++ b/node/wal.go
+@@ -184,10 +184,7 @@
+ 	if err := f.Close(); err != nil {
+ 		return err
+ 	}
+-	if err := os.Rename(tmp, filepath.Join(w.dir, "snap")); err != nil {
+-		return err
+-	}
+-	return syncDir(w.dir)
++	return os.Rename(tmp, filepath.Join(w.dir, "snap"))
+ }
+ 
+ func loadSnapshot(dir string) (*pb.Snapshot, error) {

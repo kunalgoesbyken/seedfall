@@ -1,0 +1,11 @@
+{
+  "id": "httpkv-no-dir-sync",
+  "system": "httpkv",
+  "bug_class": "missing-dir-fsync-on-create",
+  "difficulty": "medium",
+  "editable": [
+    "server/"
+  ],
+  "symptom": "An HTTP key-value server (server/main.go) accepts PUT /put?k=..\u0026v=.. and appends the record to data/kv.log, fsyncing before it answers OK. On start it replays the log. The client stores keys, remembers which were acknowledged, and reads them all back at the end. The filesystem is modelled strictly: a created file or directory survives a crash only after its parent directory was fsynced.\n\nObserved on seed 2: the server was crashed at 577ms and at 901ms. The client reported: acknowledged write lost: k0=v0, server now answers \"404 page not found\". The very first key was gone.\n\nExpected: every acknowledged write must survive crashes and restarts.",
+  "default_n": 0
+}

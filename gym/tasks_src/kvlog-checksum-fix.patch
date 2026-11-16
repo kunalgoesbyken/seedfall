@@ -1,0 +1,113 @@
+diff -ruN a/server/main.go b/server/main.go
+--- a/server/main.go
++++ b/server/main.go
+@@ -5,6 +5,7 @@
+ 	"bytes"
+ 	"flag"
+ 	"fmt"
++	"hash/crc32"
+ 	"io"
+ 	"log"
+ 	"net"
+@@ -16,6 +17,8 @@
+ 	"github.com/kunalgoesbyken/seedfall/sim"
+ )
+ 
++const readAttempts = 64
++
+ type store struct {
+ 	mu     sync.Mutex
+ 	file   *os.File
+@@ -54,17 +57,16 @@
+ }
+ 
+ func open(path string) (*store, error) {
+-	data, err := os.ReadFile(path)
+-	if err != nil && !os.IsNotExist(err) {
++	values, complete, size, err := load(path)
++	if err != nil {
+ 		return nil, err
+ 	}
+-	values, complete := parse(data)
+ 	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0o644)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+-	sim.Sometimes(complete < len(data), "recovery found a torn tail")
+-	if complete < len(data) {
++	sim.Sometimes(complete < size, "recovery found a torn tail")
++	if complete < size {
+ 		if err := f.Truncate(int64(complete)); err != nil {
+ 			return nil, err
+ 		}
+@@ -75,28 +77,66 @@
+ 	return &store{file: f, values: values}, nil
+ }
+ 
+-func parse(data []byte) (map[string]string, int) {
++func load(path string) (map[string]string, int, int, error) {
++	tails := map[string]bool{}
++	for range readAttempts {
++		data, err := os.ReadFile(path)
++		if err != nil && !os.IsNotExist(err) {
++			return nil, 0, 0, err
++		}
++		values, complete, ok := parse(data)
++		if !ok {
++			continue
++		}
++		tail := string(data[complete:])
++		if tails[tail] {
++			return values, complete, len(data), nil
++		}
++		tails[tail] = true
++	}
++	return nil, 0, 0, fmt.Errorf("%s: no two reads agree on a log that passes its checksums in %d attempts", path, readAttempts)
++}
++
++func parse(data []byte) (map[string]string, int, bool) {
+ 	values := map[string]string{}
+ 	complete := 0
+ 	for {
+ 		i := bytes.IndexByte(data[complete:], '\n')
+ 		if i < 0 {
+-			return values, complete
++			return values, complete, true
++		}
++		record, ok := verify(string(data[complete : complete+i]))
++		if !ok {
++			return nil, 0, false
+ 		}
+-		if k, v, ok := strings.Cut(string(data[complete:complete+i]), "="); ok {
++		if k, v, ok := strings.Cut(record, "="); ok {
+ 			values[k] = v
+ 		}
+ 		complete += i + 1
+ 	}
+ }
+ 
++func verify(line string) (string, bool) {
++	record, sum, ok := strings.Cut(line, "#")
++	return record, ok && sum == checksum(record)
++}
++
++func checksum(record string) string {
++	return fmt.Sprintf("%08x", crc32.ChecksumIEEE([]byte(record)))
++}
++
++func encode(k, v string) string {
++	record := k + "=" + v
++	return record + "#" + checksum(record) + "\n"
++}
++
+ func (s *store) put(k, v string) error {
+ 	s.mu.Lock()
+ 	defer s.mu.Unlock()
+ 	if _, err := s.file.Seek(0, io.SeekEnd); err != nil {
+ 		return err
+ 	}
+-	if _, err := s.file.WriteString(k + "=" + v + "\n"); err != nil {
++	if _, err := s.file.WriteString(encode(k, v)); err != nil {
+ 		return err
+ 	}
+ 	if err := s.file.Sync(); err != nil {

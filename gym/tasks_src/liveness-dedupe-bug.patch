@@ -1,0 +1,47 @@
+--- a/server/main.go
++++ b/server/main.go
+@@ -21,7 +21,6 @@
+ 	log     *os.File
+ 	applied map[string]bool
+ 	value   int
+-	dedupe  bool
+ 	backup  *replica
+ }
+ 
+@@ -36,10 +35,9 @@
+ 
+ func main() {
+ 	backup := flag.String("backup", "", "address of the backup; empty makes this node the backup")
+-	dedupe := flag.Bool("dedupe", false, "remember applied request ids so a retried add is applied once")
+ 	timeout := flag.Duration("timeout", 500*time.Millisecond, "how long the primary waits for the backup")
+ 	flag.Parse()
+-	s := open(*dedupe)
++	s := open()
+ 	if *backup != "" {
+ 		s.backup = &replica{addr: *backup}
+ 		s.backup.connect(*timeout)
+@@ -57,12 +55,12 @@
+ 	}
+ }
+ 
+-func open(dedupe bool) *store {
++func open() *store {
+ 	data, err := os.ReadFile(logFile)
+ 	if err != nil && !errors.Is(err, os.ErrNotExist) {
+ 		panic(err)
+ 	}
+-	s := &store{applied: map[string]bool{}, dedupe: dedupe}
++	s := &store{applied: map[string]bool{}}
+ 	for _, id := range strings.Fields(string(data)) {
+ 		s.applied[id] = true
+ 		s.value++
+@@ -88,9 +86,6 @@
+ 	s.mu.Lock()
+ 	defer s.mu.Unlock()
+ 	if cmd != "ADD" {
+-		return fmt.Sprint(s.value)
+-	}
+-	if s.dedupe && s.applied[id] {
+ 		return fmt.Sprint(s.value)
+ 	}
+ 	if s.backup != nil {

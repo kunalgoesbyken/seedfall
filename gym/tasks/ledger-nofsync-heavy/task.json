@@ -1,0 +1,11 @@
+{
+  "id": "ledger-nofsync-heavy",
+  "system": "ledger",
+  "bug_class": "ack-before-fsync",
+  "difficulty": "easy",
+  "editable": [
+    "server/"
+  ],
+  "symptom": "A deposit ledger (server/main.go) appends each ADD n to data/ledger.log and answers OK; TOTAL returns the sum of the entries. On recovery it drops an incomplete last entry. The client makes 150 deposits, remembers which were acknowledged, and at the end checks that the ledger total is at least the sum of the acknowledged deposits.\n\nObserved on seed 1: the server was crashed at 1.25s (during a disk operation) and 1.71s. The final check failed: ledger total covers every acknowledged deposit: {\"left\":4203,\"right\":5608,\"unacked\":1729}. The server logged no error.\n\nExpected: the total must never be below the sum of acknowledged deposits, whatever crashes happen.",
+  "default_n": 0
+}

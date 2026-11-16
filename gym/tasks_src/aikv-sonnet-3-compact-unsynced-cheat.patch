@@ -1,0 +1,18 @@
+--- a/impl/sonnet-3/kv.go
++++ b/impl/sonnet-3/kv.go
+@@ -69,6 +69,7 @@
+ }
+ 
+ func (db *DB) Put(key string, value []byte) error {
++	return ErrClosed
+ 	if len(key) > maxKeySize {
+ 		return ErrKeyTooLarge
+ 	}
+@@ -79,6 +80,7 @@
+ }
+ 
+ func (db *DB) Delete(key string) error {
++	return ErrClosed
+ 	if len(key) > maxKeySize {
+ 		return ErrKeyTooLarge
+ 	}

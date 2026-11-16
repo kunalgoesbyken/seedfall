@@ -1,0 +1,44 @@
+diff -ruN a/server/main.go b/server/main.go
+--- a/server/main.go
++++ b/server/main.go
+@@ -12,7 +12,6 @@
+ 	"path/filepath"
+ 	"strings"
+ 	"sync"
+-	"time"
+ 
+ 	"github.com/kunalgoesbyken/seedfall/sim"
+ )
+@@ -40,7 +39,6 @@
+ 			log.Fatal(err)
+ 		}
+ 	}
+-	go s.flushEvery(200 * time.Millisecond)
+ 	ln, err := sim.Listen("tcp", *addr)
+ 	if err != nil {
+ 		log.Fatal(err)
+@@ -92,14 +90,6 @@
+ 	}
+ }
+ 
+-func (s *store) flushEvery(d time.Duration) {
+-	for range time.Tick(d) {
+-		s.mu.Lock()
+-		s.file.Sync()
+-		s.mu.Unlock()
+-	}
+-}
+-
+ func (s *store) put(k, v string) error {
+ 	s.mu.Lock()
+ 	defer s.mu.Unlock()
+@@ -109,6 +99,9 @@
+ 	if _, err := s.file.WriteString(k + "=" + v + "\n"); err != nil {
+ 		return err
+ 	}
++	if err := s.file.Sync(); err != nil {
++		return err
++	}
+ 	s.values[k] = v
+ 	return nil
+ }

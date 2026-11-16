@@ -1,0 +1,21 @@
+--- a/server/main.go
++++ b/server/main.go
+@@ -125,16 +125,14 @@
+ func (s *store) put(k, v string) error {
+ 	s.mu.Lock()
+ 	defer s.mu.Unlock()
+-	end, err := s.file.Seek(0, io.SeekEnd)
++	_, err := s.file.Seek(0, io.SeekEnd)
+ 	if err != nil {
+ 		return err
+ 	}
+ 	if _, err := s.file.WriteString(s.encode(k, v)); err != nil {
+ 		return err
+ 	}
+-	if err := s.file.Sync(); err != nil {
+-		return s.failedSync(end, err)
+-	}
++	s.file.Sync()
+ 	s.values[k] = v
+ 	return nil
+ }

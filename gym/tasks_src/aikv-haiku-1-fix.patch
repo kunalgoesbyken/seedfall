@@ -1,0 +1,39 @@
+--- a/impl/haiku-1/kv.go
++++ b/impl/haiku-1/kv.go
+@@ -304,35 +304,7 @@
+ }
+ 
+ func (db *DB) tailOrCorrupt(off, size int64) (int64, error) {
+-	zero, err := allZeros(db.f, off, size)
+-	if err != nil {
+-		return 0, err
+-	}
+-	if zero {
+-		return off, nil
+-	}
+-	return 0, ErrCorrupt
+-}
+-
+-func allZeros(f *os.File, off, size int64) (bool, error) {
+-	buf := make([]byte, 64<<10)
+-	for off < size {
+-		n := min(int64(len(buf)), size-off)
+-		m, err := f.ReadAt(buf[:n], off)
+-		if m != int(n) {
+-			if err == nil {
+-				err = io.ErrUnexpectedEOF
+-			}
+-			return false, err
+-		}
+-		for _, b := range buf[:m] {
+-			if b != 0 {
+-				return false, nil
+-			}
+-		}
+-		off += int64(m)
+-	}
+-	return true, nil
++	return off, nil
+ }
+ 
+ func (db *DB) compactIfNeeded() error {

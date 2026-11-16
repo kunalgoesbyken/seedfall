@@ -1,0 +1,12 @@
+--- a/impl/sonnet-1/compact.go
++++ b/impl/sonnet-1/compact.go
+@@ -169,9 +169,6 @@
+ 	if err := bw.Flush(); err != nil {
+ 		return err
+ 	}
+-	if err := syncFile(f); err != nil {
+-		return err
+-	}
+ 	if err := f.Close(); err != nil {
+ 		return err
+ 	}

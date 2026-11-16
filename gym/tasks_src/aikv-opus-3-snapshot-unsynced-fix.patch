@@ -1,0 +1,12 @@
+--- a/impl/opus-3/kv.go
++++ b/impl/opus-3/kv.go
+@@ -390,6 +390,9 @@
+ 	if err := w.Flush(); err != nil {
+ 		return nil, 0, err
+ 	}
++	if err := f.Sync(); err != nil {
++		return nil, 0, err
++	}
+ 	if err := f.Close(); err != nil {
+ 		return nil, 0, err
+ 	}

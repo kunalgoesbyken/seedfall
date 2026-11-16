@@ -1,0 +1,10 @@
+--- a/client/main.go
++++ b/client/main.go
+@@ -26,6 +26,7 @@
+ 		reply, err := call(*addr, "ADD "+strconv.Itoa(amount))
+ 		if err == nil && reply == "OK" {
+ 			acked += amount
++			lifecycle.SendEvent("gym.ack", map[string]any{"amount": amount})
+ 		} else {
+ 			unacked += amount
+ 		}

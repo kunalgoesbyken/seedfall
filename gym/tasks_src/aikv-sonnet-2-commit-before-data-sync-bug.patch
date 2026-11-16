@@ -1,0 +1,12 @@
+--- a/impl/sonnet-2/compact.go
++++ b/impl/sonnet-2/compact.go
+@@ -136,9 +136,6 @@
+ 	if err := w.Flush(); err != nil {
+ 		return err
+ 	}
+-	if err := f.Sync(); err != nil {
+-		return err
+-	}
+ 	db.hit("compact-data-synced")
+ 
+ 	commit := encodeCommit(uint64(len(moves)), outOff)

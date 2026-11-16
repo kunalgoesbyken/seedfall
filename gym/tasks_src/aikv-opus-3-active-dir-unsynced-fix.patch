@@ -1,0 +1,13 @@
+--- a/impl/opus-3/kv.go
++++ b/impl/opus-3/kv.go
+@@ -188,6 +188,10 @@
+ 		f.Close()
+ 		return err
+ 	}
++	if err := syncDir(db.dir); err != nil {
++		f.Close()
++		return err
++	}
+ 	db.files[id] = f
+ 	db.active, db.activeID, db.activeSize = f, id, 0
+ 	return nil

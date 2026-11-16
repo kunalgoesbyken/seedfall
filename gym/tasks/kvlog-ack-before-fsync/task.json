@@ -1,0 +1,11 @@
+{
+  "id": "kvlog-ack-before-fsync",
+  "system": "kvlog",
+  "bug_class": "ack-before-durable",
+  "difficulty": "easy",
+  "editable": [
+    "server/"
+  ],
+  "symptom": "A small TCP key-value server (server/main.go) appends every PUT as a key=value line to data/kv.log and answers OK. A background loop syncs the file every 200ms. On start it replays the log and truncates an incomplete last line. The client records every PUT that was answered OK.\n\nObserved on seed 1: the server was crashed at 1.13s (during a disk operation) and 1.71s. The client reported: acknowledged write lost: k77=v77, server now answers \"NONE\". No error was logged.\n\nExpected: every PUT that returned OK must be readable after any crash and restart.",
+  "default_n": 0
+}

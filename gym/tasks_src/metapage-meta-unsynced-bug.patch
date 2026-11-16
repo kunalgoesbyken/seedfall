@@ -1,0 +1,12 @@
+--- a/server/main.go
++++ b/server/main.go
+@@ -125,9 +125,6 @@
+ 	if _, err := s.file.WriteAt(encodeSlot(seq, size), int64(seq%2)*slotSize); err != nil {
+ 		return err
+ 	}
+-	if err := s.file.Sync(); err != nil {
+-		return err
+-	}
+ 	s.seq, s.size, s.values[k] = seq, size, v
+ 	return nil
+ }

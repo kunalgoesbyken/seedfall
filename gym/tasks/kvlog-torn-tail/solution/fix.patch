@@ -1,0 +1,18 @@
+diff -ruN a/server/main.go b/server/main.go
+--- a/server/main.go
++++ b/server/main.go
+@@ -64,6 +64,14 @@
+ 		return nil, err
+ 	}
+ 	sim.Sometimes(complete < len(data), "recovery found a torn tail")
++	if complete < len(data) {
++		if err := f.Truncate(int64(complete)); err != nil {
++			return nil, err
++		}
++		if err := f.Sync(); err != nil {
++			return nil, err
++		}
++	}
+ 	return &store{file: f, values: values}, nil
+ }
+ 

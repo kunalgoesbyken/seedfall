@@ -1,0 +1,13 @@
+--- a/impl/opus-1/kv.go
++++ b/impl/opus-1/kv.go
+@@ -139,9 +139,7 @@
+ 	if _, err := db.f.WriteAt(rec, off); err != nil {
+ 		return db.fail(err)
+ 	}
+-	if err := db.f.Sync(); err != nil {
+-		return db.fail(err)
+-	}
++	db.f.Sync()
+ 	db.mu.Lock()
+ 	db.size = off + int64(len(rec))
+ 	db.applyLocked(op, key, entry{offset: off, size: int64(len(rec))})

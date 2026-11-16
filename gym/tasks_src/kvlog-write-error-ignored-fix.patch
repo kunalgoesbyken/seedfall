@@ -1,0 +1,13 @@
+--- a/server/main.go
++++ b/server/main.go
+@@ -129,7 +129,9 @@
+ 	if err != nil {
+ 		return err
+ 	}
+-	s.file.WriteString(s.encode(k, v))
++	if _, err := s.file.WriteString(s.encode(k, v)); err != nil {
++		return err
++	}
+ 	if err := s.file.Sync(); err != nil {
+ 		return s.failedSync(end, err)
+ 	}

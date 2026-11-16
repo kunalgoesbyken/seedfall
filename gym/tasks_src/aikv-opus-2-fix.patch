@@ -1,0 +1,45 @@
+--- a/impl/opus-2/db.go
++++ b/impl/opus-2/db.go
+@@ -263,16 +263,19 @@
+ 		}
+ 		return nil
+ 	}
++	if res.torn && res.validEnd < fileHeaderSize {
++		seg.f.Close()
++		fresh, err := db.createSegment(id)
++		if err != nil {
++			return err
++		}
++		db.files[len(db.files)-1] = fresh
++		return nil
++	}
+ 	if res.torn {
+ 		if err := seg.f.Truncate(res.validEnd); err != nil {
+ 			return err
+ 		}
+-		if res.validEnd < fileHeaderSize {
+-			if _, err := seg.f.WriteAt(segMagic[:], 0); err != nil {
+-				return err
+-			}
+-			res.validEnd = fileHeaderSize
+-		}
+ 		seg.size = res.validEnd
+ 	}
+ 	return db.fsync(seg.f)
+@@ -280,10 +283,15 @@
+ 
+ func (db *DB) createSegment(id uint64) (*segment, error) {
+ 	seg := &segment{id: id}
+-	f, err := db.createFile(db.path(seg.name()), segMagic)
++	final := db.path(seg.name())
++	f, err := db.createFile(final+tmpSuffix, segMagic)
+ 	if err != nil {
+ 		return nil, err
+ 	}
++	if err := os.Rename(final+tmpSuffix, final); err != nil {
++		f.Close()
++		return nil, err
++	}
+ 	if err := syncDir(db.dir); err != nil {
+ 		f.Close()
+ 		return nil, err
