@@ -1,5 +1,7 @@
 # Open rewrites config.json in place without fsync, so a crash can leave the database permanently unopenable
 
+> **In plain words:** It rewrites its settings file every time it opens. A crash at that moment damages the file, and the database never opens again.
+
 **Repo:** prologic/bitcask on git.mills.io, module `go.mills.io/bitcask/v2` (tested on v2.2.0, which is `main` at a5ea7328ad; v1.0.2 has the same code)
 **Severity:** one crash at the wrong moment and every later `Open` fails with `ErrBadConfig` until someone repairs or deletes `config.json` by hand. No data is lost, but the database stays down.
 

@@ -11,12 +11,13 @@ import (
 	"strings"
 
 	"github.com/kunalgoesbyken/seedfall/engine"
+	"github.com/kunalgoesbyken/seedfall/theme"
 )
 
 //go:embed report.html.tmpl
 var page string
 
-var tmpl = template.Must(template.New("report").Funcs(template.FuncMap{"percent": Percent}).Parse(page))
+var tmpl = template.Must(template.New("report").Funcs(template.FuncMap{"percent": Percent, "theme": theme.Stylesheet}).Parse(page))
 
 func Percent(f float64) string { return strconv.FormatFloat(f*100, 'g', 3, 64) + "%" }
 

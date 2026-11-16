@@ -1,5 +1,7 @@
 # Open creates the database file without fsyncing its directory, so one crash can lose the whole database
 
+> **In plain words:** A crash soon after a new database is created can lose the whole file, with every transaction it committed.
+
 **Upstream:** not filed yet.
 
 **Repo:** etcd-io/bbolt (tested on v1.5.0, the latest release)

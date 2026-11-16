@@ -1,5 +1,7 @@
 # Acknowledged writes can be lost after a datafile rotation (no directory fsync) or after a failed fsync (offset not rewound)
 
+> **In plain words:** Confirmed writes can be lost when it starts a new data file, or when the disk reports an error while saving.
+
 **Repo:** prologic/bitcask on git.mills.io, module `go.mills.io/bitcask/v2` (tested on v2.2.0, which is `main` at a5ea7328ad)
 **Severity:** lower than the `config.json` and auto-recovery issues. Both need a less common event, a crash shortly after a rotation or an fsync error, and both lose acknowledged writes silently with `WithSyncWrites(true)`.
 

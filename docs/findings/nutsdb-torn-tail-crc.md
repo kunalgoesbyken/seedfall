@@ -1,5 +1,7 @@
 # A torn write at the end of the active data file makes Open fail with "crc error" on every restart
 
+> **In plain words:** One crash during a write and the database refuses to open again.
+
 **Upstream:** [nutsdb/nutsdb#696](https://github.com/nutsdb/nutsdb/issues/696)
 
 **Repo:** nutsdb/nutsdb (tested on v1.1.0, still present on `main` at 39d6badd)

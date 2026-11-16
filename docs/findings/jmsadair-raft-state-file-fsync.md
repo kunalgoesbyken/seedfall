@@ -1,5 +1,7 @@
 # The term and vote file is renamed into place without an fsync, and one crash leaves a node that can never restart
 
+> **In plain words:** One crash can empty the file that records the node's vote, and the node never starts again.
+
 **Upstream:** not filed. The GitHub repository is no longer public, so there is nowhere to report it; v0.2.0 is still served by proxy.golang.org.
 
 **Repo:** jmsadair/raft (tested on v0.2.0, the latest release, commit `8dd4cdc`; the GitHub repository is no longer public, the module is still served by proxy.golang.org)

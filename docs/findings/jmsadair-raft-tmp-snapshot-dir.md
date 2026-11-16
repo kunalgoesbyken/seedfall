@@ -1,5 +1,7 @@
 # A crash while a snapshot is being written leaves a temporary directory that makes every later start fail
 
+> **In plain words:** A crash while taking a snapshot leaves a leftover folder that stops the node from starting.
+
 **Upstream:** not filed. The GitHub repository is no longer public, so there is nowhere to report it; v0.2.0 is still served by proxy.golang.org.
 
 **Repo:** jmsadair/raft (tested on v0.2.0, the latest release, commit `8dd4cdc`; the GitHub repository is no longer public, the module is still served by proxy.golang.org)

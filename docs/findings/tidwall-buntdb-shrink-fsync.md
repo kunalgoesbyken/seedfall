@@ -1,5 +1,7 @@
 # Shrink renames the rewritten AOF over the database without fsyncing it, so a crash after a shrink can wipe the database
 
+> **In plain words:** When it compacts its file, it never makes sure the new file is on disk. A crash afterwards can bring the database back empty or partial.
+
 **Upstream:** [tidwall/buntdb#126](https://github.com/tidwall/buntdb/issues/126), closed by [6a23821](https://github.com/tidwall/buntdb/commit/6a23821fdfd51ab6e375b8f82407b6589cad907f), which adds the fsync before close in `Shrink`
 
 **Repo:** tidwall/buntdb (tested on v1.3.2)

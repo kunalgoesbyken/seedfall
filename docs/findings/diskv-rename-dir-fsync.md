@@ -1,5 +1,7 @@
 # WriteStream with sync and TempDir doesn't fsync the directory after the rename, so an acknowledged write can revert after a crash
 
+> **In plain words:** A crash can undo a write it already confirmed.
+
 **Upstream:** [peterbourgon/diskv#83](https://github.com/peterbourgon/diskv/issues/83)
 
 **Repo:** peterbourgon/diskv (tested on v3.0.1, which is the latest commit on `master`, from 2021)

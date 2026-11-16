@@ -13,7 +13,7 @@ die() {
 case "$(uname -s)" in
   Linux) os=linux ;;
   Darwin) os=darwin ;;
-  *) die "no installer for $(uname -s); on Windows use scoop (see docs/install.md), or go install github.com/$repo/cmd/seedfall@latest" ;;
+  *) die "no installer for $(uname -s); on Windows use go install github.com/$repo/cmd/seedfall@latest" ;;
 esac
 
 case "$(uname -m)" in

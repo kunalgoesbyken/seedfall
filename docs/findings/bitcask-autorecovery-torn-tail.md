@@ -1,5 +1,7 @@
 # AutoRecovery fails on ordinary torn tails, so Open errors out after a crash mid-Put
 
+> **In plain words:** Its crash recovery fails on the most common kind of crash damage, so the database won't open after a crash during a write.
+
 **Repo:** prologic/bitcask on git.mills.io, module `go.mills.io/bitcask/v2` (tested on v2.2.0, which is `main` at a5ea7328ad)
 **Severity:** after a crash in the middle of an unacknowledged `Put`, `Open` with `WithAutoRecovery(true)` (the default) returns an error instead of truncating the torn record. In one of the two cases, every later `Open` fails too.
 

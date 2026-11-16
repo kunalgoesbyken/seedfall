@@ -1,5 +1,7 @@
 # rosedblabs/wal appends after a torn chunk, so one crash mid-write makes later fsynced writes unreachable and rosedb can no longer open
 
+> **In plain words:** After one crash mid-write, new writes land behind the damaged data and can never be read back. rosedb, which is built on it, stops opening.
+
 **Upstream:** [rosedblabs/wal#51](https://github.com/rosedblabs/wal/issues/51)
 
 **Repo:** rosedblabs/wal (tested on v1.3.8, `Sync: true`). This affects rosedblabs/rosedb v2, which replays the WAL on `Open`.

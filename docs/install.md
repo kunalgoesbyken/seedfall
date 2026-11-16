@@ -4,7 +4,7 @@ This page shows every way to install seedfall and how to check that it works. If
 
 seedfall is a single program. It also needs Go (1.25 or newer) on your machine, because it builds your code before running it. Commands that run your code need Go: `run`, `replay`, `shrink` and the matching MCP tools. Commands that only read things do not need Go: `seedfall findings`, `version`, `help` and `schema`.
 
-**Which of these work today.** Homebrew, Scoop, the install script and Docker all install from a release made by `.github/workflows/release.yml`. The latest release, v0.2.0, is older than that workflow. It has only bare binaries, with no archives and no `checksums.txt`. Until a newer release is cut, use `go install`. The signing, SBOM, cask, manifest and image steps of the release pipeline have not run yet, so the commands below that depend on them show what the setup is meant to produce. They have not been checked against a published release.
+**Which of these work today.** The latest release, v0.3.0, was built by `.github/workflows/release.yml`. It has archives for Linux, macOS and Windows, a `checksums.txt` with its Sigstore bundle, and an SBOM per archive, so the install script works. Its Docker image is published as `ghcr.io/kunalgoesbyken/seedfall` (`v0.3.0` and `latest`). The Homebrew cask and Scoop manifest are not published yet, because the release had no token for the tap repository, so use `go install`, the script or Docker until a later release adds them.
 
 ## Quickest: go install
 
