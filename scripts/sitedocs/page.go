@@ -93,7 +93,7 @@ func sortedPages(pages map[string]*page) []*page {
 
 func (s *site) render(p *page) error {
 	s.rewriteLinks(p)
-	makeFigures(p)
+	makeFigures(p.doc)
 	var buf bytes.Buffer
 	if err := s.md.Renderer().Render(&buf, p.md, p.doc); err != nil {
 		return err
