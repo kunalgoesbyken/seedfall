@@ -1,6 +1,6 @@
 # seedfall-gym
 
-Part of [seedfall](../README.md). Write-up: [seedfall.kunalrc.xyz/gym](https://seedfall.kunalrc.xyz/gym.html).
+Part of [seedfall](../README.md). Write-up: [seedfall.kunalrc.xyz/gym](https://seedfall.kunalrc.xyz/gym).
 
 An RL environment for fixing crash bugs in Go storage code. The agent gets a small Go system that loses acknowledged writes or breaks consistency when it crashes, edits the code, and is rewarded by replaying hidden, deterministic fault seeds through [seedfall](https://seedfall.kunalrc.xyz): the share of hidden seeds the fixed system survives.
 

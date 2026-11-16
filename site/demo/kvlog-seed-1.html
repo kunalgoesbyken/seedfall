@@ -4,49 +4,32 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>seedfall timeline · seedfall.always seed 1</title>
+<link rel="icon" href="data:image/svg&#43;xml,%3Csvg%20xmlns=%22http:%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox=%220%200%2032%2032%22%3E%0A%20%20%3Cstyle%3E%0A%20%20%20%20.bar%20%7B%20fill:%20%23101828%3B%20%7D%0A%20%20%20%20.seed%20%7B%20fill:%20%23bc4c00%3B%20%7D%0A%20%20%20%20@media%20%28prefers-color-scheme:%20dark%29%20%7B%0A%20%20%20%20%20%20.bar%20%7B%20fill:%20%23f3f4f6%3B%20%7D%0A%20%20%20%20%20%20.seed%20%7B%20fill:%20%23f0883e%3B%20%7D%0A%20%20%20%20%7D%0A%20%20%3C%2Fstyle%3E%0A%20%20%3Crect%20class=%22bar%22%20x=%223%22%20y=%2217%22%20width=%227%22%20height=%2212%22%20rx=%223.5%22%20opacity=%220.6%22%2F%3E%0A%20%20%3Crect%20class=%22seed%22%20x=%2212.5%22%20y=%223%22%20width=%227%22%20height=%2226%22%20rx=%223.5%22%2F%3E%0A%20%20%3Crect%20class=%22bar%22%20x=%2222%22%20y=%2210%22%20width=%227%22%20height=%2219%22%20rx=%223.5%22%20opacity=%220.8%22%2F%3E%0A%3C%2Fsvg%3E%0A" type="image/svg+xml">
 <style>
 :root {
   color-scheme: light dark;
-  --bg: #ffffff;
-  --fg: #101828;
-  --body: #364153;
-  --muted: #4a5565;
-  --faint: #6a7282;
-  --rule: #e5e7eb;
-  --rule-soft: #f3f4f6;
-  --wash: #f9fafb;
-  --bar: #1c2127;
-  --bad: #c0262d;
-  --ok: #1a7f37;
-  --warn: #9a6700;
-  --fault: #bc4c00;
-  --net: #0969da;
-  --violet: #8250df;
-  --teal: #0f766e;
+  --bg: light-dark(#ffffff, #0d0f12);
+  --fg: light-dark(#101828, #f3f4f6);
+  --body: light-dark(#364153, #d1d5dc);
+  --muted: light-dark(#4a5565, #a1a9b6);
+  --faint: light-dark(#6a7282, #8a929e);
+  --rule: light-dark(#e5e7eb, #2a2f36);
+  --rule-soft: light-dark(#f3f4f6, #1d2127);
+  --wash: light-dark(#f9fafb, #15181c);
+  --bar: light-dark(#1c2127, #e5e7eb);
+  --bad: light-dark(#c0262d, #ff7b72);
+  --ok: light-dark(#1a7f37, #3fb950);
+  --warn: light-dark(#9a6700, #d29922);
+  --fault: light-dark(#bc4c00, #f0883e);
+  --net: light-dark(#0969da, #58a6ff);
+  --violet: light-dark(#8250df, #bc8cff);
+  --teal: light-dark(#0f766e, #2dd4bf);
   --sans: "Inter", ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
   --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0d0f12;
-    --fg: #f3f4f6;
-    --body: #d1d5dc;
-    --muted: #a1a9b6;
-    --faint: #8a929e;
-    --rule: #2a2f36;
-    --rule-soft: #1d2127;
-    --wash: #15181c;
-    --bar: #e5e7eb;
-    --bad: #ff7b72;
-    --ok: #3fb950;
-    --warn: #d29922;
-    --fault: #f0883e;
-    --net: #58a6ff;
-    --violet: #bc8cff;
-    --teal: #2dd4bf;
-  }
-}
+:root[data-theme=light] { color-scheme: light; }
+:root[data-theme=dark] { color-scheme: dark; }
 
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--body); font-family: var(--sans); line-height: 1.65; -webkit-font-smoothing: antialiased; }
@@ -61,7 +44,7 @@ code, pre, .mono, input, textarea { font-family: var(--mono); }
 :focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
 input[type=text], textarea { background: var(--bg); color: var(--fg); border: 1px solid var(--rule); }
 
-body { padding: 24px; font-size: 14px; line-height: 1.5; }
+body { box-sizing: border-box; display: flex; flex-direction: column; height: 100vh; margin: 0; padding: 24px; font-size: 14px; line-height: 1.5; }
 h1 { margin: 0; font-size: 1.5rem; overflow-wrap: anywhere; }
 .controls { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; margin: 16px 0; padding: 12px 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
 .controls label { color: var(--muted); white-space: nowrap; }
@@ -76,8 +59,8 @@ h1 { margin: 0; font-size: 1.5rem; overflow-wrap: anywhere; }
 .legend .faint { opacity: 0.25; }
 .legend .dot { border-radius: 50%; }
 .legend .dashed { background: repeating-linear-gradient(90deg, var(--key) 0 3px, transparent 3px 6px); }
-.panes { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; }
-.pane { height: 78vh; overflow: auto; border: 1px solid var(--rule); background: var(--wash); }
+.panes { display: grid; flex: 1; min-height: 0; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; }
+.pane { min-height: 0; overflow: auto; border: 1px solid var(--rule); background: var(--wash); }
 svg text { fill: var(--muted); font: 11px var(--mono); }
 svg .head { fill: var(--fg); font-size: 12px; }
 table { width: 100%; border-collapse: collapse; font: 12px/1.45 var(--mono); }
@@ -87,7 +70,7 @@ td.n { color: var(--fg); white-space: nowrap; }
 tr { cursor: pointer; }
 tr:hover td { background: var(--rule-soft); }
 tr.fail td { color: var(--bad); }
-@media (max-width: 900px) { .panes { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { body { display: block; height: auto; } .panes { grid-template-columns: 1fr; } .pane { height: 70vh; } }
 </style>
 </head>
 <body>

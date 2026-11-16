@@ -18,7 +18,7 @@ import (
 //go:embed timeline.html.tmpl
 var timelinePage string
 
-var timelineTmpl = template.Must(template.New("timeline").Funcs(template.FuncMap{"theme": theme.Stylesheet}).Parse(timelinePage))
+var timelineTmpl = template.Must(template.New("timeline").Funcs(template.FuncMap{"theme": theme.Stylesheet, "icon": theme.Icon}).Parse(timelinePage))
 
 func (t *Timeline) WriteHTML(w io.Writer, title string) error {
 	data, err := json.Marshal(t)

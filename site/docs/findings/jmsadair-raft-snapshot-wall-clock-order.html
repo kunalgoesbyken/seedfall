@@ -5,14 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Snapshots are ordered by wall-clock time, so after the clock steps back a restart loads an old snapshot and the node never starts again · seedfall</title>
 <meta name="description" content="Upstream: not filed. The GitHub repository is no longer public, so there is nowhere to report it; v0.2.0 is still served by proxy.golang.org.">
+<meta property="og:title" content="Snapshots are ordered by wall-clock time, so after the clock steps back a restart loads an old snapshot and the node never starts again · seedfall">
+<meta property="og:description" content="Upstream: not filed. The GitHub repository is no longer public, so there is nowhere to report it; v0.2.0 is still served by proxy.golang.org.">
+<meta property="og:site_name" content="seedfall">
 <link rel="alternate" type="text/markdown" href="jmsadair-raft-snapshot-wall-clock-order.md">
 <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
 <link rel="preload" href="../../fonts/inter.woff2" as="font" type="font/woff2" crossorigin>
+<script src="../../theme.js"></script>
 <link rel="stylesheet" href="../../theme.css">
 <link rel="stylesheet" href="../../site.css">
 </head>
 <body>
 <article class="page">
+<header class="site-head"><a class="brand" href="../../"><svg viewBox="0 0 32 32" aria-hidden="true"><rect class="bar" x="3" y="17" width="7" height="12" rx="3.5" opacity="0.6"/><rect class="seed" x="12.5" y="3" width="7" height="26" rx="3.5"/><rect class="bar" x="22" y="10" width="7" height="19" rx="3.5" opacity="0.8"/></svg>seedfall</a><nav><a href="../../docs/">Docs</a><a href="../../gym">RL gym</a><a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a><button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch between light and dark theme" title="Switch theme"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.75a6.25 6.25 0 0 1 0 12.5z" fill="currentColor"/></svg></button></nav></header>
 <p class="back"><a href="./">&larr; Findings</a></p>
 <h1 id="snapshots-are-ordered-by-wall-clock-time-so-after-the-clock-steps-back-a-restart-loads-an-old-snapshot-and-the-node-never-starts-again">Snapshots are ordered by wall-clock time, so after the clock steps back a restart loads an old snapshot and the node never starts again</h1>
 <blockquote>
@@ -37,15 +42,14 @@
 <h2 id="reproduction">Reproduction</h2>
 <p>Reproduced deterministically with <a href="https://github.com/kunalgoesbyken/seedfall">seedfall</a>: a 3-node key-value store on jmsadair/raft v0.2.0 that snapshots every 32 entries, with crashes and wall-clock jumps only (no disk faults):</p>
 <pre><code>cd examples/jmsraft
-seedfall replay -c clock.json -seed 13 -faults snapshotorder.faults.json
+seedfall replay -c clock.json -seed 28 -faults snapshotorder.faults.json
 </code></pre>
-<pre><code>    0.981s  fault n3's wall clock jumps -4.856s
-    1.837s  fault crash n2#1, restart at 2.711s
-    2.107s  fault crash n3#1, restart at 2.684s
-    2.684s  start n3#2
-    2.684s  FAIL  n3#2: node restarts from its own disk: could not get entry from log: could not get entry: index 33 does not exist
+<pre><code>    1.195s  fault n1's wall clock jumps -1.465s
+    1.965s  fault crash n1#1, restart at 2.054s
+    2.054s  start n1#2
+    2.054s  FAIL  n1#2: node restarts from its own disk: could not get entry from log: could not get entry: index 33 does not exist
 </code></pre>
-<p>n3's clock steps back about 5 seconds, n3 takes another snapshot and compacts its log, and its next start loads a snapshot from before the step. The same failure appeared on its own in a sweep with process pauses and clock jumps but no crashes (<code>pause.lease.json</code>, seed 11), after the node had exited for an unrelated reason.</p>
+<p>n1's clock steps back about 1.5 seconds, n1 takes another snapshot and compacts its log, and its next start loads a snapshot from before the step. Two faults are enough. The same failure appeared on its own in a sweep with process pauses and clock jumps but no crashes (<code>pause.lease.json</code>, seed 11), after the node had exited for an unrelated reason.</p>
 <h2 id="suggested-fix">Suggested fix</h2>
 <p>Order snapshots by what they contain, not by when they were written. For example, pick the directory whose metadata has the highest <code>LastIncludedIndex</code>:</p>
 <pre><code class="language-go">func latestSnapshot(dirNames []string) (string, SnapshotMetadata, error) {

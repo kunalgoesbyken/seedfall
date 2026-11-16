@@ -147,7 +147,10 @@ func (s *site) write() error {
 			return err
 		}
 	}
-	return s.copyFiles()
+	if err := s.copyFiles(); err != nil {
+		return err
+	}
+	return s.writeSitemap()
 }
 
 func (s *site) writePage(p *page) error {

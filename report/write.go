@@ -17,7 +17,7 @@ import (
 //go:embed report.html.tmpl
 var page string
 
-var tmpl = template.Must(template.New("report").Funcs(template.FuncMap{"percent": Percent, "theme": theme.Stylesheet}).Parse(page))
+var tmpl = template.Must(template.New("report").Funcs(template.FuncMap{"percent": Percent, "theme": theme.Stylesheet, "icon": theme.Icon}).Parse(page))
 
 func Percent(f float64) string { return strconv.FormatFloat(f*100, 'g', 3, 64) + "%" }
 

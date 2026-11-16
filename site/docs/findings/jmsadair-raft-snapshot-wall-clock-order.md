@@ -36,18 +36,17 @@ Reproduced deterministically with [seedfall](https://github.com/kunalgoesbyken/s
 
 ```
 cd examples/jmsraft
-seedfall replay -c clock.json -seed 13 -faults snapshotorder.faults.json
+seedfall replay -c clock.json -seed 28 -faults snapshotorder.faults.json
 ```
 
 ```
-    0.981s  fault n3's wall clock jumps -4.856s
-    1.837s  fault crash n2#1, restart at 2.711s
-    2.107s  fault crash n3#1, restart at 2.684s
-    2.684s  start n3#2
-    2.684s  FAIL  n3#2: node restarts from its own disk: could not get entry from log: could not get entry: index 33 does not exist
+    1.195s  fault n1's wall clock jumps -1.465s
+    1.965s  fault crash n1#1, restart at 2.054s
+    2.054s  start n1#2
+    2.054s  FAIL  n1#2: node restarts from its own disk: could not get entry from log: could not get entry: index 33 does not exist
 ```
 
-n3's clock steps back about 5 seconds, n3 takes another snapshot and compacts its log, and its next start loads a snapshot from before the step. The same failure appeared on its own in a sweep with process pauses and clock jumps but no crashes (`pause.lease.json`, seed 11), after the node had exited for an unrelated reason.
+n1's clock steps back about 1.5 seconds, n1 takes another snapshot and compacts its log, and its next start loads a snapshot from before the step. Two faults are enough. The same failure appeared on its own in a sweep with process pauses and clock jumps but no crashes (`pause.lease.json`, seed 11), after the node had exited for an unrelated reason.
 
 ## Suggested fix
 

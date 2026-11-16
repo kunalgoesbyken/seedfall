@@ -31,8 +31,8 @@ jobs:
       - name: site docs are current
         run: |
           bash scripts/site-docs.sh
-          git add --intent-to-add site/docs
-          git diff --exit-code site/docs
+          git add --intent-to-add site/docs site/sitemap.xml
+          git diff --exit-code site/docs site/sitemap.xml site/theme.css
       - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
           distribution: goreleaser

@@ -4,9 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>seedfall timeline · {{.Title}}</title>
+<link rel="icon" href="{{icon}}" type="image/svg+xml">
 <style>
 {{theme}}
-body { padding: 24px; font-size: 14px; line-height: 1.5; }
+body { box-sizing: border-box; display: flex; flex-direction: column; height: 100vh; margin: 0; padding: 24px; font-size: 14px; line-height: 1.5; }
 h1 { margin: 0; font-size: 1.5rem; overflow-wrap: anywhere; }
 .controls { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; margin: 16px 0; padding: 12px 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
 .controls label { color: var(--muted); white-space: nowrap; }
@@ -21,8 +22,8 @@ h1 { margin: 0; font-size: 1.5rem; overflow-wrap: anywhere; }
 .legend .faint { opacity: 0.25; }
 .legend .dot { border-radius: 50%; }
 .legend .dashed { background: repeating-linear-gradient(90deg, var(--key) 0 3px, transparent 3px 6px); }
-.panes { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; }
-.pane { height: 78vh; overflow: auto; border: 1px solid var(--rule); background: var(--wash); }
+.panes { display: grid; flex: 1; min-height: 0; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; }
+.pane { min-height: 0; overflow: auto; border: 1px solid var(--rule); background: var(--wash); }
 svg text { fill: var(--muted); font: 11px var(--mono); }
 svg .head { fill: var(--fg); font-size: 12px; }
 table { width: 100%; border-collapse: collapse; font: 12px/1.45 var(--mono); }
@@ -32,7 +33,7 @@ td.n { color: var(--fg); white-space: nowrap; }
 tr { cursor: pointer; }
 tr:hover td { background: var(--rule-soft); }
 tr.fail td { color: var(--bad); }
-@media (max-width: 900px) { .panes { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { body { display: block; height: auto; } .panes { grid-template-columns: 1fr; } .pane { height: 70vh; } }
 </style>
 </head>
 <body>

@@ -1,45 +1,27 @@
 :root {
   color-scheme: light dark;
-  --bg: #ffffff;
-  --fg: #101828;
-  --body: #364153;
-  --muted: #4a5565;
-  --faint: #6a7282;
-  --rule: #e5e7eb;
-  --rule-soft: #f3f4f6;
-  --wash: #f9fafb;
-  --bar: #1c2127;
-  --bad: #c0262d;
-  --ok: #1a7f37;
-  --warn: #9a6700;
-  --fault: #bc4c00;
-  --net: #0969da;
-  --violet: #8250df;
-  --teal: #0f766e;
+  --bg: light-dark(#ffffff, #0d0f12);
+  --fg: light-dark(#101828, #f3f4f6);
+  --body: light-dark(#364153, #d1d5dc);
+  --muted: light-dark(#4a5565, #a1a9b6);
+  --faint: light-dark(#6a7282, #8a929e);
+  --rule: light-dark(#e5e7eb, #2a2f36);
+  --rule-soft: light-dark(#f3f4f6, #1d2127);
+  --wash: light-dark(#f9fafb, #15181c);
+  --bar: light-dark(#1c2127, #e5e7eb);
+  --bad: light-dark(#c0262d, #ff7b72);
+  --ok: light-dark(#1a7f37, #3fb950);
+  --warn: light-dark(#9a6700, #d29922);
+  --fault: light-dark(#bc4c00, #f0883e);
+  --net: light-dark(#0969da, #58a6ff);
+  --violet: light-dark(#8250df, #bc8cff);
+  --teal: light-dark(#0f766e, #2dd4bf);
   --sans: "Inter", ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
   --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0d0f12;
-    --fg: #f3f4f6;
-    --body: #d1d5dc;
-    --muted: #a1a9b6;
-    --faint: #8a929e;
-    --rule: #2a2f36;
-    --rule-soft: #1d2127;
-    --wash: #15181c;
-    --bar: #e5e7eb;
-    --bad: #ff7b72;
-    --ok: #3fb950;
-    --warn: #d29922;
-    --fault: #f0883e;
-    --net: #58a6ff;
-    --violet: #bc8cff;
-    --teal: #2dd4bf;
-  }
-}
+:root[data-theme=light] { color-scheme: light; }
+:root[data-theme=dark] { color-scheme: dark; }
 
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--body); font-family: var(--sans); line-height: 1.65; -webkit-font-smoothing: antialiased; }

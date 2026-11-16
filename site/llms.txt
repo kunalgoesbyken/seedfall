@@ -1,6 +1,6 @@
 # seedfall
 
-> Find the bugs that only show up when your Go service crashes or the network breaks, and replay each one exactly. seedfall is for people who write Go services that keep data: databases, queues, caches, anything that writes to disk or talks to other nodes. Those services usually pass their tests and then lose data in production, because the bug needs a crash at one particular moment, or a network split at another. Normal tests almost never hit that moment, and when production does, you can't reproduce it.
+>  seedfall runs your Go service in a deterministic simulation on WebAssembly. It crashes nodes mid-write, tears and fails disk writes, and splits the network, and it names every run by a seed. The same seed gives the same run, byte for byte, on any machine, and `seedfall shrink` cuts a failure down to the few faults that cause it.
 
 Install with `go install github.com/kunalgoesbyken/seedfall/cmd/seedfall@latest`. `seedfall init` onboards a Go module, `seedfall mcp` serves every command to coding agents over MCP, and the skills below teach an agent the full loop. Every docs page is an HTML page with a raw Markdown copy beside it. The complete text of every page is in [llms-full.txt](https://seedfall.kunalrc.xyz/llms-full.txt).
 

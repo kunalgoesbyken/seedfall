@@ -5,14 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Feedback-guided exploration · seedfall</title>
 <meta name="description" content="A plain sweep tries seeds one after another, which is slow for a bug that needs two rare things to happen in the same run. seedfall explore keeps the runs that reached something new and builds on…">
+<meta property="og:title" content="Feedback-guided exploration · seedfall">
+<meta property="og:description" content="A plain sweep tries seeds one after another, which is slow for a bug that needs two rare things to happen in the same run. seedfall explore keeps the runs that reached something new and builds on…">
+<meta property="og:site_name" content="seedfall">
 <link rel="alternate" type="text/markdown" href="explore.md">
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
 <link rel="preload" href="../fonts/inter.woff2" as="font" type="font/woff2" crossorigin>
+<script src="../theme.js"></script>
 <link rel="stylesheet" href="../theme.css">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
 <article class="page">
+<header class="site-head"><a class="brand" href="../"><svg viewBox="0 0 32 32" aria-hidden="true"><rect class="bar" x="3" y="17" width="7" height="12" rx="3.5" opacity="0.6"/><rect class="seed" x="12.5" y="3" width="7" height="26" rx="3.5"/><rect class="bar" x="22" y="10" width="7" height="19" rx="3.5" opacity="0.8"/></svg>seedfall</a><nav><a href="../docs/">Docs</a><a href="../gym">RL gym</a><a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a><button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch between light and dark theme" title="Switch theme"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.75a6.25 6.25 0 0 1 0 12.5z" fill="currentColor"/></svg></button></nav></header>
 <p class="back"><a href="./">&larr; Documentation</a></p>
 <h1 id="feedback-guided-exploration">Feedback-guided exploration</h1>
 <p>A plain sweep tries seeds one after another, which is slow for a bug that needs two rare things to happen in the same run. <code>seedfall explore</code> keeps the runs that reached something new and builds on them. Use it when ordinary sweeps pass but you suspect a deeper bug.</p>

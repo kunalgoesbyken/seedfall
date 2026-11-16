@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <style>
+    .bar { fill: #101828; }
+    .seed { fill: #bc4c00; }
+    @media (prefers-color-scheme: dark) {
+      .bar { fill: #f3f4f6; }
+      .seed { fill: #f0883e; }
+    }
+  </style>
+  <rect class="bar" x="3" y="17" width="7" height="12" rx="3.5" opacity="0.6"/>
+  <rect class="seed" x="12.5" y="3" width="7" height="26" rx="3.5"/>
+  <rect class="bar" x="22" y="10" width="7" height="19" rx="3.5" opacity="0.8"/>
+</svg>

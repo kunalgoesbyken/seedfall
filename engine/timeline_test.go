@@ -100,8 +100,13 @@ func TestTimelineRendersOfflineHTMLAndMermaid(t *testing.T) {
 			t.Fatalf("timeline page lacks %q", want)
 		}
 	}
-	if regexp.MustCompile(`(?i)<script[^>]+src=|<link[^>]+href=|fetch\(|https?://[^"]*\.(js|css)`).MatchString(html) {
+	if regexp.MustCompile(`(?i)<script[^>]+src=|fetch\(|https?://[^"]*\.(js|css)`).MatchString(html) {
 		t.Fatal("timeline page loads something from the network")
+	}
+	for _, link := range regexp.MustCompile(`<link[^>]+href="([^"]*)"`).FindAllStringSubmatch(html, -1) {
+		if !strings.HasPrefix(link[1], "data:") {
+			t.Fatalf("timeline page links to %s", link[1])
+		}
 	}
 	if err := in.Result.Timeline.WriteMermaid(&mmd); err != nil {
 		t.Fatal(err)
