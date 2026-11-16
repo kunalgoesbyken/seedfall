@@ -1,0 +1,11 @@
+{
+  "id": "liveness-dedupe",
+  "system": "liveness",
+  "bug_class": "non-idempotent-retry",
+  "difficulty": "medium",
+  "editable": [
+    "server/"
+  ],
+  "symptom": "Two replicas, a primary and a backup (server/main.go). The primary forwards each ADD id to the backup, appends it to its own log, and answers with the new count. The client sends 40 adds with ids derived from its node name and saved progress, retrying until acknowledged; after a client crash it resends the add that was in flight. After faults stop, a check compares the counts on both servers with the number of adds the client sent.\n\nObserved on seed 1: the client was crashed twice and the connection between replicas reset. The check failed: no add is applied twice: {\"left\":41,\"right\":40}.\n\nExpected: the counter must equal the number of distinct adds, however many times the client retries.",
+  "default_n": 0
+}

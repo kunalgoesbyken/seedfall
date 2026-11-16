@@ -1,0 +1,51 @@
+{
+  "duration": "5s",
+  "faults": {
+    "crash_per_sec": 0.3,
+    "include_workload": true,
+    "partition_for": [
+      "100ms",
+      "1s"
+    ],
+    "partition_per_sec": 0.3,
+    "pause_for": [
+      "50ms",
+      "500ms"
+    ],
+    "pause_per_sec": 0.3,
+    "reset_per_sec": 0.5,
+    "restart_after": [
+      "50ms",
+      "1s"
+    ]
+  },
+  "finally": {
+    "name": "check",
+    "pkg": "./check"
+  },
+  "latency": [
+    "1ms",
+    "5ms"
+  ],
+  "liveness": {
+    "within": "10s"
+  },
+  "nodes": [
+    {
+      "args": [
+        "-backup",
+        "backup:7000"
+      ],
+      "name": "primary",
+      "pkg": "./server"
+    },
+    {
+      "name": "backup",
+      "pkg": "./server"
+    }
+  ],
+  "workload": {
+    "name": "client",
+    "pkg": "./client"
+  }
+}

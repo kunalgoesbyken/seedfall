@@ -1,0 +1,11 @@
+{
+  "id": "kvlog-torn-tail",
+  "system": "kvlog",
+  "bug_class": "torn-tail-recovery",
+  "difficulty": "easy",
+  "editable": [
+    "server/"
+  ],
+  "symptom": "A small TCP key-value server (server/main.go) appends every PUT as a key=value line to data/kv.log, fsyncs the file and only then answers OK. On start it replays the log to rebuild its in-memory map. Under repeated crashes and restarts, including crashes in the middle of a disk write, a client that stored keys and was told OK later reads some of them back as NONE.\n\nObserved on seed 1: the server was crashed and restarted 11 times (several of the crashes landed inside a disk operation, with torn writes enabled). At the end the client reported: acknowledged write lost: k151=v151, server now answers \"NONE\". The server never logged an error on startup.\n\nExpected: every PUT that returned OK must be readable after any number of crashes and restarts.",
+  "default_n": 0
+}

@@ -1,0 +1,24 @@
+{
+  "duration": "60s",
+  "faults": {
+    "crash_on_io": 0.02,
+    "crash_per_sec": 1.5,
+    "restart_after": [
+      "10ms",
+      "300ms"
+    ],
+    "torn_writes": true
+  },
+  "faults_after_setup": true,
+  "net_overlay": true,
+  "nodes": [
+    {
+      "name": "server",
+      "pkg": "./server"
+    }
+  ],
+  "workload": {
+    "name": "client",
+    "pkg": "./client"
+  }
+}

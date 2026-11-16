@@ -1,0 +1,11 @@
+{
+  "id": "httpkv-nofsync-heavy",
+  "system": "httpkv",
+  "bug_class": "ack-before-fsync",
+  "difficulty": "easy",
+  "editable": [
+    "server/"
+  ],
+  "symptom": "An HTTP key-value server (server/main.go) accepts PUT /put?k=..\u0026v=.. and appends the record to data/kv.log, answering OK. On start it replays the log and truncates an incomplete last record. The client stores 100 keys, remembers which were acknowledged, and reads them all back at the end.\n\nObserved on seed 1: the server was crashed at 1.05s (during a disk operation) and at 1.71s. The client reported: acknowledged write lost: k27=v27, server now answers \"404 page not found\". No error was logged.\n\nExpected: every acknowledged write must survive crashes and restarts.",
+  "default_n": 0
+}

@@ -1,0 +1,13 @@
+--- a/server/main.go
++++ b/server/main.go
+@@ -124,6 +124,10 @@
+ 		http.Error(w, err.Error(), http.StatusInternalServerError)
+ 		return
+ 	}
++	if err := s.file.Sync(); err != nil {
++		http.Error(w, err.Error(), http.StatusInternalServerError)
++		return
++	}
+ 	if v == nil {
+ 		delete(s.values, k)
+ 	} else {

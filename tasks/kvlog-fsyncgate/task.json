@@ -1,0 +1,11 @@
+{
+  "id": "kvlog-fsyncgate",
+  "system": "kvlog",
+  "bug_class": "fsync-failure-leaves-record",
+  "difficulty": "hard",
+  "editable": [
+    "server/"
+  ],
+  "symptom": "A small TCP key-value server (server/main.go) appends every PUT as a key=value line to data/kv.log, fsyncs and answers OK. On start it replays the log and discards an incomplete last line. The disk sometimes fails an fsync with EIO, in which case the server answers ERR to that PUT and keeps running. A supervisor restarts the server after crashes.\n\nObserved on seed 1: fsync failed with EIO several times (disk ops 38, 64, 196, 202), and the server was crashed and restarted afterwards. The client then reported: acknowledged write lost: k51=v51, server now answers \"NONE\".\n\nExpected: every PUT that returned OK must be readable after crashes and restarts, whatever happened to the PUTs that returned ERR.",
+  "default_n": 0
+}

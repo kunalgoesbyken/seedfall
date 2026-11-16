@@ -1,0 +1,579 @@
+{
+  "seedfall_commit": "00f5aa28e3493e60b9e44ae9cd0e1c546ceee084",
+  "n": 64,
+  "systems": {
+    "kvlog": {
+      "trees": {
+        "server": "examples/kvlog/server",
+        "client": "examples/kvlog/client"
+      },
+      "editable": [
+        "server/"
+      ],
+      "config": {
+        "nodes": [
+          {
+            "name": "server",
+            "pkg": "./server",
+            "args": [
+              "-dir",
+              "data"
+            ]
+          }
+        ],
+        "workload": {
+          "name": "client",
+          "pkg": "./client",
+          "args": [
+            "-writes",
+            "200"
+          ]
+        },
+        "duration": "60s",
+        "latency": [
+          "1ms",
+          "5ms"
+        ],
+        "faults": {
+          "crash_per_sec": 0.5,
+          "restart_after": [
+            "10ms",
+            "500ms"
+          ],
+          "partition_per_sec": 0.2,
+          "partition_for": [
+            "50ms",
+            "1s"
+          ],
+          "torn_writes": true,
+          "crash_on_io": 0.005
+        }
+      }
+    },
+    "symswap": {
+      "trees": {
+        "server": "examples/symswap/server",
+        "client": "examples/kvlog/client"
+      },
+      "editable": [
+        "server/"
+      ],
+      "config": {
+        "nodes": [
+          {
+            "name": "server",
+            "pkg": "./server",
+            "args": [
+              "-dir",
+              "data"
+            ]
+          }
+        ],
+        "workload": {
+          "name": "client",
+          "pkg": "./client",
+          "args": [
+            "-writes",
+            "60"
+          ]
+        },
+        "duration": "30s",
+        "latency": [
+          "1ms",
+          "5ms"
+        ],
+        "faults": {
+          "crash_per_sec": 1,
+          "restart_after": [
+            "10ms",
+            "200ms"
+          ],
+          "crash_on_io": 0.05,
+          "torn_writes": true,
+          "strict_dirs": true,
+          "reorder_writes": true,
+          "fs_model": "dir_reorder"
+        }
+      }
+    },
+    "ledger": {
+      "trees": {
+        "server": "examples/ledger/server",
+        "client": "examples/ledger/client"
+      },
+      "editable": [
+        "server/"
+      ],
+      "module_from": "examples/ledger",
+      "config": {
+        "nodes": [
+          {
+            "name": "server",
+            "pkg": "./server"
+          }
+        ],
+        "workload": {
+          "name": "client",
+          "pkg": "./client"
+        },
+        "duration": "60s",
+        "net_overlay": true,
+        "faults_after_setup": true,
+        "faults": {
+          "crash_per_sec": 0.5,
+          "restart_after": [
+            "10ms",
+            "300ms"
+          ],
+          "torn_writes": true,
+          "crash_on_io": 0.005
+        }
+      }
+    },
+    "httpkv": {
+      "trees": {
+        "server": "examples/httpkv/server",
+        "client": "examples/httpkv/client"
+      },
+      "editable": [
+        "server/"
+      ],
+      "config": {
+        "nodes": [
+          {
+            "name": "server",
+            "pkg": "./server"
+          }
+        ],
+        "workload": {
+          "name": "client",
+          "pkg": "./client"
+        },
+        "duration": "30s",
+        "net_overlay": true,
+        "watchdog": "180s",
+        "faults": {
+          "crash_per_sec": 0.5,
+          "restart_after": [
+            "10ms",
+            "300ms"
+          ],
+          "torn_writes": true,
+          "crash_on_io": 0.005
+        }
+      }
+    },
+    "liveness": {
+      "trees": {
+        "server": "examples/liveness/server",
+        "client": "examples/liveness/client",
+        "check": "examples/liveness/check"
+      },
+      "editable": [
+        "server/"
+      ],
+      "config": {
+        "nodes": [
+          {
+            "name": "primary",
+            "pkg": "./server",
+            "args": [
+              "-backup",
+              "backup:7000"
+            ]
+          },
+          {
+            "name": "backup",
+            "pkg": "./server"
+          }
+        ],
+        "workload": {
+          "name": "client",
+          "pkg": "./client"
+        },
+        "finally": {
+          "name": "check",
+          "pkg": "./check"
+        },
+        "duration": "5s",
+        "liveness": {
+          "within": "10s"
+        },
+        "latency": [
+          "1ms",
+          "5ms"
+        ],
+        "faults": {
+          "include_workload": true,
+          "crash_per_sec": 0.3,
+          "restart_after": [
+            "50ms",
+            "1s"
+          ],
+          "pause_per_sec": 0.3,
+          "pause_for": [
+            "50ms",
+            "500ms"
+          ],
+          "partition_per_sec": 0.3,
+          "partition_for": [
+            "100ms",
+            "1s"
+          ],
+          "reset_per_sec": 0.5
+        }
+      }
+    },
+    "aikv-haiku-1": {
+      "trees": {
+        "impl/haiku-1": "examples/aikv/impl/haiku-1",
+        "server": "examples/aikv/server",
+        "client": "examples/aikv/client"
+      },
+      "editable": [
+        "impl/haiku-1/"
+      ],
+      "module_from": "examples/aikv",
+      "config": {
+        "nodes": [
+          {
+            "name": "server",
+            "pkg": "./server",
+            "args": [
+              "-impl",
+              "haiku-1"
+            ]
+          }
+        ],
+        "workload": {
+          "name": "client",
+          "pkg": "./client",
+          "args": [
+            "-ops",
+            "5000",
+            "-size",
+            "8192",
+            "-gap",
+            "5ms"
+          ]
+        },
+        "duration": "120s",
+        "supervise": true,
+        "latency": [
+          "1ms",
+          "5ms"
+        ],
+        "faults": {
+          "crash_per_sec": 0.5,
+          "restart_after": [
+            "10ms",
+            "500ms"
+          ],
+          "torn_writes": true,
+          "crash_on_io": 0.005,
+          "reorder_writes": true,
+          "fs_model": "page_independent",
+          "strict_dirs": true
+        }
+      }
+    }
+  },
+  "tasks": [
+    {
+      "id": "kvlog-torn-tail",
+      "system": "kvlog",
+      "bug_class": "torn-tail-recovery",
+      "difficulty": "easy",
+      "visible_seed": 1,
+      "symptom": "A small TCP key-value server (server/main.go) appends every PUT as a key=value line to data/kv.log, fsyncs the file and only then answers OK. On start it replays the log to rebuild its in-memory map. Under repeated crashes and restarts, including crashes in the middle of a disk write, a client that stored keys and was told OK later reads some of them back as NONE.\n\nObserved on seed 1: the server was crashed and restarted 11 times (several of the crashes landed inside a disk operation, with torn writes enabled). At the end the client reported: acknowledged write lost: k151=v151, server now answers \"NONE\". The server never logged an error on startup.\n\nExpected: every PUT that returned OK must be readable after any number of crashes and restarts.",
+      "patches": {
+        "buggy": [
+          "kvlog-client-ack.patch",
+          "kvlog-core.patch"
+        ],
+        "fixed": [
+          "kvlog-repair.patch"
+        ],
+        "cheat": [
+          "kvlog-cheat.patch"
+        ]
+      },
+      "config": {
+        "faults": {
+          "crash_per_sec": 2,
+          "crash_on_io": 0.04
+        }
+      }
+    },
+    {
+      "id": "kvlog-fsyncgate",
+      "system": "kvlog",
+      "bug_class": "fsync-failure-leaves-record",
+      "difficulty": "hard",
+      "visible_seed": 1,
+      "symptom": "A small TCP key-value server (server/main.go) appends every PUT as a key=value line to data/kv.log, fsyncs and answers OK. On start it replays the log and discards an incomplete last line. The disk sometimes fails an fsync with EIO, in which case the server answers ERR to that PUT and keeps running. A supervisor restarts the server after crashes.\n\nObserved on seed 1: fsync failed with EIO several times (disk ops 38, 64, 196, 202), and the server was crashed and restarted afterwards. The client then reported: acknowledged write lost: k51=v51, server now answers \"NONE\".\n\nExpected: every PUT that returned OK must be readable after crashes and restarts, whatever happened to the PUTs that returned ERR.",
+      "config": {
+        "faults": {
+          "fsync_eio": 0.02
+        },
+        "supervise": true
+      },
+      "patches": {
+        "buggy": [
+          "kvlog-client-ack.patch",
+          "kvlog-core.patch",
+          "kvlog-repair.patch"
+        ],
+        "fixed": [
+          "kvlog-fsyncgate-fix.patch"
+        ],
+        "cheat": [
+          "kvlog-cheat.patch"
+        ]
+      }
+    },
+    {
+      "id": "kvlog-no-checksum",
+      "system": "kvlog",
+      "bug_class": "silent-read-corruption",
+      "difficulty": "medium",
+      "visible_seed": 1,
+      "symptom": "A small TCP key-value server (server/main.go) appends every PUT as a key=value line to data/kv.log, fsyncs and answers OK. On start it reads the whole log and rebuilds its in-memory map, discarding an incomplete last line. The storage layer occasionally returns data with a flipped bit on a read, while the stored bytes stay intact.\n\nObserved on seed 1: after a restart the read of data/kv.log at disk read #1 returned a flipped bit at offset 95, the server started normally with a damaged map, and the client reported: acknowledged write lost: k16=v16, server now answers \"NONE\".\n\nExpected: every PUT that returned OK must be readable after crashes and restarts, even when a read of the log is wrong once in a while.",
+      "config": {
+        "faults": {
+          "read_corrupt": 0.7,
+          "crash_per_sec": 1.5
+        }
+      },
+      "patches": {
+        "buggy": [
+          "kvlog-client-ack.patch",
+          "kvlog-core.patch",
+          "kvlog-repair.patch"
+        ],
+        "fixed": [
+          "kvlog-checksum-fix.patch"
+        ],
+        "cheat": [
+          "kvlog-cheat.patch"
+        ]
+      }
+    },
+    {
+      "id": "kvlog-ack-before-fsync",
+      "system": "kvlog",
+      "bug_class": "ack-before-durable",
+      "difficulty": "easy",
+      "visible_seed": 1,
+      "symptom": "A small TCP key-value server (server/main.go) appends every PUT as a key=value line to data/kv.log and answers OK. A background loop syncs the file every 200ms. On start it replays the log and truncates an incomplete last line. The client records every PUT that was answered OK.\n\nObserved on seed 1: the server was crashed at 1.13s (during a disk operation) and 1.71s. The client reported: acknowledged write lost: k77=v77, server now answers \"NONE\". No error was logged.\n\nExpected: every PUT that returned OK must be readable after any crash and restart.",
+      "patches": {
+        "buggy": [
+          "kvlog-client-ack.patch",
+          "kvlog-core.patch",
+          "kvlog-repair.patch",
+          "kvlog-batch.patch"
+        ],
+        "fixed": [
+          "kvlog-syncalways-fix.patch"
+        ],
+        "cheat": [
+          "kvlog-cheat.patch"
+        ]
+      }
+    },
+    {
+      "id": "symswap-dir-fsync",
+      "system": "symswap",
+      "bug_class": "rename-before-dir-fsync",
+      "difficulty": "hard",
+      "visible_seed": 1,
+      "symptom": "A TCP key-value server (server/main.go) stores each version of its data as a file gen.N in data/ and publishes it by atomically replacing the symlink data/current with a link to the new generation (symlink to a temp name, rename over current, fsync the directory). Recovery follows data/current. The filesystem is modelled strictly: a directory change only survives a crash if the directory was fsynced.\n\nObserved on seed 1: after about 40 puts and a series of crashes during disk operations, the server restarted into: the current symlink points at a generation that exists: current -> gen.39: open data/current: No such file or directory.\n\nExpected: after any crash the symlink data/current must point at a complete, readable generation and all acknowledged puts must be present.",
+      "patches": {
+        "buggy": [
+          "kvlog-client-ack.patch",
+          "symswap-buggy.patch"
+        ],
+        "fixed": [
+          "symswap-fix.patch"
+        ],
+        "cheat": [
+          "symswap-cheat.patch"
+        ]
+      },
+      "config": {
+        "duration": "120s",
+        "workload": {
+          "args": [
+            "-writes",
+            "200"
+          ]
+        },
+        "faults": {
+          "disk_latency": [
+            "1ms",
+            "10ms"
+          ],
+          "crash_per_sec": 3,
+          "restart_after": [
+            "10ms",
+            "100ms"
+          ]
+        }
+      }
+    },
+    {
+      "id": "ledger-nofsync",
+      "system": "ledger",
+      "bug_class": "ack-before-fsync",
+      "difficulty": "easy",
+      "visible_seed": 1,
+      "symptom": "A deposit ledger (server/main.go) appends each ADD n to data/ledger.log and answers OK; TOTAL returns the sum of the entries. On recovery it drops an incomplete last entry. The client makes 150 deposits, remembers which were acknowledged, and at the end checks that the ledger total is at least the sum of the acknowledged deposits.\n\nObserved on seed 1: the server was crashed at 1.25s (during a disk operation) and 1.71s. The final check failed: ledger total covers every acknowledged deposit: {\"left\":4203,\"right\":5608,\"unacked\":1729}. The server logged no error.\n\nExpected: the total must never be below the sum of acknowledged deposits, whatever crashes happen.",
+      "patches": {
+        "buggy": [
+          "ledger-client-ack.patch",
+          "ledger-buggy.patch"
+        ],
+        "fixed": [
+          "ledger-fix.patch"
+        ],
+        "cheat": [
+          "ledger-cheat.patch"
+        ]
+      },
+      "variants": [
+        {
+          "id": "ledger-nofsync-heavy",
+          "config": {
+            "faults": {
+              "crash_per_sec": 1.5,
+              "crash_on_io": 0.02
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "httpkv-nofsync",
+      "system": "httpkv",
+      "bug_class": "ack-before-fsync",
+      "difficulty": "easy",
+      "visible_seed": 1,
+      "symptom": "An HTTP key-value server (server/main.go) accepts PUT /put?k=..&v=.. and appends the record to data/kv.log, answering OK. On start it replays the log and truncates an incomplete last record. The client stores 100 keys, remembers which were acknowledged, and reads them all back at the end.\n\nObserved on seed 1: the server was crashed at 1.05s (during a disk operation) and at 1.71s. The client reported: acknowledged write lost: k27=v27, server now answers \"404 page not found\". No error was logged.\n\nExpected: every acknowledged write must survive crashes and restarts.",
+      "patches": {
+        "buggy": [
+          "httpkv-client-ack.patch",
+          "httpkv-buggy.patch"
+        ],
+        "fixed": [
+          "httpkv-fix.patch"
+        ],
+        "cheat": [
+          "httpkv-cheat.patch"
+        ]
+      },
+      "variants": [
+        {
+          "id": "httpkv-nofsync-heavy",
+          "config": {
+            "faults": {
+              "crash_per_sec": 1.5,
+              "crash_on_io": 0.02
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "liveness-redial",
+      "system": "liveness",
+      "bug_class": "no-reconnect-to-replica",
+      "difficulty": "medium",
+      "visible_seed": 1,
+      "symptom": "Two replicas, a primary and a backup (server/main.go). The primary forwards each ADD to the backup, appends it to its own log, and answers with the new count. The client sends 40 adds, retrying until acknowledged and saving its progress, then a final check compares both counts. Faults (crashes, pauses, partitions, connection resets) run for the first 5s of virtual time, then stop and all nodes are restarted and healed.\n\nObserved on seed 1: after resets of the connection between the replicas and a crash of the backup, the system never recovered: liveness: client did not finish within 10s of the recovery phase starting at 5.000s. Nothing was lost or applied twice, the client just kept retrying.\n\nExpected: once faults stop and nodes are healthy, the client's adds must be acknowledged and it must finish.",
+      "patches": {
+        "buggy": [
+          "liveness-client-ack.patch",
+          "liveness-dedupe-on.patch",
+          "liveness-redial-bug.patch"
+        ],
+        "fixed": [
+          "liveness-redial-fix.patch"
+        ],
+        "cheat": [
+          "liveness-redial-cheat.patch"
+        ]
+      },
+      "config": {
+        "nodes": [
+          {
+            "name": "primary",
+            "pkg": "./server",
+            "args": [
+              "-backup",
+              "backup:7000"
+            ]
+          },
+          {
+            "name": "backup",
+            "pkg": "./server"
+          }
+        ]
+      }
+    },
+    {
+      "id": "liveness-dedupe",
+      "system": "liveness",
+      "bug_class": "non-idempotent-retry",
+      "difficulty": "medium",
+      "visible_seed": 1,
+      "symptom": "Two replicas, a primary and a backup (server/main.go). The primary forwards each ADD id to the backup, appends it to its own log, and answers with the new count. The client sends 40 adds with ids derived from its node name and saved progress, retrying until acknowledged; after a client crash it resends the add that was in flight. After faults stop, a check compares the counts on both servers with the number of adds the client sent.\n\nObserved on seed 1: the client was crashed twice and the connection between replicas reset. The check failed: no add is applied twice: {\"left\":41,\"right\":40}.\n\nExpected: the counter must equal the number of distinct adds, however many times the client retries.",
+      "patches": {
+        "buggy": [
+          "liveness-client-ack.patch",
+          "liveness-redial-on.patch",
+          "liveness-dedupe-bug.patch"
+        ],
+        "fixed": [
+          "liveness-dedupe-fix.patch"
+        ],
+        "cheat": [
+          "liveness-dedupe-cheat.patch"
+        ]
+      }
+    },
+    {
+      "id": "aikv-haiku-1-tail",
+      "system": "aikv-haiku-1",
+      "bug_class": "torn-tail-treated-as-corruption",
+      "difficulty": "hard",
+      "visible_seed": 1,
+      "symptom": "An embedded persistent key-value store (impl/haiku-1) written by a model, served over TCP by a fixed harness (PUT, GET, DEL). It is a CRC-checked append-only log with compaction. The harness restarts the server after each crash. The filesystem model lets unsynced writes reach the disk page by page in any order, and strict directory durability is on.\n\nObserved on seed 1: after several crashes (some inside disk operations) the server could no longer start: store unavailable for 10s: \"GET k00\" answers \"\" (dial tcp server:7000: Connection refused). The store refuses to open although the client had only been told OK for writes it expects to find.\n\nExpected: after any crash the store must open again, and every acknowledged write must still be there.",
+      "patches": {
+        "buggy": [
+          "aikv-client-ack.patch",
+          "aikv-haiku-1-server.patch"
+        ],
+        "fixed": [
+          "aikv-haiku-1-fix.patch"
+        ],
+        "cheat": [
+          "aikv-haiku-1-cheat.patch"
+        ]
+      },
+      "config": {
+        "workload": {
+          "args": [
+            "-ops",
+            "1500",
+            "-size",
+            "8192",
+            "-gap",
+            "5ms"
+          ]
+        },
+        "duration": "60s"
+      },
+      "n": 32
+    }
+  ]
+}

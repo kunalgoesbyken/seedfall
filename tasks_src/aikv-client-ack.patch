@@ -1,0 +1,10 @@
+--- a/client/main.go
++++ b/client/main.go
+@@ -49,6 +49,7 @@
+ 		h := state[k]
+ 		if reply, err := call(*addr, request); err == nil && reply == "OK" {
+ 			*h = history{acked: want}
++			sim.Event("gym.ack", k)
+ 		} else {
+ 			h.ambiguous = append(h.ambiguous, want)
+ 		}

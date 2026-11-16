@@ -1,0 +1,134 @@
+[
+  {
+    "task": "aikv-haiku-1-tail",
+    "kept": true,
+    "buggy_pass_rate": 0,
+    "buggy_reward": 0,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "seconds_per_grade": 30.0995222,
+    "min_acks": 285
+  },
+  {
+    "task": "httpkv-nofsync",
+    "kept": true,
+    "buggy_pass_rate": 0.125,
+    "buggy_reward": 0.125,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "seconds_per_grade": 26.4580343,
+    "min_acks": 13
+  },
+  {
+    "task": "httpkv-nofsync-heavy",
+    "kept": true,
+    "buggy_pass_rate": 0,
+    "buggy_reward": 0,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "seconds_per_grade": 25.6898807,
+    "min_acks": 4
+  },
+  {
+    "task": "kvlog-ack-before-fsync",
+    "kept": true,
+    "buggy_pass_rate": 0.140625,
+    "buggy_reward": 0.140625,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "seconds_per_grade": 8.0319704,
+    "min_acks": 21
+  },
+  {
+    "task": "kvlog-fsyncgate",
+    "kept": true,
+    "buggy_pass_rate": 0.15625,
+    "buggy_reward": 0.15625,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "seconds_per_grade": 8.0448275,
+    "min_acks": 16
+  },
+  {
+    "task": "kvlog-no-checksum",
+    "kept": true,
+    "buggy_pass_rate": 0.359375,
+    "buggy_reward": 0.359375,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "seconds_per_grade": 9.793544,
+    "min_acks": 15
+  },
+  {
+    "task": "kvlog-torn-tail",
+    "kept": true,
+    "buggy_pass_rate": 0.21875,
+    "buggy_reward": 0.21875,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "seconds_per_grade": 7.0938383,
+    "min_acks": 2
+  },
+  {
+    "task": "ledger-nofsync",
+    "kept": true,
+    "buggy_pass_rate": 0.09375,
+    "buggy_reward": 0.09375,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "seconds_per_grade": 10.9335508,
+    "min_acks": 35
+  },
+  {
+    "task": "ledger-nofsync-heavy",
+    "kept": true,
+    "buggy_pass_rate": 0,
+    "buggy_reward": 0,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "seconds_per_grade": 12.4664084,
+    "min_acks": 13
+  },
+  {
+    "task": "liveness-dedupe",
+    "kept": true,
+    "buggy_pass_rate": 0.203125,
+    "buggy_reward": 0.203125,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "seconds_per_grade": 16.4422409,
+    "min_acks": 20
+  },
+  {
+    "task": "liveness-redial",
+    "kept": true,
+    "buggy_pass_rate": 0.328125,
+    "buggy_reward": 0,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "seconds_per_grade": 13.9413101,
+    "min_acks": 20
+  },
+  {
+    "task": "symswap-dir-fsync",
+    "kept": true,
+    "buggy_pass_rate": 0.34375,
+    "buggy_reward": 0.34375,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "seconds_per_grade": 9.5156671,
+    "min_acks": 12
+  }
+]

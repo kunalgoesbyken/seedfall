@@ -1,0 +1,11 @@
+{
+  "id": "aikv-haiku-1-tail",
+  "system": "aikv-haiku-1",
+  "bug_class": "torn-tail-treated-as-corruption",
+  "difficulty": "hard",
+  "editable": [
+    "impl/haiku-1/"
+  ],
+  "symptom": "An embedded persistent key-value store (impl/haiku-1) written by a model, served over TCP by a fixed harness (PUT, GET, DEL). It is a CRC-checked append-only log with compaction. The harness restarts the server after each crash. The filesystem model lets unsynced writes reach the disk page by page in any order, and strict directory durability is on.\n\nObserved on seed 1: after several crashes (some inside disk operations) the server could no longer start: store unavailable for 10s: \"GET k00\" answers \"\" (dial tcp server:7000: Connection refused). The store refuses to open although the client had only been told OK for writes it expects to find.\n\nExpected: after any crash the store must open again, and every acknowledged write must still be there.",
+  "default_n": 32
+}

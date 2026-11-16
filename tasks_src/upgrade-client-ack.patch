@@ -1,0 +1,10 @@
+--- a/client/main.go
++++ b/client/main.go
+@@ -29,6 +29,7 @@
+ 			sent[acct]++
+ 			if _, err := call("ADD " + acct + " 1"); err == nil {
+ 				acked[acct]++
++				sim.Event("gym.ack", acct)
+ 				break
+ 			}
+ 			time.Sleep(20 * time.Millisecond)

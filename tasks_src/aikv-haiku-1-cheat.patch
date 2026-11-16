@@ -1,0 +1,10 @@
+--- a/impl/haiku-1/kv.go
++++ b/impl/haiku-1/kv.go
+@@ -91,6 +91,7 @@
+ }
+ 
+ func (db *DB) Put(key string, value []byte) error {
++	return ErrValueTooLarge
+ 	if err := checkKey(key); err != nil {
+ 		return err
+ 	}

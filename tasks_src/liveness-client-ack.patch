@@ -1,0 +1,10 @@
+--- a/client/main.go
++++ b/client/main.go
+@@ -31,6 +31,7 @@
+ 		for !acked(*addr, id) {
+ 			time.Sleep(*retry)
+ 		}
++		sim.Event("gym.ack", id)
+ 		save(i + 1)
+ 		time.Sleep(*gap)
+ 	}

@@ -1,0 +1,50 @@
+{
+  "aikv-haiku-1-tail": {
+    "min_acks": 285,
+    "calibration_seeds": 128
+  },
+  "httpkv-nofsync": {
+    "min_acks": 13,
+    "calibration_seeds": 128
+  },
+  "httpkv-nofsync-heavy": {
+    "min_acks": 4,
+    "calibration_seeds": 128
+  },
+  "kvlog-ack-before-fsync": {
+    "min_acks": 21,
+    "calibration_seeds": 128
+  },
+  "kvlog-fsyncgate": {
+    "min_acks": 16,
+    "calibration_seeds": 128
+  },
+  "kvlog-no-checksum": {
+    "min_acks": 15,
+    "calibration_seeds": 128
+  },
+  "kvlog-torn-tail": {
+    "min_acks": 2,
+    "calibration_seeds": 128
+  },
+  "ledger-nofsync": {
+    "min_acks": 35,
+    "calibration_seeds": 128
+  },
+  "ledger-nofsync-heavy": {
+    "min_acks": 13,
+    "calibration_seeds": 128
+  },
+  "liveness-dedupe": {
+    "min_acks": 20,
+    "calibration_seeds": 128
+  },
+  "liveness-redial": {
+    "min_acks": 20,
+    "calibration_seeds": 128
+  },
+  "symswap-dir-fsync": {
+    "min_acks": 12,
+    "calibration_seeds": 128
+  }
+}

@@ -1,0 +1,96 @@
+diff -ruN a/server/main.go b/server/main.go
+--- a/server/main.go
++++ b/server/main.go
+@@ -5,6 +5,7 @@
+ 	"bytes"
+ 	"flag"
+ 	"fmt"
++	"hash/crc32"
+ 	"io"
+ 	"log"
+ 	"net"
+@@ -16,6 +17,8 @@
+ 	"github.com/kunalgoesbyken/seedfall/sim"
+ )
+ 
++const readAttempts = 40
++
+ type store struct {
+ 	mu     sync.Mutex
+ 	file   *os.File
+@@ -54,11 +57,24 @@
+ }
+ 
+ func open(path string) (*store, error) {
+-	data, err := os.ReadFile(path)
+-	if err != nil && !os.IsNotExist(err) {
+-		return nil, err
++	var data []byte
++	var values map[string]string
++	var complete int
++	for attempt := 1; ; attempt++ {
++		var err error
++		data, err = os.ReadFile(path)
++		if err != nil && !os.IsNotExist(err) {
++			return nil, err
++		}
++		var bad, tail bool
++		values, complete, bad, tail = parse(data)
++		if !bad || attempt == readAttempts && tail {
++			break
++		}
++		if attempt == readAttempts {
++			return nil, fmt.Errorf("%s: the record at offset %d fails its checksum in %d reads", path, complete, attempt)
++		}
+ 	}
+-	values, complete := parse(data)
+ 	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0o644)
+ 	if err != nil {
+ 		return nil, err
+@@ -75,28 +91,42 @@
+ 	return &store{file: f, values: values}, nil
+ }
+ 
+-func parse(data []byte) (map[string]string, int) {
++func parse(data []byte) (map[string]string, int, bool, bool) {
+ 	values := map[string]string{}
+ 	complete := 0
+ 	for {
+ 		i := bytes.IndexByte(data[complete:], '\n')
+ 		if i < 0 {
+-			return values, complete
++			return values, complete, false, false
+ 		}
+-		if k, v, ok := strings.Cut(string(data[complete:complete+i]), "="); ok {
++		record, ok := verify(string(data[complete : complete+i]))
++		if !ok {
++			return values, complete, true, complete+i+1 == len(data)
++		}
++		if k, v, ok := strings.Cut(record, "="); ok {
+ 			values[k] = v
+ 		}
+ 		complete += i + 1
+ 	}
+ }
+ 
++func verify(line string) (string, bool) {
++	record, sum, ok := strings.Cut(line, "#")
++	return record, ok && sum == fmt.Sprintf("%08x", crc32.ChecksumIEEE([]byte(record)))
++}
++
++func encode(k, v string) string {
++	record := k + "=" + v
++	return record + fmt.Sprintf("#%08x", crc32.ChecksumIEEE([]byte(record))) + "\n"
++}
++
+ func (s *store) put(k, v string) error {
+ 	s.mu.Lock()
+ 	defer s.mu.Unlock()
+ 	if _, err := s.file.Seek(0, io.SeekEnd); err != nil {
+ 		return err
+ 	}
+-	if _, err := s.file.WriteString(k + "=" + v + "\n"); err != nil {
++	if _, err := s.file.WriteString(encode(k, v)); err != nil {
+ 		return err
+ 	}
+ 	if err := s.file.Sync(); err != nil {
