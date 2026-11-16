@@ -64,6 +64,7 @@
         <ul>
           <li><a href="ci.html">Running seedfall in CI</a></li>
           <li><a href="agents.html" aria-current="page">Using seedfall from AI coding agents</a></li>
+          <li><a href="operator-env.html">Operator mode</a></li>
         </ul>
         <h2>Reference</h2>
         <ul>
@@ -194,6 +195,11 @@
 <td>Pins the seed's schedule (the one <code>seedfall_shrink</code> saved, the given file, or else the seed's own faults) into <code>seedfall-regressions/</code> as a permanent regression, and returns the file and whether it passes now, with the failure view if not (<a href="verify.html#pinned-regressions">verify.md</a>)</td>
 </tr>
 <tr>
+<td><code>seedfall_env_reset</code>, <code>seedfall_env_step</code>, <code>seedfall_env_observe</code>, <code>seedfall_env_finish</code>, <code>seedfall_env_verify</code></td>
+<td><code>config</code>, <code>seed</code> to reset; <code>kind</code>, <code>node</code>, <code>args</code> or <code>advance</code> to step; extra <code>seeds</code> to verify</td>
+<td>Operator mode: act on a live simulated cluster and score the actions by replaying them on other seeds (<a href="operator-env.html">operator-env.md</a>)</td>
+</tr>
+<tr>
 <td><code>seedfall_doctor</code></td>
 <td>none</td>
 <td>Checks the Go version, <code>GOOS=wasip1</code> builds, <code>net_overlay</code> against the installed Go, a writable build cache and working directory, and free memory, returning the seedfall build and each check as <code>ok</code>, <code>warn</code>, <code>fail</code> or <code>skip</code> with a fix (<a href="install.html#check-the-install">install.md</a>)</td>
@@ -224,6 +230,10 @@
 <tr>
 <td><code>seedfall_init</code>, <code>seedfall_run</code>, <code>seedfall_explore</code>, <code>seedfall_replay</code>, <code>seedfall_logs</code>, <code>seedfall_debug</code>, <code>seedfall_shrink</code>, <code>seedfall_cause</code>, <code>seedfall_inspect</code>, <code>seedfall_check</code>, <code>seedfall_verify</code>, <code>seedfall_mutate</code>, <code>seedfall_pin</code></td>
 <td><code>seedfall init</code>, <code>run</code>, <code>explore</code>, <code>replay</code>, <code>logs</code>, <code>debug</code>, <code>shrink</code>, <code>cause</code>, <code>inspect</code>, <code>check</code>, <code>verify</code>, <code>mutate</code>, <code>pin</code></td>
+</tr>
+<tr>
+<td><code>seedfall_env_reset</code>, <code>seedfall_env_step</code>, <code>seedfall_env_observe</code>, <code>seedfall_env_finish</code>, <code>seedfall_env_verify</code></td>
+<td><code>seedfall env</code>, with <code>reset</code>, <code>step</code>, <code>observe</code>, <code>finish</code> and <code>verify</code> as JSON lines on stdin</td>
 </tr>
 <tr>
 <td><code>seedfall_trace_search</code></td>

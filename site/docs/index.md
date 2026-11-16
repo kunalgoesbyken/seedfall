@@ -33,6 +33,7 @@ seedfall runs your Go system in a simulated world, breaks it on purpose (crashes
 
 - [Running seedfall in CI](ci.md): the GitHub Action, machine-readable output, time limits and `go test`.
 - [Using seedfall from AI coding agents](agents.md): the MCP server and skills that let an agent run seedfall for you.
+- [Operator mode](operator-env.md): let an agent or a person act on a live simulated cluster and score the actions by replaying them.
 
 ## Reference
 

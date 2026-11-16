@@ -64,6 +64,7 @@
         <ul>
           <li><a href="ci.html">Running seedfall in CI</a></li>
           <li><a href="agents.html">Using seedfall from AI coding agents</a></li>
+          <li><a href="operator-env.html">Operator mode</a></li>
         </ul>
         <h2>Reference</h2>
         <ul>
@@ -182,6 +183,11 @@
 <td>Liveness and workload faults</td>
 <td><code>engine/liveness_test.go</code></td>
 <td>Against the guest: with <code>liveness</code>, a workload that never finishes fails as <code>liveness</code> at <code>duration + within</code> and without it only hits the horizon; the recovery phase restarts a node that would stay down and heals a partition, so the workload finishes; a <code>finally</code> check starts only after the workload, with no fault after it, and its <code>sim.Eventually</code> counts as a property; an <code>Eventually</code> that never holds fails as <code>liveness</code> with its message; <code>include_workload</code> crashes and pauses the client, open operations are reported and stay sound for linearizability, and a replay of the recorded faults is byte-identical; every one of several workloads must finish. Without the guest: <code>supervise</code> never restarts a workload that exits with an error, <code>&quot;faults&quot;: false</code> keeps a node out of every planned fault and every partition, the workload is a fault target only when asked, configs with <code>workloads[]</code>, <code>finally</code> and <code>liveness</code> are validated, and <code>sim.Eventually</code> is cataloged</td>
+</tr>
+<tr>
+<td>Operator mode</td>
+<td><code>engine/ops_test.go</code>, <code>cmd/seedfall/env_test.go</code></td>
+<td>Against the guest under crashes, partitions, torn writes and pauses: a session that applies random actions (crash, restart, pause, resume, partition, heal, slow, clock jump, set_args, upgrade, wait) at random virtual times replays from its logged actions with the same determinism hash, host-call count and trace; a session with no action is the ordinary run; actions change node states and arguments, show in the trace and in the next observation once; every kind is checked against the config (unknown kind or node, a node that takes no faults, bad arguments, an action after the end of the run, actions out of order); the actions survive the schedule file. Through the <code>seedfall env</code> protocol and the MCP tools: errors before a <code>reset</code>, a rejected action keeps the episode open, <code>finish</code> returns the verdict, and <code>verify</code> on the episode's seed gives the hash <code>finish</code> gave</td>
 </tr>
 <tr>
 <td>Assertions and events</td>
