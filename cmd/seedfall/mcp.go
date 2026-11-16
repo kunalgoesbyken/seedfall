@@ -262,6 +262,7 @@ func newMCPServer() (*mcp.Server, error) {
 		Name:        "seedfall_debug",
 		Description: "Time-travel debugger: replay one seed, stop before the first step after a virtual time, and run debugger commands there: where (node states), log, grep, ls, stat and cat on a node's live disk, net (in-flight messages), faults (active and next), step, until <regex>, to <time> and branch (re-randomize the future, as seedfall_cause does). Returns each command's output and the final state.",
 	}, toolDebug)
+	addEnvTools(server)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "seedfall_shrink",
 		Description: "Minimize a failing seed while it keeps failing the same way: remove faults by delta debugging, then shorten crash downtimes, partitions, pauses, clogs and slowdowns, shrink clock jumps, narrow partition sides, move faults earlier, trim the run duration and, for workloads sized with sim.Budget, the operation count. Saves the schedule for replay and returns the sizes before and after, the runs used and whether the optional budget ran out.",

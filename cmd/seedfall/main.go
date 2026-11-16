@@ -29,8 +29,9 @@ func init() {
 		{"init", "[-dir .] [-c seedfall.json] [-node ./cmd/server]... [-workload seedfall/workload] [-n] [-json]", cmdInit},
 		{"run", "[-c seedfall.json] [-seeds 1-1000] [-j N] [-v] [-check] [-net-trace] [-report report.html | -json] [-pinned=false] [-seeds-file file] [-rotate N] [-until-novelty N [-batch 20]] [-timeout 10m] [-cpuprofile file]", cmdRun},
 		{"explore", "[-c seedfall.json] [-seeds 1-32] [-rounds N] [-batch 16] [-until-novelty 8] [-budget 10m] [-explore-seed 1] [-keep-going] [-corpus dir] [-report report.html | -json] [-cpuprofile file]", cmdExplore},
-		{"replay", "[-c seedfall.json] -seed N [-faults file.json] [-net-trace] [-html timeline.html | -html timeline.mmd]", cmdReplay},
+		{"replay", "[-c seedfall.json] -seed N [-faults file.json] [-ops ops.json] [-net-trace] [-html timeline.html | -html timeline.mmd]", cmdReplay},
 		{"logs", "[-c seedfall.json] -seed N [-faults file.json] [-node a,b] [-grep re] [-from 1s] [-to 2s] [-json] [-net-trace]", cmdLogs},
+		{"env", "[-j N]  (JSON lines on stdin: reset, step, observe, state, finish, verify)", cmdEnv},
 		{"debug", "[-c seedfall.json] -seed N [-faults file.json] [-at DURATION] [-net-trace]", cmdDebug},
 		{"trace grep", "[-c seedfall.json] -seed N [-faults file.json] -e re [-context 3] [-node a,b] [-from 1s] [-to 2s] [-limit 200] [-json] [-net-trace]", cmdTraceGrep},
 		{"trace diff", "[-context 3] <trace.txt or artifacts dir> <trace.txt or artifacts dir>", cmdTraceDiff},
@@ -370,6 +371,7 @@ func cmdReplay(args []string) error {
 	ca := configFlags(fs)
 	seed := seedFlag(fs)
 	faultsFile := fs.String("faults", "", "fault schedule from seedfall shrink")
+	opsFile := fs.String("ops", "", "operator action log, a JSON array from seedfall env, replayed against the seed")
 	htmlOut := fs.String("html", "", "write the run's timeline to this file: an HTML space-time diagram with a log explorer, or a Mermaid sequence diagram for a .mmd path")
 	netTrace := fs.Bool("net-trace", false, "also trace every connection, message sent and message read")
 	if err := fs.Parse(args); err != nil {
@@ -383,6 +385,14 @@ func cmdReplay(args []string) error {
 	sched, err := readSchedule(*faultsFile, *seed)
 	if err != nil {
 		return err
+	}
+	if sched.Operator, err = readOps(*opsFile, sched.Operator); err != nil {
+		return err
+	}
+	if len(sched.Operator) > 0 {
+		if err := cfg.CheckSchedule(sched); err != nil {
+			return err
+		}
 	}
 	r.NetTrace = *netTrace
 	res := replayOrRecord(r, *seed, sched, *htmlOut != "")
