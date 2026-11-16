@@ -15,12 +15,15 @@ import (
 )
 
 const (
-	calibrationSalt  = "calibration"
-	calibrationSeeds = 128
-	floorFraction    = 2
+	calibrationSalt     = "calibration"
+	calibrationSeeds    = 128
+	defaultFloorDivisor = 2
 )
 
-var jobs int
+var (
+	jobs         int
+	floorDivisor int
+)
 
 type row struct {
 	Task        string  `json:"task"`
@@ -52,6 +55,7 @@ func run() error {
 	report := flag.String("report", "validation.json", "write the validation table as JSON")
 	src := flag.String("seedfall", "", "seedfall source directory, default SEEDFALL_SRC or the module the grader links")
 	flag.IntVar(&jobs, "j", 0, "parallel runs per grade, default all CPUs")
+	flag.IntVar(&floorDivisor, "floor-divisor", defaultFloorDivisor, "with -calibrate, the progress floor is the lowest oracle ack count divided by this")
 	saltEnv := flag.String("salt-env", "SEEDFALL_GYM_SALT", "environment variable holding the salt, the dev salt is used when it is empty")
 	flag.Parse()
 	source, err := gym.SeedfallSource(*src)
@@ -192,7 +196,7 @@ func calibrateAll(tasks []gym.Task, source, path string) error {
 		for _, s := range rep.PerSeed {
 			lowest = min(lowest, s.Acks)
 		}
-		floors[t.ID] = gym.Baseline{MinAcks: max(1, lowest/floorFraction), Seeds: calibrationSeeds}
+		floors[t.ID] = gym.Baseline{MinAcks: max(1, lowest/floorDivisor), Seeds: calibrationSeeds}
 		fmt.Printf("%s lowest oracle acks %d, floor %d\n", t.ID, lowest, floors[t.ID].MinAcks)
 	}
 	return gym.WriteJSON(path, floors)
