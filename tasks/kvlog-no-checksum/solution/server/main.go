@@ -17,7 +17,7 @@ import (
 	"github.com/kunalgoesbyken/seedfall/sim"
 )
 
-const readAttempts = 40
+const readAttempts = 64
 
 type store struct {
 	mu     sync.Mutex
@@ -57,30 +57,16 @@ func main() {
 }
 
 func open(path string) (*store, error) {
-	var data []byte
-	var values map[string]string
-	var complete int
-	for attempt := 1; ; attempt++ {
-		var err error
-		data, err = os.ReadFile(path)
-		if err != nil && !os.IsNotExist(err) {
-			return nil, err
-		}
-		var bad, tail bool
-		values, complete, bad, tail = parse(data)
-		if !bad || attempt == readAttempts && tail {
-			break
-		}
-		if attempt == readAttempts {
-			return nil, fmt.Errorf("%s: the record at offset %d fails its checksum in %d reads", path, complete, attempt)
-		}
+	values, complete, size, err := load(path)
+	if err != nil {
+		return nil, err
 	}
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0o644)
 	if err != nil {
 		return nil, err
 	}
-	sim.Sometimes(complete < len(data), "recovery found a torn tail")
-	if complete < len(data) {
+	sim.Sometimes(complete < size, "recovery found a torn tail")
+	if complete < size {
 		if err := f.Truncate(int64(complete)); err != nil {
 			return nil, err
 		}
@@ -91,17 +77,37 @@ func open(path string) (*store, error) {
 	return &store{file: f, values: values}, nil
 }
 
-func parse(data []byte) (map[string]string, int, bool, bool) {
+func load(path string) (map[string]string, int, int, error) {
+	tails := map[string]bool{}
+	for range readAttempts {
+		data, err := os.ReadFile(path)
+		if err != nil && !os.IsNotExist(err) {
+			return nil, 0, 0, err
+		}
+		values, complete, ok := parse(data)
+		if !ok {
+			continue
+		}
+		tail := string(data[complete:])
+		if tails[tail] {
+			return values, complete, len(data), nil
+		}
+		tails[tail] = true
+	}
+	return nil, 0, 0, fmt.Errorf("%s: no two reads agree on a log that passes its checksums in %d attempts", path, readAttempts)
+}
+
+func parse(data []byte) (map[string]string, int, bool) {
 	values := map[string]string{}
 	complete := 0
 	for {
 		i := bytes.IndexByte(data[complete:], '\n')
 		if i < 0 {
-			return values, complete, false, false
+			return values, complete, true
 		}
 		record, ok := verify(string(data[complete : complete+i]))
 		if !ok {
-			return values, complete, true, complete+i+1 == len(data)
+			return nil, 0, false
 		}
 		if k, v, ok := strings.Cut(record, "="); ok {
 			values[k] = v
@@ -112,12 +118,16 @@ func parse(data []byte) (map[string]string, int, bool, bool) {
 
 func verify(line string) (string, bool) {
 	record, sum, ok := strings.Cut(line, "#")
-	return record, ok && sum == fmt.Sprintf("%08x", crc32.ChecksumIEEE([]byte(record)))
+	return record, ok && sum == checksum(record)
+}
+
+func checksum(record string) string {
+	return fmt.Sprintf("%08x", crc32.ChecksumIEEE([]byte(record)))
 }
 
 func encode(k, v string) string {
 	record := k + "=" + v
-	return record + fmt.Sprintf("#%08x", crc32.ChecksumIEEE([]byte(record))) + "\n"
+	return record + "#" + checksum(record) + "\n"
 }
 
 func (s *store) put(k, v string) error {
