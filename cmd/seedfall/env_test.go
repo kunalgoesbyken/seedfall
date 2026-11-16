@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -10,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/kunalgoesbyken/seedfall/engine"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func envGuestConfig(t *testing.T) string {
@@ -138,5 +140,38 @@ func TestEnvEpisodeVerifiesToTheSameHash(t *testing.T) {
 	}
 	if again.Verify.Passed != passed || again.Verify.Reward != float64(passed)/3 {
 		t.Fatalf("reward %v with %d passed, counted %d of 3", again.Verify.Reward, again.Verify.Passed, passed)
+	}
+}
+
+func TestMCPEnvToolsRunAnEpisode(t *testing.T) {
+	config := envGuestConfig(t)
+	cs := connect(t)
+	ctx := context.Background()
+	call := func(name string, args map[string]any) map[string]any {
+		t.Helper()
+		res, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: name, Arguments: args})
+		if err != nil || res.IsError {
+			t.Fatalf("%s: %v %+v", name, err, res)
+		}
+		out, ok := res.StructuredContent.(map[string]any)
+		if !ok || out["ok"] != true {
+			t.Fatalf("%s returned %+v", name, res.StructuredContent)
+		}
+		return out
+	}
+	call("seedfall_env_reset", map[string]any{"config": config, "seed": 3})
+	call("seedfall_env_step", map[string]any{"kind": "crash", "node": "store"})
+	call("seedfall_env_step", map[string]any{"advance": "400ms"})
+	call("seedfall_env_step", map[string]any{"kind": "restart", "node": "store"})
+	call("seedfall_env_observe", map[string]any{})
+	verdict := call("seedfall_env_finish", map[string]any{})["verdict"].(map[string]any)
+	verify := call("seedfall_env_verify", map[string]any{"seeds": []uint64{4}})["verify"].(map[string]any)
+	first := verify["seeds"].([]any)[0].(map[string]any)
+	if first["determinism_hash"] != verdict["determinism_hash"] {
+		t.Fatalf("verify gave hash %v, finish gave %v", first["determinism_hash"], verdict["determinism_hash"])
+	}
+	res, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "seedfall_env_step", Arguments: map[string]any{"advance": "1s"}})
+	if err != nil || !res.IsError {
+		t.Fatalf("a step after finish gave %+v, %v", res, err)
 	}
 }

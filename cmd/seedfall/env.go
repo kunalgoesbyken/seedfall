@@ -190,12 +190,12 @@ func (h *envHost) load(ref engine.ConfigRef) (envTarget, error) {
 }
 
 func (h *envHost) reset(req envRequest) (envResponse, error) {
-	h.close()
 	ref := configArgs{Config: req.Config, Profile: req.Profile, Set: req.Set}.ref()
 	t, err := h.load(ref)
 	if err != nil {
 		return envResponse{}, err
 	}
+	h.close()
 	s, err := t.run.Operate(req.Seed, engine.Schedule{})
 	if err != nil {
 		return envResponse{}, err
