@@ -1,5 +1,6 @@
 {
   "redirects": [
+    { "source": "/proof/", "destination": "/docs/findings/", "permanent": true },
     { "source": "/proof/:path*", "destination": "/docs/findings/:path*", "permanent": true },
     { "source": "/compare.html", "destination": "/docs/faq.html", "permanent": true }
   ],
