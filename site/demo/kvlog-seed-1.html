@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>seedfall timeline · seedfall.always seed 1</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --fg: #101828;
+  --body: #364153;
+  --muted: #4a5565;
+  --faint: #6a7282;
+  --rule: #e5e7eb;
+  --rule-soft: #f3f4f6;
+  --wash: #f9fafb;
+  --bar: #1c2127;
+  --bad: #c0262d;
+  --ok: #1a7f37;
+  --warn: #9a6700;
+  --fault: #bc4c00;
+  --net: #0969da;
+  --violet: #8250df;
+  --teal: #0f766e;
+  --sans: "Inter", ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d0f12;
+    --fg: #f3f4f6;
+    --body: #d1d5dc;
+    --muted: #a1a9b6;
+    --faint: #8a929e;
+    --rule: #2a2f36;
+    --rule-soft: #1d2127;
+    --wash: #15181c;
+    --bar: #e5e7eb;
+    --bad: #ff7b72;
+    --ok: #3fb950;
+    --warn: #d29922;
+    --fault: #f0883e;
+    --net: #58a6ff;
+    --violet: #bc8cff;
+    --teal: #2dd4bf;
+  }
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--body); font-family: var(--sans); line-height: 1.65; -webkit-font-smoothing: antialiased; }
+a { color: inherit; }
+strong, th, h1, h2, h3, h4 { color: var(--fg); }
+strong { font-weight: 600; }
+h1, h2, h3, h4 { font-weight: 650; }
+h1 { line-height: 1.2; letter-spacing: -0.02em; }
+h2 { line-height: 1.4; letter-spacing: -0.01em; }
+code, pre, .mono, input, textarea { font-family: var(--mono); }
+.dim { color: var(--muted); }
+:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+input[type=text], textarea { background: var(--bg); color: var(--fg); border: 1px solid var(--rule); }
+
+body { padding: 24px; font-size: 14px; line-height: 1.5; }
+h1 { margin: 0; font-size: 1.5rem; overflow-wrap: anywhere; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; margin: 16px 0; padding: 12px 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+.controls label { color: var(--muted); white-space: nowrap; }
+.controls input[type=checkbox] { accent-color: var(--fg); }
+.controls input[type=text] { padding: 4px 8px; }
+#grep { width: min(280px, 100%); }
+.window input { width: 90px; }
+.error { color: var(--bad); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-bottom: 12px; color: var(--muted); font-size: 12px; }
+.legend i { display: inline-block; width: 14px; height: 10px; margin-right: 5px; border-radius: 2px; vertical-align: middle; background: var(--key); }
+.legend .faded { opacity: 0.6; }
+.legend .faint { opacity: 0.25; }
+.legend .dot { border-radius: 50%; }
+.legend .dashed { background: repeating-linear-gradient(90deg, var(--key) 0 3px, transparent 3px 6px); }
+.panes { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; }
+.pane { height: 78vh; overflow: auto; border: 1px solid var(--rule); background: var(--wash); }
+svg text { fill: var(--muted); font: 11px var(--mono); }
+svg .head { fill: var(--fg); font-size: 12px; }
+table { width: 100%; border-collapse: collapse; font: 12px/1.45 var(--mono); }
+td { padding: 2px 8px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+td.t { color: var(--muted); white-space: nowrap; }
+td.n { color: var(--fg); white-space: nowrap; }
+tr { cursor: pointer; }
+tr:hover td { background: var(--rule-soft); }
+tr.fail td { color: var(--bad); }
+@media (max-width: 900px) { .panes { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<h1>seedfall.always seed 1</h1>
+<p class="dim mono" id="summary"></p>
+<div class="controls">
+  <span id="nodes"></span>
+  <span id="kinds"></span>
+  <span class="window"><label>from <input type="text" id="from" placeholder="0s"></label> <label>to <input type="text" id="to" placeholder="end"></label></span>
+  <label>grep <input type="text" id="grep" placeholder="regular expression over trace lines"></label>
+  <span id="error" class="error"></span>
+</div>
+<div class="legend">
+  <span><i style="--key: var(--ok)"></i>node alive</span>
+  <span><i style="--key: var(--net)"></i>message, read</span>
+  <span><i class="dashed" style="--key: var(--net)"></i>message never read</span>
+  <span><i style="--key: var(--violet)"></i>connect</span>
+  <span><i style="--key: var(--teal)"></i>UDP datagram</span>
+  <span><i style="--key: var(--warn)"></i>EOF</span>
+  <span><i style="--key: var(--bad)"></i>reset · failed op · failure</span>
+  <span><i class="faded" style="--key: var(--ok)"></i>op ok</span>
+  <span><i class="faded" style="--key: var(--warn)"></i>op unknown</span>
+  <span><i class="faint" style="--key: var(--fault)"></i>fault interval</span>
+  <span><i class="dot" style="--key: var(--fault)"></i>event or property</span>
+</div>
+<div class="panes">
+  <div class="pane" id="diagram"></div>
+  <div class="pane"><table id="logs"></table></div>
+</div>
+<script>
+const T = {"seed":1,"nodes":["server","client"],"end":990160235,"lives":[{"node":"server","instance":"server#1","start":0,"end":427268417,"ended":"killed"},{"node":"client","instance":"client#1","start":0,"end":990160235,"ended":"seedfall: run failed (recovered by wazero)\nwasm stack trace:\n\tseedfall.fail(i32,i32)\n\t.github.com_kunalgoesbyken_seedfall_sim.hostFail(i32) i32\n\t.github.com_kunalgoesbyken_seedfall_sim.Fail(i32) i32\n\t.main.main(i32) i32\n\t.wasm_pc_f_loop()\n\t._rt0_wasm_wasip1()"},{"node":"server","instance":"server#2","start":761268417,"end":802000000,"ended":"killed"},{"node":"server","instance":"server#3","start":802000000,"end":-1}],"messages":[{"conn":2,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":15,"arrives":2521081,"read":2521082},{"conn":2,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","bytes":10,"sent":19,"arrives":3454477,"read":3454478},{"conn":2,"kind":"data","from":"server","to":"client","from_instance":"server#1","to_instance":"client#1","bytes":3,"sent":3454478,"arrives":6520229,"read":6520230},{"conn":2,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":6520230,"arrives":8605345,"read":8605346},{"conn":4,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":16520233,"arrives":20971954,"read":20971955},{"conn":4,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","bytes":10,"sent":16520237,"arrives":20047269,"read":20971955},{"conn":4,"kind":"data","from":"server","to":"client","from_instance":"server#1","to_instance":"client#1","bytes":3,"sent":20971955,"arrives":23597647,"read":23597648},{"conn":4,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":23597648,"arrives":25814322,"read":25814325},{"conn":6,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":33597651,"arrives":37584947,"read":37584948},{"conn":6,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","bytes":10,"sent":33597655,"arrives":34711398,"read":37584948},{"conn":6,"kind":"data","from":"server","to":"client","from_instance":"server#1","to_instance":"client#1","bytes":3,"sent":37584948,"arrives":41816729,"read":41816730},{"conn":6,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":41816730,"arrives":43000583,"read":43000584},{"conn":8,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":51816733,"arrives":54559823,"read":54559826},{"conn":8,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","bytes":10,"sent":51816737,"arrives":56510074,"read":56510077},{"conn":8,"kind":"data","from":"server","to":"client","from_instance":"server#1","to_instance":"client#1","bytes":3,"sent":56510077,"arrives":57758365,"read":57758366},{"conn":8,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":57758366,"arrives":60714372,"read":60714373},{"conn":10,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":67758371,"arrives":69798921,"read":69798922},{"conn":10,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","bytes":10,"sent":67758375,"arrives":69854190,"read":69854191},{"conn":10,"kind":"data","from":"server","to":"client","from_instance":"server#1","to_instance":"client#1","bytes":3,"sent":69854191,"arrives":71373189,"read":71373190},{"conn":10,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":71373190,"arrives":75627331,"read":75627332},{"conn":12,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":81373193,"arrives":83793581,"read":83793582},{"conn":12,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","bytes":10,"sent":81373197,"arrives":83045738,"read":83793582},{"conn":12,"kind":"data","from":"server","to":"client","from_instance":"server#1","to_instance":"client#1","bytes":3,"sent":83793582,"arrives":86460338,"read":86460339},{"conn":12,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":86460339,"arrives":89919192,"read":89919195},{"conn":14,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":96460342,"arrives":99007857,"read":99007858},{"conn":14,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","bytes":10,"sent":96460346,"arrives":100446813,"read":100446814},{"conn":14,"kind":"data","from":"server","to":"client","from_instance":"server#1","to_instance":"client#1","bytes":3,"sent":100446814,"arrives":104574589,"read":104574590},{"conn":14,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":104574590,"arrives":109106812,"read":109106813},{"conn":16,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":114574593,"arrives":118154047,"read":118154048},{"conn":16,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","bytes":10,"sent":114574597,"arrives":118247030,"read":118247031},{"conn":16,"kind":"data","from":"server","to":"client","from_instance":"server#1","to_instance":"client#1","bytes":3,"sent":118247031,"arrives":122023589,"read":122023590},{"conn":16,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":122023590,"arrives":125571665,"read":125571666},{"conn":18,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":132023595,"arrives":133733877,"read":133733878},{"conn":18,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","bytes":10,"sent":132023599,"arrives":133067112,"read":133733880},{"conn":18,"kind":"data","from":"server","to":"client","from_instance":"server#1","to_instance":"client#1","bytes":3,"sent":133733880,"arrives":135016085,"read":135016086},{"conn":18,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":135016086,"arrives":136566152,"read":136566153},{"conn":20,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":145016089,"arrives":149896589,"read":149896590},{"conn":20,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","bytes":10,"sent":145016093,"arrives":148669371,"read":149896590},{"conn":20,"kind":"data","from":"server","to":"client","from_instance":"server#1","to_instance":"client#1","bytes":3,"sent":149896590,"arrives":152702109,"read":152702110},{"conn":20,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":152702110,"arrives":156874677,"read":156874678},{"conn":22,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":162702113,"arrives":167676869,"read":167676870},{"conn":22,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","bytes":12,"sent":162702117,"arrives":167486538,"read":167676870},{"conn":22,"kind":"data","from":"server","to":"client","from_instance":"server#1","to_instance":"client#1","bytes":3,"sent":167676870,"arrives":172635936,"read":172635937},{"conn":22,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":172635937,"arrives":174913399,"read":174913400},{"conn":24,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":182635940,"arrives":186483311,"read":186483314},{"conn":24,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","bytes":12,"sent":182635944,"arrives":186975081,"read":186975082},{"conn":24,"kind":"data","from":"server","to":"client","from_instance":"server#1","to_instance":"client#1","bytes":3,"sent":186975082,"arrives":189644711,"read":189644712},{"conn":24,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":189644712,"arrives":191647308,"read":191647309},{"conn":26,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":199644717,"arrives":204344731,"read":204344732},{"conn":26,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","bytes":12,"sent":199644721,"arrives":201028483,"read":204344732},{"conn":26,"kind":"data","from":"server","to":"client","from_instance":"server#1","to_instance":"client#1","bytes":3,"sent":204344732,"arrives":206081446,"read":206081447},{"conn":26,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":206081447,"arrives":209738746,"read":209738747},{"conn":28,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":216081450,"arrives":219963355,"read":219963356},{"conn":28,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","bytes":12,"sent":216081454,"arrives":220508425,"read":220508426},{"conn":28,"kind":"data","from":"server","to":"client","from_instance":"server#1","to_instance":"client#1","bytes":3,"sent":220508426,"arrives":224858651,"read":224858652},{"conn":28,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":224858652,"arrives":226170990,"read":226170991},{"conn":30,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":234858655,"arrives":237605982,"read":237605983},{"conn":30,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","bytes":12,"sent":234858659,"arrives":236117437,"read":237605983},{"conn":30,"kind":"data","from":"server","to":"client","from_instance":"server#1","to_instance":"client#1","bytes":3,"sent":237605983,"arrives":239308510,"read":239308511},{"conn":30,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":239308511,"arrives":243359923,"read":243359924},{"conn":32,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":249308514,"arrives":251200676,"read":251200677},{"conn":32,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","bytes":12,"sent":249308518,"arrives":253384425,"read":253384426},{"conn":32,"kind":"data","from":"server","to":"client","from_instance":"server#1","to_instance":"client#1","bytes":3,"sent":253384426,"arrives":258356129,"read":258356130},{"conn":32,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":258356130,"arrives":260536752,"read":260536753},{"conn":34,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":268356135,"arrives":269664324,"read":269664325},{"conn":34,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","bytes":12,"sent":268356139,"arrives":271223536,"read":271223537},{"conn":34,"kind":"data","from":"server","to":"client","from_instance":"server#1","to_instance":"client#1","bytes":3,"sent":271223537,"arrives":273214079,"read":273214080},{"conn":34,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":273214080,"arrives":276771724,"read":276771725},{"conn":36,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":283214083,"arrives":284954751,"read":284954752},{"conn":36,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","bytes":12,"sent":283214087,"arrives":287269047,"read":287269048},{"conn":36,"kind":"data","from":"server","to":"client","from_instance":"server#1","to_instance":"client#1","bytes":3,"sent":287269048,"arrives":291356143,"read":291356144},{"conn":36,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":291356144,"arrives":295054005,"read":295054006},{"conn":38,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":301356147,"arrives":302552822,"read":302552823},{"conn":38,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","bytes":12,"sent":301356151,"arrives":303989306,"read":303989307},{"conn":38,"kind":"data","from":"server","to":"client","from_instance":"server#1","to_instance":"client#1","bytes":3,"sent":303989307,"arrives":307794740,"read":307794741},{"conn":38,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":307794741,"arrives":311160007,"read":311160008},{"conn":40,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":317794744,"arrives":321066546,"read":321066549},{"conn":40,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","bytes":12,"sent":317794748,"arrives":320446918,"read":321066551},{"conn":40,"kind":"data","from":"server","to":"client","from_instance":"server#1","to_instance":"client#1","bytes":3,"sent":321066551,"arrives":322112747,"read":322112748},{"conn":40,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":322112748,"arrives":323488556,"read":323488557},{"conn":42,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":332112753,"arrives":335089342,"read":335089343},{"conn":42,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","bytes":12,"sent":332112757,"arrives":333909258,"read":335089343},{"conn":42,"kind":"data","from":"server","to":"client","from_instance":"server#1","to_instance":"client#1","bytes":3,"sent":335089343,"arrives":337204517,"read":337204518},{"conn":42,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":337204518,"arrives":339450794,"read":339450795},{"conn":44,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":347204521,"arrives":351925292,"read":351925293},{"conn":44,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","bytes":12,"sent":347204525,"arrives":349222509,"read":351925295},{"conn":44,"kind":"data","from":"server","to":"client","from_instance":"server#1","to_instance":"client#1","bytes":3,"sent":351925295,"arrives":353472780,"read":353472781},{"conn":44,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":353472781,"arrives":355745021,"read":355745022},{"conn":46,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":363472784,"arrives":365541008,"read":365541009},{"conn":46,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","bytes":12,"sent":363472788,"arrives":366187728,"read":366187729},{"conn":46,"kind":"data","from":"server","to":"client","from_instance":"server#1","to_instance":"client#1","bytes":3,"sent":366187729,"arrives":368623356,"read":368623357},{"conn":46,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":368623357,"arrives":372452959,"read":372452960},{"conn":48,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":378623360,"arrives":380192928,"read":380192929},{"conn":48,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","bytes":12,"sent":378623364,"arrives":379724388,"read":380192929},{"conn":48,"kind":"data","from":"server","to":"client","from_instance":"server#1","to_instance":"client#1","bytes":3,"sent":380192929,"arrives":384592826,"read":384592827},{"conn":48,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":384592827,"arrives":387566386,"read":387566387},{"conn":50,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":394592832,"arrives":398735091,"read":398735092},{"conn":50,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","bytes":12,"sent":394592836,"arrives":398411977,"read":398735092},{"conn":50,"kind":"data","from":"server","to":"client","from_instance":"server#1","to_instance":"client#1","bytes":3,"sent":398735092,"arrives":402005022,"read":402005023},{"conn":50,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":402005023,"arrives":403288832,"read":403288835},{"conn":52,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":412005026,"arrives":413378347,"read":413378348},{"conn":52,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","bytes":12,"sent":412005030,"arrives":413362768,"read":413378348},{"conn":52,"kind":"data","from":"server","to":"client","from_instance":"server#1","to_instance":"client#1","bytes":3,"sent":413378348,"arrives":414454885,"read":414454886},{"conn":52,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":414454886,"arrives":417385776,"read":417385777},{"conn":54,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","sent":424454889,"arrives":427268414,"read":427268415},{"conn":54,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#1","bytes":12,"sent":424454893,"arrives":426860119,"read":427268417},{"conn":54,"kind":"eof","from":"server","to":"client","from_instance":"server#1","to_instance":"client#1","sent":427268417,"arrives":430364016,"read":430364017},{"conn":57,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#2","sent":770364127,"arrives":772157360,"read":772157361},{"conn":57,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#2","bytes":12,"sent":770364131,"arrives":772470450,"read":772470451},{"conn":57,"kind":"data","from":"server","to":"client","from_instance":"server#2","to_instance":"client#1","bytes":3,"sent":772470451,"arrives":777189422,"read":777189425},{"conn":57,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#2","sent":777189425,"arrives":778731193,"read":778731196},{"conn":59,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#2","sent":787189428,"arrives":790868829,"read":790868830},{"conn":59,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#2","bytes":12,"sent":787189432,"arrives":788340318,"read":790868830},{"conn":59,"kind":"data","from":"server","to":"client","from_instance":"server#2","to_instance":"client#1","bytes":3,"sent":790868830,"arrives":791946948,"read":791946949},{"conn":59,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#2","sent":791946949,"arrives":795956992,"read":795956993},{"conn":61,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#2","sent":801946952,"arrives":806176861,"read":-1},{"conn":61,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#2","bytes":12,"sent":801946956,"arrives":805422548,"read":-1},{"conn":61,"kind":"reset","from":"server","to":"client","from_instance":"server#2","to_instance":"client#1","sent":802000000,"arrives":803361080,"read":803361081},{"conn":63,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":813361084,"arrives":816967635,"read":816967636},{"conn":63,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","bytes":7,"sent":813361088,"arrives":818248838,"read":818248839},{"conn":63,"kind":"data","from":"server","to":"client","from_instance":"server#3","to_instance":"client#1","bytes":7,"sent":818248839,"arrives":820618493,"read":820618494},{"conn":63,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":820618494,"arrives":821883605,"read":821883608},{"conn":65,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":820618494,"arrives":822805481,"read":822805482},{"conn":65,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","bytes":7,"sent":820618498,"arrives":821861436,"read":822805482},{"conn":65,"kind":"data","from":"server","to":"client","from_instance":"server#3","to_instance":"client#1","bytes":7,"sent":822805482,"arrives":826914831,"read":826914832},{"conn":65,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":826914832,"arrives":828349890,"read":828349891},{"conn":67,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":826914832,"arrives":830601360,"read":830601361},{"conn":67,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","bytes":7,"sent":826914836,"arrives":830524287,"read":830601363},{"conn":67,"kind":"data","from":"server","to":"client","from_instance":"server#3","to_instance":"client#1","bytes":7,"sent":830601363,"arrives":833291138,"read":833291141},{"conn":67,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":833291141,"arrives":837430297,"read":837430298},{"conn":69,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":833291141,"arrives":837420759,"read":837420760},{"conn":69,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","bytes":7,"sent":833291145,"arrives":836957157,"read":837420760},{"conn":69,"kind":"data","from":"server","to":"client","from_instance":"server#3","to_instance":"client#1","bytes":7,"sent":837420760,"arrives":840630668,"read":840630669},{"conn":69,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":840630669,"arrives":843948906,"read":843948907},{"conn":71,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":840630669,"arrives":843067679,"read":843067680},{"conn":71,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","bytes":7,"sent":840630673,"arrives":844012567,"read":844012568},{"conn":71,"kind":"data","from":"server","to":"client","from_instance":"server#3","to_instance":"client#1","bytes":7,"sent":844012568,"arrives":848252325,"read":848252326},{"conn":71,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":848252326,"arrives":852702337,"read":852702338},{"conn":73,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":848252326,"arrives":851557663,"read":851557664},{"conn":73,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","bytes":7,"sent":848252330,"arrives":850874289,"read":851557664},{"conn":73,"kind":"data","from":"server","to":"client","from_instance":"server#3","to_instance":"client#1","bytes":7,"sent":851557664,"arrives":854537379,"read":854537380},{"conn":73,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":854537380,"arrives":857349872,"read":857349873},{"conn":75,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":854537380,"arrives":857828514,"read":857828517},{"conn":75,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","bytes":7,"sent":854537384,"arrives":858089539,"read":858089540},{"conn":75,"kind":"data","from":"server","to":"client","from_instance":"server#3","to_instance":"client#1","bytes":7,"sent":858089540,"arrives":861381262,"read":861381263},{"conn":75,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":861381263,"arrives":865400694,"read":865400695},{"conn":77,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":861381263,"arrives":863016754,"read":863016755},{"conn":77,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","bytes":7,"sent":861381267,"arrives":863723723,"read":863723724},{"conn":77,"kind":"data","from":"server","to":"client","from_instance":"server#3","to_instance":"client#1","bytes":7,"sent":863723724,"arrives":867521565,"read":867521566},{"conn":77,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":867521566,"arrives":870448461,"read":870448462},{"conn":79,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":867521566,"arrives":872162770,"read":872162771},{"conn":79,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","bytes":7,"sent":867521570,"arrives":871280216,"read":872162771},{"conn":79,"kind":"data","from":"server","to":"client","from_instance":"server#3","to_instance":"client#1","bytes":7,"sent":872162771,"arrives":875523408,"read":875523409},{"conn":79,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":875523409,"arrives":879825167,"read":879825168},{"conn":81,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":875523409,"arrives":879472051,"read":879472052},{"conn":81,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","bytes":7,"sent":875523413,"arrives":879714433,"read":879714434},{"conn":81,"kind":"data","from":"server","to":"client","from_instance":"server#3","to_instance":"client#1","bytes":7,"sent":879714434,"arrives":881146487,"read":881146488},{"conn":81,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":881146488,"arrives":884423920,"read":884423921},{"conn":83,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":881146488,"arrives":883752424,"read":883752425},{"conn":83,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","bytes":8,"sent":881146492,"arrives":885340760,"read":885340763},{"conn":83,"kind":"data","from":"server","to":"client","from_instance":"server#3","to_instance":"client#1","bytes":8,"sent":885340763,"arrives":889153871,"read":889153874},{"conn":83,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":889153874,"arrives":893735879,"read":893735880},{"conn":85,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":889153874,"arrives":892691516,"read":892691517},{"conn":85,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","bytes":8,"sent":889153878,"arrives":894131289,"read":894131290},{"conn":85,"kind":"data","from":"server","to":"client","from_instance":"server#3","to_instance":"client#1","bytes":8,"sent":894131290,"arrives":895746540,"read":895746541},{"conn":85,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":895746541,"arrives":899079827,"read":899079828},{"conn":87,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":895746541,"arrives":900013032,"read":900013033},{"conn":87,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","bytes":8,"sent":895746545,"arrives":897242697,"read":900013035},{"conn":87,"kind":"data","from":"server","to":"client","from_instance":"server#3","to_instance":"client#1","bytes":8,"sent":900013035,"arrives":901110000,"read":901110001},{"conn":87,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":901110001,"arrives":905055196,"read":905055197},{"conn":89,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":901110001,"arrives":905910699,"read":905910700},{"conn":89,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","bytes":8,"sent":901110005,"arrives":904531524,"read":905910702},{"conn":89,"kind":"data","from":"server","to":"client","from_instance":"server#3","to_instance":"client#1","bytes":8,"sent":905910702,"arrives":910678566,"read":910678567},{"conn":89,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":910678567,"arrives":915276482,"read":915276483},{"conn":91,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":910678567,"arrives":913517988,"read":913517991},{"conn":91,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","bytes":8,"sent":910678571,"arrives":912699772,"read":913517991},{"conn":91,"kind":"data","from":"server","to":"client","from_instance":"server#3","to_instance":"client#1","bytes":8,"sent":913517991,"arrives":917620736,"read":917620737},{"conn":91,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":917620737,"arrives":921743346,"read":921743347},{"conn":93,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":917620737,"arrives":921918675,"read":921918676},{"conn":93,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","bytes":8,"sent":917620741,"arrives":921719761,"read":921918680},{"conn":93,"kind":"data","from":"server","to":"client","from_instance":"server#3","to_instance":"client#1","bytes":8,"sent":921918680,"arrives":923803632,"read":923803633},{"conn":93,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":923803633,"arrives":928032119,"read":928032120},{"conn":95,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":923803633,"arrives":928376404,"read":928376405},{"conn":95,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","bytes":8,"sent":923803637,"arrives":927833008,"read":928376407},{"conn":95,"kind":"data","from":"server","to":"client","from_instance":"server#3","to_instance":"client#1","bytes":8,"sent":928376407,"arrives":930682073,"read":930682074},{"conn":95,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":930682074,"arrives":932498296,"read":932498297},{"conn":97,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":930682074,"arrives":934526974,"read":934526975},{"conn":97,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","bytes":8,"sent":930682078,"arrives":934774951,"read":934774952},{"conn":97,"kind":"data","from":"server","to":"client","from_instance":"server#3","to_instance":"client#1","bytes":8,"sent":934774952,"arrives":936800133,"read":936800134},{"conn":97,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":936800134,"arrives":941374080,"read":941374081},{"conn":99,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":936800134,"arrives":938034488,"read":938034489},{"conn":99,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","bytes":8,"sent":936800138,"arrives":939489934,"read":939489937},{"conn":99,"kind":"data","from":"server","to":"client","from_instance":"server#3","to_instance":"client#1","bytes":8,"sent":939489937,"arrives":941539625,"read":941539628},{"conn":99,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":941539628,"arrives":943340228,"read":943340229},{"conn":101,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":941539628,"arrives":945213690,"read":945213691},{"conn":101,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","bytes":8,"sent":941539632,"arrives":945780808,"read":945780809},{"conn":101,"kind":"data","from":"server","to":"client","from_instance":"server#3","to_instance":"client#1","bytes":8,"sent":945780809,"arrives":947374679,"read":947374680},{"conn":101,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":947374680,"arrives":950727856,"read":950727857},{"conn":103,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":947374680,"arrives":949456667,"read":949456668},{"conn":103,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","bytes":8,"sent":947374684,"arrives":951470274,"read":951470275},{"conn":103,"kind":"data","from":"server","to":"client","from_instance":"server#3","to_instance":"client#1","bytes":8,"sent":951470275,"arrives":956025129,"read":956025130},{"conn":103,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":956025130,"arrives":960695807,"read":960695808},{"conn":105,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":956025130,"arrives":959474891,"read":959474892},{"conn":105,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","bytes":8,"sent":956025134,"arrives":957530907,"read":959474894},{"conn":105,"kind":"data","from":"server","to":"client","from_instance":"server#3","to_instance":"client#1","bytes":8,"sent":959474894,"arrives":960757439,"read":960757440},{"conn":105,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":960757440,"arrives":964174517,"read":964174518},{"conn":107,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":960757440,"arrives":961968688,"read":961968691},{"conn":107,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","bytes":8,"sent":960757444,"arrives":962037081,"read":962037082},{"conn":107,"kind":"data","from":"server","to":"client","from_instance":"server#3","to_instance":"client#1","bytes":8,"sent":962037082,"arrives":965424522,"read":965424523},{"conn":107,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":965424523,"arrives":968539932,"read":968539933},{"conn":109,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":965424523,"arrives":970165685,"read":970165686},{"conn":109,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","bytes":8,"sent":965424527,"arrives":968718614,"read":970165686},{"conn":109,"kind":"data","from":"server","to":"client","from_instance":"server#3","to_instance":"client#1","bytes":8,"sent":970165686,"arrives":972161081,"read":972161082},{"conn":109,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":972161082,"arrives":974865825,"read":974865828},{"conn":111,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":972161082,"arrives":975683484,"read":975683485},{"conn":111,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","bytes":8,"sent":972161086,"arrives":974913458,"read":975683485},{"conn":111,"kind":"data","from":"server","to":"client","from_instance":"server#3","to_instance":"client#1","bytes":8,"sent":975683485,"arrives":977045329,"read":977045330},{"conn":111,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":977045330,"arrives":980636847,"read":980636848},{"conn":113,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":977045330,"arrives":981171391,"read":981171392},{"conn":113,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","bytes":8,"sent":977045334,"arrives":980335757,"read":981171392},{"conn":113,"kind":"data","from":"server","to":"client","from_instance":"server#3","to_instance":"client#1","bytes":8,"sent":981171392,"arrives":982550663,"read":982550664},{"conn":113,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":982550664,"arrives":986234208,"read":986234211},{"conn":115,"kind":"connect","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":982550664,"arrives":987292948,"read":987292949},{"conn":115,"kind":"data","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","bytes":8,"sent":982550668,"arrives":984362231,"read":987292949},{"conn":115,"kind":"data","from":"server","to":"client","from_instance":"server#3","to_instance":"client#1","bytes":5,"sent":987292949,"arrives":990160232,"read":990160235},{"conn":115,"kind":"eof","from":"client","to":"server","from_instance":"client#1","to_instance":"server#3","sent":990160235,"arrives":992760072,"read":-1}],"ops":[],"marks":[{"at":761268423,"node":"server","instance":"server#2","kind":"property","text":"sometimes first true: recovery found a torn tail"},{"at":813361084,"node":"client","instance":"client#1","kind":"property","text":"sometimes first true: a crash interrupted the workload"},{"at":990160235,"node":"client","kind":"failure","text":"client#1: acknowledged write lost: k60=v60, server now answers \"NONE\""}],"faults":[{"kind":"crash_io","nodes":["server"],"start":427268417,"end":761268417,"text":"427.268ms  crash server during disk op #56, restart at 761.268ms"},{"kind":"crash","nodes":["server"],"start":802000000,"end":802000000,"text":"   802ms  crash server, restart at 802ms"}],"logs":[{"at":0,"node":"server","instance":"server#1","text":"    0.000s  start server#1"},{"at":0,"node":"client","instance":"client#1","text":"    0.000s  start client#1"},{"at":6,"node":"server","instance":"server#1","output":"serving 0 keys on :7000","text":"    0.000s  server#1| serving 0 keys on :7000"},{"at":15,"text":"    0.000s  client#1: sim.Budget capped at 63 of 200 operations"},{"at":427268417,"node":"server","instance":"server#1","text":"    0.427s  fault crash server#1 during disk op 56, restart at 0.761s"},{"at":761268417,"node":"server","instance":"server#2","text":"    0.761s  start server#2"},{"at":761268423,"node":"server","instance":"server#2","output":"serving 26 keys on :7000","text":"    0.761s  server#2| serving 26 keys on :7000"},{"at":802000000,"node":"server","instance":"server#2","text":"    0.802s  fault crash server#2, restart at 0.802s"},{"at":802000000,"node":"server","instance":"server#3","text":"    0.802s  start server#3"},{"at":802000010,"node":"server","instance":"server#3","output":"serving 28 keys on :7000","text":"    0.802s  server#3| serving 28 keys on :7000"},{"at":813361084,"node":"client","instance":"client#1","output":"28 of 63 writes acknowledged, verifying","text":"    0.813s  client#1| 28 of 63 writes acknowledged, verifying"},{"at":990160235,"node":"client","text":"    0.990s  FAIL  client#1: acknowledged write lost: k60=v60, server now answers \"NONE\""}]};
+const laneW = 170, rowH = 18, left = 96, plotTop = 40, opW = 5;
+const kindNames = ["lives", "messages", "ops", "faults", "marks"];
+const engineLane = "engine";
+const state = { nodes: new Set([...T.nodes, engineLane]), kinds: new Set(kindNames), from: 0, to: Infinity, grep: null };
+const faultColors = { crash: "var(--bad)", crash_io: "var(--bad)", pause: "var(--warn)", partition: "var(--fault)", clog: "var(--fault)", slow: "var(--violet)", clock_jump: "var(--net)" };
+const msgColors = { data: "var(--net)", connect: "var(--violet)", eof: "var(--warn)", reset: "var(--bad)", datagram: "var(--teal)" };
+const opColors = { ok: "var(--ok)", fail: "var(--bad)", info: "var(--warn)" };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const secs = ns => (ns / 1e9).toFixed(6).replace(/0{1,3}$/, "") + "s";
+const units = { ns: 1, us: 1e3, "µs": 1e3, ms: 1e6, s: 1e9, m: 6e10, h: 3.6e12 };
+
+function parseDuration(text, fallback) {
+  const s = text.trim();
+  if (!s) return fallback;
+  let total = 0, rest = s;
+  const part = /^(\d+(?:\.\d+)?)(ns|us|µs|ms|s|m|h)/;
+  while (rest) {
+    const m = rest.match(part);
+    if (!m) throw new Error("not a duration: " + s);
+    total += parseFloat(m[1]) * units[m[2]];
+    rest = rest.slice(m[0].length);
+  }
+  return total;
+}
+
+function toggles(id, names, set) {
+  const box = document.getElementById(id);
+  box.innerHTML = names.map(n => `<label><input type="checkbox" checked data-name="${esc(n)}"> ${esc(n)}</label>`).join(" ");
+  box.addEventListener("change", e => {
+    const name = e.target.dataset.name;
+    e.target.checked ? set.add(name) : set.delete(name);
+    render();
+  });
+}
+
+const inWindow = t => t >= state.from && t <= state.to;
+const overlaps = (a, b) => b >= state.from && a <= state.to;
+const endOf = t => (t < 0 ? T.end : t);
+
+function visible() {
+  const on = n => state.nodes.has(n);
+  const k = name => state.kinds.has(name);
+  return {
+    lives: k("lives") ? T.lives.filter(l => on(l.node) && overlaps(l.start, endOf(l.end))) : [],
+    messages: k("messages") ? T.messages.filter(m => on(m.from) && on(m.to) && overlaps(m.sent, endOf(m.read < 0 ? m.arrives : m.read))) : [],
+    ops: k("ops") ? T.ops.filter(o => on(o.node) && overlaps(o.start, endOf(o.end))) : [],
+    faults: k("faults") ? T.faults.filter(f => (!f.nodes || f.nodes.some(on)) && overlaps(f.start, f.end)) : [],
+    marks: T.marks.filter(m => (m.kind === "failure" || k("marks")) && (!m.node || on(m.node)) && inWindow(m.at)),
+  };
+}
+
+function rows(v) {
+  const times = new Set();
+  const add = t => times.add(Math.min(Math.max(t, state.from), Math.min(state.to, T.end)));
+  v.lives.forEach(l => { add(l.start); add(endOf(l.end)); });
+  v.messages.forEach(m => { add(m.sent); add(m.read < 0 ? m.arrives : m.read); });
+  v.ops.forEach(o => { add(o.start); add(endOf(o.end)); });
+  v.faults.forEach(f => { add(f.start); add(f.end); });
+  v.marks.forEach(m => add(m.at));
+  return [...times].sort((a, b) => a - b);
+}
+
+function yOf(times) {
+  return t => {
+    let lo = 0, hi = times.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      times[mid] < t ? (lo = mid + 1) : (hi = mid);
+    }
+    return plotTop + lo * rowH;
+  };
+}
+
+function tracks(ops) {
+  const free = {};
+  return ops.map(o => {
+    const lanes = free[o.node] || (free[o.node] = []);
+    let i = lanes.findIndex(end => end <= o.start);
+    if (i < 0) i = lanes.length;
+    lanes[i] = endOf(o.end) + 1;
+    return i;
+  });
+}
+
+function opText(o) {
+  const out = o.output ? " -> " + JSON.stringify(o.output) : "";
+  return `${o.instance} ${o.f}${o.key ? " " + o.key : ""}${o.value ? " " + JSON.stringify(o.value) : ""}${out} ${o.status || "info"} ${secs(o.start)}..${o.end < 0 ? "never returned" : secs(o.end)}`;
+}
+
+function msgText(m) {
+  const udp = m.kind === "datagram";
+  const what = m.kind === "data" ? m.bytes + " bytes" : udp ? "datagram, " + m.bytes + " bytes" : m.kind;
+  const fate = m.lost ? "lost, " + m.lost : m.read < 0 ? "never read" : "read at " + secs(m.read);
+  return `${m.from_instance} -> ${m.to_instance || m.to} ${udp ? "udp" : "conn"} ${m.conn}: ${what}, sent ${secs(m.sent)}, arrives ${secs(m.arrives)}, ${fate}${m.held ? ", held by a partition or clog" : ""}${m.duplicate ? ", duplicate" : ""}`;
+}
+
+function render() {
+  const nodes = T.nodes.filter(n => state.nodes.has(n));
+  const lane = Object.fromEntries(nodes.map((n, i) => [n, left + i * laneW + laneW / 2]));
+  const v = visible();
+  const times = rows(v);
+  const y = yOf(times);
+  const height = plotTop + Math.max(times.length, 1) * rowH + rowH;
+  const width = left + nodes.length * laneW;
+  const out = [`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><defs>`];
+  for (const [kind, color] of Object.entries(msgColors)) {
+    out.push(`<marker id="arrow-${kind}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" style="fill:${color}"/></marker>`);
+  }
+  out.push("</defs>");
+  times.forEach((t, i) => out.push(`<text x="8" y="${plotTop + i * rowH + 4}">${secs(t)}</text>`));
+  for (const f of v.faults) {
+    const hit = f.nodes ? f.nodes.filter(n => n in lane) : nodes;
+    if (!hit.length) continue;
+    const xs = hit.map(n => lane[n]);
+    const x0 = Math.min(...xs) - laneW / 2 + 4, x1 = Math.max(...xs) + laneW / 2 - 4;
+    const y0 = y(Math.max(f.start, state.from)), y1 = Math.max(y(Math.min(f.end, state.to)), y0 + 4);
+    out.push(`<rect x="${x0}" y="${y0}" width="${x1 - x0}" height="${y1 - y0}" rx="3" style="fill:${faultColors[f.kind] || "var(--fault)"};opacity:.16"><title>${esc(secs(f.start) + " " + f.text)}</title></rect>`);
+  }
+  nodes.forEach(n => {
+    out.push(`<text class="head" x="${lane[n]}" y="18" text-anchor="middle">${esc(n)}</text>`);
+    out.push(`<line x1="${lane[n]}" y1="${plotTop - 8}" x2="${lane[n]}" y2="${height}" style="stroke:var(--rule);stroke-dasharray:2 4"/>`);
+  });
+  for (const l of v.lives) {
+    const y0 = y(Math.max(l.start, state.from)), y1 = y(Math.min(endOf(l.end), state.to));
+    out.push(`<line x1="${lane[l.node]}" y1="${y0}" x2="${lane[l.node]}" y2="${Math.max(y1, y0 + 2)}" style="stroke:var(--ok);stroke-width:3"><title>${esc(`${l.instance} ${secs(l.start)}..${l.end < 0 ? "end" : secs(l.end) + " " + l.ended}`)}</title></line>`);
+    out.push(`<text x="${lane[l.node] - 6}" y="${y0 + 4}" text-anchor="end">${esc(l.instance)}</text>`);
+  }
+  const track = tracks(v.ops);
+  v.ops.forEach((o, i) => {
+    const x = lane[o.node] + 6 + track[i] * (opW + 2);
+    const y0 = y(Math.max(o.start, state.from)), y1 = Math.max(y(Math.min(endOf(o.end), state.to)), y0 + 3);
+    out.push(`<rect x="${x}" y="${y0}" width="${opW}" height="${y1 - y0}" style="fill:${opColors[o.status] || opColors.info};opacity:.75"><title>${esc(opText(o))}</title></rect>`);
+  });
+  for (const m of v.messages) {
+    const end = m.read < 0 ? m.arrives : m.read;
+    const x0 = lane[m.from], x1 = lane[m.to], y0 = y(Math.max(m.sent, state.from)), y1 = y(Math.min(end, state.to));
+    const dash = m.read < 0 ? "stroke-dasharray:5 4;" : "";
+    out.push(`<line x1="${x0}" y1="${y0}" x2="${x1 === x0 ? x0 + 30 : x1}" y2="${y1}" marker-end="url(#arrow-${m.kind})" style="stroke:${msgColors[m.kind]};stroke-width:1.3;${dash}opacity:.85"><title>${esc(msgText(m))}</title></line>`);
+  }
+  for (const m of v.marks) {
+    const yy = y(m.at);
+    if (m.kind === "failure") {
+      out.push(`<line x1="${left - 8}" y1="${yy}" x2="${width}" y2="${yy}" style="stroke:var(--bad);stroke-width:1.5"/><text x="${left}" y="${yy - 4}" style="fill:var(--bad)">${esc("FAIL " + m.text)}</text>`);
+      continue;
+    }
+    const x = m.node in lane ? lane[m.node] : left;
+    out.push(`<circle cx="${x}" cy="${yy}" r="4.5" style="fill:var(--fault)"><title>${esc(secs(m.at) + " " + (m.instance || "") + " " + m.text)}</title></circle>`);
+  }
+  out.push(`<line id="guide" x1="0" x2="${width}" y1="-10" y2="-10" style="stroke:var(--fg);stroke-width:1;opacity:.6"/></svg>`);
+  const diagram = document.getElementById("diagram");
+  diagram.innerHTML = out.join("");
+  diagram.locate = y;
+  renderLogs();
+}
+
+function renderLogs() {
+  const lines = T.logs.filter(l => state.nodes.has(l.node || engineLane) && inWindow(l.at) && (!state.grep || state.grep.test(l.text)));
+  document.getElementById("summary").textContent = `seed ${T.seed} · ${T.nodes.length} nodes · ${secs(T.end)} virtual · ${T.messages.length} messages · ${T.ops.length} operations · ${T.faults.length} faults · showing ${lines.length} of ${T.logs.length} trace lines`;
+  document.getElementById("logs").innerHTML = lines.map(l => `<tr data-at="${l.at}"${/  FAIL  /.test(l.text) ? ' class="fail"' : ""}><td class="t">${esc(secs(l.at))}</td><td class="n">${esc(l.instance || l.node || "")}</td><td>${esc(l.text.replace(/^\s*\S+\s+/, ""))}</td></tr>`).join("");
+}
+
+document.getElementById("logs").addEventListener("click", e => {
+  const row = e.target.closest("tr");
+  if (!row) return;
+  const diagram = document.getElementById("diagram");
+  const yy = diagram.locate(Number(row.dataset.at));
+  const guide = document.getElementById("guide");
+  guide.setAttribute("y1", yy);
+  guide.setAttribute("y2", yy);
+  diagram.scrollTop = Math.max(0, yy - diagram.clientHeight / 2);
+});
+
+function readFilters() {
+  const error = document.getElementById("error");
+  try {
+    state.from = parseDuration(document.getElementById("from").value, 0);
+    state.to = parseDuration(document.getElementById("to").value, Infinity);
+    const g = document.getElementById("grep").value;
+    state.grep = g ? new RegExp(g) : null;
+    error.textContent = "";
+  } catch (err) {
+    error.textContent = err.message;
+    return;
+  }
+  render();
+}
+
+for (const id of ["from", "to", "grep"]) document.getElementById(id).addEventListener("input", readFilters);
+toggles("nodes", [...T.nodes, engineLane], state.nodes);
+toggles("kinds", kindNames, state.kinds);
+render();
+</script>
+</body>
+</html>
