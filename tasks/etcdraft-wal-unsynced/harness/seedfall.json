@@ -1,0 +1,51 @@
+{
+  "duration": "120s",
+  "faults": {
+    "crash_on_io": 0.002,
+    "crash_per_sec": 0.5,
+    "partition_for": [
+      "100ms",
+      "2s"
+    ],
+    "partition_per_sec": 0.2,
+    "restart_after": [
+      "50ms",
+      "1s"
+    ],
+    "torn_writes": true
+  },
+  "latency": [
+    "1ms",
+    "8ms"
+  ],
+  "nodes": [
+    {
+      "args": [
+        "-id",
+        "1"
+      ],
+      "name": "n1",
+      "pkg": "./node"
+    },
+    {
+      "args": [
+        "-id",
+        "2"
+      ],
+      "name": "n2",
+      "pkg": "./node"
+    },
+    {
+      "args": [
+        "-id",
+        "3"
+      ],
+      "name": "n3",
+      "pkg": "./node"
+    }
+  ],
+  "workload": {
+    "name": "client",
+    "pkg": "./linclient"
+  }
+}

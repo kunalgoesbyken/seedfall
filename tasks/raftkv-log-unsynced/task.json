@@ -1,0 +1,11 @@
+{
+  "id": "raftkv-log-unsynced",
+  "system": "raftkv",
+  "bug_class": "ack-before-fsync",
+  "difficulty": "hard",
+  "editable": [
+    "node/"
+  ],
+  "symptom": "A 3-node key-value store on hashicorp/raft with a file-backed log store (node/logstore.go) and a snapshot store. The client writes through the leader and, after faults stop, reads back every acknowledged key from the leader. Crashes, partitions, torn writes and crashes in the middle of disk operations are injected.\n\nObserved on seed 2: n1, n2 and n3 were crashed and restarted several times (some during disk operations). The client reported: acknowledged write lost: k104=v104, leader answers \"NONE\".\n\nExpected: every acknowledged write must be readable from the leader after crashes and restarts.",
+  "default_n": 16
+}

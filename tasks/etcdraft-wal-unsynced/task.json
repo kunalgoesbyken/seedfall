@@ -1,0 +1,11 @@
+{
+  "id": "etcdraft-wal-unsynced",
+  "system": "etcdraft",
+  "bug_class": "ack-before-fsync",
+  "difficulty": "medium",
+  "editable": [
+    "node/"
+  ],
+  "symptom": "A 3-node key-value store on etcd's raft library (node/). Each node keeps a write-ahead log of CRC-checked records and a snapshot file, and persists every Ready batch before sending its messages. Four concurrent clients are checked for linearizability. Crashes, partitions, torn writes and crashes in the middle of disk operations are injected.\n\nObserved on seed 1: n2, n1 and n3 were each crashed and restarted once. n3 then panicked on restart in raft.RestartNode (exit code 2) and the run failed with: n3#2 crashed: module closed with exit_code(2).\n\nExpected: after any crash a node must restart from its own disk with a state raft can accept, and the cluster must stay linearizable.",
+  "default_n": 16
+}

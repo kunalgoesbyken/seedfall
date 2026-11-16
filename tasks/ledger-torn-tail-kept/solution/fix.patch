@@ -1,0 +1,18 @@
+--- a/server/main.go
++++ b/server/main.go
+@@ -53,8 +53,14 @@
+ 	}
+ 	total, complete := replay(data)
+ 	assert.Sometimes(complete < len(data), "recovery dropped a partial entry", map[string]any{"bytes": len(data) - complete})
+-	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0o644)
++	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o644)
+ 	if err != nil {
++		return nil, err
++	}
++	if err := f.Truncate(int64(complete)); err != nil {
++		return nil, err
++	}
++	if _, err := f.Seek(int64(complete), 0); err != nil {
+ 		return nil, err
+ 	}
+ 	if err := f.Sync(); err != nil {

@@ -1,0 +1,4 @@
+{
+  "min_acks": 52,
+  "calibration_seeds": 128
+}

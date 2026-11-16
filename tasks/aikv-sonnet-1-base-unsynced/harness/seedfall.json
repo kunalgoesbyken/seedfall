@@ -1,0 +1,42 @@
+{
+  "duration": "120s",
+  "faults": {
+    "crash_on_io": 0.005,
+    "crash_per_sec": 1.5,
+    "fs_model": "page_independent",
+    "reorder_writes": true,
+    "restart_after": [
+      "10ms",
+      "500ms"
+    ],
+    "strict_dirs": true,
+    "torn_writes": true
+  },
+  "latency": [
+    "1ms",
+    "5ms"
+  ],
+  "nodes": [
+    {
+      "args": [
+        "-impl",
+        "sonnet-1"
+      ],
+      "name": "server",
+      "pkg": "./server"
+    }
+  ],
+  "supervise": true,
+  "workload": {
+    "args": [
+      "-ops",
+      "5000",
+      "-size",
+      "8192",
+      "-gap",
+      "5ms"
+    ],
+    "name": "client",
+    "pkg": "./client"
+  }
+}

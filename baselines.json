@@ -3,6 +3,34 @@
     "min_acks": 285,
     "calibration_seeds": 128
   },
+  "aikv-haiku-3-fsync-error-ignored": {
+    "min_acks": 33,
+    "calibration_seeds": 128
+  },
+  "aikv-opus-1-fsync-error-ignored": {
+    "min_acks": 24,
+    "calibration_seeds": 128
+  },
+  "aikv-sonnet-1-base-unsynced": {
+    "min_acks": 846,
+    "calibration_seeds": 128
+  },
+  "aikv-sonnet-3-compact-unsynced": {
+    "min_acks": 813,
+    "calibration_seeds": 128
+  },
+  "etcdraft-snapshot-data-unsynced": {
+    "min_acks": 1,
+    "calibration_seeds": 128
+  },
+  "etcdraft-wal-unsynced": {
+    "min_acks": 1,
+    "calibration_seeds": 128
+  },
+  "httpkv-no-dir-sync": {
+    "min_acks": 15,
+    "calibration_seeds": 128
+  },
   "httpkv-nofsync": {
     "min_acks": 13,
     "calibration_seeds": 128
@@ -11,8 +39,24 @@
     "min_acks": 4,
     "calibration_seeds": 128
   },
+  "httpkv-sync-before-write": {
+    "min_acks": 21,
+    "calibration_seeds": 128
+  },
+  "httpkv-torn-tail-kept": {
+    "min_acks": 1,
+    "calibration_seeds": 128
+  },
+  "jmsraft-local-reads": {
+    "min_acks": 129,
+    "calibration_seeds": 128
+  },
   "kvlog-ack-before-fsync": {
     "min_acks": 21,
+    "calibration_seeds": 128
+  },
+  "kvlog-fsync-error-swallowed": {
+    "min_acks": 19,
     "calibration_seeds": 128
   },
   "kvlog-fsyncgate": {
@@ -23,8 +67,36 @@
     "min_acks": 15,
     "calibration_seeds": 128
   },
+  "kvlog-no-dir-sync": {
+    "min_acks": 19,
+    "calibration_seeds": 128
+  },
+  "kvlog-no-reread": {
+    "min_acks": 14,
+    "calibration_seeds": 128
+  },
+  "kvlog-rollback-truncates-log": {
+    "min_acks": 17,
+    "calibration_seeds": 128
+  },
+  "kvlog-sync-before-write": {
+    "min_acks": 16,
+    "calibration_seeds": 128
+  },
+  "kvlog-sync-wrong-handle": {
+    "min_acks": 13,
+    "calibration_seeds": 128
+  },
   "kvlog-torn-tail": {
     "min_acks": 2,
+    "calibration_seeds": 128
+  },
+  "kvlog-truncate-off-by-one": {
+    "min_acks": 2,
+    "calibration_seeds": 128
+  },
+  "kvlog-write-error-ignored": {
+    "min_acks": 17,
     "calibration_seeds": 128
   },
   "ledger-nofsync": {
@@ -35,7 +107,31 @@
     "min_acks": 13,
     "calibration_seeds": 128
   },
+  "ledger-sync-before-write": {
+    "min_acks": 16,
+    "calibration_seeds": 128
+  },
+  "ledger-torn-tail-kept": {
+    "min_acks": 53,
+    "calibration_seeds": 128
+  },
+  "liveness-applied-not-recovered": {
+    "min_acks": 20,
+    "calibration_seeds": 128
+  },
+  "liveness-apply-before-replicate": {
+    "min_acks": 20,
+    "calibration_seeds": 128
+  },
+  "liveness-backup-error-ignored": {
+    "min_acks": 20,
+    "calibration_seeds": 128
+  },
   "liveness-dedupe": {
+    "min_acks": 20,
+    "calibration_seeds": 128
+  },
+  "liveness-log-unsynced": {
     "min_acks": 20,
     "calibration_seeds": 128
   },
@@ -43,7 +139,39 @@
     "min_acks": 20,
     "calibration_seeds": 128
   },
+  "metapage-append-offset-off-by-one": {
+    "min_acks": 7,
+    "calibration_seeds": 128
+  },
+  "metapage-meta-unsynced": {
+    "min_acks": 7,
+    "calibration_seeds": 128
+  },
+  "metapage-single-meta-slot": {
+    "min_acks": 3,
+    "calibration_seeds": 128
+  },
+  "raftkv-log-unsynced": {
+    "min_acks": 52,
+    "calibration_seeds": 128
+  },
   "symswap-dir-fsync": {
+    "min_acks": 12,
+    "calibration_seeds": 128
+  },
+  "symswap-fsync-wrong-dir": {
+    "min_acks": 11,
+    "calibration_seeds": 128
+  },
+  "symswap-gc-before-publish": {
+    "min_acks": 13,
+    "calibration_seeds": 128
+  },
+  "symswap-gen-unsynced": {
+    "min_acks": 14,
+    "calibration_seeds": 128
+  },
+  "symswap-no-publish-sync": {
     "min_acks": 12,
     "calibration_seeds": 128
   }

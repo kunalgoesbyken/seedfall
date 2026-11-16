@@ -1,0 +1,41 @@
+{
+  "duration": "120s",
+  "faults": {
+    "crash_on_io": 0.05,
+    "crash_per_sec": 3,
+    "disk_latency": [
+      "1ms",
+      "10ms"
+    ],
+    "fs_model": "dir_reorder",
+    "reorder_writes": true,
+    "restart_after": [
+      "10ms",
+      "100ms"
+    ],
+    "strict_dirs": true,
+    "torn_writes": true
+  },
+  "latency": [
+    "1ms",
+    "5ms"
+  ],
+  "nodes": [
+    {
+      "args": [
+        "-dir",
+        "data"
+      ],
+      "name": "server",
+      "pkg": "./server"
+    }
+  ],
+  "workload": {
+    "args": [
+      "-writes",
+      "200"
+    ],
+    "name": "client",
+    "pkg": "./client"
+  }
+}

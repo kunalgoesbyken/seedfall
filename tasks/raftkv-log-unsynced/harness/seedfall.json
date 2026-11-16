@@ -1,0 +1,39 @@
+{
+  "duration": "120s",
+  "faults": {
+    "crash_on_io": 0.005,
+    "crash_per_sec": 0.6,
+    "partition_for": [
+      "100ms",
+      "2s"
+    ],
+    "partition_per_sec": 0.2,
+    "restart_after": [
+      "50ms",
+      "1s"
+    ],
+    "torn_writes": true
+  },
+  "latency": [
+    "1ms",
+    "8ms"
+  ],
+  "nodes": [
+    {
+      "name": "n1",
+      "pkg": "./node"
+    },
+    {
+      "name": "n2",
+      "pkg": "./node"
+    },
+    {
+      "name": "n3",
+      "pkg": "./node"
+    }
+  ],
+  "workload": {
+    "name": "client",
+    "pkg": "./client"
+  }
+}

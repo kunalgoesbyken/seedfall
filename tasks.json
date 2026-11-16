@@ -276,6 +276,319 @@
           "strict_dirs": true
         }
       }
+    },
+    "metapage": {
+      "trees": {
+        "server": "examples/metapage/server",
+        "client": "examples/kvlog/client"
+      },
+      "editable": [
+        "server/"
+      ],
+      "config": {
+        "nodes": [
+          {
+            "name": "server",
+            "pkg": "./server",
+            "args": [
+              "-dir",
+              "data"
+            ]
+          }
+        ],
+        "workload": {
+          "name": "client",
+          "pkg": "./client",
+          "args": [
+            "-writes",
+            "200"
+          ]
+        },
+        "duration": "60s",
+        "latency": [
+          "1ms",
+          "5ms"
+        ],
+        "faults": {
+          "crash_per_sec": 1,
+          "restart_after": [
+            "10ms",
+            "500ms"
+          ],
+          "torn_writes": true,
+          "crash_on_io": 0.02,
+          "reorder_writes": true
+        }
+      }
+    },
+    "aikv-sonnet-1": {
+      "trees": {
+        "impl/sonnet-1": "examples/aikv/impl/sonnet-1",
+        "server": "examples/aikv/server",
+        "client": "examples/aikv/client"
+      },
+      "editable": [
+        "impl/sonnet-1/"
+      ],
+      "module_from": "examples/aikv",
+      "config": {
+        "nodes": [
+          {
+            "name": "server",
+            "pkg": "./server",
+            "args": [
+              "-impl",
+              "sonnet-1"
+            ]
+          }
+        ],
+        "workload": {
+          "name": "client",
+          "pkg": "./client",
+          "args": [
+            "-ops",
+            "5000",
+            "-size",
+            "8192",
+            "-gap",
+            "5ms"
+          ]
+        },
+        "duration": "120s",
+        "supervise": true,
+        "latency": [
+          "1ms",
+          "5ms"
+        ],
+        "faults": {
+          "crash_per_sec": 0.5,
+          "restart_after": [
+            "10ms",
+            "500ms"
+          ],
+          "torn_writes": true,
+          "crash_on_io": 0.005,
+          "reorder_writes": true,
+          "fs_model": "page_independent",
+          "strict_dirs": true
+        }
+      }
+    },
+    "aikv-opus-1": {
+      "trees": {
+        "impl/opus-1": "examples/aikv/impl/opus-1",
+        "server": "examples/aikv/server",
+        "client": "examples/aikv/client"
+      },
+      "editable": [
+        "impl/opus-1/"
+      ],
+      "module_from": "examples/aikv",
+      "config": {
+        "nodes": [
+          {
+            "name": "server",
+            "pkg": "./server",
+            "args": [
+              "-impl",
+              "opus-1"
+            ]
+          }
+        ],
+        "workload": {
+          "name": "client",
+          "pkg": "./client",
+          "args": [
+            "-ops",
+            "5000",
+            "-size",
+            "8192",
+            "-gap",
+            "5ms"
+          ]
+        },
+        "duration": "120s",
+        "supervise": true,
+        "latency": [
+          "1ms",
+          "5ms"
+        ],
+        "faults": {
+          "crash_per_sec": 0.5,
+          "restart_after": [
+            "10ms",
+            "500ms"
+          ],
+          "torn_writes": true,
+          "crash_on_io": 0.005,
+          "reorder_writes": true,
+          "fs_model": "page_independent",
+          "strict_dirs": true
+        }
+      }
+    },
+    "aikv-sonnet-3": {
+      "trees": {
+        "impl/sonnet-3": "examples/aikv/impl/sonnet-3",
+        "server": "examples/aikv/server",
+        "client": "examples/aikv/client"
+      },
+      "editable": [
+        "impl/sonnet-3/"
+      ],
+      "module_from": "examples/aikv",
+      "config": {
+        "nodes": [
+          {
+            "name": "server",
+            "pkg": "./server",
+            "args": [
+              "-impl",
+              "sonnet-3"
+            ]
+          }
+        ],
+        "workload": {
+          "name": "client",
+          "pkg": "./client",
+          "args": [
+            "-ops",
+            "5000",
+            "-size",
+            "8192",
+            "-gap",
+            "5ms"
+          ]
+        },
+        "duration": "120s",
+        "supervise": true,
+        "latency": [
+          "1ms",
+          "5ms"
+        ],
+        "faults": {
+          "crash_per_sec": 0.5,
+          "restart_after": [
+            "10ms",
+            "500ms"
+          ],
+          "torn_writes": true,
+          "crash_on_io": 0.005,
+          "reorder_writes": true,
+          "fs_model": "page_independent",
+          "strict_dirs": true
+        }
+      }
+    },
+    "etcdraft": {
+      "trees": {
+        "node": "examples/etcdraft/node",
+        "linclient": "examples/etcdraft/linclient"
+      },
+      "editable": [
+        "node/"
+      ],
+      "module_from": "examples/etcdraft",
+      "config": {
+        "nodes": [
+          {
+            "name": "n1",
+            "pkg": "./node",
+            "args": [
+              "-id",
+              "1"
+            ]
+          },
+          {
+            "name": "n2",
+            "pkg": "./node",
+            "args": [
+              "-id",
+              "2"
+            ]
+          },
+          {
+            "name": "n3",
+            "pkg": "./node",
+            "args": [
+              "-id",
+              "3"
+            ]
+          }
+        ],
+        "workload": {
+          "name": "client",
+          "pkg": "./linclient"
+        },
+        "duration": "120s",
+        "latency": [
+          "1ms",
+          "8ms"
+        ],
+        "faults": {
+          "crash_per_sec": 0.15,
+          "restart_after": [
+            "50ms",
+            "1s"
+          ],
+          "partition_per_sec": 0.2,
+          "partition_for": [
+            "100ms",
+            "2s"
+          ],
+          "torn_writes": true,
+          "crash_on_io": 0.002
+        }
+      }
+    },
+    "raftkv": {
+      "trees": {
+        "node": "examples/raftkv/node",
+        "client": "examples/raftkv/client"
+      },
+      "editable": [
+        "node/"
+      ],
+      "module_from": "examples/raftkv",
+      "config": {
+        "nodes": [
+          {
+            "name": "n1",
+            "pkg": "./node"
+          },
+          {
+            "name": "n2",
+            "pkg": "./node"
+          },
+          {
+            "name": "n3",
+            "pkg": "./node"
+          }
+        ],
+        "workload": {
+          "name": "client",
+          "pkg": "./client"
+        },
+        "duration": "120s",
+        "latency": [
+          "1ms",
+          "8ms"
+        ],
+        "faults": {
+          "crash_per_sec": 0.15,
+          "restart_after": [
+            "50ms",
+            "1s"
+          ],
+          "partition_per_sec": 0.2,
+          "partition_for": [
+            "100ms",
+            "2s"
+          ],
+          "torn_writes": true,
+          "crash_on_io": 0.002
+        }
+      }
     }
   },
   "tasks": [
@@ -574,6 +887,838 @@
         "duration": "60s"
       },
       "n": 32
+    },
+    {
+      "id": "kvlog-no-dir-sync",
+      "system": "kvlog",
+      "bug_class": "missing-dir-fsync-on-create",
+      "difficulty": "medium",
+      "visible_seed": 2,
+      "symptom": "A small TCP key-value server (server/main.go) appends every PUT as a checksummed key=value line to data/kv.log, fsyncs, and only then answers OK. On start it reads the log back, verifies each record and rebuilds its in-memory map. The client remembers every PUT that was answered OK and reads them all back at the end. Directory entries are modelled strictly: a created file or directory survives a crash only after its parent directory was fsynced.\n\nObserved on seed 2: the server was crashed and restarted four times (once during a disk operation). The client reported: acknowledged write lost: k0=v0, server now answers \"NONE\". The server never logged an error.\n\nExpected: every PUT that returned OK must be readable after any number of crashes and restarts.",
+      "patches": {
+        "buggy": [
+          "kvlog-client-ack.patch",
+          "kvlog-full.patch",
+          "kvlog-no-dir-sync-bug.patch"
+        ],
+        "fixed": [
+          "kvlog-no-dir-sync-fix.patch"
+        ],
+        "cheat": [
+          "kvlog-no-dir-sync-cheat.patch"
+        ]
+      },
+      "config": {
+        "faults": {
+          "strict_dirs": true,
+          "crash_per_sec": 1
+        }
+      }
+    },
+    {
+      "id": "kvlog-sync-wrong-handle",
+      "system": "kvlog",
+      "bug_class": "fsync-wrong-target",
+      "difficulty": "easy",
+      "visible_seed": 1,
+      "symptom": "A small TCP key-value server (server/main.go) appends every PUT as a checksummed key=value line to data/kv.log, fsyncs, and only then answers OK. On start it reads the log back, verifies each record and rebuilds its in-memory map. The client remembers every PUT that was answered OK and reads them all back at the end.\n\nObserved on seed 1: the client was partitioned from the server at 292ms, the server was crashed during a disk operation at 757ms and again at 1.7s. The client reported: acknowledged write lost: k14=v14, server now answers \"NONE\". Every PUT in the run had been answered OK after the server's fsync call returned success.\n\nExpected: every PUT that returned OK must be readable after crashes and restarts.",
+      "patches": {
+        "buggy": [
+          "kvlog-client-ack.patch",
+          "kvlog-full.patch",
+          "kvlog-sync-wrong-handle-bug.patch"
+        ],
+        "fixed": [
+          "kvlog-sync-wrong-handle-fix.patch"
+        ],
+        "cheat": [
+          "kvlog-sync-wrong-handle-cheat.patch"
+        ]
+      }
+    },
+    {
+      "id": "kvlog-truncate-off-by-one",
+      "system": "kvlog",
+      "bug_class": "recovery-off-by-one",
+      "difficulty": "hard",
+      "visible_seed": 1,
+      "symptom": "A small TCP key-value server (server/main.go) appends every PUT as a checksummed key=value line to data/kv.log, fsyncs, and only then answers OK. On start it reads the log back, verifies each record and rebuilds its in-memory map. The client remembers every PUT that was answered OK and reads them all back at the end. If the last record of the log is incomplete after a crash, recovery cuts it off and carries on appending.\n\nObserved on seed 1: the server was crashed four times, three of them in the middle of a disk operation (ops 56, 94 and 106). After the last crash the restarted server exited at startup with: data/kv.log: the record at offset 722 fails its checksum in 40 reads, and the run failed with: server#5 crashed: module closed with exit_code(1). It had been serving 43 keys before that.\n\nExpected: after any sequence of crashes, including crashes in the middle of a write, the server must start again and every PUT that returned OK must be readable.",
+      "patches": {
+        "buggy": [
+          "kvlog-client-ack.patch",
+          "kvlog-full.patch",
+          "kvlog-truncate-off-by-one-bug.patch"
+        ],
+        "fixed": [
+          "kvlog-truncate-off-by-one-fix.patch"
+        ],
+        "cheat": [
+          "kvlog-truncate-off-by-one-cheat.patch"
+        ]
+      },
+      "config": {
+        "faults": {
+          "crash_per_sec": 2,
+          "crash_on_io": 0.04
+        }
+      }
+    },
+    {
+      "id": "kvlog-write-error-ignored",
+      "system": "kvlog",
+      "bug_class": "write-error-ignored",
+      "difficulty": "easy",
+      "visible_seed": 1,
+      "symptom": "A small TCP key-value server (server/main.go) appends every PUT as a checksummed key=value line to data/kv.log, fsyncs, and only then answers OK. On start it reads the log back, verifies each record and rebuilds its in-memory map. The client remembers every PUT that was answered OK and reads them all back at the end. The disk occasionally fails a write with EIO, in which case nothing of that write reaches the file.\n\nObserved on seed 1: the server was crashed at 287ms (during a disk operation) and at 568ms, a write to data/kv.log failed with EIO at disk op #65 (836ms), and the server was crashed again at 2.05s (during a disk operation). The client reported: acknowledged write lost: k65=v65, server now answers \"NONE\".\n\nExpected: a PUT must only be answered OK if its record is durable; every PUT that returned OK must be readable after crashes and restarts.",
+      "patches": {
+        "buggy": [
+          "kvlog-client-ack.patch",
+          "kvlog-full.patch",
+          "kvlog-write-error-ignored-bug.patch"
+        ],
+        "fixed": [
+          "kvlog-write-error-ignored-fix.patch"
+        ],
+        "cheat": [
+          "kvlog-write-error-ignored-cheat.patch"
+        ]
+      },
+      "config": {
+        "faults": {
+          "write_eio": 0.03,
+          "crash_per_sec": 1.5
+        }
+      }
+    },
+    {
+      "id": "kvlog-no-reread",
+      "system": "kvlog",
+      "bug_class": "transient-read-error-destroys-data",
+      "difficulty": "hard",
+      "visible_seed": 1,
+      "symptom": "A small TCP key-value server (server/main.go) appends every PUT as a checksummed key=value line to data/kv.log, fsyncs, and only then answers OK. On start it reads the log back, verifies each record and rebuilds its in-memory map. The client remembers every PUT that was answered OK and reads them all back at the end. The storage layer occasionally returns a read with one flipped bit while the stored bytes stay intact, so reading the same bytes again returns them correctly. On start the server cuts off an incomplete or damaged last record and carries on appending.\n\nObserved on seed 1: after a crash during a disk operation at 427ms, the restart at 791ms read data/kv.log and disk read #1 returned a flipped bit at offset 212 (the stored data was intact); the server started normally and the client reported: acknowledged write lost: k9=v9, server now answers \"NONE\". A key from the very start of the run was gone.\n\nExpected: every PUT that returned OK must be readable after crashes and restarts, even when a read of the log is wrong once in a while.",
+      "patches": {
+        "buggy": [
+          "kvlog-client-ack.patch",
+          "kvlog-full.patch",
+          "kvlog-no-reread-bug.patch"
+        ],
+        "fixed": [
+          "kvlog-no-reread-fix.patch"
+        ],
+        "cheat": [
+          "kvlog-no-reread-cheat.patch"
+        ]
+      },
+      "config": {
+        "faults": {
+          "read_corrupt": 0.7,
+          "crash_per_sec": 1.5
+        }
+      }
+    },
+    {
+      "id": "kvlog-sync-before-write",
+      "system": "kvlog",
+      "bug_class": "fsync-before-write-order",
+      "difficulty": "easy",
+      "visible_seed": 1,
+      "symptom": "A small TCP key-value server (server/main.go) appends every PUT as a checksummed key=value line to data/kv.log, fsyncs, and only then answers OK. On start it reads the log back, verifies each record and rebuilds its in-memory map. The client remembers every PUT that was answered OK and reads them all back at the end.\n\nObserved on seed 1: the client was partitioned from the server, the server was crashed during a disk operation and again at 1.7s. The client reported: acknowledged write lost: k129=v129, server now answers \"NONE\". The server never logged an error.\n\nExpected: every PUT that returned OK must be readable after crashes and restarts.",
+      "patches": {
+        "buggy": [
+          "kvlog-client-ack.patch",
+          "kvlog-full.patch",
+          "kvlog-sync-before-write-bug.patch"
+        ],
+        "fixed": [
+          "kvlog-sync-before-write-fix.patch"
+        ],
+        "cheat": [
+          "kvlog-sync-before-write-cheat.patch"
+        ]
+      }
+    },
+    {
+      "id": "kvlog-rollback-truncates-log",
+      "system": "kvlog",
+      "bug_class": "error-path-destroys-data",
+      "difficulty": "medium",
+      "visible_seed": 1,
+      "symptom": "A small TCP key-value server (server/main.go) appends every PUT as a checksummed key=value line to data/kv.log, fsyncs, and only then answers OK. On start it reads the log back, verifies each record and rebuilds its in-memory map. The client remembers every PUT that was answered OK and reads them all back at the end. The disk sometimes fails an fsync with EIO, in which case the server answers ERR to that PUT and keeps running; the unsynced writes stay readable in the page cache but are dropped from durable storage. A supervisor restarts the server when it exits.\n\nObserved on seed 1: fsync failed with EIO at disk op #38 (287ms) and again at disk op #264 (2.8s), and the server was crashed at 852ms and during a disk operation at 1.95s. The client reported: acknowledged write lost: k0=v0, server now answers \"NONE\". The very first key was gone.\n\nExpected: every PUT that returned OK must be readable after crashes and restarts, whatever happened to the PUTs that returned ERR.",
+      "patches": {
+        "buggy": [
+          "kvlog-client-ack.patch",
+          "kvlog-full.patch",
+          "kvlog-rollback-truncates-log-bug.patch"
+        ],
+        "fixed": [
+          "kvlog-rollback-truncates-log-fix.patch"
+        ],
+        "cheat": [
+          "kvlog-rollback-truncates-log-cheat.patch"
+        ]
+      },
+      "config": {
+        "faults": {
+          "fsync_eio": 0.02,
+          "crash_per_sec": 1
+        },
+        "supervise": true
+      }
+    },
+    {
+      "id": "kvlog-fsync-error-swallowed",
+      "system": "kvlog",
+      "bug_class": "fsync-error-ignored",
+      "difficulty": "medium",
+      "visible_seed": 1,
+      "symptom": "A small TCP key-value server (server/main.go) appends every PUT as a checksummed key=value line to data/kv.log, fsyncs, and only then answers OK. On start it reads the log back, verifies each record and rebuilds its in-memory map. The client remembers every PUT that was answered OK and reads them all back at the end. The disk sometimes fails an fsync with EIO; the unsynced writes then stay readable in the page cache but are dropped from durable storage, and the next fsync succeeds. A supervisor restarts the server when it exits.\n\nObserved on seed 1: fsync failed with EIO at disk ops 38 and 64, the server was crashed and restarted afterwards, and from then on every start ended with: data/kv.log: the record at offset 269 fails its checksum in 40 reads. The run failed with: unfinished, the workload did not finish within the simulated duration (the store never came back).\n\nExpected: after any sequence of crashes and failed fsyncs the server must start again, and every PUT that returned OK must be readable.",
+      "patches": {
+        "buggy": [
+          "kvlog-client-ack.patch",
+          "kvlog-full.patch",
+          "kvlog-fsync-error-swallowed-bug.patch"
+        ],
+        "fixed": [
+          "kvlog-fsync-error-swallowed-fix.patch"
+        ],
+        "cheat": [
+          "kvlog-fsync-error-swallowed-cheat.patch"
+        ]
+      },
+      "config": {
+        "faults": {
+          "fsync_eio": 0.03,
+          "crash_per_sec": 1
+        },
+        "supervise": true,
+        "duration": "20s"
+      }
+    },
+    {
+      "id": "symswap-gen-unsynced",
+      "system": "symswap",
+      "bug_class": "rename-before-data-fsync",
+      "difficulty": "medium",
+      "visible_seed": 1,
+      "symptom": "A TCP key-value server (server/main.go) stores each version of its data as a file gen.N in data/ and publishes it by replacing the symlink data/current with a link to the new generation. Recovery follows data/current. The filesystem is modelled strictly: a directory change survives a crash only if the directory was fsynced, and directory operations may persist out of order. The client remembers every PUT that was answered OK and reads them all back at the end.\n\nObserved on seed 1: the server was crashed 23 times, 16 of them during a disk operation. The client reported: acknowledged write lost: k1=v1, server now answers \"MISS\". The server started every time without logging an error.\n\nExpected: every PUT that returned OK must be readable after any number of crashes, and data/current must always lead to a complete generation.",
+      "patches": {
+        "buggy": [
+          "kvlog-client-ack.patch",
+          "symswap-full.patch",
+          "symswap-gen-unsynced-bug.patch"
+        ],
+        "fixed": [
+          "symswap-gen-unsynced-fix.patch"
+        ],
+        "cheat": [
+          "symswap-gen-unsynced-cheat.patch"
+        ]
+      },
+      "config": {
+        "duration": "120s",
+        "workload": {
+          "args": [
+            "-writes",
+            "200"
+          ]
+        },
+        "faults": {
+          "disk_latency": [
+            "1ms",
+            "10ms"
+          ],
+          "crash_per_sec": 3,
+          "restart_after": [
+            "10ms",
+            "100ms"
+          ]
+        }
+      }
+    },
+    {
+      "id": "symswap-no-publish-sync",
+      "system": "symswap",
+      "bug_class": "missing-dir-fsync-after-rename",
+      "difficulty": "medium",
+      "visible_seed": 1,
+      "symptom": "A TCP key-value server (server/main.go) stores each version of its data as a file gen.N in data/ and publishes it by replacing the symlink data/current with a link to the new generation. Recovery follows data/current. The filesystem is modelled strictly: a directory change survives a crash only if the directory was fsynced, and directory operations may persist out of order. The client remembers every PUT that was answered OK and reads them all back at the end.\n\nObserved on seed 1: the server was crashed 23 times, 16 of them during a disk operation. The client reported: acknowledged write lost: k16=v16, server now answers \"MISS\". The latest keys written before a crash were the ones missing.\n\nExpected: every PUT that returned OK must be readable after any number of crashes.",
+      "patches": {
+        "buggy": [
+          "kvlog-client-ack.patch",
+          "symswap-full.patch",
+          "symswap-no-publish-sync-bug.patch"
+        ],
+        "fixed": [
+          "symswap-no-publish-sync-fix.patch"
+        ],
+        "cheat": [
+          "symswap-no-publish-sync-cheat.patch"
+        ]
+      },
+      "config": {
+        "duration": "120s",
+        "workload": {
+          "args": [
+            "-writes",
+            "200"
+          ]
+        },
+        "faults": {
+          "disk_latency": [
+            "1ms",
+            "10ms"
+          ],
+          "crash_per_sec": 3,
+          "restart_after": [
+            "10ms",
+            "100ms"
+          ]
+        }
+      }
+    },
+    {
+      "id": "symswap-gc-before-publish",
+      "system": "symswap",
+      "bug_class": "gc-before-pointer-durable",
+      "difficulty": "hard",
+      "visible_seed": 4,
+      "symptom": "A TCP key-value server (server/main.go) stores each version of its data as a file gen.N in data/ and publishes it by replacing the symlink data/current with a link to the new generation. Recovery follows data/current. The filesystem is modelled strictly: a directory change survives a crash only if the directory was fsynced, and directory operations may persist out of order. The client remembers every PUT that was answered OK and reads them all back at the end. After publishing a generation the server deletes generations that are no longer needed.\n\nObserved on seed 4: after repeated crashes the restarted server failed its startup check: the current symlink points at a generation that exists: current -> gen.57: open data/current: No such file or directory.\n\nExpected: after any crash data/current must point at a complete, readable generation and all acknowledged puts must be present.",
+      "patches": {
+        "buggy": [
+          "kvlog-client-ack.patch",
+          "symswap-full.patch",
+          "symswap-gc-before-publish-bug.patch"
+        ],
+        "fixed": [
+          "symswap-gc-before-publish-fix.patch"
+        ],
+        "cheat": [
+          "symswap-gc-before-publish-cheat.patch"
+        ]
+      },
+      "config": {
+        "duration": "120s",
+        "workload": {
+          "args": [
+            "-writes",
+            "200"
+          ]
+        },
+        "faults": {
+          "disk_latency": [
+            "1ms",
+            "10ms"
+          ],
+          "crash_per_sec": 3,
+          "restart_after": [
+            "10ms",
+            "100ms"
+          ]
+        }
+      }
+    },
+    {
+      "id": "ledger-torn-tail-kept",
+      "system": "ledger",
+      "bug_class": "torn-tail-recovery",
+      "difficulty": "medium",
+      "visible_seed": 1,
+      "symptom": "A deposit ledger (server/main.go) appends each ADD n to data/ledger.log and answers OK; TOTAL returns the sum of the entries, rebuilt from the log on start. The client makes 150 deposits, remembers which were acknowledged and which were not, and at the end checks that the ledger total is at least the sum of the acknowledged deposits and at most the sum of everything it ever sent. Crashes can land in the middle of a disk write, leaving an incomplete last line in the log.\n\nObserved on seed 1: the server was crashed 36 times, 35 of them during a disk operation. The final check failed: ledger total holds no deposit that was never sent: {\"left\":9272,\"right\":7337}. The total was larger than everything the client had sent.\n\nExpected: the total must be at least the sum of acknowledged deposits and at most the sum of all deposits sent, whatever crashes happen.",
+      "patches": {
+        "buggy": [
+          "ledger-client-ack.patch",
+          "ledger-full.patch",
+          "ledger-torn-tail-kept-bug.patch"
+        ],
+        "fixed": [
+          "ledger-torn-tail-kept-fix.patch"
+        ],
+        "cheat": [
+          "ledger-torn-tail-kept-cheat.patch"
+        ]
+      },
+      "config": {
+        "faults": {
+          "crash_per_sec": 1,
+          "restart_after": [
+            "1ms",
+            "5ms"
+          ],
+          "crash_on_io": 0.1
+        }
+      }
+    },
+    {
+      "id": "ledger-sync-before-write",
+      "system": "ledger",
+      "bug_class": "fsync-before-write-order",
+      "difficulty": "easy",
+      "visible_seed": 1,
+      "symptom": "A deposit ledger (server/main.go) appends each ADD n to data/ledger.log and answers OK; TOTAL returns the sum of the entries, rebuilt from the log on start. The client makes 150 deposits, remembers which were acknowledged and which were not, and at the end checks that the ledger total is at least the sum of the acknowledged deposits and at most the sum of everything it ever sent.\n\nObserved on seed 1: the server was crashed during a disk operation at 598ms and at 1.7s. The final check failed: ledger total covers every acknowledged deposit: {\"left\":5453,\"right\":5506,\"unacked\":1831}. The total was 53 below the acknowledged sum, and the server logged no error.\n\nExpected: the total must never be below the sum of acknowledged deposits, whatever crashes happen.",
+      "patches": {
+        "buggy": [
+          "ledger-client-ack.patch",
+          "ledger-full.patch",
+          "ledger-sync-before-write-bug.patch"
+        ],
+        "fixed": [
+          "ledger-sync-before-write-fix.patch"
+        ],
+        "cheat": [
+          "ledger-sync-before-write-cheat.patch"
+        ]
+      }
+    },
+    {
+      "id": "httpkv-no-dir-sync",
+      "system": "httpkv",
+      "bug_class": "missing-dir-fsync-on-create",
+      "difficulty": "medium",
+      "visible_seed": 2,
+      "symptom": "An HTTP key-value server (server/main.go) accepts PUT /put?k=..&v=.. and appends the record to data/kv.log, fsyncing before it answers OK. On start it replays the log. The client stores keys, remembers which were acknowledged, and reads them all back at the end. The filesystem is modelled strictly: a created file or directory survives a crash only after its parent directory was fsynced.\n\nObserved on seed 2: the server was crashed at 577ms and at 901ms. The client reported: acknowledged write lost: k0=v0, server now answers \"404 page not found\". The very first key was gone.\n\nExpected: every acknowledged write must survive crashes and restarts.",
+      "patches": {
+        "buggy": [
+          "httpkv-client-ack.patch",
+          "httpkv-full.patch",
+          "httpkv-no-dir-sync-bug.patch"
+        ],
+        "fixed": [
+          "httpkv-no-dir-sync-fix.patch"
+        ],
+        "cheat": [
+          "httpkv-no-dir-sync-cheat.patch"
+        ]
+      },
+      "config": {
+        "faults": {
+          "strict_dirs": true,
+          "crash_per_sec": 1
+        }
+      }
+    },
+    {
+      "id": "httpkv-torn-tail-kept",
+      "system": "httpkv",
+      "bug_class": "torn-tail-recovery",
+      "difficulty": "medium",
+      "visible_seed": 1,
+      "symptom": "An HTTP key-value server (server/main.go) accepts PUT /put?k=..&v=.. and appends the record to data/kv.log, fsyncing before it answers OK. On start it replays the log. The client stores keys, remembers which were acknowledged, and reads them all back at the end. Crashes can land in the middle of a disk write, leaving an incomplete last record in the log.\n\nObserved on seed 1: 300 writes were attempted and the server was crashed 26 times, 19 of them during a disk operation. The client reported: acknowledged write lost: k63=v63, server now answers \"404 page not found\".\n\nExpected: every acknowledged write must survive any number of crashes and restarts.",
+      "patches": {
+        "buggy": [
+          "httpkv-client-ack.patch",
+          "httpkv-full.patch",
+          "httpkv-torn-tail-kept-bug.patch"
+        ],
+        "fixed": [
+          "httpkv-torn-tail-kept-fix.patch"
+        ],
+        "cheat": [
+          "httpkv-torn-tail-kept-cheat.patch"
+        ]
+      },
+      "config": {
+        "workload": {
+          "args": [
+            "-writes",
+            "300"
+          ]
+        },
+        "faults": {
+          "crash_per_sec": 3,
+          "crash_on_io": 0.15
+        }
+      }
+    },
+    {
+      "id": "metapage-single-meta-slot",
+      "system": "metapage",
+      "bug_class": "in-place-metadata-update",
+      "difficulty": "hard",
+      "visible_seed": 1,
+      "symptom": "A TCP key-value server (server/main.go) keeps records in data/kv.db: a 4096-byte header holding two 20-byte checksummed meta slots (sequence number and committed size) followed by the appended records. A put writes the record, then publishes it by writing the next meta slot, and answers OK once both are on disk. On start the slot with the highest valid sequence number says how many bytes of records are committed. The client remembers every PUT that was answered OK and reads them all back at the end.\n\nObserved on seed 1: the server was crashed during a disk operation five times, plus once at 852ms. The client reported: acknowledged write lost: k0=v0, server now answers \"NONE\". After one restart the server came up empty.\n\nExpected: every PUT that returned OK must be readable after any number of crashes, including crashes in the middle of a write.",
+      "patches": {
+        "buggy": [
+          "kvlog-client-ack.patch",
+          "metapage-full.patch",
+          "metapage-single-meta-slot-bug.patch"
+        ],
+        "fixed": [
+          "metapage-single-meta-slot-fix.patch"
+        ],
+        "cheat": [
+          "metapage-single-meta-slot-cheat.patch"
+        ]
+      }
+    },
+    {
+      "id": "metapage-meta-unsynced",
+      "system": "metapage",
+      "bug_class": "ack-before-fsync",
+      "difficulty": "easy",
+      "visible_seed": 1,
+      "symptom": "A TCP key-value server (server/main.go) keeps records in data/kv.db: a 4096-byte header holding two 20-byte checksummed meta slots (sequence number and committed size) followed by the appended records. A put writes the record, then publishes it by writing the next meta slot, and answers OK once both are on disk. On start the slot with the highest valid sequence number says how many bytes of records are committed. The client remembers every PUT that was answered OK and reads them all back at the end.\n\nObserved on seed 1: the server was crashed during a disk operation five times, plus once at 852ms. The client reported: acknowledged write lost: k153=v153, server now answers \"NONE\". The server started without errors.\n\nExpected: every PUT that returned OK must be readable after any number of crashes.",
+      "patches": {
+        "buggy": [
+          "kvlog-client-ack.patch",
+          "metapage-full.patch",
+          "metapage-meta-unsynced-bug.patch"
+        ],
+        "fixed": [
+          "metapage-meta-unsynced-fix.patch"
+        ],
+        "cheat": [
+          "metapage-meta-unsynced-cheat.patch"
+        ]
+      }
+    },
+    {
+      "id": "liveness-log-unsynced",
+      "system": "liveness",
+      "bug_class": "ack-before-fsync",
+      "difficulty": "easy",
+      "visible_seed": 1,
+      "symptom": "Two replicas, a primary and a backup (server/main.go). The primary forwards each ADD id to the backup and appends it to its own log, answering with the new count; retried ids must be applied once. The client sends 40 adds, retrying each until acknowledged and saving its progress, and may itself be crashed and resend the add that was in flight. Faults (crashes, pauses, partitions, connection resets) run for the first 5s of virtual time, then stop and all nodes are restarted and healed; a final check compares both counts with the number of adds the client sent.\n\nObserved on seed 1: connections between the replicas were reset five times, the primary and backup were each crashed once and the client twice. The final check failed: no acknowledged add is lost: {\"left\":21,\"right\":40}. The primary reported 21 adds although the client had been acknowledged for 40.\n\nExpected: every acknowledged add must be applied exactly once on both replicas, and the replicas must agree once faults stop.",
+      "patches": {
+        "buggy": [
+          "liveness-client-ack.patch",
+          "liveness-dedupe-on.patch",
+          "liveness-full.patch",
+          "liveness-log-unsynced-bug.patch"
+        ],
+        "fixed": [
+          "liveness-log-unsynced-fix.patch"
+        ],
+        "cheat": [
+          "liveness-log-unsynced-cheat.patch"
+        ]
+      }
+    },
+    {
+      "id": "liveness-applied-not-recovered",
+      "system": "liveness",
+      "bug_class": "dedupe-table-lost-on-restart",
+      "difficulty": "hard",
+      "visible_seed": 2,
+      "symptom": "Two replicas, a primary and a backup (server/main.go). The primary forwards each ADD id to the backup and appends it to its own log, answering with the new count; retried ids must be applied once. The client sends 40 adds, retrying each until acknowledged and saving its progress, and may itself be crashed and resend the add that was in flight. Faults (crashes, pauses, partitions, connection resets) run for the first 5s of virtual time, then stop and all nodes are restarted and healed; a final check compares both counts with the number of adds the client sent. Crashes can also land in the middle of a disk operation.\n\nObserved on seed 2: the primary, the backup and the client were all crashed, some during disk operations, and connections were reset seven times. The final check failed: no add is applied twice: {\"left\":41,\"right\":40}. One add was counted twice.\n\nExpected: the counter must equal the number of distinct adds, however many times the client retries and whichever replica was restarted in between.",
+      "patches": {
+        "buggy": [
+          "liveness-client-ack.patch",
+          "liveness-dedupe-on.patch",
+          "liveness-full.patch",
+          "liveness-applied-not-recovered-bug.patch"
+        ],
+        "fixed": [
+          "liveness-applied-not-recovered-fix.patch"
+        ],
+        "cheat": [
+          "liveness-applied-not-recovered-cheat.patch"
+        ]
+      },
+      "config": {
+        "faults": {
+          "crash_on_io": 0.1,
+          "crash_per_sec": 1
+        }
+      }
+    },
+    {
+      "id": "liveness-backup-error-ignored",
+      "system": "liveness",
+      "bug_class": "replication-error-ignored",
+      "difficulty": "medium",
+      "visible_seed": 1,
+      "symptom": "Two replicas, a primary and a backup (server/main.go). The primary forwards each ADD id to the backup and appends it to its own log, answering with the new count; retried ids must be applied once. The client sends 40 adds, retrying each until acknowledged and saving its progress, and may itself be crashed and resend the add that was in flight. Faults (crashes, pauses, partitions, connection resets) run for the first 5s of virtual time, then stop and all nodes are restarted and healed; a final check compares both counts with the number of adds the client sent.\n\nObserved on seed 1: connections between the replicas were reset five times and the backup was crashed once. After faults stopped, the final check failed: liveness: primary and backup report the same count: not true within 5s. The client had finished and been acknowledged for every add.\n\nExpected: once faults stop, both replicas must hold every acknowledged add and report the same count.",
+      "patches": {
+        "buggy": [
+          "liveness-client-ack.patch",
+          "liveness-dedupe-on.patch",
+          "liveness-full.patch",
+          "liveness-backup-error-ignored-bug.patch"
+        ],
+        "fixed": [
+          "liveness-backup-error-ignored-fix.patch"
+        ],
+        "cheat": [
+          "liveness-backup-error-ignored-cheat.patch"
+        ]
+      }
+    },
+    {
+      "id": "aikv-sonnet-1-base-unsynced",
+      "system": "aikv-sonnet-1",
+      "bug_class": "rename-before-data-fsync",
+      "difficulty": "hard",
+      "visible_seed": 1,
+      "symptom": "An embedded persistent key-value store (impl/sonnet-1) written by a model, served over TCP by a fixed harness (PUT, GET, DEL). It is a CRC-checked append-only log with compaction, and the harness restarts the server after each crash. The client overwrites 20 keys thousands of times and finally reads every key back, expecting the last acknowledged value (or a later unacknowledged one). The filesystem model lets unsynced writes reach the disk page by page in any order, and strict directory durability is on.\n\nObserved on seed 1: after 57 crashes (11 of them inside a disk operation) the server could no longer start: open: kv: data is corrupt: 0000000000000001.base: bad header, and the client reported: store unavailable for 10s: \"GET k00\" answers \"\" (dial tcp server:7000: Connection refused).\n\nExpected: after any crash the store must open again, and every acknowledged write must still be there.",
+      "patches": {
+        "buggy": [
+          "aikv-client-ack.patch",
+          "aikv-sonnet-1-server.patch",
+          "aikv-sonnet-1-base-unsynced-bug.patch"
+        ],
+        "fixed": [
+          "aikv-sonnet-1-base-unsynced-fix.patch"
+        ],
+        "cheat": [
+          "aikv-sonnet-1-base-unsynced-cheat.patch"
+        ]
+      },
+      "config": {
+        "faults": {
+          "crash_per_sec": 1.5
+        }
+      },
+      "n": 16
+    },
+    {
+      "id": "aikv-opus-1-fsync-error-ignored",
+      "system": "aikv-opus-1",
+      "bug_class": "fsync-error-ignored",
+      "difficulty": "medium",
+      "visible_seed": 2,
+      "symptom": "An embedded persistent key-value store (impl/opus-1) written by a model, served over TCP by a fixed harness (PUT, GET, DEL). It is a CRC-checked append-only log with compaction, and the harness restarts the server after each crash. The client overwrites 20 keys thousands of times and finally reads every key back, expecting the last acknowledged value (or a later unacknowledged one). The disk sometimes fails an fsync with EIO; the unsynced writes stay readable in the page cache but are dropped from durable storage.\n\nObserved on seed 2: fsync failed with EIO eight times and the server was crashed fifteen times (eight of them during disk operations). The client reported: key k00: want v1495 (or an unacknowledged later write), store answers v1354.\n\nExpected: every acknowledged write must survive crashes, whatever happened to earlier fsyncs.",
+      "patches": {
+        "buggy": [
+          "aikv-client-ack.patch",
+          "aikv-opus-1-server.patch",
+          "aikv-opus-1-fsync-error-ignored-bug.patch"
+        ],
+        "fixed": [
+          "aikv-opus-1-fsync-error-ignored-fix.patch"
+        ],
+        "cheat": [
+          "aikv-opus-1-fsync-error-ignored-cheat.patch"
+        ]
+      },
+      "config": {
+        "workload": {
+          "args": [
+            "-ops",
+            "1500",
+            "-size",
+            "8192",
+            "-gap",
+            "5ms"
+          ]
+        },
+        "duration": "60s",
+        "faults": {
+          "fsync_eio": 0.03
+        }
+      },
+      "n": 32
+    },
+    {
+      "id": "aikv-sonnet-3-compact-unsynced",
+      "system": "aikv-sonnet-3",
+      "bug_class": "rename-before-data-fsync",
+      "difficulty": "hard",
+      "visible_seed": 1,
+      "symptom": "An embedded persistent key-value store (impl/sonnet-3) written by a model, served over TCP by a fixed harness (PUT, GET, DEL). It is a CRC-checked append-only log with compaction, and the harness restarts the server after each crash. The client overwrites 20 keys thousands of times and finally reads every key back, expecting the last acknowledged value (or a later unacknowledged one). The filesystem model lets unsynced writes reach the disk page by page in any order, and strict directory durability is on.\n\nObserved on seed 1: after 57 crashes (11 of them inside a disk operation) the server could no longer start and the client reported: store unavailable for 10s: \"GET k00\" answers \"\" (dial tcp server:7000: Connection refused).\n\nExpected: after any crash the store must open again, and every acknowledged write must still be there.",
+      "patches": {
+        "buggy": [
+          "aikv-client-ack.patch",
+          "aikv-sonnet-3-server.patch",
+          "aikv-sonnet-3-compact-unsynced-bug.patch"
+        ],
+        "fixed": [
+          "aikv-sonnet-3-compact-unsynced-fix.patch"
+        ],
+        "cheat": [
+          "aikv-sonnet-3-compact-unsynced-cheat.patch"
+        ]
+      },
+      "config": {
+        "faults": {
+          "crash_per_sec": 1.5
+        }
+      },
+      "n": 16
+    },
+    {
+      "id": "etcdraft-wal-unsynced",
+      "system": "etcdraft",
+      "bug_class": "ack-before-fsync",
+      "difficulty": "medium",
+      "visible_seed": 1,
+      "symptom": "A 3-node key-value store on etcd's raft library (node/). Each node keeps a write-ahead log of CRC-checked records and a snapshot file, and persists every Ready batch before sending its messages. Four concurrent clients are checked for linearizability. Crashes, partitions, torn writes and crashes in the middle of disk operations are injected.\n\nObserved on seed 1: n2, n1 and n3 were each crashed and restarted once. n3 then panicked on restart in raft.RestartNode (exit code 2) and the run failed with: n3#2 crashed: module closed with exit_code(2).\n\nExpected: after any crash a node must restart from its own disk with a state raft can accept, and the cluster must stay linearizable.",
+      "patches": {
+        "buggy": [
+          "etcdraft-client-ack.patch",
+          "etcdraft-wal-unsynced-bug.patch"
+        ],
+        "fixed": [
+          "etcdraft-wal-unsynced-fix.patch"
+        ],
+        "cheat": [
+          "etcdraft-wal-unsynced-cheat.patch"
+        ]
+      },
+      "config": {
+        "faults": {
+          "crash_per_sec": 0.5
+        }
+      },
+      "n": 16
+    },
+    {
+      "id": "etcdraft-snapshot-data-unsynced",
+      "system": "etcdraft",
+      "bug_class": "rename-before-data-fsync",
+      "difficulty": "hard",
+      "visible_seed": 1,
+      "symptom": "A 3-node key-value store on etcd's raft library (node/). Each node keeps a write-ahead log of CRC-checked records and writes snapshots through a temporary file that is renamed into place. Four concurrent clients are checked for linearizability. Crashes, partitions, torn writes and crashes in the middle of disk operations are injected.\n\nObserved on seed 1: n1 was crashed after a partition, and on restart it logged: recovered 96 entries, snapshot at 0, then unexpected end of JSON input, and the run failed with: n1#2 crashed: module closed with exit_code(1).\n\nExpected: after any crash a node must restart from its own disk, and the cluster must stay linearizable.",
+      "patches": {
+        "buggy": [
+          "etcdraft-client-ack.patch",
+          "etcdraft-snapshot-data-unsynced-bug.patch"
+        ],
+        "fixed": [
+          "etcdraft-snapshot-data-unsynced-fix.patch"
+        ],
+        "cheat": [
+          "etcdraft-snapshot-data-unsynced-cheat.patch"
+        ]
+      },
+      "config": {
+        "faults": {
+          "crash_per_sec": 0.5
+        }
+      },
+      "n": 16
+    },
+    {
+      "id": "raftkv-log-unsynced",
+      "system": "raftkv",
+      "bug_class": "ack-before-fsync",
+      "difficulty": "hard",
+      "visible_seed": 2,
+      "symptom": "A 3-node key-value store on hashicorp/raft with a file-backed log store (node/logstore.go) and a snapshot store. The client writes through the leader and, after faults stop, reads back every acknowledged key from the leader. Crashes, partitions, torn writes and crashes in the middle of disk operations are injected.\n\nObserved on seed 2: n1, n2 and n3 were crashed and restarted several times (some during disk operations). The client reported: acknowledged write lost: k104=v104, leader answers \"NONE\".\n\nExpected: every acknowledged write must be readable from the leader after crashes and restarts.",
+      "patches": {
+        "buggy": [
+          "raftkv-client-ack.patch",
+          "raftkv-log-unsynced-bug.patch"
+        ],
+        "fixed": [
+          "raftkv-log-unsynced-fix.patch"
+        ],
+        "cheat": [
+          "raftkv-log-unsynced-cheat.patch"
+        ]
+      },
+      "config": {
+        "faults": {
+          "crash_per_sec": 0.6,
+          "crash_on_io": 0.005
+        }
+      },
+      "n": 16
+    },
+    {
+      "id": "liveness-apply-before-replicate",
+      "system": "liveness",
+      "bug_class": "apply-before-replicate",
+      "difficulty": "medium",
+      "visible_seed": 1,
+      "symptom": "Two replicas, a primary and a backup (server/main.go). The primary forwards each ADD id to the backup and appends it to its own log, answering with the new count; retried ids must be applied once. The client sends 40 adds, retrying each until acknowledged and saving its progress, and may itself be crashed and resend the add that was in flight. Faults (crashes, pauses, partitions, connection resets) run for the first 5s of virtual time, then stop and all nodes are restarted and healed; a final check compares both counts with the number of adds the client sent.\n\nObserved on seed 1: connections between the replicas were reset five times and the backup was crashed once. After faults stopped, the final check failed: liveness: primary and backup report the same count: not true within 5s. The client had finished and been acknowledged for every add.\n\nExpected: once faults stop, both replicas must hold every acknowledged add and report the same count.",
+      "patches": {
+        "buggy": [
+          "liveness-client-ack.patch",
+          "liveness-dedupe-on.patch",
+          "liveness-full.patch",
+          "liveness-apply-before-replicate-bug.patch"
+        ],
+        "fixed": [
+          "liveness-apply-before-replicate-fix.patch"
+        ],
+        "cheat": [
+          "liveness-apply-before-replicate-cheat.patch"
+        ]
+      }
+    },
+    {
+      "id": "metapage-append-offset-off-by-one",
+      "system": "metapage",
+      "bug_class": "append-offset-off-by-one",
+      "difficulty": "medium",
+      "visible_seed": 1,
+      "symptom": "A TCP key-value server (server/main.go) keeps records in data/kv.db: a 4096-byte header holding two 20-byte checksummed meta slots (sequence number and committed size) followed by the appended records. A put writes the record, then publishes it by writing the next meta slot, and answers OK once both are on disk. On start the slot with the highest valid sequence number says how many bytes of records are committed. The client remembers every PUT that was answered OK and reads them all back at the end.\n\nObserved on seed 1: after a crash during a disk operation the restarted server failed its own check: every committed record is intact: meta slot 13 commits 84 bytes of records, 89 on disk, ending in \"10=v10\\nk11=v11\\nk12=v12\\nk\". Records written before the crash were not laid out as the meta slot says.\n\nExpected: the committed records must be intact after a restart and every acknowledged PUT must be readable.",
+      "patches": {
+        "buggy": [
+          "kvlog-client-ack.patch",
+          "metapage-full.patch",
+          "metapage-append-offset-off-by-one-bug.patch"
+        ],
+        "fixed": [
+          "metapage-append-offset-off-by-one-fix.patch"
+        ],
+        "cheat": [
+          "metapage-append-offset-off-by-one-cheat.patch"
+        ]
+      }
+    },
+    {
+      "id": "symswap-fsync-wrong-dir",
+      "system": "symswap",
+      "bug_class": "fsync-wrong-target",
+      "difficulty": "medium",
+      "visible_seed": 1,
+      "symptom": "A TCP key-value server (server/main.go) stores each version of its data as a file gen.N in data/ and publishes it by replacing the symlink data/current with a link to the new generation. Recovery follows data/current. The filesystem is modelled strictly: a directory change survives a crash only if the directory was fsynced, and directory operations may persist out of order. The client remembers every PUT that was answered OK and reads them all back at the end.\n\nObserved on seed 1: the server was crashed at 284ms and restarted into: the current symlink points at a generation that exists: current -> gen.5: open data/current: No such file or directory.\n\nExpected: after any crash data/current must point at a complete, readable generation and all acknowledged puts must be present.",
+      "patches": {
+        "buggy": [
+          "kvlog-client-ack.patch",
+          "symswap-full.patch",
+          "symswap-fsync-wrong-dir-bug.patch"
+        ],
+        "fixed": [
+          "symswap-fsync-wrong-dir-fix.patch"
+        ],
+        "cheat": [
+          "symswap-fsync-wrong-dir-cheat.patch"
+        ]
+      },
+      "config": {
+        "duration": "120s",
+        "workload": {
+          "args": [
+            "-writes",
+            "200"
+          ]
+        },
+        "faults": {
+          "disk_latency": [
+            "1ms",
+            "10ms"
+          ],
+          "crash_per_sec": 3,
+          "restart_after": [
+            "10ms",
+            "100ms"
+          ]
+        }
+      }
+    },
+    {
+      "id": "httpkv-sync-before-write",
+      "system": "httpkv",
+      "bug_class": "fsync-before-write-order",
+      "difficulty": "easy",
+      "visible_seed": 1,
+      "symptom": "An HTTP key-value server (server/main.go) accepts PUT /put?k=..&v=.. and appends the record to data/kv.log, fsyncing before it answers OK. On start it replays the log. The client stores keys, remembers which were acknowledged, and reads them all back at the end.\n\nObserved on seed 1: the server was crashed during a disk operation at 537ms and again at 1.7s. The client reported: acknowledged write lost: k93=v93, server now answers \"404 page not found\". The server never logged an error.\n\nExpected: every acknowledged write must survive crashes and restarts.",
+      "patches": {
+        "buggy": [
+          "httpkv-client-ack.patch",
+          "httpkv-full.patch",
+          "httpkv-sync-before-write-bug.patch"
+        ],
+        "fixed": [
+          "httpkv-sync-before-write-fix.patch"
+        ],
+        "cheat": [
+          "httpkv-sync-before-write-cheat.patch"
+        ]
+      }
     }
   ]
 }

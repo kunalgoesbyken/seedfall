@@ -1,0 +1,11 @@
+{
+  "id": "aikv-opus-1-fsync-error-ignored",
+  "system": "aikv-opus-1",
+  "bug_class": "fsync-error-ignored",
+  "difficulty": "medium",
+  "editable": [
+    "impl/opus-1/"
+  ],
+  "symptom": "An embedded persistent key-value store (impl/opus-1) written by a model, served over TCP by a fixed harness (PUT, GET, DEL). It is a CRC-checked append-only log with compaction, and the harness restarts the server after each crash. The client overwrites 20 keys thousands of times and finally reads every key back, expecting the last acknowledged value (or a later unacknowledged one). The disk sometimes fails an fsync with EIO; the unsynced writes stay readable in the page cache but are dropped from durable storage.\n\nObserved on seed 2: fsync failed with EIO eight times and the server was crashed fifteen times (eight of them during disk operations). The client reported: key k00: want v1495 (or an unacknowledged later write), store answers v1354.\n\nExpected: every acknowledged write must survive crashes, whatever happened to earlier fsyncs.",
+  "default_n": 32
+}

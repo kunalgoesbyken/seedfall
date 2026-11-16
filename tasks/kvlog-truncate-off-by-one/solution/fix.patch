@@ -1,0 +1,11 @@
+--- a/server/main.go
++++ b/server/main.go
+@@ -82,7 +82,7 @@
+ 	}
+ 	sim.Sometimes(complete < len(data), "recovery found a torn tail")
+ 	if complete < len(data) {
+-		if err := f.Truncate(int64(complete) - 1); err != nil {
++		if err := f.Truncate(int64(complete)); err != nil {
+ 			return nil, err
+ 		}
+ 		if err := f.Sync(); err != nil {

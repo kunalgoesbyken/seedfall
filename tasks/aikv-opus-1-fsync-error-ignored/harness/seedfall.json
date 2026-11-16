@@ -1,0 +1,43 @@
+{
+  "duration": "60s",
+  "faults": {
+    "crash_on_io": 0.005,
+    "crash_per_sec": 0.5,
+    "fs_model": "page_independent",
+    "fsync_eio": 0.03,
+    "reorder_writes": true,
+    "restart_after": [
+      "10ms",
+      "500ms"
+    ],
+    "strict_dirs": true,
+    "torn_writes": true
+  },
+  "latency": [
+    "1ms",
+    "5ms"
+  ],
+  "nodes": [
+    {
+      "args": [
+        "-impl",
+        "opus-1"
+      ],
+      "name": "server",
+      "pkg": "./server"
+    }
+  ],
+  "supervise": true,
+  "workload": {
+    "args": [
+      "-ops",
+      "1500",
+      "-size",
+      "8192",
+      "-gap",
+      "5ms"
+    ],
+    "name": "client",
+    "pkg": "./client"
+  }
+}

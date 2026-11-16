@@ -1,0 +1,11 @@
+{
+  "id": "kvlog-write-error-ignored",
+  "system": "kvlog",
+  "bug_class": "write-error-ignored",
+  "difficulty": "easy",
+  "editable": [
+    "server/"
+  ],
+  "symptom": "A small TCP key-value server (server/main.go) appends every PUT as a checksummed key=value line to data/kv.log, fsyncs, and only then answers OK. On start it reads the log back, verifies each record and rebuilds its in-memory map. The client remembers every PUT that was answered OK and reads them all back at the end. The disk occasionally fails a write with EIO, in which case nothing of that write reaches the file.\n\nObserved on seed 1: the server was crashed at 287ms (during a disk operation) and at 568ms, a write to data/kv.log failed with EIO at disk op #65 (836ms), and the server was crashed again at 2.05s (during a disk operation). The client reported: acknowledged write lost: k65=v65, server now answers \"NONE\".\n\nExpected: a PUT must only be answered OK if its record is durable; every PUT that returned OK must be readable after crashes and restarts.",
+  "default_n": 0
+}

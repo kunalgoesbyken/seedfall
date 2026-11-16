@@ -1,0 +1,11 @@
+{
+  "id": "etcdraft-snapshot-data-unsynced",
+  "system": "etcdraft",
+  "bug_class": "rename-before-data-fsync",
+  "difficulty": "hard",
+  "editable": [
+    "node/"
+  ],
+  "symptom": "A 3-node key-value store on etcd's raft library (node/). Each node keeps a write-ahead log of CRC-checked records and writes snapshots through a temporary file that is renamed into place. Four concurrent clients are checked for linearizability. Crashes, partitions, torn writes and crashes in the middle of disk operations are injected.\n\nObserved on seed 1: n1 was crashed after a partition, and on restart it logged: recovered 96 entries, snapshot at 0, then unexpected end of JSON input, and the run failed with: n1#2 crashed: module closed with exit_code(1).\n\nExpected: after any crash a node must restart from its own disk, and the cluster must stay linearizable.",
+  "default_n": 16
+}

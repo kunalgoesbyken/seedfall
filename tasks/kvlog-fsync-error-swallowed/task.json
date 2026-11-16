@@ -1,0 +1,11 @@
+{
+  "id": "kvlog-fsync-error-swallowed",
+  "system": "kvlog",
+  "bug_class": "fsync-error-ignored",
+  "difficulty": "medium",
+  "editable": [
+    "server/"
+  ],
+  "symptom": "A small TCP key-value server (server/main.go) appends every PUT as a checksummed key=value line to data/kv.log, fsyncs, and only then answers OK. On start it reads the log back, verifies each record and rebuilds its in-memory map. The client remembers every PUT that was answered OK and reads them all back at the end. The disk sometimes fails an fsync with EIO; the unsynced writes then stay readable in the page cache but are dropped from durable storage, and the next fsync succeeds. A supervisor restarts the server when it exits.\n\nObserved on seed 1: fsync failed with EIO at disk ops 38 and 64, the server was crashed and restarted afterwards, and from then on every start ended with: data/kv.log: the record at offset 269 fails its checksum in 40 reads. The run failed with: unfinished, the workload did not finish within the simulated duration (the store never came back).\n\nExpected: after any sequence of crashes and failed fsyncs the server must start again, and every PUT that returned OK must be readable.",
+  "default_n": 0
+}

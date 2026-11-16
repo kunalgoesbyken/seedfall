@@ -1,0 +1,11 @@
+{
+  "id": "liveness-applied-not-recovered",
+  "system": "liveness",
+  "bug_class": "dedupe-table-lost-on-restart",
+  "difficulty": "hard",
+  "editable": [
+    "server/"
+  ],
+  "symptom": "Two replicas, a primary and a backup (server/main.go). The primary forwards each ADD id to the backup and appends it to its own log, answering with the new count; retried ids must be applied once. The client sends 40 adds, retrying each until acknowledged and saving its progress, and may itself be crashed and resend the add that was in flight. Faults (crashes, pauses, partitions, connection resets) run for the first 5s of virtual time, then stop and all nodes are restarted and healed; a final check compares both counts with the number of adds the client sent. Crashes can also land in the middle of a disk operation.\n\nObserved on seed 2: the primary, the backup and the client were all crashed, some during disk operations, and connections were reset seven times. The final check failed: no add is applied twice: {\"left\":41,\"right\":40}. One add was counted twice.\n\nExpected: the counter must equal the number of distinct adds, however many times the client retries and whichever replica was restarted in between.",
+  "default_n": 0
+}
