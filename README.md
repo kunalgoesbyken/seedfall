@@ -16,6 +16,8 @@ This repo holds the grader, the generated tasks, the task builder and the valida
 | `baselines.json` | Progress floors measured from the oracle by `validate -calibrate` |
 | `splits.json` | Train and held-out split, written by `build_tasks` when it builds every task |
 | `validation.json` | Output of the last full validation |
+| `harness/` | Python agent harness and the env adapter `harness/gym_env.py` (`uv run python -m harness.run --env harness.gym_env:Factory ...`); `harness/reference.py` runs the null and oracle rows |
+| `runs/` | Raw baseline trajectories, one JSONL per episode, and `results.json` the summary |
 
 ## Commands
 
@@ -132,6 +134,56 @@ The patches, configs and author scripts for dropped tasks are still in `tasks_sr
 `splits.json` holds a deterministic split, written by `build_tasks` when it builds every task (`-held-out`, default 0.25). Tasks are grouped by (system, bug class) and a group never straddles the split. Groups are ordered by SHA-256 of a fixed salt and the group key, and moved to the held-out side while that keeps the held-out count at or below a quarter of the tasks. The result depends only on the manifest content, not on its order (`TestAssignSplitsIsDeterministicAndOrderFree`), and `TestAssignSplitsKeepsGroupsWhole` checks that no group is split. Adding or dropping a task can move groups, so regenerate it with the manifest.
 
 Current split: 31 train and 11 held-out tasks (74% and 26%). The held-out set is `aikv-haiku-1-tail`, `aikv-sonnet-3-compact-unsynced`, `etcdraft-wal-unsynced`, `httpkv-sync-before-write`, `kvlog-ack-before-fsync`, `kvlog-fsyncgate`, `liveness-redial`, `metapage-append-offset-off-by-one`, `metapage-single-meta-slot`, `raftkv-log-unsynced`, `symswap-fsync-wrong-dir`. It holds three systems that train never sees (`aikv-haiku-1`, `aikv-sonnet-3`, `raftkv`), six bug classes that train never sees (ack-before-durable, append-offset-off-by-one, fsync-failure-leaves-record, in-place-metadata-update, no-reconnect-to-replica, torn-tail-treated-as-corruption), and four classes that train has only in other systems (ack-before-fsync, fsync-before-write-order, fsync-wrong-target, rename-before-data-fsync). So it tests unseen code and unseen bugs in familiar code, and none of it is a fault-mix variant of a train task: the two variant pairs (`ledger-nofsync` and `-heavy`, `httpkv-nofsync` and `-heavy`) are one group and both train.
+
+## Baselines
+
+Run on 2026-11-16 with the agent harness in `harness/` (`harness.gym_env:Factory`), 12 tasks, hidden grading with a secret local salt (64 hidden seeds per task, 32 for `aikv-haiku-1-tail`). Everything here was free tier except Haiku, which cost $0.076 in total. Raw trajectories are in `runs/`, the machine-readable table in `results.json`.
+
+| model | episodes | pass@1 | mean reward | false-claim rate | mean turns | mean tokens | cost |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| null (submit unchanged) | 12 | 0.000 | 0.163 | 1.000 | - | - | $0 |
+| oracle (apply `solution/`) | 12 | 0.917 | 0.999 | 0.083 | - | - | $0 |
+| gemini-3.1-flash-lite | 24 | 0.833 | 0.863 | 0.000 | 11.0 | 63k | $0 |
+| gemini-3.5-flash-lite | 24 | 0.750 | 0.823 | 0.125 | 13.8 | 95k | $0 |
+| claude-haiku-5-5 | 24 | 1.000 | 1.000 | 0.000 | 5.1 | 22k | $0.076 |
+| gemini-3.5-flash | 1 | 1.000 | 1.000 | 0.000 | 20.0 | 269k | $0 |
+| nvidia/nemotron-3-ultra-550b-a55b:free (OpenRouter) | 2 | 1.000 | 1.000 | 0.000 | 17.5 | 59k | $0 |
+
+`pass@1` is the share of episodes with reward exactly 1.0. The false-claim rate is the share of episodes where the agent said it was done (called `submit`, or the final message claimed success) and the reward was below 1. `submit` counts as a claim, which is why null is 1.000. Cost is the harness ledger, not a bill. 12 tasks, 2 episodes per task for the three full rows, so n = 24 and one episode moves a rate by 4 points.
+
+Per task, solved episodes out of episodes (mean reward in brackets):
+
+| task | null | oracle | flash-lite 3.1 | flash-lite 3.5 | haiku-5-5 |
+|---|---|---|---|---|---|
+| aikv-haiku-1-tail | 0/1 (0.16) | 1/1 (1.00) | 1/2 (0.50) | 1/2 (0.58) | 2/2 (1.00) |
+| httpkv-nofsync | 0/1 (0.09) | 1/1 (1.00) | 2/2 (1.00) | 2/2 (1.00) | 2/2 (1.00) |
+| httpkv-nofsync-heavy | 0/1 (0.00) | 1/1 (1.00) | 2/2 (1.00) | 2/2 (1.00) | 2/2 (1.00) |
+| kvlog-ack-before-fsync | 0/1 (0.12) | 1/1 (1.00) | 2/2 (1.00) | 2/2 (1.00) | 2/2 (1.00) |
+| kvlog-fsyncgate | 0/1 (0.27) | 1/1 (1.00) | 1/2 (0.50) | 0/2 (0.25) | 2/2 (1.00) |
+| kvlog-no-checksum | 0/1 (0.31) | 0/1 (0.98) | 0/2 (0.36) | 1/2 (0.95) | 2/2 (1.00) |
+| kvlog-torn-tail | 0/1 (0.38) | 1/1 (1.00) | 2/2 (1.00) | 2/2 (1.00) | 2/2 (1.00) |
+| ledger-nofsync | 0/1 (0.06) | 1/1 (1.00) | 2/2 (1.00) | 2/2 (1.00) | 2/2 (1.00) |
+| ledger-nofsync-heavy | 0/1 (0.00) | 1/1 (1.00) | 2/2 (1.00) | 2/2 (1.00) | 2/2 (1.00) |
+| liveness-dedupe | 0/1 (0.20) | 1/1 (1.00) | 2/2 (1.00) | 1/2 (0.60) | 2/2 (1.00) |
+| liveness-redial | 0/1 (0.00) | 1/1 (1.00) | 2/2 (1.00) | 1/2 (0.50) | 2/2 (1.00) |
+| symswap-dir-fsync | 0/1 (0.36) | 1/1 (1.00) | 2/2 (1.00) | 2/2 (1.00) | 2/2 (1.00) |
+
+### Setup
+
+- Tools: `list_files`, `read_file`, `write_file`, `edit_file`, `run_seeds(seeds)` and `submit()`. `run_seeds` calls `grade -seeds` on up to 4 integer seeds between 0 and 1000 (at most 12 calls per episode) and returns pass or fail, the reason and the last 20 trace lines. The hidden seeds, the salt and the guard report are never shown. The reward is a separate hidden-seed grade after the episode ends, in a clean process environment, with a process timeout.
+- The prompt is the task's `symptom` from `task.json` plus a fixed system prompt. It does not contain the bug class or any solution text.
+- Caps: 30 turns, 250k total tokens, 8192 completion tokens, 600 s per episode, native tool calls, provider default sampling. Episodes that hit a cap are still graded on the workspace as it stands.
+- `harness/reference.py` produces the null and oracle rows with no model. Null reproduces the buggy reward exactly; oracle applies `solution/`.
+- The tasks and `grade.exe` were run from a snapshot of commit `c373cdf` (seedfall `00f5aa2`), because other work in the same checkout was adding tasks while the runs were in progress.
+
+### Caveats and findings
+
+- Small n. 24 episodes per full row, 2 per task; the differences between the two Gemini rows are within noise. Rewards use one secret salt, so a task's buggy reward differs from the dev-salt table above by sampling noise (for example kvlog-torn-tail 0.375 here, 0.219 there).
+- Free tiers cut the roster short. `gemini-3.5-flash` allows 20 requests per day, so one episode finished and the second hit a 429. `gemma-4-31b-it` through the Gemini API returned HTTP 500 and then 503 (high demand) and no episode finished; the OpenRouter `:free` Gemma copy was rate limited upstream on the first request. The OpenRouter nemotron row stopped at 2 episodes when the 50 requests per day budget ran out. Those three rows are anecdotes, not baselines; the three rows with n = 24 are.
+- Most of this task set is solved by current small models. Haiku 5.5 solved all 24 episodes in about 5 turns, so with this prompt the set does not separate strong agents. The hard rows are `kvlog-fsyncgate`, `kvlog-no-checksum` and `aikv-haiku-1-tail` for the Gemini models.
+- The agent sees a detailed symptom and can replay visible seeds up to 48 times, so a part of the score is test-time search on visible seeds, not blind repair. A tighter prompt or a smaller `run_seeds` budget would make the set harder.
+- Oracle ceiling: with this hidden salt the oracle for `kvlog-no-checksum` scores 63 of 64 (0.984, reproduced twice), one seed loses an acknowledged write. The "oracle is exactly 1.0" rule above held on the dev salt only. Haiku found a stricter fix (re-read until every complete line verifies) that scored 1.0 on both episodes, so the task is solvable, but its reference solution is not a perfect one.
+- Two episodes of `gemini-3.5-flash-lite` on `liveness-redial` and one of `gemini-3.1-flash-lite` on `aikv-haiku-1-tail` ended on the episode time or token cap with a partial result. Candidate code that never terminates is caught by the 300 s `run_seeds` timeout and costs the agent that call.
 
 ## How tasks are built
 
