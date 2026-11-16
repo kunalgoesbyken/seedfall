@@ -31,7 +31,7 @@
 <script type="module" src="head.js"></script>
 </head>
 <body>
-<header class="site-head"><a class="brand" href="./"><svg viewBox="0 0 32 32" aria-hidden="true"><rect class="bar" x="3" y="17" width="7" height="12" rx="3.5" opacity="0.6"/><rect class="seed" x="12.5" y="3" width="7" height="26" rx="3.5"/><rect class="bar" x="22" y="10" width="7" height="19" rx="3.5" opacity="0.8"/></svg>seedfall</a><nav><a href="./docs/">Docs</a><a href="./gym">RL gym</a><a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a><button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch between light and dark theme" title="Switch theme"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.75a6.25 6.25 0 0 1 0 12.5z" fill="currentColor"/></svg></button></nav></header>
+<header class="site-head"><a class="brand" href="./"><svg viewBox="0 0 32 32" aria-hidden="true"><rect class="bar" x="3" y="17" width="7" height="12" rx="3.5" opacity="0.6"/><rect class="seed" x="12.5" y="3" width="7" height="26" rx="3.5"/><rect class="bar" x="22" y="10" width="7" height="19" rx="3.5" opacity="0.8"/></svg>seedfall</a><nav><a href="./docs/">Docs</a><a href="./gym">RL gym</a><a class="icon-link" href="https://github.com/kunalgoesbyken/seedfall" target="_blank" rel="noopener" aria-label="seedfall on GitHub" title="GitHub"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.83 1.24 1.83 1.24 1.07 1.83 2.81 1.3 3.5 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3"/></svg></a><button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch between light and dark theme" title="Switch theme"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.75a6.25 6.25 0 0 1 0 12.5z" fill="currentColor"/></svg></button></nav></header>
 <div class="layout">
 <nav class="toc" aria-label="Contents" data-toc hidden><p class="toc-title">Contents</p></nav>
 <article class="page paper">
@@ -40,11 +40,11 @@
 <p class="lede">Deterministic simulation testing on the stock Go toolchain</p>
 <p class="meta">November 2026 · Kunal Roy Choudhury</p>
 
-<p class="links"><a href="https://github.com/kunalgoesbyken/seedfall">Code</a><a href="docs/">Docs</a><a href="#break-it-yourself">Demo</a><a href="demo/kvlog-seed-1.html">Real trace</a><a href="docs/findings/">Bugs found</a><a href="gym">RL gym</a></p>
+<p class="links"><a href="https://github.com/kunalgoesbyken/seedfall" target="_blank" rel="noopener">Code</a><a href="docs/">Docs</a><a href="#break-it-yourself">Demo</a><a href="demo/kvlog-seed-1.html">Real trace</a><a href="docs/findings/">Bugs found</a><a href="gym">RL gym</a></p>
 
 <section class="abstract">
-<p><strong><em>Abstract</em>—</strong>Storage code loses acknowledged writes when it crashes at the wrong moment, and that moment is almost impossible to hit in a test or to reproduce after production hits it. seedfall runs unmodified Go services in a deterministic simulation on WebAssembly, injects crashes, torn writes and network faults, and names every run by one seed, so each failure replays byte for byte. A shrinker cuts the failure to the few faults that cause it. It has found crash bugs in 10 open-source Go storage projects. Because a seed is a reproducible test case, the same machinery also works as a grader for coding agents and for agents operating a live cluster.</p>
-<p><strong><em>Index Terms</em>—</strong>deterministic simulation testing, fault injection, crash consistency, delta debugging, Go, WebAssembly.</p>
+<p><strong>Abstract.</strong> Storage code loses acknowledged writes when it crashes at the wrong moment, and that moment is almost impossible to hit in a test or to reproduce after production hits it. seedfall runs unmodified Go services in a deterministic simulation on WebAssembly, injects crashes, torn writes and network faults, and names every run by one seed, so each failure replays byte for byte. A shrinker cuts the failure to the few faults that cause it. It has found crash bugs in 10 open-source Go storage projects. Because a seed is a reproducible test case, the same machinery also works as a grader for coding agents and for agents operating a live cluster.</p>
+<p><strong>Index terms.</strong> deterministic simulation testing, fault injection, crash consistency, delta debugging, Go, WebAssembly.</p>
 </section>
 
 <pre class="install" data-copy><code>go install github.com/kunalgoesbyken/seedfall/cmd/seedfall@latest</code></pre>
@@ -96,7 +96,7 @@
 <figcaption>Fig. 3. Your nodes run as WebAssembly modules inside the seedfall host. Every random byte, clock read, sleep, file and socket goes through the host, so one seed pins down the whole run.</figcaption>
 </figure>
 
-<p>Each node is compiled with Go's <code>GOOS=wasip1</code> target and runs on <a href="https://wazero.io">wazero</a>. On that target, everything nondeterministic leaves the program through three calls: random bytes, the clock, and sleep. seedfall answers all three itself and fakes the disk and network too, so your code keeps using plain <code>os.File</code> and <code>net</code>.</p>
+<p>Each node is compiled with Go's <code>GOOS=wasip1</code> target and runs on <a href="https://wazero.io" target="_blank" rel="noopener">wazero</a>. On that target, everything nondeterministic leaves the program through three calls: random bytes, the clock, and sleep. seedfall answers all three itself and fakes the disk and network too, so your code keeps using plain <code>os.File</code> and <code>net</code>.</p>
 
 <p>Time only moves when the scheduler says so, which makes a 10 minute timeout free. The disk keeps a write visible right away but only keeps it across a crash after <code>fsync</code>, and a crash can leave a torn prefix of whatever was pending <a class="cite" href="#ref-5">[5]</a>. The network can delay, reorder, reset and partition.</p>
 
@@ -138,13 +138,13 @@ faults before the failure (2):
 <caption>Table 1. Crash bugs found, status as of 2026-11-09.</caption>
 <thead><tr><th>Project</th><th>What breaks</th><th>Status</th></tr></thead>
 <tbody>
-<tr><td><strong>NATS JetStream</strong></td><td>A crash while a stream is being created loses the stream and its acknowledged messages.</td><td><a href="https://github.com/nats-io/nats-server/issues/8872">#8872</a>, open</td></tr>
-<tr><td><strong>rosedblabs/wal</strong></td><td>After one torn write, later synced writes are lost and rosedb v2 won't open.</td><td><a href="https://github.com/rosedblabs/wal/issues/51">#51</a>, open</td></tr>
-<tr><td><strong>tidwall/buntdb</strong></td><td>A crash after the automatic shrink can bring the database back empty.</td><td><a href="https://github.com/tidwall/buntdb/issues/126">#126</a>, <strong>fixed</strong></td></tr>
-<tr><td><strong>tidwall/wal</strong></td><td>A crash mid-write makes the log unopenable, and the pending fix doesn't cover every case.</td><td><a href="https://github.com/tidwall/wal/issues/43">#43</a>, open</td></tr>
-<tr><td><strong>hashicorp/raft</strong></td><td>The snapshot directory is never synced before a rename, so on a strict file system a node can panic on every restart.</td><td><a href="https://github.com/hashicorp/raft/issues/744">#744</a>, open</td></tr>
-<tr><td><strong>nutsdb</strong></td><td>Recovery can drop every acknowledged entry in a bucket, and a damaged tail makes <code>Open</code> fail forever.</td><td><a href="https://github.com/nutsdb/nutsdb/issues/695">#695</a> <a href="https://github.com/nutsdb/nutsdb/issues/696">#696</a> <a href="https://github.com/nutsdb/nutsdb/issues/697">#697</a>, open</td></tr>
-<tr><td><strong>diskv</strong></td><td>On a strict file system an acknowledged write can revert.</td><td><a href="https://github.com/peterbourgon/diskv/issues/83">#83</a>, open</td></tr>
+<tr><td><strong>NATS JetStream</strong></td><td>A crash while a stream is being created loses the stream and its acknowledged messages.</td><td><a href="https://github.com/nats-io/nats-server/issues/8872" target="_blank" rel="noopener">#8872</a>, open</td></tr>
+<tr><td><strong>rosedblabs/wal</strong></td><td>After one torn write, later synced writes are lost and rosedb v2 won't open.</td><td><a href="https://github.com/rosedblabs/wal/issues/51" target="_blank" rel="noopener">#51</a>, open</td></tr>
+<tr><td><strong>tidwall/buntdb</strong></td><td>A crash after the automatic shrink can bring the database back empty.</td><td><a href="https://github.com/tidwall/buntdb/issues/126" target="_blank" rel="noopener">#126</a>, <strong>fixed</strong></td></tr>
+<tr><td><strong>tidwall/wal</strong></td><td>A crash mid-write makes the log unopenable, and the pending fix doesn't cover every case.</td><td><a href="https://github.com/tidwall/wal/issues/43" target="_blank" rel="noopener">#43</a>, open</td></tr>
+<tr><td><strong>hashicorp/raft</strong></td><td>The snapshot directory is never synced before a rename, so on a strict file system a node can panic on every restart.</td><td><a href="https://github.com/hashicorp/raft/issues/744" target="_blank" rel="noopener">#744</a>, open</td></tr>
+<tr><td><strong>nutsdb</strong></td><td>Recovery can drop every acknowledged entry in a bucket, and a damaged tail makes <code>Open</code> fail forever.</td><td><a href="https://github.com/nutsdb/nutsdb/issues/695" target="_blank" rel="noopener">#695</a> <a href="https://github.com/nutsdb/nutsdb/issues/696" target="_blank" rel="noopener">#696</a> <a href="https://github.com/nutsdb/nutsdb/issues/697" target="_blank" rel="noopener">#697</a>, open</td></tr>
+<tr><td><strong>diskv</strong></td><td>On a strict file system an acknowledged write can revert.</td><td><a href="https://github.com/peterbourgon/diskv/issues/83" target="_blank" rel="noopener">#83</a>, open</td></tr>
 <tr><td><strong>bitcask</strong></td><td>Four ways one crash leaves the database unopenable.</td><td><a href="docs/findings/bitcask-autorecovery-torn-tail.html">write-up</a></td></tr>
 <tr><td><strong>bbolt</strong></td><td>On a strict file system one crash can lose the whole database.</td><td><a href="docs/findings/bbolt-create-dir-fsync.html">write-up</a></td></tr>
 <tr><td><strong>jmsadair/raft</strong></td><td>Four ways a crash or a clock step back leaves a node that can't restart.</td><td><a href="docs/findings/jmsadair-raft-log-torn-tail.html">write-up</a>, repo gone private</td></tr>
@@ -219,17 +219,17 @@ faults before the failure (2):
 <section class="references">
 <h2 id="references">References</h2>
 <ol>
-<li id="ref-1">J. Zhou et al. <a href="https://www.foundationdb.org/files/fdb-paper.pdf">FoundationDB: A Distributed Unbundled Transactional Key Value Store</a>. SIGMOD 2021.</li>
-<li id="ref-2">W. Wilson. <a href="https://www.youtube.com/watch?v=4fFDFbi3toc">Testing Distributed Systems w/ Deterministic Simulation</a>. Strange Loop 2014.</li>
-<li id="ref-3">A. Zeller and R. Hildebrandt. <a href="https://doi.org/10.1109/32.988498">Simplifying and Isolating Failure-Inducing Input</a>. IEEE TSE 28(2), 2002.</li>
-<li id="ref-4">T. S. Pillai et al. <a href="https://www.usenix.org/conference/osdi14/technical-sessions/presentation/pillai">All File Systems Are Not Created Equal: On the Complexity of Crafting Crash-Consistent Applications</a>. OSDI 2014.</li>
-<li id="ref-5">A. Rebello et al. <a href="https://www.usenix.org/conference/atc20/presentation/rebello">Can Applications Recover from fsync Failures?</a> USENIX ATC 2020.</li>
-<li id="ref-6">M. Herlihy and J. Wing. <a href="https://doi.org/10.1145/78969.78972">Linearizability: A Correctness Condition for Concurrent Objects</a>. ACM TOPLAS 12(3), 1990.</li>
-<li id="ref-7"><a href="https://jepsen.io">Jepsen</a>, <a href="https://antithesis.com">Antithesis</a>, <a href="https://github.com/tigerbeetle/tigerbeetle/blob/main/docs/internals/vopr.md">TigerBeetle VOPR</a> and <a href="https://github.com/jellevandenhooff/gosim">gosim</a>: the testing tools seedfall learned from.</li>
+<li id="ref-1">J. Zhou et al. <a href="https://www.foundationdb.org/files/fdb-paper.pdf" target="_blank" rel="noopener">FoundationDB: A Distributed Unbundled Transactional Key Value Store</a>. SIGMOD 2021.</li>
+<li id="ref-2">W. Wilson. <a href="https://www.youtube.com/watch?v=4fFDFbi3toc" target="_blank" rel="noopener">Testing Distributed Systems w/ Deterministic Simulation</a>. Strange Loop 2014.</li>
+<li id="ref-3">A. Zeller and R. Hildebrandt. <a href="https://doi.org/10.1109/32.988498" target="_blank" rel="noopener">Simplifying and Isolating Failure-Inducing Input</a>. IEEE TSE 28(2), 2002.</li>
+<li id="ref-4">T. S. Pillai et al. <a href="https://www.usenix.org/conference/osdi14/technical-sessions/presentation/pillai" target="_blank" rel="noopener">All File Systems Are Not Created Equal: On the Complexity of Crafting Crash-Consistent Applications</a>. OSDI 2014.</li>
+<li id="ref-5">A. Rebello et al. <a href="https://www.usenix.org/conference/atc20/presentation/rebello" target="_blank" rel="noopener">Can Applications Recover from fsync Failures?</a> USENIX ATC 2020.</li>
+<li id="ref-6">M. Herlihy and J. Wing. <a href="https://doi.org/10.1145/78969.78972" target="_blank" rel="noopener">Linearizability: A Correctness Condition for Concurrent Objects</a>. ACM TOPLAS 12(3), 1990.</li>
+<li id="ref-7"><a href="https://jepsen.io" target="_blank" rel="noopener">Jepsen</a>, <a href="https://antithesis.com" target="_blank" rel="noopener">Antithesis</a>, <a href="https://github.com/tigerbeetle/tigerbeetle/blob/main/docs/internals/vopr.md" target="_blank" rel="noopener">TigerBeetle VOPR</a> and <a href="https://github.com/jellevandenhooff/gosim" target="_blank" rel="noopener">gosim</a>: the testing tools seedfall learned from.</li>
 </ol>
 </section>
 
-<p class="foot"><a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a> (Apache-2.0) · <a href="docs/getting-started.html">Getting started</a> · <a href="docs/how-it-works.html">How it works</a> · <a href="docs/findings/">Findings</a> · <a href="docs/">All docs</a></p>
+<p class="foot"><a href="https://github.com/kunalgoesbyken/seedfall" target="_blank" rel="noopener">GitHub</a> (Apache-2.0) · <a href="docs/getting-started.html">Getting started</a> · <a href="docs/how-it-works.html">How it works</a> · <a href="docs/findings/">Findings</a> · <a href="docs/">All docs</a></p>
 
 </article>
 </div>

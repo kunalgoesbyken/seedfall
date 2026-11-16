@@ -72,7 +72,7 @@ Refusing further writes until the database is reopened (what PostgreSQL does) wo
 
 | Config | Stock v1.1.0 | Patched |
 |---|---|---|
-| crashes + partitions (`seedfall.fsyncmeta.json`) | 300/300 pass | — |
+| crashes + partitions (`seedfall.fsyncmeta.json`) | 300/300 pass | n/a |
 | plus strict directory durability (`seedfall.strict.json`) | fails, seed 3 | 300/300 pass (directory fsync on rotation) |
 | plus fsync `EIO` (`seedfall.fsyncgate.json`) | fails, seed 1 | 300/300 pass (offset rewind) |
 

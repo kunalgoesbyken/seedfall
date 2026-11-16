@@ -37,7 +37,7 @@ Controls on the same harness:
 
 | Config | Stock v1.1.0 | Patched |
 |---|---|---|
-| crashes + partitions (`seedfall.fsyncmeta.json`) | 300/300 pass | — |
+| crashes + partitions (`seedfall.fsyncmeta.json`) | 300/300 pass | n/a |
 | plus torn writes + crash during I/O (`seedfall.torn.json`) | fails, seed 1 | 300/300 pass |
 
 ## Suggested fix

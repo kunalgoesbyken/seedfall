@@ -33,12 +33,12 @@ The restarted server recovers 0 keys, and the client reports `acknowledged write
 
 | Config | Stock v1.5.0 | Patched |
 |---|---|---|
-| sync on, crashes, partitions (`seedfall.json`) | 300/300 pass | — |
-| plus torn writes and crashes mid-I/O (`seedfall.torn.json`) | 300/300 pass | — |
-| plus fsync `EIO`, supervised (`seedfall.fsyncgate.json`) | 300/300 pass | — |
-| strict directories, the server fsyncs `data/` after `Open` (`seedfall.strict.json`) | 300/300 pass | — |
+| sync on, crashes, partitions (`seedfall.json`) | 300/300 pass | n/a |
+| plus torn writes and crashes mid-I/O (`seedfall.torn.json`) | 300/300 pass | n/a |
+| plus fsync `EIO`, supervised (`seedfall.fsyncgate.json`) | 300/300 pass | n/a |
+| strict directories, the server fsyncs `data/` after `Open` (`seedfall.strict.json`) | 300/300 pass | n/a |
 | strict directories, no extra fsync (`seedfall.strict.nodirsync.json`) | fails, seed 1 | 300/300 pass |
-| `NoSync: true` (`seedfall.nosync.json`) | fails, seed 1 (expected) | — |
+| `NoSync: true` (`seedfall.nosync.json`) | fails, seed 1 (expected) | n/a |
 
 ## Suggested fix
 

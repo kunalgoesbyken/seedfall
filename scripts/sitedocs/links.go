@@ -17,6 +17,10 @@ func (s *site) rewriteLinks(p *page) {
 		switch v := n.(type) {
 		case *ast.Link:
 			v.Destination = []byte(href(p.url, s.target(p, string(v.Destination), "blob")))
+			if external(string(v.Destination)) {
+				v.SetAttributeString("target", "_blank")
+				v.SetAttributeString("rel", "noopener")
+			}
 		case *ast.Image:
 			v.Destination = []byte(href(p.url, s.target(p, string(v.Destination), "raw")))
 		}
@@ -87,4 +91,9 @@ func relative(from, to string) string {
 		r += "/"
 	}
 	return r
+}
+
+func external(dest string) bool {
+	u, err := url.Parse(dest)
+	return err == nil && (u.Scheme == "http" || u.Scheme == "https")
 }

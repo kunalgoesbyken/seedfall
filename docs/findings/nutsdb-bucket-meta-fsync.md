@@ -38,8 +38,8 @@ Controls on the same harness:
 | Config | Stock v1.1.0 | Patched |
 |---|---|---|
 | `SyncEnable: true`, crashes + partitions (`seedfall.json`) | fails, seed 1 | 300/300 pass |
-| the same, with the server fsyncing `bucket.Meta` itself after creating the bucket (`seedfall.fsyncmeta.json`) | 300/300 pass | — |
-| `SyncEnable: false` (`seedfall.nosync.json`) | fails, seed 1 (expected: commits are not fsynced) | — |
+| the same, with the server fsyncing `bucket.Meta` itself after creating the bucket (`seedfall.fsyncmeta.json`) | 300/300 pass | n/a |
+| `SyncEnable: false` (`seedfall.nosync.json`) | fails, seed 1 (expected: commits are not fsynced) | n/a |
 
 The app-side workaround passing on the stock library isolates the cause to `bucket.Meta`.
 

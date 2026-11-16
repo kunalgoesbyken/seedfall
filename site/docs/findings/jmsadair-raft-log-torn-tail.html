@@ -18,7 +18,7 @@
 <link rel="stylesheet" href="../../site.css">
 </head>
 <body>
-<header class="site-head"><a class="brand" href="../../"><svg viewBox="0 0 32 32" aria-hidden="true"><rect class="bar" x="3" y="17" width="7" height="12" rx="3.5" opacity="0.6"/><rect class="seed" x="12.5" y="3" width="7" height="26" rx="3.5"/><rect class="bar" x="22" y="10" width="7" height="19" rx="3.5" opacity="0.8"/></svg>seedfall</a><nav><a href="../../docs/" aria-current="page">Docs</a><a href="../../gym">RL gym</a><a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a><button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch between light and dark theme" title="Switch theme"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.75a6.25 6.25 0 0 1 0 12.5z" fill="currentColor"/></svg></button></nav></header>
+<header class="site-head"><a class="brand" href="../../"><svg viewBox="0 0 32 32" aria-hidden="true"><rect class="bar" x="3" y="17" width="7" height="12" rx="3.5" opacity="0.6"/><rect class="seed" x="12.5" y="3" width="7" height="26" rx="3.5"/><rect class="bar" x="22" y="10" width="7" height="19" rx="3.5" opacity="0.8"/></svg>seedfall</a><nav><a href="../../docs/" aria-current="page">Docs</a><a href="../../gym">RL gym</a><a class="icon-link" href="https://github.com/kunalgoesbyken/seedfall" target="_blank" rel="noopener" aria-label="seedfall on GitHub" title="GitHub"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.83 1.24 1.83 1.24 1.07 1.83 2.81 1.3 3.5 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3"/></svg></a><button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch between light and dark theme" title="Switch theme"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.75a6.25 6.25 0 0 1 0 12.5z" fill="currentColor"/></svg></button></nav></header>
 <div class="layout">
 <nav class="toc" aria-label="Contents" data-toc hidden><p class="toc-title">Contents</p></nav>
 <article class="page">
@@ -58,7 +58,7 @@
 </ol>
 <p>Raft treats an incomplete trailing entry as never written: it was not fsynced, so it was never acknowledged to the leader and never counted toward a commit. Truncating it is always safe.</p>
 <h2 id="reproduction">Reproduction</h2>
-<p>Reproduced deterministically with <a href="https://github.com/kunalgoesbyken/seedfall">seedfall</a>: a 3-node key-value store on jmsadair/raft v0.2.0 with the library's own storage, a simulated disk with torn writes and crashes during disk I/O, and 4 clients checked for linearizability.</p>
+<p>Reproduced deterministically with <a href="https://github.com/kunalgoesbyken/seedfall" target="_blank" rel="noopener">seedfall</a>: a 3-node key-value store on jmsadair/raft v0.2.0 with the library's own storage, a simulated disk with torn writes and crashes during disk I/O, and 4 clients checked for linearizability.</p>
 <pre><code>cd examples/jmsraft
 seedfall replay -c seedfall.json -seed 7 -faults tornlog.faults.json
 </code></pre>
@@ -106,7 +106,7 @@ for {
 <h2 id="related-strict-posix-only-lower-priority">Related, strict-POSIX only (lower priority)</h2>
 <p>The library never fsyncs a directory: not after <code>os.MkdirAll</code> of <code>log/</code>, <code>state/</code> and <code>snapshots/</code>, not after creating <code>log.bin</code>, and not after any of its renames (<code>state.bin</code>, log compaction at <code>log.go:435</code>, the snapshot directory at <code>snapshot_storage.go:135</code>). Under strict POSIX semantics a crash can roll back any of these. In the seedfall strict configuration this shows up as a node whose term, vote or log is rolled back, and in one seed as a leader that panics in <code>sendAppendEntries</code> (<code>raft.go:1007</code>, <code>make([]*LogEntry, 0, r.log.NextIndex()-nextIndex)</code> underflows because a follower reports a <code>nextIndex</code> past the leader's rolled-back log). With directory fsyncs added (after <code>MkdirAll</code>, after creating <code>log.bin</code>, after each rename, and of the temporary snapshot directory before its rename) on top of the three crash fixes, <code>seedfall.strict.json</code> passes 150 seeds.</p>
 
-<p class="foot"><a href="jmsadair-raft-log-torn-tail.md" type="text/markdown">Markdown</a> · <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/findings/jmsadair-raft-log-torn-tail.md">Edit on GitHub</a></p>
+<p class="foot"><a href="jmsadair-raft-log-torn-tail.md" type="text/markdown">Markdown</a> · <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/findings/jmsadair-raft-log-torn-tail.md" target="_blank" rel="noopener">Edit on GitHub</a></p>
 </article>
 </div>
 </body>

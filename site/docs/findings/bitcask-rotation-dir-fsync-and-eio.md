@@ -64,7 +64,7 @@ if err := b.current.Sync(); err != nil {
 
 | Config | Stock v2.2.0 | Patched |
 |---|---|---|
-| crashes + partitions (`seedfall.json`) | 300/300 pass | — |
+| crashes + partitions (`seedfall.json`) | 300/300 pass | n/a |
 | plus strict directory durability (`seedfall.strict.json`) | fails, seed 2 | 300/300 pass |
 | plus fsync `EIO`, supervised (`seedfall.fsyncgate.json`) | fails, seed 1 | 300/300 pass |
 

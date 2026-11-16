@@ -35,9 +35,9 @@ On restart: `open data/db: error reading config.json: unexpected end of JSON inp
 
 | Config | Stock v2.2.0 | Patched |
 |---|---|---|
-| `SyncWrites`, crashes + partitions (`seedfall.json`) | 300/300 pass | — |
+| `SyncWrites`, crashes + partitions (`seedfall.json`) | 300/300 pass | n/a |
 | plus torn writes + crash during I/O (`seedfall.torn.json`) | fails, seed 1 | the `config.json` error never appears; 300/300 pass with the three recovery fixes in the related drafts |
-| `SyncWrites: false` (`seedfall.nosync.json`) | fails, seed 1 (expected) | — |
+| `SyncWrites: false` (`seedfall.nosync.json`) | fails, seed 1 (expected) | n/a |
 
 ## Suggested fix
 

@@ -18,7 +18,7 @@
 <link rel="stylesheet" href="../../site.css">
 </head>
 <body>
-<header class="site-head"><a class="brand" href="../../"><svg viewBox="0 0 32 32" aria-hidden="true"><rect class="bar" x="3" y="17" width="7" height="12" rx="3.5" opacity="0.6"/><rect class="seed" x="12.5" y="3" width="7" height="26" rx="3.5"/><rect class="bar" x="22" y="10" width="7" height="19" rx="3.5" opacity="0.8"/></svg>seedfall</a><nav><a href="../../docs/" aria-current="page">Docs</a><a href="../../gym">RL gym</a><a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a><button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch between light and dark theme" title="Switch theme"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.75a6.25 6.25 0 0 1 0 12.5z" fill="currentColor"/></svg></button></nav></header>
+<header class="site-head"><a class="brand" href="../../"><svg viewBox="0 0 32 32" aria-hidden="true"><rect class="bar" x="3" y="17" width="7" height="12" rx="3.5" opacity="0.6"/><rect class="seed" x="12.5" y="3" width="7" height="26" rx="3.5"/><rect class="bar" x="22" y="10" width="7" height="19" rx="3.5" opacity="0.8"/></svg>seedfall</a><nav><a href="../../docs/" aria-current="page">Docs</a><a href="../../gym">RL gym</a><a class="icon-link" href="https://github.com/kunalgoesbyken/seedfall" target="_blank" rel="noopener" aria-label="seedfall on GitHub" title="GitHub"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.83 1.24 1.83 1.24 1.07 1.83 2.81 1.3 3.5 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3"/></svg></a><button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch between light and dark theme" title="Switch theme"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.75a6.25 6.25 0 0 1 0 12.5z" fill="currentColor"/></svg></button></nav></header>
 <div class="layout">
 <nav class="toc" aria-label="Contents" data-toc hidden><p class="toc-title">Contents</p></nav>
 <article class="page">
@@ -49,31 +49,31 @@
 <td><a href="nats-stream-meta-checksum-crash.html">nats-io/nats-server</a> v2.15.2</td>
 <td>A crash while a stream is created makes it forget every message it confirms from then on, at the next restart.</td>
 <td>A crash during stream creation leaves <code>meta.inf</code> without <code>meta.sum</code>. On restart the stream is skipped; the client re-creates it, but the checksum is never rewritten. Under strict POSIX, new stream directories and message blocks are also never directory-fsynced.<br><em>Any filesystem · 1 crash mid-I/O, 1 crash · fix passes 150 seeds</em></td>
-<td><a href="https://github.com/nats-io/nats-server/issues/8872">nats-server#8872</a>, open</td>
+<td><a href="https://github.com/nats-io/nats-server/issues/8872" target="_blank" rel="noopener">nats-server#8872</a>, open</td>
 </tr>
 <tr>
 <td><a href="rosedblabs-wal-torn-tail.html">rosedblabs/wal</a> v1.3.8</td>
 <td>After one crash mid-write, new writes land behind the damaged data and can never be read back. rosedb, which is built on it, stops opening.</td>
 <td><code>Open</code> appends after the torn chunk, so later fsynced, acknowledged writes are unreachable to replay.<br><em>Any filesystem · 2 crashes · fix passes 1,000 seeds</em></td>
-<td><a href="https://github.com/rosedblabs/wal/issues/51">wal#51</a>, open</td>
+<td><a href="https://github.com/rosedblabs/wal/issues/51" target="_blank" rel="noopener">wal#51</a>, open</td>
 </tr>
 <tr>
 <td><a href="tidwall-buntdb-shrink-fsync.html">tidwall/buntdb</a> v1.3.2</td>
 <td>When it compacts its file, it never makes sure the new file is on disk. A crash afterwards can bring the database back empty or partial.</td>
 <td>The automatic AOF shrink renames the rewritten file into place without fsyncing it or its directory, even with <code>SyncPolicy: Always</code>.<br><em>Filesystems without rename-over-write heuristics · 4 crashes, 1 partition · fix passes 300 seeds</em></td>
-<td><a href="https://github.com/tidwall/buntdb/issues/126">buntdb#126</a>, fixed in <a href="https://github.com/tidwall/buntdb/commit/6a23821fdfd51ab6e375b8f82407b6589cad907f">6a23821</a></td>
+<td><a href="https://github.com/tidwall/buntdb/issues/126" target="_blank" rel="noopener">buntdb#126</a>, fixed in <a href="https://github.com/tidwall/buntdb/commit/6a23821fdfd51ab6e375b8f82407b6589cad907f" target="_blank" rel="noopener">6a23821</a></td>
 </tr>
 <tr>
 <td><a href="nutsdb-bucket-meta-fsync.html">nutsdb/nutsdb</a> v1.1.0</td>
 <td>One crash can make a whole bucket's data disappear, even though every write to it was confirmed.</td>
 <td><code>bucket.Meta</code> is written but never fsynced, so recovery drops every entry in a bucket whose record was lost.<br><em>Any filesystem · 1 crash · fix passes 300 seeds</em></td>
-<td><a href="https://github.com/nutsdb/nutsdb/issues/695">nutsdb#695</a>, open</td>
+<td><a href="https://github.com/nutsdb/nutsdb/issues/695" target="_blank" rel="noopener">nutsdb#695</a>, open</td>
 </tr>
 <tr>
 <td><a href="nutsdb-rotation-dir-fsync-and-eio.html">nutsdb/nutsdb</a> v1.1.0</td>
 <td>Confirmed writes can be lost when it starts a new data file, or when the disk reports an error while saving.</td>
 <td>A new data file is never directory-fsynced, and a failed fsync doesn't rewind the write offset.<br><em>Strict POSIX; fsync errors · 1 crash; 1 EIO, 1 crash · fix passes 300 seeds</em></td>
-<td><a href="https://github.com/nutsdb/nutsdb/issues/697">nutsdb#697</a>, open</td>
+<td><a href="https://github.com/nutsdb/nutsdb/issues/697" target="_blank" rel="noopener">nutsdb#697</a>, open</td>
 </tr>
 <tr>
 <td><a href="bitcask-recovered-datafile-fsync.html">prologic/bitcask</a> v2.2.0</td>
@@ -91,7 +91,7 @@
 <td><a href="diskv-rename-dir-fsync.html">peterbourgon/diskv</a> v3.0.1</td>
 <td>A crash can undo a write it already confirmed.</td>
 <td><code>WriteStream</code> with sync and <code>TempDir</code> never fsyncs the directory after the rename.<br><em>Strict POSIX · 3 faults · fix passes 300 seeds</em></td>
-<td><a href="https://github.com/peterbourgon/diskv/issues/83">diskv#83</a>, open</td>
+<td><a href="https://github.com/peterbourgon/diskv/issues/83" target="_blank" rel="noopener">diskv#83</a>, open</td>
 </tr>
 <tr>
 <td><a href="bbolt-create-dir-fsync.html">etcd-io/bbolt</a> v1.5.0</td>
@@ -122,19 +122,19 @@
 <td><a href="tidwall-wal-torn-tail.html">tidwall/wal</a> v1.2.1</td>
 <td>One crash during a write and the log can never be opened again. The pending upstream fix is incomplete.</td>
 <td><code>Open</code> fails with <code>log corrupt</code> forever (known: #21). PR #22 skips the torn entry but never truncates it, so the segment corrupts again later.<br><em>Any filesystem · 1 crash · fix passes 1,500 seeds</em></td>
-<td><a href="https://github.com/tidwall/wal/issues/43">wal#43</a>, open</td>
+<td><a href="https://github.com/tidwall/wal/issues/43" target="_blank" rel="noopener">wal#43</a>, open</td>
 </tr>
 <tr>
 <td><a href="hashicorp-raft-snapshot-dir-fsync.html">hashicorp/raft</a> v1.8</td>
 <td>One crash while saving a snapshot leaves a node that crashes every time it starts.</td>
 <td><code>FileSnapshotSink</code> never fsyncs the snapshot directory before renaming it, so the snapshot is empty after the log was compacted.<br><em>Strict POSIX · 1 crash · fix passes 120 seeds</em></td>
-<td><a href="https://github.com/hashicorp/raft/issues/744">raft#744</a>, open</td>
+<td><a href="https://github.com/hashicorp/raft/issues/744" target="_blank" rel="noopener">raft#744</a>, open</td>
 </tr>
 <tr>
 <td><a href="nutsdb-torn-tail-crc.html">nutsdb/nutsdb</a> v1.1.0</td>
 <td>One crash during a write and the database refuses to open again.</td>
 <td>A torn write at the end of the active data file is reported as <code>crc error</code>, and <code>Open</code> fails on every restart.<br><em>Any filesystem · 1 crash mid-I/O · fix passes 300 seeds</em></td>
-<td><a href="https://github.com/nutsdb/nutsdb/issues/696">nutsdb#696</a>, open</td>
+<td><a href="https://github.com/nutsdb/nutsdb/issues/696" target="_blank" rel="noopener">nutsdb#696</a>, open</td>
 </tr>
 <tr>
 <td><a href="bitcask-config-json-torn.html">prologic/bitcask</a> v2.2.0</td>
@@ -207,7 +207,7 @@
 </tbody>
 </table></div>
 
-<p class="foot"><a href="index.md" type="text/markdown">Markdown</a> · <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/findings/README.md">Edit on GitHub</a></p>
+<p class="foot"><a href="index.md" type="text/markdown">Markdown</a> · <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/findings/README.md" target="_blank" rel="noopener">Edit on GitHub</a></p>
 </article>
 </div>
 </body>

@@ -18,7 +18,7 @@
 <link rel="stylesheet" href="../../site.css">
 </head>
 <body>
-<header class="site-head"><a class="brand" href="../../"><svg viewBox="0 0 32 32" aria-hidden="true"><rect class="bar" x="3" y="17" width="7" height="12" rx="3.5" opacity="0.6"/><rect class="seed" x="12.5" y="3" width="7" height="26" rx="3.5"/><rect class="bar" x="22" y="10" width="7" height="19" rx="3.5" opacity="0.8"/></svg>seedfall</a><nav><a href="../../docs/" aria-current="page">Docs</a><a href="../../gym">RL gym</a><a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a><button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch between light and dark theme" title="Switch theme"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.75a6.25 6.25 0 0 1 0 12.5z" fill="currentColor"/></svg></button></nav></header>
+<header class="site-head"><a class="brand" href="../../"><svg viewBox="0 0 32 32" aria-hidden="true"><rect class="bar" x="3" y="17" width="7" height="12" rx="3.5" opacity="0.6"/><rect class="seed" x="12.5" y="3" width="7" height="26" rx="3.5"/><rect class="bar" x="22" y="10" width="7" height="19" rx="3.5" opacity="0.8"/></svg>seedfall</a><nav><a href="../../docs/" aria-current="page">Docs</a><a href="../../gym">RL gym</a><a class="icon-link" href="https://github.com/kunalgoesbyken/seedfall" target="_blank" rel="noopener" aria-label="seedfall on GitHub" title="GitHub"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.83 1.24 1.83 1.24 1.07 1.83 2.81 1.3 3.5 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3"/></svg></a><button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch between light and dark theme" title="Switch theme"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.75a6.25 6.25 0 0 1 0 12.5z" fill="currentColor"/></svg></button></nav></header>
 <div class="layout">
 <nav class="toc" aria-label="Contents" data-toc hidden><p class="toc-title">Contents</p></nav>
 <article class="page">
@@ -27,14 +27,14 @@
 <blockquote>
 <p><strong>In plain words:</strong> A crash can undo a write it already confirmed.</p>
 </blockquote>
-<p><strong>Upstream:</strong> <a href="https://github.com/peterbourgon/diskv/issues/83">peterbourgon/diskv#83</a></p>
+<p><strong>Upstream:</strong> <a href="https://github.com/peterbourgon/diskv/issues/83" target="_blank" rel="noopener">peterbourgon/diskv#83</a></p>
 <p><strong>Repo:</strong> peterbourgon/diskv (tested on v3.0.1, which is the latest commit on <code>master</code>, from 2021)
 <strong>Severity:</strong> low. It needs a filesystem where a rename is durable only after the parent directory is fsynced, plus a crash shortly after the write. On such filesystems, an acknowledged synced write can silently revert to the previous value, or disappear if it created the key.</p>
 <h2 id="summary">Summary</h2>
 <p>With <code>Options.TempDir</code> set, <code>writeStreamWithLock</code> writes the value to a temporary file (diskv.go:206), fsyncs it when <code>sync</code> is true (diskv.go:260-261), and renames it over the key's file (diskv.go:274). The parent directory of the key file is never fsynced, and neither are directories created by <code>ensurePathWithLock</code> (diskv.go:622, <code>os.MkdirAll</code>). Under POSIX, the new name isn't durable until the directory is fsynced. After a crash the key can point back at the old file, or not exist at all, even though <code>WriteStream(key, r, true)</code> returned nil.</p>
 <p><code>TempDir</code> is documented as the way to get atomic writes, and <code>sync</code> as the way to get an explicit fsync. Together they read as the durable configuration, but the result is durable only on filesystems that order the rename with the data (ext4 with the default <code>data=ordered</code>, btrfs).</p>
 <h2 id="reproduction">Reproduction</h2>
-<p>Reproduced deterministically with <a href="https://github.com/kunalgoesbyken/seedfall">seedfall</a>. It runs a small server on diskv v3.0.1 with <code>TempDir</code> set that writes with <code>WriteStream(key, r, true)</code>. It acknowledges <code>SET</code> only after the write returns. A client overwrites 40 keys 300 times and then checks that every key holds a value at least as new as the last acknowledged one. The simulated disk keeps only fsynced data across a crash, and with <code>strict_dirs</code> a directory entry survives a crash only after the directory is fsynced.</p>
+<p>Reproduced deterministically with <a href="https://github.com/kunalgoesbyken/seedfall" target="_blank" rel="noopener">seedfall</a>. It runs a small server on diskv v3.0.1 with <code>TempDir</code> set that writes with <code>WriteStream(key, r, true)</code>. It acknowledges <code>SET</code> only after the write returns. A client overwrites 40 keys 300 times and then checks that every key holds a value at least as new as the last acknowledged one. The simulated disk keeps only fsynced data across a crash, and with <code>strict_dirs</code> a directory entry survives a crash only after the directory is fsynced.</p>
 <pre><code>cd examples/diskv
 seedfall replay -c seedfall.strict.json -seed 1
 </code></pre>
@@ -57,7 +57,7 @@ seedfall replay -c seedfall.strict.json -seed 1
 <tr>
 <td><code>TempDir</code> + sync, crashes, partitions, torn writes, crash during I/O (<code>seedfall.json</code>)</td>
 <td>300/300 pass</td>
-<td>—</td>
+<td>n/a</td>
 </tr>
 <tr>
 <td>plus strict directory durability (<code>seedfall.strict.json</code>)</td>
@@ -67,12 +67,12 @@ seedfall replay -c seedfall.strict.json -seed 1
 <tr>
 <td>without sync (<code>seedfall.nosync.json</code>)</td>
 <td>fails, seed 3 (expected)</td>
-<td>—</td>
+<td>n/a</td>
 </tr>
 <tr>
 <td>sync without <code>TempDir</code> (<code>seedfall.inplace.json</code>)</td>
 <td>fails, seed 2 (expected: the in-place overwrite truncates first)</td>
-<td>—</td>
+<td>n/a</td>
 </tr>
 </tbody>
 </table></div>
@@ -88,7 +88,7 @@ seedfall replay -c seedfall.strict.json -seed 1
 <h2 id="fix-verified">Fix verified</h2>
 <p>A local copy of v3.0.1 with the directory fsync after the rename passes seed 1 and 300 seeds of <code>seedfall.strict.json</code>.</p>
 
-<p class="foot"><a href="diskv-rename-dir-fsync.md" type="text/markdown">Markdown</a> · <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/findings/diskv-rename-dir-fsync.md">Edit on GitHub</a></p>
+<p class="foot"><a href="diskv-rename-dir-fsync.md" type="text/markdown">Markdown</a> · <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/findings/diskv-rename-dir-fsync.md" target="_blank" rel="noopener">Edit on GitHub</a></p>
 </article>
 </div>
 </body>

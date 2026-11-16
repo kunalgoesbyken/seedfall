@@ -18,7 +18,7 @@
 <link rel="stylesheet" href="../../site.css">
 </head>
 <body>
-<header class="site-head"><a class="brand" href="../../"><svg viewBox="0 0 32 32" aria-hidden="true"><rect class="bar" x="3" y="17" width="7" height="12" rx="3.5" opacity="0.6"/><rect class="seed" x="12.5" y="3" width="7" height="26" rx="3.5"/><rect class="bar" x="22" y="10" width="7" height="19" rx="3.5" opacity="0.8"/></svg>seedfall</a><nav><a href="../../docs/" aria-current="page">Docs</a><a href="../../gym">RL gym</a><a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a><button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch between light and dark theme" title="Switch theme"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.75a6.25 6.25 0 0 1 0 12.5z" fill="currentColor"/></svg></button></nav></header>
+<header class="site-head"><a class="brand" href="../../"><svg viewBox="0 0 32 32" aria-hidden="true"><rect class="bar" x="3" y="17" width="7" height="12" rx="3.5" opacity="0.6"/><rect class="seed" x="12.5" y="3" width="7" height="26" rx="3.5"/><rect class="bar" x="22" y="10" width="7" height="19" rx="3.5" opacity="0.8"/></svg>seedfall</a><nav><a href="../../docs/" aria-current="page">Docs</a><a href="../../gym">RL gym</a><a class="icon-link" href="https://github.com/kunalgoesbyken/seedfall" target="_blank" rel="noopener" aria-label="seedfall on GitHub" title="GitHub"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.83 1.24 1.83 1.24 1.07 1.83 2.81 1.3 3.5 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3"/></svg></a><button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch between light and dark theme" title="Switch theme"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.75a6.25 6.25 0 0 1 0 12.5z" fill="currentColor"/></svg></button></nav></header>
 <div class="layout">
 <nav class="toc" aria-label="Contents" data-toc hidden><p class="toc-title">Contents</p></nav>
 <article class="page">
@@ -27,7 +27,7 @@
 <blockquote>
 <p><strong>In plain words:</strong> One crash during a write and the database refuses to open again.</p>
 </blockquote>
-<p><strong>Upstream:</strong> <a href="https://github.com/nutsdb/nutsdb/issues/696">nutsdb/nutsdb#696</a></p>
+<p><strong>Upstream:</strong> <a href="https://github.com/nutsdb/nutsdb/issues/696" target="_blank" rel="noopener">nutsdb/nutsdb#696</a></p>
 <p><strong>Repo:</strong> nutsdb/nutsdb (tested on v1.1.0, still present on <code>main</code> at 39d6badd)
 <strong>Severity:</strong> one crash in the middle of a commit that was never acknowledged leaves the database unopenable until someone deletes data by hand.</p>
 <h2 id="summary">Summary</h2>
@@ -35,7 +35,7 @@
 <p>A torn tail is exactly what a crash during <code>writeData</code> (tx.go:496) leaves behind. Part of the commit buffer reaches the disk and the rest of the preallocated segment stays zero, so the last entry has a valid header and a bad checksum. That commit never returned to the caller, so it is safe to discard. Instead, every later <code>Open</code> fails the same way.</p>
 <p>This matches field reports that were closed without a root cause: #569 (power loss on an embedded device, <code>crc error</code> on every boot, fixed only by deleting the data files), #141 and #63 (<code>db.buildIndexes error: when build activeDataIndex readAt err: crc error</code>).</p>
 <h2 id="reproduction">Reproduction</h2>
-<p>Reproduced deterministically with <a href="https://github.com/kunalgoesbyken/seedfall">seedfall</a>. It runs a small server on nutsdb v1.1.0 with the default options (<code>SyncEnable: true</code>, <code>RWMode: FileIO</code>) and an 8 KB segment size. It acknowledges <code>SET</code> only after <code>db.Update</code> returns. To keep this separate from the <code>bucket.Meta</code> durability issue (<a href="https://github.com/nutsdb/nutsdb/issues/695">nutsdb#695</a>), the server fsyncs <code>bucket.Meta</code> itself after creating its bucket. The simulated disk keeps only fsynced data across a crash, and with torn writes enabled a crash can keep a partial, unsynced write.</p>
+<p>Reproduced deterministically with <a href="https://github.com/kunalgoesbyken/seedfall" target="_blank" rel="noopener">seedfall</a>. It runs a small server on nutsdb v1.1.0 with the default options (<code>SyncEnable: true</code>, <code>RWMode: FileIO</code>) and an 8 KB segment size. It acknowledges <code>SET</code> only after <code>db.Update</code> returns. To keep this separate from the <code>bucket.Meta</code> durability issue (<a href="https://github.com/nutsdb/nutsdb/issues/695" target="_blank" rel="noopener">nutsdb#695</a>), the server fsyncs <code>bucket.Meta</code> itself after creating its bucket. The simulated disk keeps only fsynced data across a crash, and with torn writes enabled a crash can keep a partial, unsynced write.</p>
 <pre><code>cd examples/nutsdb
 seedfall replay -c seedfall.torn.json -seed 1
 </code></pre>
@@ -57,7 +57,7 @@ seedfall replay -c seedfall.torn.json -seed 1
 <tr>
 <td>crashes + partitions (<code>seedfall.fsyncmeta.json</code>)</td>
 <td>300/300 pass</td>
-<td>—</td>
+<td>n/a</td>
 </tr>
 <tr>
 <td>plus torn writes + crash during I/O (<code>seedfall.torn.json</code>)</td>
@@ -77,7 +77,7 @@ seedfall replay -c seedfall.torn.json -seed 1
 <h2 id="fix-verified">Fix verified</h2>
 <p>A local copy of v1.1.0 with <code>ErrCrc</code> added to that list (plus the <code>bucket.Meta</code> fsync) passes the failing seed and 300 seeds of <code>seedfall.torn.json</code>.</p>
 
-<p class="foot"><a href="nutsdb-torn-tail-crc.md" type="text/markdown">Markdown</a> · <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/findings/nutsdb-torn-tail-crc.md">Edit on GitHub</a></p>
+<p class="foot"><a href="nutsdb-torn-tail-crc.md" type="text/markdown">Markdown</a> · <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/findings/nutsdb-torn-tail-crc.md" target="_blank" rel="noopener">Edit on GitHub</a></p>
 </article>
 </div>
 </body>

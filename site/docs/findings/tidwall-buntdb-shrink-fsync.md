@@ -33,11 +33,11 @@ Controls on the same harness:
 
 | Config | Stock v1.3.2 | Patched |
 |---|---|---|
-| `SyncPolicy: Always`, crashes + partitions (`seedfall.json`) | 300/300 seeds pass | — |
-| plus torn writes + crash during I/O (`seedfall.torn.json`) | 300/300 seeds pass | — |
+| `SyncPolicy: Always`, crashes + partitions (`seedfall.json`) | 300/300 seeds pass | n/a |
+| plus torn writes + crash during I/O (`seedfall.torn.json`) | 300/300 seeds pass | n/a |
 | plus aggressive auto-shrink (`seedfall.shrink.json`) | fails, seed 27 | 300/300 pass (file fsync alone is enough) |
 | plus strict directory durability (`seedfall.shrink.strict.json`) | fails, seed 6 | 300/300 pass (file fsync + directory fsync) |
-| `SyncPolicy: EverySecond` (`seedfall.everysecond.json`) | fails, seed 1 (expected and documented: up to one second of writes can be lost) | — |
+| `SyncPolicy: EverySecond` (`seedfall.everysecond.json`) | fails, seed 1 (expected and documented: up to one second of writes can be lost) | n/a |
 
 ## Real-world exposure
 

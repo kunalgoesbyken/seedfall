@@ -48,6 +48,6 @@ Before the rename in `FileSnapshotSink.Close`, open `s.dir` and `Sync()` it, ski
 
 I patched a local copy of v1.8.0 to open and `Sync()` `s.dir` before the `os.Rename` in `FileSnapshotSink.Close`:
 - seed 7 passes;
-- seeds 1–120 under strict directory semantics pass.
+- seeds 1-120 under strict directory semantics pass.
 
 Without the patch, the sweep failed on seed 7.

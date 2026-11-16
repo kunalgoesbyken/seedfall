@@ -18,7 +18,7 @@
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header class="site-head"><a class="brand" href="../"><svg viewBox="0 0 32 32" aria-hidden="true"><rect class="bar" x="3" y="17" width="7" height="12" rx="3.5" opacity="0.6"/><rect class="seed" x="12.5" y="3" width="7" height="26" rx="3.5"/><rect class="bar" x="22" y="10" width="7" height="19" rx="3.5" opacity="0.8"/></svg>seedfall</a><nav><a href="../docs/" aria-current="page">Docs</a><a href="../gym">RL gym</a><a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a><button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch between light and dark theme" title="Switch theme"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.75a6.25 6.25 0 0 1 0 12.5z" fill="currentColor"/></svg></button></nav></header>
+<header class="site-head"><a class="brand" href="../"><svg viewBox="0 0 32 32" aria-hidden="true"><rect class="bar" x="3" y="17" width="7" height="12" rx="3.5" opacity="0.6"/><rect class="seed" x="12.5" y="3" width="7" height="26" rx="3.5"/><rect class="bar" x="22" y="10" width="7" height="19" rx="3.5" opacity="0.8"/></svg>seedfall</a><nav><a href="../docs/" aria-current="page">Docs</a><a href="../gym">RL gym</a><a class="icon-link" href="https://github.com/kunalgoesbyken/seedfall" target="_blank" rel="noopener" aria-label="seedfall on GitHub" title="GitHub"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.83 1.24 1.83 1.24 1.07 1.83 2.81 1.3 3.5 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3"/></svg></a><button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch between light and dark theme" title="Switch theme"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.75a6.25 6.25 0 0 1 0 12.5z" fill="currentColor"/></svg></button></nav></header>
 <div class="layout">
 <nav class="toc" aria-label="Contents" data-toc hidden><p class="toc-title">Contents</p></nav>
 <article class="page">
@@ -42,37 +42,37 @@
 <td><code>go.etcd.io/bbolt</code> v1.5</td>
 <td>doesn't build: no <code>MaxMapSize</code> for <code>GOARCH=wasm</code>, then <code>bolt_unix.go</code> needs <code>syscall.Flock</code> and <code>unix.Mmap</code></td>
 <td>runs; 300 seeds pass, <code>NoSync</code> is caught, and it found a <a href="findings/bbolt-create-dir-fsync.html">missing directory fsync</a></td>
-<td><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/examples/bboltkv"><code>examples/bboltkv</code></a></td>
+<td><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/examples/bboltkv" target="_blank" rel="noopener"><code>examples/bboltkv</code></a></td>
 </tr>
 <tr>
 <td><code>github.com/cockroachdb/pebble/v2</code> v2.1</td>
 <td>doesn't build: <code>vfs</code> has no <code>wasip1</code> file system (its generic lock file refers to an undefined <code>defFS</code>), <code>rawalloc</code> has no <code>maxArrayLen</code> for <code>wasm</code>, and prometheus/procfs v0.10 calls <code>syscall.Statfs</code></td>
 <td>runs; needs <code>strict_dirs</code> (see below)</td>
-<td><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/examples/pebblekv"><code>examples/pebblekv</code></a></td>
+<td><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/examples/pebblekv" target="_blank" rel="noopener"><code>examples/pebblekv</code></a></td>
 </tr>
 <tr>
 <td><code>github.com/dgraph-io/badger/v4</code> v4.9</td>
 <td>builds, but <code>Open</code> fails: ristretto's <code>mmap</code> returns <code>ENOSYS</code> on <code>wasip1</code></td>
 <td>runs, with small memtable and value log sizes</td>
-<td><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/examples/badgerkv"><code>examples/badgerkv</code></a></td>
+<td><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/examples/badgerkv" target="_blank" rel="noopener"><code>examples/badgerkv</code></a></td>
 </tr>
 <tr>
 <td><code>github.com/blevesearch/mmap-go</code> v1.0.4</td>
 <td>doesn't build: its only mapping code is <code>//go:build</code> unix</td>
 <td>runs through the generic shim; a writable mapping, <code>msync</code> and <code>mmap_early_writeback</code> work</td>
-<td><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/examples/mmapwal"><code>examples/mmapwal</code></a></td>
+<td><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/examples/mmapwal" target="_blank" rel="noopener"><code>examples/mmapwal</code></a></td>
 </tr>
 <tr>
 <td><code>github.com/edsrzf/mmap-go</code> v1.2.0</td>
 <td>builds, then <code>mmap</code> returns <code>ENOTSUP</code> from its <code>wasm</code> file</td>
 <td>runs through the generic shim, which replaces the <code>wasm</code> file</td>
-<td>swap the import in <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/examples/mmapwal"><code>examples/mmapwal</code></a></td>
+<td>swap the import in <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/examples/mmapwal" target="_blank" rel="noopener"><code>examples/mmapwal</code></a></td>
 </tr>
 <tr>
 <td><code>github.com/gofrs/flock</code> v0.13</td>
 <td>builds, then returns <code>ErrUnsupported</code></td>
 <td>runs through the generic shim, which replaces <code>flock_others.go</code></td>
-<td><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/examples/mmapwal"><code>examples/mmapwal</code></a></td>
+<td><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/examples/mmapwal" target="_blank" rel="noopener"><code>examples/mmapwal</code></a></td>
 </tr>
 <tr>
 <td><code>golang.org/x/exp/mmap</code></td>
@@ -84,7 +84,7 @@
 <td><code>github.com/hashicorp/memberlist</code> v0.7</td>
 <td>doesn't build: <code>go-sockaddr</code> has no route lookup for <code>wasip1</code></td>
 <td>runs, with <code>net_overlay</code>; the shim answers as <code>go-sockaddr</code> does on other platforms without a route table, and a node binds and advertises its own IP</td>
-<td><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/examples/memberlist"><code>examples/memberlist</code></a></td>
+<td><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/examples/memberlist" target="_blank" rel="noopener"><code>examples/memberlist</code></a></td>
 </tr>
 </tbody>
 </table></div>
@@ -101,10 +101,10 @@
 <p>Most libraries put their mapping code in a file constrained to unix, and it calls <code>unix.Mmap</code>, <code>syscall.Mmap</code>, <code>unix.Flock</code> or <code>syscall.Flock</code>. You don't need a shim for each one. With <code>compat_overlay</code>, seedfall adds <code>Mmap</code>, <code>Munmap</code>, <code>Msync</code>, <code>Mlock</code>, <code>Munlock</code>, <code>Madvise</code> and <code>Flock</code> to <code>syscall</code> on <code>wasip1</code>, and a matching <code>golang.org/x/sys/unix</code>. It then finds files in your dependencies that are excluded on <code>wasip1</code>, would build on Linux, and call one of those four functions, and compiles them for <code>wasip1</code>. If such a file conflicts with a stub the library already builds on <code>wasip1</code>, like <code>gofrs/flock</code>'s <code>flock_others.go</code>, the stub is removed, but only when the file declares everything the stub declares. It does not touch your own module, or a file whose name ends in <code>_linux</code>, which normally assumes much more of Linux.</p>
 <p>A file that uses anything else missing on <code>wasip1</code>, such as <code>unix.Fallocate</code>, fails to compile and the build error names the symbol. Run <code>seedfall init -n</code> to see which dependencies are covered: every <code>wasip1_blockers</code> entry has a <code>shim</code> line naming the shim or saying <code>none: needs a shim</code>, and <code>compat_shims</code> lists every dependency <code>compat_overlay</code> will touch, including ones like <code>gofrs/flock</code> that compile but fail at run time. <code>init</code> turns on <code>compat_overlay</code> when it finds any. <code>flock</code> is held by a table inside the node's process, keyed by inode: a lock is released by <code>LOCK_UN</code>, by closing the file descriptor that holds it, or when the process dies. A blocking <code>Flock</code> retries on a virtual 1 ms sleep; because <code>syscall</code> cannot import <code>time</code>, the overlay reaches <code>time.Sleep</code> through one <code>go:linkname</code>, the only one in seedfall.</p>
 <h2 id="early-writeback-of-mapped-pages">Early writeback of mapped pages</h2>
-<p>A kernel can write back any dirty page of a shared mapping at any time, so a program must not assume unsynced mapped data stayed volatile. With <code>&quot;mmap_early_writeback&quot;: 0.5</code> in <code>faults</code>, each dirty page a crash finds in a writable shared mapping is treated as already written back with that probability, so it survives the crash where it would otherwise be lost. Each page is recorded as a <code>mmap_early_writeback</code> fault with the node and a <code>mapped page #N</code> count, so it replays, shrinks and edits like any other runtime disk fault. <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/examples/mmapwal"><code>examples/mmapwal</code></a> shows a checkpoint-and-checksum design that assumes unsynced pages can't reach the disk: it passes without the fault and fails with it.</p>
+<p>A kernel can write back any dirty page of a shared mapping at any time, so a program must not assume unsynced mapped data stayed volatile. With <code>&quot;mmap_early_writeback&quot;: 0.5</code> in <code>faults</code>, each dirty page a crash finds in a writable shared mapping is treated as already written back with that probability, so it survives the crash where it would otherwise be lost. Each page is recorded as a <code>mmap_early_writeback</code> fault with the node and a <code>mapped page #N</code> count, so it replays, shrinks and edits like any other runtime disk fault. <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/examples/mmapwal" target="_blank" rel="noopener"><code>examples/mmapwal</code></a> shows a checkpoint-and-checksum design that assumes unsynced pages can't reach the disk: it passes without the fault and fails with it.</p>
 <p>Written-back pages are the page's content at the moment of the crash. A page written back earlier and dirtied again would have older content on a real kernel; that outcome is not generated.</p>
 <h2 id="how-it-works">How it works</h2>
-<p>The shims are Go files embedded in seedfall, one directory per import path under <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/engine/compat"><code>engine/compat</code></a>. At build time seedfall runs <code>go list -deps</code> for your nodes. For each dependency package with a shim, it copies the dependency's module into <code>.seedfall/compat</code>, adds the shim files, and removes every file the shim replaces. It builds with <code>-modfile</code> pointing at a copy of your <code>go.mod</code> that has a <code>replace</code> for each copied module. Your <code>go.mod</code>, <code>go.sum</code> and module cache are not touched. (<code>go build -overlay</code> can't be used here: Go refuses overlays for files in the module cache.)</p>
+<p>The shims are Go files embedded in seedfall, one directory per import path under <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/engine/compat" target="_blank" rel="noopener"><code>engine/compat</code></a>. At build time seedfall runs <code>go list -deps</code> for your nodes. For each dependency package with a shim, it copies the dependency's module into <code>.seedfall/compat</code>, adds the shim files, and removes every file the shim replaces. It builds with <code>-modfile</code> pointing at a copy of your <code>go.mod</code> that has a <code>replace</code> for each copied module. Your <code>go.mod</code>, <code>go.sum</code> and module cache are not touched. (<code>go build -overlay</code> can't be used here: Go refuses overlays for files in the module cache.)</p>
 <p>Nothing is patched by text. A file is replaced when it declares something the shim declares, and then every top-level function, method, type, variable and constant it declares must be in the shim. If a new release adds a declaration to a replaced file, the build stops with an error that names it:</p>
 <pre><code>compat overlay: go.etcd.io/bbolt/bolt_unix.go declares fdatasync2, which the wasip1 shim does not provide; this version is not supported yet
 </code></pre>
@@ -122,7 +122,7 @@
 <li>Libraries that need cgo, such as RocksDB bindings or <code>mattn/go-sqlite3</code>.</li>
 </ul>
 
-<p class="foot"><a href="compat.md" type="text/markdown">Markdown</a> · <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/compat.md">Edit on GitHub</a></p>
+<p class="foot"><a href="compat.md" type="text/markdown">Markdown</a> · <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/compat.md" target="_blank" rel="noopener">Edit on GitHub</a></p>
 </article>
 </div>
 </body>

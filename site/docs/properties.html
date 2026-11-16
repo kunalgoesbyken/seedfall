@@ -18,7 +18,7 @@
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header class="site-head"><a class="brand" href="../"><svg viewBox="0 0 32 32" aria-hidden="true"><rect class="bar" x="3" y="17" width="7" height="12" rx="3.5" opacity="0.6"/><rect class="seed" x="12.5" y="3" width="7" height="26" rx="3.5"/><rect class="bar" x="22" y="10" width="7" height="19" rx="3.5" opacity="0.8"/></svg>seedfall</a><nav><a href="../docs/" aria-current="page">Docs</a><a href="../gym">RL gym</a><a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a><button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch between light and dark theme" title="Switch theme"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.75a6.25 6.25 0 0 1 0 12.5z" fill="currentColor"/></svg></button></nav></header>
+<header class="site-head"><a class="brand" href="../"><svg viewBox="0 0 32 32" aria-hidden="true"><rect class="bar" x="3" y="17" width="7" height="12" rx="3.5" opacity="0.6"/><rect class="seed" x="12.5" y="3" width="7" height="26" rx="3.5"/><rect class="bar" x="22" y="10" width="7" height="19" rx="3.5" opacity="0.8"/></svg>seedfall</a><nav><a href="../docs/" aria-current="page">Docs</a><a href="../gym">RL gym</a><a class="icon-link" href="https://github.com/kunalgoesbyken/seedfall" target="_blank" rel="noopener" aria-label="seedfall on GitHub" title="GitHub"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.83 1.24 1.83 1.24 1.07 1.83 2.81 1.3 3.5 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3"/></svg></a><button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch between light and dark theme" title="Switch theme"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.75a6.25 6.25 0 0 1 0 12.5z" fill="currentColor"/></svg></button></nav></header>
 <div class="layout">
 <nav class="toc" aria-label="Contents" data-toc hidden><p class="toc-title">Contents</p></nav>
 <article class="page">
@@ -182,7 +182,7 @@ sim.Eventually(func() bool {
 sim.AlwaysLessThanOrEqualTo(p, adds, &quot;no add is applied twice&quot;)
 sim.AlwaysGreaterThanOrEqualTo(p, adds, &quot;no acknowledged add is lost&quot;)
 </code></pre>
-<p><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/examples/liveness"><code>examples/liveness</code></a> shows all three: a primary that never reconnects to its backup fails liveness mode, a server without request deduplication fails the finally check once the client is crashed mid-request, and the fixed pair passes.</p>
+<p><a href="https://github.com/kunalgoesbyken/seedfall/blob/main/examples/liveness" target="_blank" rel="noopener"><code>examples/liveness</code></a> shows all three: a primary that never reconnects to its backup fails liveness mode, a server without request deduplication fails the finally check once the client is crashed mid-request, and the fixed pair passes.</p>
 <h3 id="quiet-periods">Quiet periods</h3>
 <p><code>sim.QuietFor(d)</code>, called from any node, starts a quiet period from inside the program: it suppresses every fault for <code>d</code> of virtual time and heals any active partition, lifts every clog and ends every slowdown. Unlike the recovery phase, nodes that are already down still restart on schedule. The trace records each suppressed fault. <code>examples/raftkv/client</code> uses this to check that the cluster recovers after the workload.</p>
 <pre><code class="language-go">sim.QuietFor(10 * time.Second)
@@ -205,7 +205,7 @@ for i := range n {
 </code></pre>
 <p><code>sim.Budget(n)</code> returns <code>n</code> in normal runs and outside the simulator. When a shrunk schedule sets <code>ops</code>, it returns at most that many, and the trace says so: <code>client#1: sim.Budget capped at 63 of 200 operations</code>. Shrink only tries this when a node called <code>sim.Budget</code> in the failing run, and bisects the cap down to the fewest operations that still fail the same way. Use the returned value everywhere the count matters, including messages and checks such as &quot;all <code>n</code> writes were acknowledged&quot;. <code>examples/kvlog/client</code> does this.</p>
 <h2 id="linearizability">Linearizability</h2>
-<p>Workloads can record operations from any number of concurrent clients. When the workload finishes, seedfall checks the history with <a href="https://github.com/anishathalye/porcupine">Porcupine</a> against the model named in <code>seedfall.json</code> (<code>kv</code> when there is no <code>checker</code>). Linearizability checking is NP-complete, and a history with many operations of unknown outcome can take Porcupine longer than any test should run. After 30 seconds of real time seedfall gives up on that seed, notes &quot;gave up checking N operations for linearizability&quot; in the trace, and neither passes nor fails it on linearizability. A seed that hits this limit says nothing about the history, so keep workloads short enough to check, or give fewer operations an unknown outcome.</p>
+<p>Workloads can record operations from any number of concurrent clients. When the workload finishes, seedfall checks the history with <a href="https://github.com/anishathalye/porcupine" target="_blank" rel="noopener">Porcupine</a> against the model named in <code>seedfall.json</code> (<code>kv</code> when there is no <code>checker</code>). Linearizability checking is NP-complete, and a history with many operations of unknown outcome can take Porcupine longer than any test should run. After 30 seconds of real time seedfall gives up on that seed, notes &quot;gave up checking N operations for linearizability&quot; in the trace, and neither passes nor fails it on linearizability. A seed that hits this limit says nothing about the history, so keep workloads short enough to check, or give fewer operations an unknown outcome.</p>
 <pre><code class="language-go">op := sim.Put(clientID, &quot;k1&quot;, &quot;v7&quot;)
 reply, err := client.Put(&quot;k1&quot;, &quot;v7&quot;)
 switch {
@@ -372,7 +372,7 @@ FAIL  history of 121 transactions is not serializable: G-single, G2, internal
 </code></pre>
 <p>It prints the verdict and every anomaly, writes the timeline next to the history file (or to <code>-timeline</code>) on a linearizability violation, and exits 1 when the history fails. The MCP tool is <code>seedfall_check</code>.</p>
 <h3 id="your-own-porcupine-model">Your own Porcupine model</h3>
-<p>For a data type none of the models cover, read a history file in Go and check it with your own <a href="https://github.com/anishathalye/porcupine">Porcupine</a> model:</p>
+<p>For a data type none of the models cover, read a history file in Go and check it with your own <a href="https://github.com/anishathalye/porcupine" target="_blank" rel="noopener">Porcupine</a> model:</p>
 <pre><code class="language-go">f, _ := os.Open(&quot;.seedfall/seed-1.history.jsonl&quot;)
 ops, err := engine.ReadHistory(f)
 ok := porcupine.CheckOperations(myModel, engine.PorcupineOperations(ops))
@@ -386,7 +386,7 @@ ok := porcupine.CheckOperations(myModel, engine.PorcupineOperations(ops))
 <p>If the extra runs do not reproduce the difference, the report names the window instead. If the host calls agree but the traces do not, it falls back to the first differing trace line.</p>
 <p>The final hash is printed at the end of <code>seedfall replay</code> (<code>determinism hash 4c9ab008f72df649 over 9126 host calls</code>) and is the <code>determinism_hash</code> field of every <code>-json</code> seed line and of <code>seedfall_replay</code>. The hash covers only simulated values, so two machines that build the same guest binary should get the same hash for the same seed; comparing the field from CI runs on different machines checks that. A different Go toolchain or source tree produces a different binary and may change the hash.</p>
 
-<p class="foot"><a href="properties.md" type="text/markdown">Markdown</a> · <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/properties.md">Edit on GitHub</a></p>
+<p class="foot"><a href="properties.md" type="text/markdown">Markdown</a> · <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/properties.md" target="_blank" rel="noopener">Edit on GitHub</a></p>
 </article>
 </div>
 </body>

@@ -18,7 +18,7 @@
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
-<header class="site-head"><a class="brand" href="../"><svg viewBox="0 0 32 32" aria-hidden="true"><rect class="bar" x="3" y="17" width="7" height="12" rx="3.5" opacity="0.6"/><rect class="seed" x="12.5" y="3" width="7" height="26" rx="3.5"/><rect class="bar" x="22" y="10" width="7" height="19" rx="3.5" opacity="0.8"/></svg>seedfall</a><nav><a href="../docs/" aria-current="page">Docs</a><a href="../gym">RL gym</a><a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a><button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch between light and dark theme" title="Switch theme"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.75a6.25 6.25 0 0 1 0 12.5z" fill="currentColor"/></svg></button></nav></header>
+<header class="site-head"><a class="brand" href="../"><svg viewBox="0 0 32 32" aria-hidden="true"><rect class="bar" x="3" y="17" width="7" height="12" rx="3.5" opacity="0.6"/><rect class="seed" x="12.5" y="3" width="7" height="26" rx="3.5"/><rect class="bar" x="22" y="10" width="7" height="19" rx="3.5" opacity="0.8"/></svg>seedfall</a><nav><a href="../docs/" aria-current="page">Docs</a><a href="../gym">RL gym</a><a class="icon-link" href="https://github.com/kunalgoesbyken/seedfall" target="_blank" rel="noopener" aria-label="seedfall on GitHub" title="GitHub"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.83 1.24 1.83 1.24 1.07 1.83 2.81 1.3 3.5 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3"/></svg></a><button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch between light and dark theme" title="Switch theme"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.75a6.25 6.25 0 0 1 0 12.5z" fill="currentColor"/></svg></button></nav></header>
 <div class="layout">
 <nav class="toc" aria-label="Contents" data-toc hidden><p class="toc-title">Contents</p></nav>
 <article class="page">
@@ -76,7 +76,7 @@
 <h3 id="a-compat-shim-does-not-match-the-library-version">A compat shim does not match the library version</h3>
 <pre><code>compat overlay: &lt;pkg&gt;/&lt;file&gt; declares &lt;names&gt;, which the wasip1 shim does not provide; this version is not supported yet
 </code></pre>
-<p>A shim replaces whole files, and only if it provides every top-level name those files declare. The version of the library you use declares something the shim does not, so seedfall stops instead of building a half replacement. Either pin the library to the version listed in <a href="compat.html">compat</a>, or add the missing declarations to the shim under <code>engine/compat</code> (<a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md#adding-a-compat-shim">CONTRIBUTING</a>).</p>
+<p>A shim replaces whole files, and only if it provides every top-level name those files declare. The version of the library you use declares something the shim does not, so seedfall stops instead of building a half replacement. Either pin the library to the version listed in <a href="compat.html">compat</a>, or add the missing declarations to the shim under <code>engine/compat</code> (<a href="https://github.com/kunalgoesbyken/seedfall/blob/main/CONTRIBUTING.md#adding-a-compat-shim" target="_blank" rel="noopener">CONTRIBUTING</a>).</p>
 <h3 id="golangorgxsys-is-not-downloaded">golang.org/x/sys is not downloaded</h3>
 <pre><code>compat overlay: golang.org/x/sys is not downloaded; run go mod download golang.org/x/sys
 </code></pre>
@@ -163,7 +163,7 @@ dial &lt;network&gt;: the simulator supports only tcp, tcp4, tcp6
 <p>Classed as <code>timeout</code>. One node ran for longer than <code>watchdog</code> (default <code>30s</code>) of real time without ever waiting. Only one node runs at a time, and virtual time barely moves while it runs, so a loop that never waits freezes the whole simulation. The usual cause is a loop with no function call, which the default preemption cannot interrupt, or a very long calculation. The result depends on how fast and how busy your machine is, so the same seed may pass on a faster machine or with a lower <code>-j</code>.</p>
 <p>To fix it:</p>
 <ol>
-<li>Set <code>&quot;preempt&quot;: {&quot;loops&quot;: true}</code>. Loops with no function call are then interrupted and use up virtual time. A spin that never ends then fails as <code>liveness</code>, which does not depend on your machine (<a href="how-it-works.html#loops">how it works</a>, <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/examples/busyloop"><code>examples/busyloop</code></a>).</li>
+<li>Set <code>&quot;preempt&quot;: {&quot;loops&quot;: true}</code>. Loops with no function call are then interrupted and use up virtual time. A spin that never ends then fails as <code>liveness</code>, which does not depend on your machine (<a href="how-it-works.html#loops">how it works</a>, <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/examples/busyloop" target="_blank" rel="noopener"><code>examples/busyloop</code></a>).</li>
 <li>If the node really needs more real time, raise <code>watchdog</code>.</li>
 <li>Or lower <code>-j</code>, so fewer nodes share the CPU.</li>
 </ol>
@@ -200,7 +200,7 @@ deadlock: every node has exited
 </code></pre>
 <p>The first line means a node, other than the workload or the <code>finally</code> check, exited with status 0. A server that returns from <code>main</code> counts as a failure. The second means a node exited with an error or panicked. With <code>&quot;supervise&quot;: true</code>, seedfall restarts a node that exits with an error after <code>restart_after</code>, as systemd would. A Go panic (exit code 2) always fails the run (<a href="faults.html#world">faults</a>).</p>
 
-<p class="foot"><a href="troubleshooting.md" type="text/markdown">Markdown</a> · <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/troubleshooting.md">Edit on GitHub</a></p>
+<p class="foot"><a href="troubleshooting.md" type="text/markdown">Markdown</a> · <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/troubleshooting.md" target="_blank" rel="noopener">Edit on GitHub</a></p>
 </article>
 </div>
 </body>

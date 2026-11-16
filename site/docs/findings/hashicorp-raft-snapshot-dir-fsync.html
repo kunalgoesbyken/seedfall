@@ -18,7 +18,7 @@
 <link rel="stylesheet" href="../../site.css">
 </head>
 <body>
-<header class="site-head"><a class="brand" href="../../"><svg viewBox="0 0 32 32" aria-hidden="true"><rect class="bar" x="3" y="17" width="7" height="12" rx="3.5" opacity="0.6"/><rect class="seed" x="12.5" y="3" width="7" height="26" rx="3.5"/><rect class="bar" x="22" y="10" width="7" height="19" rx="3.5" opacity="0.8"/></svg>seedfall</a><nav><a href="../../docs/" aria-current="page">Docs</a><a href="../../gym">RL gym</a><a href="https://github.com/kunalgoesbyken/seedfall">GitHub</a><button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch between light and dark theme" title="Switch theme"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.75a6.25 6.25 0 0 1 0 12.5z" fill="currentColor"/></svg></button></nav></header>
+<header class="site-head"><a class="brand" href="../../"><svg viewBox="0 0 32 32" aria-hidden="true"><rect class="bar" x="3" y="17" width="7" height="12" rx="3.5" opacity="0.6"/><rect class="seed" x="12.5" y="3" width="7" height="26" rx="3.5"/><rect class="bar" x="22" y="10" width="7" height="19" rx="3.5" opacity="0.8"/></svg>seedfall</a><nav><a href="../../docs/" aria-current="page">Docs</a><a href="../../gym">RL gym</a><a class="icon-link" href="https://github.com/kunalgoesbyken/seedfall" target="_blank" rel="noopener" aria-label="seedfall on GitHub" title="GitHub"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.83 1.24 1.83 1.24 1.07 1.83 2.81 1.3 3.5 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3"/></svg></a><button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch between light and dark theme" title="Switch theme"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.75a6.25 6.25 0 0 1 0 12.5z" fill="currentColor"/></svg></button></nav></header>
 <div class="layout">
 <nav class="toc" aria-label="Contents" data-toc hidden><p class="toc-title">Contents</p></nav>
 <article class="page">
@@ -27,7 +27,7 @@
 <blockquote>
 <p><strong>In plain words:</strong> One crash while saving a snapshot leaves a node that crashes every time it starts.</p>
 </blockquote>
-<p><strong>Upstream:</strong> <a href="https://github.com/hashicorp/raft/issues/744">hashicorp/raft#744</a></p>
+<p><strong>Upstream:</strong> <a href="https://github.com/hashicorp/raft/issues/744" target="_blank" rel="noopener">hashicorp/raft#744</a></p>
 <p><strong>Repo:</strong> hashicorp/raft (tested on v1.8.0)
 <strong>Severity:</strong> a node can't restart (it panics in <code>NewRaft</code>). This needs strict POSIX directory-durability semantics.</p>
 <h2 id="summary">Summary</h2>
@@ -44,7 +44,7 @@ github.com/hashicorp/raft.NewRaft(...)  api.go:617
 </code></pre>
 <p>The node panics on every restart until an operator intervenes.</p>
 <h2 id="reproduction">Reproduction</h2>
-<p>Reproduced deterministically with <a href="https://github.com/kunalgoesbyken/seedfall">seedfall</a>. It runs a 3-node cluster built on hashicorp/raft v1.8.0 (<code>NetworkTransport</code>, <code>FileSnapshotStore</code>, and an fsyncing file log store that also fsyncs its directories) on a simulated disk with strict POSIX directory semantics:</p>
+<p>Reproduced deterministically with <a href="https://github.com/kunalgoesbyken/seedfall" target="_blank" rel="noopener">seedfall</a>. It runs a 3-node cluster built on hashicorp/raft v1.8.0 (<code>NetworkTransport</code>, <code>FileSnapshotStore</code>, and an fsyncing file log store that also fsyncs its directories) on a simulated disk with strict POSIX directory semantics:</p>
 <pre><code>cd examples/raftkv
 seedfall replay -c strict.lin.json -seed 7
 </code></pre>
@@ -57,11 +57,11 @@ seedfall replay -c strict.lin.json -seed 7
 <p>I patched a local copy of v1.8.0 to open and <code>Sync()</code> <code>s.dir</code> before the <code>os.Rename</code> in <code>FileSnapshotSink.Close</code>:</p>
 <ul>
 <li>seed 7 passes;</li>
-<li>seeds 1–120 under strict directory semantics pass.</li>
+<li>seeds 1-120 under strict directory semantics pass.</li>
 </ul>
 <p>Without the patch, the sweep failed on seed 7.</p>
 
-<p class="foot"><a href="hashicorp-raft-snapshot-dir-fsync.md" type="text/markdown">Markdown</a> · <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/findings/hashicorp-raft-snapshot-dir-fsync.md">Edit on GitHub</a></p>
+<p class="foot"><a href="hashicorp-raft-snapshot-dir-fsync.md" type="text/markdown">Markdown</a> · <a href="https://github.com/kunalgoesbyken/seedfall/blob/main/docs/findings/hashicorp-raft-snapshot-dir-fsync.md" target="_blank" rel="noopener">Edit on GitHub</a></p>
 </article>
 </div>
 </body>

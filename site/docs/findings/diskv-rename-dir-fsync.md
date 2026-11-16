@@ -35,10 +35,10 @@ The client reports `acknowledged write lost: k0=v240, server now answers "VAL v2
 
 | Config | Stock v3.0.1 | Patched |
 |---|---|---|
-| `TempDir` + sync, crashes, partitions, torn writes, crash during I/O (`seedfall.json`) | 300/300 pass | — |
+| `TempDir` + sync, crashes, partitions, torn writes, crash during I/O (`seedfall.json`) | 300/300 pass | n/a |
 | plus strict directory durability (`seedfall.strict.json`) | fails, seed 1 | 300/300 pass |
-| without sync (`seedfall.nosync.json`) | fails, seed 3 (expected) | — |
-| sync without `TempDir` (`seedfall.inplace.json`) | fails, seed 2 (expected: the in-place overwrite truncates first) | — |
+| without sync (`seedfall.nosync.json`) | fails, seed 3 (expected) | n/a |
+| sync without `TempDir` (`seedfall.inplace.json`) | fails, seed 2 (expected: the in-place overwrite truncates first) | n/a |
 
 ## Suggested fix
 
