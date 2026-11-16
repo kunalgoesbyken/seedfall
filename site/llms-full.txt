@@ -192,7 +192,7 @@ When the variable is set and `seedfall.json` exists in the payload's `cwd` (or t
 
 ## Docs for models
 
-The site serves [`llms.txt`](https://seedfall-lemon.vercel.app/llms.txt), an index of these docs and the skills, and [`llms-full.txt`](https://seedfall-lemon.vercel.app/llms-full.txt), their full text. `bash scripts/site-llms.sh` generates both from `docs/` and `skills/`.
+The site serves [`llms.txt`](https://seedfall.kunalrc.xyz/llms.txt), an index of these docs and the skills, and [`llms-full.txt`](https://seedfall.kunalrc.xyz/llms-full.txt), their full text. `bash scripts/site-llms.sh` generates both from `docs/` and `skills/`.
 
 ## A verification loop
 
@@ -1909,7 +1909,7 @@ The package depends on Go.
 ## Install script (Linux and macOS)
 
 ```sh
-curl -fsSL https://seedfall-lemon.vercel.app/install.sh | sh
+curl -fsSL https://seedfall.kunalrc.xyz/install.sh | sh
 ```
 
 The script picks the download for your system, checks its SHA-256 checksum (a fingerprint of the file) against the release's `checksums.txt`, and installs to `~/.local/bin`. It stops with an error if the checksum does not match. The script is `scripts/install.sh`, so you can read it first.

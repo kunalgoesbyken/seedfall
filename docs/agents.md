@@ -131,7 +131,7 @@ When the variable is set and `seedfall.json` exists in the payload's `cwd` (or t
 
 ## Docs for models
 
-The site serves [`llms.txt`](https://seedfall-lemon.vercel.app/llms.txt), an index of these docs and the skills, and [`llms-full.txt`](https://seedfall-lemon.vercel.app/llms-full.txt), their full text. `bash scripts/site-llms.sh` generates both from `docs/` and `skills/`.
+The site serves [`llms.txt`](https://seedfall.kunalrc.xyz/llms.txt), an index of these docs and the skills, and [`llms-full.txt`](https://seedfall.kunalrc.xyz/llms-full.txt), their full text. `bash scripts/site-llms.sh` generates both from `docs/` and `skills/`.
 
 ## A verification loop
 

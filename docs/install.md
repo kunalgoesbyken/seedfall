@@ -34,7 +34,7 @@ The package depends on Go.
 ## Install script (Linux and macOS)
 
 ```sh
-curl -fsSL https://seedfall-lemon.vercel.app/install.sh | sh
+curl -fsSL https://seedfall.kunalrc.xyz/install.sh | sh
 ```
 
 The script picks the download for your system, checks its SHA-256 checksum (a fingerprint of the file) against the release's `checksums.txt`, and installs to `~/.local/bin`. It stops with an error if the checksum does not match. The script is `scripts/install.sh`, so you can read it first.

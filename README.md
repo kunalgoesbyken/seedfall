@@ -10,10 +10,10 @@
 </p>
 
 <p align="center">
-  <a href="https://seedfall-lemon.vercel.app">Website</a> ·
-  <a href="https://seedfall-lemon.vercel.app/docs/getting-started.html">Getting started</a> ·
-  <a href="https://seedfall-lemon.vercel.app/docs/findings/">Bugs found</a> ·
-  <a href="https://seedfall-lemon.vercel.app/docs/agents.html">AI agents (MCP)</a> ·
+  <a href="https://seedfall.kunalrc.xyz">Website</a> ·
+  <a href="https://seedfall.kunalrc.xyz/docs/getting-started.html">Getting started</a> ·
+  <a href="https://seedfall.kunalrc.xyz/docs/findings/">Bugs found</a> ·
+  <a href="https://seedfall.kunalrc.xyz/docs/agents.html">AI agents (MCP)</a> ·
   <a href="https://pkg.go.dev/github.com/kunalgoesbyken/seedfall">Go reference</a>
 </p>
 
@@ -39,7 +39,7 @@ go install github.com/kunalgoesbyken/seedfall/cmd/seedfall@latest
 seedfall doctor    # checks your setup and prints a fix for anything missing
 ```
 
-Other install options (Homebrew, Scoop, a script, Docker) are in [install docs](https://seedfall-lemon.vercel.app/docs/install.html), but they need a release newer than v0.2.0, so use `go install` for now.
+Other install options (Homebrew, Scoop, a script, Docker) are in [install docs](https://seedfall.kunalrc.xyz/docs/install.html), but they need a release newer than v0.2.0, so use `go install` for now.
 
 ### Let your AI agent use it
 
@@ -53,7 +53,7 @@ code --add-mcp '{"name":"seedfall","type":"stdio","command":"seedfall","args":["
 npx skills add kunalgoesbyken/seedfall                  # the four seedfall skills, for any agent
 ```
 
-Cursor, Windsurf and others: [setup for every agent](https://seedfall-lemon.vercel.app). Your agent can then set seedfall up in your repository, run the crash and network tests, shrink a failure to its cause and prove its own fix, with no API key. Agents can read every doc as Markdown from [llms.txt](https://seedfall-lemon.vercel.app/llms.txt).
+Cursor, Windsurf and others: [setup for every agent](https://seedfall.kunalrc.xyz/docs/agents.html). Your agent can then set seedfall up in your repository, run the crash and network tests, shrink a failure to its cause and prove its own fix, with no API key. Agents can read every doc as Markdown from [llms.txt](https://seedfall.kunalrc.xyz/llms.txt).
 
 ### Use it yourself (2 minutes)
 
@@ -82,7 +82,7 @@ faults before the failure (2):
      802ms  crash server, restart at 802ms
 ```
 
-Two crashes are enough. The first one interrupts a write and leaves a half-written line. After the restart the server keeps appending after that line, so the second restart can't read the record that follows it. `seedfall replay -c seedfall.always.json -seed 1` prints the full trace. The [getting started guide](https://seedfall-lemon.vercel.app/docs/getting-started.html) goes on to the fix and the proof that it holds.
+Two crashes are enough. The first one interrupts a write and leaves a half-written line. After the restart the server keeps appending after that line, so the second restart can't read the record that follows it. `seedfall replay -c seedfall.always.json -seed 1` prints the full trace. The [getting started guide](https://seedfall.kunalrc.xyz/docs/getting-started.html) goes on to the fix and the proof that it holds.
 
 ## Use it on your own service
 
@@ -90,7 +90,7 @@ Two crashes are enough. The first one interrupts a write and leaves a half-writt
 seedfall init
 ```
 
-This looks at your module, lists the packages that can't build for the simulator yet and why, and writes a starter `seedfall.json` and a workload. The workload is a Go program that uses your service and checks what must stay true, for example "every write I was told succeeded is still there after a crash". Your code has to build for `GOOS=wasip1` (Go's WebAssembly target, which is what seedfall runs), so cgo is not available. Then run `seedfall run -seeds 1-1000`. The steps are in [getting started](https://seedfall-lemon.vercel.app/docs/getting-started.html#your-own-project).
+This looks at your module, lists the packages that can't build for the simulator yet and why, and writes a starter `seedfall.json` and a workload. The workload is a Go program that uses your service and checks what must stay true, for example "every write I was told succeeded is still there after a crash". Your code has to build for `GOOS=wasip1` (Go's WebAssembly target, which is what seedfall runs), so cgo is not available. Then run `seedfall run -seeds 1-1000`. The steps are in [getting started](https://seedfall.kunalrc.xyz/docs/getting-started.html#your-own-project).
 
 ## What you get
 
@@ -101,7 +101,7 @@ This looks at your module, lists the packages that can't build for the simulator
 - **A way to prove the fix.** `seedfall verify` replays the failing case, sweeps fresh seeds and writes a summary you can paste into the pull request.
 - **No service or account.** It runs on your laptop or in CI, with a GitHub Action included.
 
-Everything else (consistency checkers, a disk inspector, a time-travel debugger, mutation testing of your own checks, triage reports) is in the [docs](https://seedfall-lemon.vercel.app/docs/).
+Everything else (consistency checkers, a disk inspector, a time-travel debugger, mutation testing of your own checks, triage reports) is in the [docs](https://seedfall.kunalrc.xyz/docs/).
 
 ## Bugs found
 
@@ -120,22 +120,22 @@ Found by running seedfall on real open-source projects. Links go to the upstream
 
 We also asked Claude for a crash-safe key-value store nine times with one prompt. Every sample's own tests passed, and seedfall found two that can refuse to open forever after a specific crash ([examples/aikv](examples/aikv)).
 
-hashicorp/raft (600 seeds) and etcd-io/raft (100 seeds) pass cleanly. Details, replay commands and fixes are in [docs/findings](https://seedfall-lemon.vercel.app/docs/findings/).
+hashicorp/raft (600 seeds) and etcd-io/raft (100 seeds) pass cleanly. Details, replay commands and fixes are in [docs/findings](https://seedfall.kunalrc.xyz/docs/findings/).
 
 ## When it's not a fit
 
-- **Your code must build for `GOOS=wasip1`.** Anything that needs cgo won't work. Code that uses `mmap` or file locks works for bbolt, pebble and badger and for common libraries through a built-in shim; other unix-only code needs a shim you write ([compat](https://seedfall-lemon.vercel.app/docs/compat.html)).
+- **Your code must build for `GOOS=wasip1`.** Anything that needs cgo won't work. Code that uses `mmap` or file locks works for bbolt, pebble and badger and for common libraries through a built-in shim; other unix-only code needs a shim you write ([compat](https://seedfall.kunalrc.xyz/docs/compat.html)).
 - **It only breaks what you check.** If your workload doesn't test a promise, seedfall can't catch it being broken. `seedfall mutate` tells you whether your checks would notice a broken disk.
 - **It's not a race detector.** It samples goroutine orderings rather than trying them all, and it doesn't replace `go test -race`.
 - **Only some file systems are modelled.** ext4 in ordered mode, plus an aggressive variant and an ext2/btrfs-style one. XFS and `data=journal` have no model of their own.
 - **It's Go only.** Everything runs as Go compiled for `wasip1`.
-- **Big programs boot slowly.** A large server like nats-server takes 0.1 to 0.3 seconds to start each node, which dominates short runs. See [speed](https://seedfall-lemon.vercel.app/docs/how-it-works.html#speed).
+- **Big programs boot slowly.** A large server like nats-server takes 0.1 to 0.3 seconds to start each node, which dominates short runs. See [speed](https://seedfall.kunalrc.xyz/docs/how-it-works.html#speed).
 
 ## Also
 
-[Gostman](https://github.com/kunalgoesbyken/gostman) collections can be used as workloads: the API checks you already have run while seedfall crashes and splits the service behind them ([docs](https://seedfall-lemon.vercel.app/docs/gostman.html)).
+[Gostman](https://github.com/kunalgoesbyken/gostman) collections can be used as workloads: the API checks you already have run while seedfall crashes and splits the service behind them ([docs](https://seedfall.kunalrc.xyz/docs/gostman.html)).
 
-The [docs index](https://seedfall-lemon.vercel.app/docs/) lists every page. If a build or run fails for a reason outside your system, start with [troubleshooting](https://seedfall-lemon.vercel.app/docs/troubleshooting.html). The [FAQ](https://seedfall-lemon.vercel.app/docs/faq.html) compares seedfall with Antithesis, gosim, `testing/synctest`, `-race` and Jepsen. See [CONTRIBUTING](CONTRIBUTING.md) and the [roadmap](ROADMAP.md), and report vulnerabilities as described in [SECURITY](SECURITY.md).
+The [docs index](https://seedfall.kunalrc.xyz/docs/) lists every page. If a build or run fails for a reason outside your system, start with [troubleshooting](https://seedfall.kunalrc.xyz/docs/troubleshooting.html). The [FAQ](https://seedfall.kunalrc.xyz/docs/faq.html) compares seedfall with Antithesis, gosim, `testing/synctest`, `-race` and Jepsen. See [CONTRIBUTING](CONTRIBUTING.md) and the [roadmap](ROADMAP.md), and report vulnerabilities as described in [SECURITY](SECURITY.md).
 
 ## License
 
