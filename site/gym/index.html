@@ -49,7 +49,7 @@
 <p>The agent gets a workspace with the buggy server, a symptom written the way a user would report it, and one tool that matters: <code>run_seeds</code>, which runs up to four visible seeds and returns pass or fail, the reason and the last 20 trace lines. It can't see the hidden seeds, the salt or the guard report. When it submits, the grader builds the workspace for <code>GOOS=wasip1</code>, runs it on 64 hidden seeds and returns the share that pass. Like SWE-bench <a class="cite" href="#ref-1">[1]</a>, the reward comes from running the code, not from a judge model.</p>
 
 <figure>
-<img src="/docs/assets/diagrams/grader.svg" width="1740" height="428" alt="The agent sends a submission to the grader and gets failures on visible seeds back. The grader replays visible and hidden seeds and runs the checks, and the reward is the share of seeds that pass.">
+<img loading="lazy" decoding="async" src="/docs/assets/diagrams/grader.svg" width="1740" height="428" alt="The agent sends a submission to the grader and gets failures on visible seeds back. The grader replays visible and hidden seeds and runs the checks, and the reward is the share of seeds that pass.">
 <figcaption>Fig. 1. The agent can run the visible seeds as often as its budget allows. The hidden seeds come from an HMAC of a secret salt, and only they count.</figcaption>
 </figure>
 

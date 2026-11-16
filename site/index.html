@@ -50,7 +50,7 @@
 <p>Most storage code passes its tests and then, one day in production, loses a write it already told a client was saved. It's rarely a logic bug. It's a crash at a bad moment: halfway through a write, or right after a rename but before anyone synced the directory. Tests almost never land on that moment, and when production does, nobody can make it happen again.</p>
 
 <figure>
-<img src="docs/assets/diagrams/comic.svg" width="1340" height="780" alt="Four panels. The client asks the server to save k60. The server says saved. The server crashes twice, the first time mid-write. The client asks for k60 and the server answers NONE.">
+<img loading="lazy" decoding="async" src="docs/assets/diagrams/comic.svg" width="1340" height="780" alt="Four panels. The client asks the server to save k60. The server says saved. The server crashes twice, the first time mid-write. The client asks for k60 and the server answers NONE.">
 <figcaption>Fig. 1. A real bug in four panels, from one of the examples. Seed 1 does this every time.</figcaption>
 </figure>
 
@@ -88,7 +88,7 @@
 <h2>How it works</h2>
 
 <figure>
-<img src="docs/assets/diagrams/architecture.svg" width="1600" height="1042" alt="The seed drives the seedfall host. Your nodes make WASI calls to the host and get results back. The host sends the trace to the checks, and a failure goes to shrink and replay.">
+<img loading="lazy" decoding="async" src="docs/assets/diagrams/architecture.svg" width="1600" height="1042" alt="The seed drives the seedfall host. Your nodes make WASI calls to the host and get results back. The host sends the trace to the checks, and a failure goes to shrink and replay.">
 <figcaption>Fig. 3. Your nodes run as WebAssembly modules inside the seedfall host. Every random byte, clock read, sleep, file and socket goes through the host, so one seed pins down the whole run.</figcaption>
 </figure>
 
@@ -166,7 +166,7 @@ faults before the failure (2):
 <p>A seed is useful because it replays a failure exactly, and that turns out to be what you want from an agent's reward too. Running an agent's code is easy. Trusting the score is the hard part. If the agent never sees the seeds it's graded on, it can't tune its work to them, so the score says something about faults it didn't predict. Anyone can recompute the score from the submission and the seeds. And when it fails, the shrunk trace is a few events long, which an agent can actually read and act on.</p>
 
 <figure>
-<img src="docs/assets/diagrams/grader.svg" width="1740" height="428" alt="The agent sends a submission to the grader and gets failures on visible seeds back. The grader replays visible and hidden seeds and runs the checks, and the reward is the share of seeds that pass.">
+<img loading="lazy" decoding="async" src="docs/assets/diagrams/grader.svg" width="1740" height="428" alt="The agent sends a submission to the grader and gets failures on visible seeds back. The grader replays visible and hidden seeds and runs the checks, and the reward is the share of seeds that pass.">
 <figcaption>Fig. 6. The agent can run the visible seeds as often as it likes. The hidden seeds come from a secret, and only they count.</figcaption>
 </figure>
 
@@ -177,7 +177,7 @@ faults before the failure (2):
 <p>Operator mode lets an agent act on a live simulated cluster, one step at a time. It can crash, restart, pause, partition or reconfigure a node, always between two scheduler steps, and every action is logged with its virtual time. The score doesn't come from the live run. It comes from replaying that log from scratch on the episode's seed and on other seeds the caller picks.</p>
 
 <figure>
-<img src="docs/assets/diagrams/operator.svg" width="1740" height="870" alt="The agent sends steps to seedfall env and gets observations back. seedfall env applies actions to the simulated cluster and logs them. verify replays the action log on hidden seeds, and the reward is the share of replays that pass.">
+<img loading="lazy" decoding="async" src="docs/assets/diagrams/operator.svg" width="1740" height="870" alt="The agent sends steps to seedfall env and gets observations back. seedfall env applies actions to the simulated cluster and logs them. verify replays the action log on hidden seeds, and the reward is the share of replays that pass.">
 <figcaption>Fig. 7. One episode. The agent acts through <code>seedfall env</code>, which applies each action between scheduler steps and logs it. <code>verify</code> replays the log on other seeds to get the score.</figcaption>
 </figure>
 
