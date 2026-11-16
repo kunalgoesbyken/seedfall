@@ -2,7 +2,7 @@ import difflib
 import os
 import sys
 
-SEEDFALL = os.environ.get("SEEDFALL_SRC", "D:/code/seedfall")
+SEEDFALL = os.environ.get("SEEDFALL_SRC") or os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 PATCHES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 
 

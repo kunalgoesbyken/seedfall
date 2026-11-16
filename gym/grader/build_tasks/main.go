@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/kunalgoesbyken/seedfall-gym/grader/internal/gym"
+	"github.com/kunalgoesbyken/seedfall/gym/grader/internal/gym"
 )
 
 const (
@@ -39,7 +39,7 @@ func main() {
 func run() error {
 	manifest := flag.String("manifest", "tasks.json", "declarative task manifest")
 	patches := flag.String("patches", "tasks_src", "directory holding the patch files the manifest names")
-	src := flag.String("seedfall", "", "seedfall source directory, default SEEDFALL_SRC or the module the grader links")
+	src := flag.String("seedfall", "", "seedfall source directory, default SEEDFALL_SRC or the seedfall repository around the working directory")
 	out := flag.String("out", "tasks", "output directory for generated tasks")
 	cheats := flag.String("cheats", cheatsDir, "output directory for generated cheats")
 	baselines := flag.String("baselines", baselinesFile, "calibrated progress floors written by validate -calibrate")

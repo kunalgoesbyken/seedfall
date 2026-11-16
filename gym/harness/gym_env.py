@@ -80,20 +80,13 @@ def grade_binary() -> Path:
     return REPO / "bin" / ("grade.exe" if os.name == "nt" else "grade")
 
 
-def seedfall_src() -> str | None:
-    configured = os.environ.get(SRC_ENV)
-    if configured:
-        return configured
-    sibling = REPO.parent / "seedfall"
-    return str(sibling) if sibling.is_dir() else None
+def seedfall_src() -> str:
+    return os.environ.get(SRC_ENV) or str(REPO.parent)
 
 
 def scrubbed_env(extra: dict[str, str] | None = None) -> dict[str, str]:
     env = {name: os.environ[name] for name in ENV_ALLOWLIST if name in os.environ}
-    src = seedfall_src()
-    if src:
-        env[SRC_ENV] = src
-    return {**env, **GO_ENV, **(extra or {})}
+    return {**env, SRC_ENV: seedfall_src(), **GO_ENV, **(extra or {})}
 
 
 def kill_tree(process: subprocess.Popen) -> None:

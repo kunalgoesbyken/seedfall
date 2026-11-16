@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -18,11 +17,33 @@ func SeedfallSource(flag string) (string, error) {
 	if env := os.Getenv("SEEDFALL_SRC"); env != "" {
 		return filepath.Abs(env)
 	}
-	out, err := exec.Command("go", "list", "-m", "-f", "{{.Dir}}", seedfallModule).Output()
+	dir, err := os.Getwd()
 	if err != nil {
-		return "", fmt.Errorf("locate %s: pass -seedfall or set SEEDFALL_SRC: %w", seedfallModule, err)
+		return "", err
 	}
-	return strings.TrimSpace(string(out)), nil
+	for {
+		if declaresModule(filepath.Join(dir, "go.mod"), seedfallModule) {
+			return dir, nil
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", fmt.Errorf("locate %s: run inside the seedfall repository, pass -seedfall or set SEEDFALL_SRC", seedfallModule)
+		}
+		dir = parent
+	}
+}
+
+func declaresModule(goMod, module string) bool {
+	data, err := os.ReadFile(goMod)
+	if err != nil {
+		return false
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if fields := strings.Fields(line); len(fields) == 2 && fields[0] == "module" {
+			return fields[1] == module
+		}
+	}
+	return false
 }
 
 func Stage(task Task, workspace, seedfallSrc string) (string, func(), error) {

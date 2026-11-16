@@ -11,7 +11,7 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/kunalgoesbyken/seedfall-gym/grader/internal/gym"
+	"github.com/kunalgoesbyken/seedfall/gym/grader/internal/gym"
 )
 
 const (
@@ -53,7 +53,7 @@ func run() error {
 	calibrate := flag.Bool("calibrate", false, "measure the oracle's acknowledged operations and write the progress floors")
 	baselines := flag.String("baselines", "baselines.json", "progress floors file written by -calibrate")
 	report := flag.String("report", "validation.json", "write the validation table as JSON")
-	src := flag.String("seedfall", "", "seedfall source directory, default SEEDFALL_SRC or the module the grader links")
+	src := flag.String("seedfall", "", "seedfall source directory, default SEEDFALL_SRC or the seedfall repository around the working directory")
 	flag.IntVar(&jobs, "j", 0, "parallel runs per grade, default all CPUs")
 	flag.IntVar(&floorDivisor, "floor-divisor", defaultFloorDivisor, "with -calibrate, the progress floor is the lowest oracle ack count divided by this")
 	saltEnv := flag.String("salt-env", "SEEDFALL_GYM_SALT", "environment variable holding the salt, the dev salt is used when it is empty")

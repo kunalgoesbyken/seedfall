@@ -1,4 +1,4 @@
-module github.com/kunalgoesbyken/seedfall-gym/grader
+module github.com/kunalgoesbyken/seedfall/gym/grader
 
 go 1.25.0
 
@@ -10,4 +10,4 @@ require (
 	golang.org/x/sys v0.44.0 // indirect
 )
 
-replace github.com/kunalgoesbyken/seedfall => ../../seedfall
+replace github.com/kunalgoesbyken/seedfall => ../..

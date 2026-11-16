@@ -3,14 +3,14 @@ from pathlib import Path
 
 import pytest
 
-from harness.gym_env import TASKS_DIR, GradeConfig, GymEnv, grade_binary, run_bounded, scrubbed_env, seedfall_src
+from harness.gym_env import TASKS_DIR, GradeConfig, GymEnv, grade_binary, run_bounded, scrubbed_env
 from harness.reference import run_reference
 from harness.report import aggregate, load_episodes
 
 TASK = "kvlog-torn-tail"
 SALT = "integration-test-salt"
 
-pytestmark = pytest.mark.skipif(not grade_binary().is_file() or seedfall_src() is None, reason="needs bin/grade and the seedfall checkout")
+pytestmark = pytest.mark.skipif(not grade_binary().is_file(), reason="needs bin/grade")
 
 
 def factory(task_id, episode):

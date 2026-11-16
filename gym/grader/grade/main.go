@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/kunalgoesbyken/seedfall-gym/grader/internal/gym"
+	"github.com/kunalgoesbyken/seedfall/gym/grader/internal/gym"
 )
 
 func main() {
@@ -25,7 +25,7 @@ func run() error {
 	saltEnv := flag.String("salt-env", "SEEDFALL_GYM_SALT", "environment variable holding the secret salt")
 	dev := flag.Bool("dev", false, "use the fixed development salt when the salt variable is empty")
 	seeds := flag.String("seeds", "", "comma separated explicit seeds to run instead of hidden ones")
-	src := flag.String("seedfall", "", "seedfall source directory, default SEEDFALL_SRC or the module the grader links")
+	src := flag.String("seedfall", "", "seedfall source directory, default SEEDFALL_SRC or the seedfall repository around the working directory")
 	jobs := flag.Int("j", 0, "parallel runs, default all CPUs")
 	asJSON := flag.Bool("json", true, "print the full report as JSON, otherwise a one line summary")
 	flag.Parse()

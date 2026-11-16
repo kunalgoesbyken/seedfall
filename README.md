@@ -14,6 +14,7 @@
   <a href="https://seedfall.kunalrc.xyz/docs/getting-started.html">Getting started</a> ·
   <a href="https://seedfall.kunalrc.xyz/docs/findings/">Bugs found</a> ·
   <a href="https://seedfall.kunalrc.xyz/docs/agents.html">AI agents (MCP)</a> ·
+  <a href="gym/">RL gym</a> ·
   <a href="https://pkg.go.dev/github.com/kunalgoesbyken/seedfall">Go reference</a>
 </p>
 
@@ -124,6 +125,10 @@ Found by running seedfall on real open-source projects. Links go to the upstream
 We also asked Claude for a crash-safe key-value store nine times with one prompt. Every sample's own tests passed, and seedfall found two that can refuse to open forever after a specific crash ([examples/aikv](examples/aikv)).
 
 hashicorp/raft (600 seeds) and etcd-io/raft (100 seeds) pass cleanly. Details, replay commands and fixes are in [docs/findings](https://seedfall.kunalrc.xyz/docs/findings/).
+
+## seedfall-gym: an RL environment
+
+[`gym/`](gym/) turns seedfall into a reward for coding agents: 42 tasks where an agent fixes a crash bug in a small Go system and is scored on hidden fault seeds. On every task the reference fix scores 1.0, the buggy code below 0.5 and a scripted cheat 0. Read the [write-up](https://seedfall.kunalrc.xyz/gym.html) or start at [gym/README.md](gym/README.md). [Operator mode](https://seedfall.kunalrc.xyz/docs/operator-env.html) is the other agent-facing side: an agent runs a live simulated cluster, and its actions are scored by replay.
 
 ## When it's not a fit
 

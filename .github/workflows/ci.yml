@@ -51,6 +51,23 @@ jobs:
         with:
           go-version: stable
       - run: go test -race ./...
+  gym:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: gym
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - run: go vet ./... && go test ./...
+        working-directory: gym/grader
+      - run: go build -o ../bin/ ./grade ./validate ./build_tasks
+        working-directory: gym/grader
+      - run: uv run pytest -q
   simulate:
     runs-on: ubuntu-latest
     strategy:

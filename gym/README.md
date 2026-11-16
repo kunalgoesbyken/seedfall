@@ -1,5 +1,7 @@
 # seedfall-gym
 
+Part of [seedfall](../README.md). Write-up: [seedfall.kunalrc.xyz/gym](https://seedfall.kunalrc.xyz/gym.html).
+
 An RL environment for fixing crash bugs in Go storage code. The agent gets a small Go system that loses acknowledged writes or breaks consistency when it crashes, edits the code, and is rewarded by replaying hidden, deterministic fault seeds through [seedfall](https://seedfall.kunalrc.xyz): the share of hidden seeds the fixed system survives.
 
 **42 tasks** · **9 systems** · **25 bug classes** · oracle 1.0, buggy below 0.5 and cheat 0 on every task · 31 train / 11 held-out
@@ -24,20 +26,20 @@ Baselines on 12 tasks: Haiku 5.5 solves 24 of 24 episodes, the free Gemini flash
 ### Try it
 
 ```sh
-export SEEDFALL_SRC=/path/to/seedfall    # a seedfall checkout, next to this repo
+git clone https://github.com/kunalgoesbyken/seedfall && cd seedfall/gym
 (cd grader && go build -o ../bin/ ./grade ./validate ./build_tasks)
 cp -r tasks/kvlog-torn-tail/workspace /tmp/ws
 ./bin/grade -task tasks/kvlog-torn-tail -workspace /tmp/ws -seeds 1,2,3 -json=false   # the buggy code fails
 ./bin/grade -task tasks/kvlog-torn-tail -workspace tasks/kvlog-torn-tail/solution -dev -json=false   # the oracle scores 1.0
 ```
 
-This repo holds the grader, the generated tasks, the task builder, the validation command and the agent harness.
+This folder holds the grader, the generated tasks, the task builder, the validation command and the agent harness. It lived in its own repository until 2026-11-16 and was merged here with its history.
 
 ## Layout
 
 | Path | What |
 |---|---|
-| `grader/` | Go module. `grade`, `validate`, `build_tasks` commands and `internal/gym` library. Depends on seedfall through `replace ... => ../../seedfall`, drop the `replace` to use a published module |
+| `grader/` | Go module. `grade`, `validate`, `build_tasks` commands and `internal/gym` library. Depends on the seedfall module at the repository root through `replace ... => ../..` |
 | `tasks.json` | Declarative manifest: systems (which seedfall example dirs, base config), tasks, variants |
 | `tasks_src/` | Patch files the manifest names, plus `author/*.py` that produced them from the pristine seedfall examples. `author/*_scale.py` hold the mutations of the generated tasks, `scale_specs.py` and `scale_symptoms.py` the manifest entries, and `scale_manifest.py` merges them into `tasks.json` |
 | `tasks/<id>/` | Generated. `workspace/` (agent sees and edits), `harness/` (pristine workload, config, go.mod, progress floor), `solution/` (oracle files and `fix.patch`), `task.json`, `visible_seed` |
@@ -50,10 +52,9 @@ This repo holds the grader, the generated tasks, the task builder, the validatio
 
 ## Commands
 
-All commands run from the repo root. `SEEDFALL_SRC` points at the seedfall checkout (the same one the grader links), the guest programs are built against it.
+All commands run from `gym/`. The guest programs are built against the seedfall checkout around it; set `SEEDFALL_SRC` or pass `-seedfall` to use another one.
 
 ```sh
-export SEEDFALL_SRC=D:/code/seedfall
 (cd grader && go build -o ../bin/ ./grade ./validate ./build_tasks)
 
 ./bin/build_tasks.exe                       # regenerate tasks/ and cheats/ from tasks.json, and splits.json
@@ -234,7 +235,7 @@ A task can carry `variants`, and a task can set `extends`. A child inherits ever
 
 Two kinds of mutation fit this: fault-mix variants (config merge only, as above) and code variants (an extra `patches.buggy` entry that renames, reorders or changes constants in the parent's buggy tree, with a matching `patches.fixed` entry). After adding entries run `build_tasks`, `validate -calibrate`, `build_tasks`, `validate`; a task that fails the validation rules does not ship.
 
-The tasks 13 to 42 use the other route, one new bug per task rather than a variant. `python tasks_src/author/<name>_scale.py` (run from `tasks_src/author`, `SEEDFALL_SRC` pointing at seedfall) writes `<system>-full.patch` (pristine example to its correct form) and, for each task, `<id>-bug.patch`, `<id>-fix.patch` and `<id>-cheat.patch`. `scale_specs.py` holds the manifest entry of each task (patch lists, fault config, symptom from `scale_symptoms.py`, visible seed) and `python scale_manifest.py` merges them into `tasks.json`, leaving the first ten entries untouched. The cheat of every task rejects every write (the aikv cheats also reject deletes, otherwise a no-op delete keeps the acknowledged-operation count above the floor). A cheat that still scores above 0 means the progress count is too loose: that is why the etcdraft client counts only `PUT` replies as acknowledged operations, not reads.
+The tasks 13 to 42 use the other route, one new bug per task rather than a variant. `python tasks_src/author/<name>_scale.py` (run from `tasks_src/author`, `SEEDFALL_SRC` overrides the seedfall checkout) writes `<system>-full.patch` (pristine example to its correct form) and, for each task, `<id>-bug.patch`, `<id>-fix.patch` and `<id>-cheat.patch`. `scale_specs.py` holds the manifest entry of each task (patch lists, fault config, symptom from `scale_symptoms.py`, visible seed) and `python scale_manifest.py` merges them into `tasks.json`, leaving the first ten entries untouched. The cheat of every task rejects every write (the aikv cheats also reject deletes, otherwise a no-op delete keeps the acknowledged-operation count above the floor). A cheat that still scores above 0 means the progress count is too loose: that is why the etcdraft client counts only `PUT` replies as acknowledged operations, not reads.
 
 ## Engine API notes
 

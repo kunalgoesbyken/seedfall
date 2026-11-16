@@ -28,7 +28,7 @@
 <p class="lede">Deterministic simulation testing on the stock Go toolchain</p>
 <p class="meta">November 2026 · Kunal Roy Choudhury</p>
 
-<p class="links"><a href="https://github.com/kunalgoesbyken/seedfall">Code</a><a href="docs/">Docs</a><a href="#break-it-yourself">Demo</a><a href="demo/kvlog-seed-1.html">Real trace</a><a href="docs/findings/">Bugs found</a></p>
+<p class="links"><a href="https://github.com/kunalgoesbyken/seedfall">Code</a><a href="docs/">Docs</a><a href="#break-it-yourself">Demo</a><a href="demo/kvlog-seed-1.html">Real trace</a><a href="docs/findings/">Bugs found</a><a href="gym.html">RL gym</a></p>
 
 <section class="abstract">
 <h2>Abstract</h2>
@@ -155,6 +155,8 @@ faults before the failure (2):
 <img src="docs/assets/diagrams/grader.svg" width="1740" height="428" alt="The agent sends a submission to the grader and gets failures on visible seeds back. The grader replays visible and hidden seeds and runs the checks, and the reward is the share of seeds that pass.">
 <figcaption>Figure 5. The agent can run the visible seeds as often as it likes. The hidden seeds come from a secret, and only they count.</figcaption>
 </figure>
+
+<p class="callout"><strong>seedfall-gym</strong> turns this into 42 tasks: fix a crash bug in Go storage code, get rewarded by hidden seeds. On every task the reference fix scores 1.0, the buggy code below 0.5 and a scripted cheat 0. <a href="gym.html">Read the gym write-up &rarr;</a></p>
 
 <h2>Operator mode</h2>
 
