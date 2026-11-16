@@ -2,7 +2,7 @@
   color-scheme: light dark;
   --bg: #ffffff;
   --fg: #101828;
-  --body: #1e2939;
+  --body: #364153;
   --muted: #4a5565;
   --faint: #6a7282;
   --rule: #e5e7eb;
@@ -16,7 +16,7 @@
   --net: #0969da;
   --violet: #8250df;
   --teal: #0f766e;
-  --sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --sans: "Inter", ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
   --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
@@ -42,9 +42,13 @@
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--body); font-family: var(--sans); line-height: 1.625; -webkit-font-smoothing: antialiased; }
+body { margin: 0; background: var(--bg); color: var(--body); font-family: var(--sans); line-height: 1.65; -webkit-font-smoothing: antialiased; }
 a { color: inherit; }
 strong, th, h1, h2, h3, h4 { color: var(--fg); }
+strong { font-weight: 600; }
+h1, h2, h3, h4 { font-weight: 650; }
+h1 { line-height: 1.2; letter-spacing: -0.02em; }
+h2 { line-height: 1.4; letter-spacing: -0.01em; }
 code, pre, .mono, input, textarea { font-family: var(--mono); }
 .dim { color: var(--muted); }
 :focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }

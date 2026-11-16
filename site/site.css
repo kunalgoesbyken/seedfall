@@ -1,11 +1,13 @@
+@font-face { font-family: "Inter"; font-weight: 100 900; font-display: swap; src: url("fonts/inter.woff2") format("woff2"); }
+
 .page { max-width: 48rem; margin: 2rem auto 8rem; padding: 1.5rem; overflow-wrap: break-word; }
 .back { margin: 0 0 1.5rem; font-size: 0.875rem; }
 .lede { margin-top: 0.5rem; font-size: 1.125rem; color: var(--muted); }
 .meta { margin-top: 1rem; font-size: 0.875rem; color: var(--faint); }
 
-h1 { margin: 0; font-size: 1.875rem; line-height: 1.25; font-weight: 700; }
-h2 { margin: 3.5rem 0 1rem; font-size: 1.25rem; line-height: 1.4; font-weight: 700; scroll-margin-top: 5rem; }
-h3, h4 { margin: 2rem 0 0.75rem; font-size: 1rem; font-weight: 700; scroll-margin-top: 5rem; }
+h1 { margin: 0; font-size: 1.875rem; }
+h2 { margin: 3.5rem 0 1rem; font-size: 1.25rem; scroll-margin-top: 5rem; }
+h3, h4 { margin: 2rem 0 0.75rem; font-size: 1rem; scroll-margin-top: 5rem; }
 p { margin: 1rem 0 0; }
 h2 + p, h3 + p, h4 + p { margin-top: 0; }
 ul, ol { margin: 0.5rem 0 0; padding-left: 1.5rem; }
@@ -26,11 +28,11 @@ thead tr { border-bottom: 1px solid var(--faint); }
 tbody tr { border-bottom: 1px solid var(--rule-soft); }
 
 figure { margin: 2rem 0; }
-figure img { display: block; width: 100%; height: auto; }
+figure img { display: block; width: 100%; height: auto; border: 1px solid var(--rule); border-radius: 4px; }
 figcaption { margin-top: 0.5rem; font-size: 0.875rem; color: var(--muted); }
 
 @media (prefers-color-scheme: dark) {
-  figure img { filter: invert(93%) hue-rotate(180deg); }
+  figure img { filter: invert(93%) hue-rotate(180deg); border-color: transparent; }
 }
 
 .board { margin: 1.5rem 0; border: 1px solid var(--rule); }
