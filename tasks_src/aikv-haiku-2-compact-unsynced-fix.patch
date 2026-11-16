@@ -1,0 +1,12 @@
+--- a/impl/haiku-2/compact.go
++++ b/impl/haiku-2/compact.go
+@@ -56,6 +56,9 @@
+ 		return nil, 0, err
+ 	}
+ 	keys, size, err := copyLive(db, f)
++	if err == nil {
++		err = f.Sync()
++	}
+ 	if cerr := f.Close(); err == nil {
+ 		err = cerr
+ 	}

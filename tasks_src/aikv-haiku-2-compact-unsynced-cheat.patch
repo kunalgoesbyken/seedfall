@@ -1,0 +1,18 @@
+--- a/impl/haiku-2/kv.go
++++ b/impl/haiku-2/kv.go
+@@ -127,6 +127,7 @@
+ }
+ 
+ func (db *DB) Put(key string, value []byte) error {
++	return ErrTooLarge
+ 	if len(key) > maxKeySize || len(value) > maxValueSize {
+ 		return ErrTooLarge
+ 	}
+@@ -163,6 +164,7 @@
+ }
+ 
+ func (db *DB) Delete(key string) error {
++	return ErrTooLarge
+ 	db.mu.Lock()
+ 	defer db.mu.Unlock()
+ 	if err := db.usable(); err != nil {

@@ -1,0 +1,12 @@
+--- a/impl/sonnet-3/compact.go
++++ b/impl/sonnet-3/compact.go
+@@ -136,9 +136,6 @@
+ 		return nil, nil, err
+ 	}
+ 	offs, size, err := db.copyLive(out, snap.live)
+-	if err == nil {
+-		err = out.Sync()
+-	}
+ 	if cerr := out.Close(); err == nil {
+ 		err = cerr
+ 	}

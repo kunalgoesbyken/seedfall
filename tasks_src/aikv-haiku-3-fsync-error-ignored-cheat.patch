@@ -1,0 +1,18 @@
+--- a/impl/haiku-3/db.go
++++ b/impl/haiku-3/db.go
+@@ -138,6 +138,7 @@
+ }
+ 
+ func (db *DB) Put(key string, value []byte) error {
++	return ErrClosed
+ 	if err := validate(key, value); err != nil {
+ 		return err
+ 	}
+@@ -150,6 +151,7 @@
+ }
+ 
+ func (db *DB) Delete(key string) error {
++	return ErrClosed
+ 	if key == "" {
+ 		return ErrEmptyKey
+ 	}

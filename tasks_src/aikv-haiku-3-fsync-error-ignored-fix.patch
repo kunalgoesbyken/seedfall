@@ -1,0 +1,13 @@
+--- a/impl/haiku-3/db.go
++++ b/impl/haiku-3/db.go
+@@ -193,7 +193,9 @@
+ 	if _, err := db.f.WriteAt(buf, off); err != nil {
+ 		return db.fail(err)
+ 	}
+-	db.f.Sync()
++	if err := db.f.Sync(); err != nil {
++		return db.fail(err)
++	}
+ 	db.size += int64(len(buf))
+ 	db.apply(rec, off)
+ 	if db.size >= compactMinSize && db.size >= 2*db.live {

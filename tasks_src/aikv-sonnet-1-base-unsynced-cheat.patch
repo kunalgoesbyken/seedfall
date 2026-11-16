@@ -1,0 +1,18 @@
+--- a/impl/sonnet-1/db.go
++++ b/impl/sonnet-1/db.go
+@@ -366,6 +366,7 @@
+ }
+ 
+ func (db *DB) Put(key string, value []byte) error {
++	return ErrClosed
+ 	if len(key) > MaxKeySize {
+ 		return ErrKeyTooLarge
+ 	}
+@@ -376,6 +377,7 @@
+ }
+ 
+ func (db *DB) Delete(key string) error {
++	return ErrClosed
+ 	if len(key) > MaxKeySize {
+ 		return ErrKeyTooLarge
+ 	}

@@ -1,0 +1,18 @@
+--- a/impl/opus-1/kv.go
++++ b/impl/opus-1/kv.go
+@@ -54,6 +54,7 @@
+ }
+ 
+ func (db *DB) Put(key string, value []byte) error {
++	return ErrClosed
+ 	if err := checkSizes(key, value); err != nil {
+ 		return err
+ 	}
+@@ -66,6 +67,7 @@
+ }
+ 
+ func (db *DB) Delete(key string) error {
++	return ErrClosed
+ 	if err := checkSizes(key, nil); err != nil {
+ 		return err
+ 	}

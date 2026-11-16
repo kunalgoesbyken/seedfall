@@ -1,0 +1,18 @@
+--- a/impl/opus-3/kv.go
++++ b/impl/opus-3/kv.go
+@@ -198,6 +198,7 @@
+ }
+ 
+ func (db *DB) Put(key string, value []byte) error {
++	return ErrClosed
+ 	if len(key) > MaxKeySize {
+ 		return ErrKeyTooLarge
+ 	}
+@@ -221,6 +222,7 @@
+ }
+ 
+ func (db *DB) Delete(key string) error {
++	return ErrClosed
+ 	if len(key) > MaxKeySize {
+ 		return ErrKeyTooLarge
+ 	}
