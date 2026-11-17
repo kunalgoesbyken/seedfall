@@ -1,0 +1,40 @@
+{
+ "n": 36,
+ "mean_reward": 0.625,
+ "valid_rate": 1.0,
+ "pass_all_rate": 0.1111111111111111,
+ "nonzero_rate": 1.0,
+ "mean_replay": 0.625,
+ "touch_rate": 0.0,
+ "status": {
+  "replayed": 36
+ },
+ "tag": "val_0100",
+ "distinct_per_scenario": 3.0,
+ "scenarios": 9,
+ "samples_per_scenario": 4,
+ "seeds_per_sample": 8,
+ "seeds": [
+  60001,
+  60002,
+  60003,
+  60004,
+  60005,
+  60006,
+  60007,
+  60008
+ ],
+ "gen_seconds": 47.099175214767456,
+ "reward_seconds": 94.39599704742432,
+ "per_scenario": {
+  "train-007": 0.6875,
+  "train-013": 0.75,
+  "train-020": 0.875,
+  "train-021": 0.875,
+  "train-031": 0.3125,
+  "train-034": 0.5,
+  "train-045": 0.5,
+  "train-053": 0.125,
+  "train-063": 1.0
+ }
+}

@@ -50,6 +50,7 @@ This folder holds the grader, the generated tasks, the task builder, the validat
 | `validation.json` | Output of the last full validation |
 | `harness/` | Python agent harness and the env adapter `harness/gym_env.py` (`uv run python -m harness.run --env harness.gym_env:Factory ...`); `harness/reference.py` runs the null and oracle rows |
 | `runs/` | Raw baseline trajectories, one JSONL per episode, and `results.json` the summary |
+| `rl/` | GRPO on seedfall's operator environment: three Kaggle runs, the grader hole the second one found, and the fixed run. See `rl/README.md` |
 
 ## Commands
 

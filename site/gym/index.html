@@ -121,6 +121,29 @@
 
 <p>Haiku solved all 24 episodes in about five turns each, so with this prompt the set doesn't separate strong agents yet. Haiku also found a stricter fix than my reference on <code>kvlog-no-checksum</code>, which is how I found out the reference solution was wrong. The flash-lite models struggled on the same three tasks: fsyncgate, the missing checksum and a model-written store.</p>
 
+<h2 id="training">Training on the operator environment</h2>
+
+<p>The gym has a second, smaller environment built on seedfall's <a href="/docs/operator-env.html">operator mode</a>. A model reads a raft cluster with some nodes on an old version and writes a JSON plan of <code>set_args</code> and <code>restart</code> actions. The reward is the share of 16 hidden fault seeds on which the replayed plan rolls every node by the deadline, keeps client availability above the SLO in every one-second window and stays linearizable. I trained Qwen3-1.7B on it with GRPO <a class="cite" href="#ref-4">[4]</a> and LoRA on Kaggle's free T4. It took three runs.</p>
+
+<p>Run 1 raised the mean reward, but none of its plans passed every seed any more, and with no validation split and only eight seeds I couldn't say what it had learned. Run 2 added a validation split, sixteen seeds and a penalty for touching up-to-date nodes, and the test reward rose from 0.545 to 0.682. Then I read the plans. All 112 restarted the stale nodes together at exactly the deadline. The clients stopped measuring at the deadline and the grader checked the versions with nobody watching, so an outage there was free. The model had found a hole in my grader and made it its whole strategy, which is the textbook reward hack <a class="cite" href="#ref-3">[3]</a>.</p>
+
+<p>The fix measures availability through a grace period after the deadline, fails empty windows, forbids actions in the unmeasured first second and requires the exact node arguments. The same holes were closed in the public example. Run 3 trained on the fixed grader for 120 steps.</p>
+
+<figure class="board">
+<ol>
+<li><span class="rank">1</span><span class="name">oracle rolling restart</span><span class="track"><span class="fill" style="width:78.6%"></span></span><span class="value">0.786</span></li>
+<li><span class="rank">2</span><span class="name">GRPO model, run 3</span><span class="track"><span class="fill" style="width:70.3%"></span></span><span class="value">0.703</span></li>
+<li><span class="rank">3</span><span class="name">stale nodes together</span><span class="track"><span class="fill" style="width:54.5%"></span></span><span class="value">0.545</span></li>
+<li><span class="rank">4</span><span class="name">stale nodes at the deadline</span><span class="track"><span class="fill" style="width:49.6%"></span></span><span class="value">0.496</span></li>
+<li><span class="rank">5</span><span class="name">every node together</span><span class="track"><span class="fill" style="width:10.7%"></span></span><span class="value">0.107</span></li>
+<li><span class="rank">6</span><span class="name">base model</span><span class="track"><span class="fill" style="width:5.8%"></span></span><span class="value">0.058</span></li>
+<li><span class="rank">7</span><span class="name">idle</span><span class="track"><span class="fill" style="width:0%"></span></span><span class="value">0.000</span></li>
+</ol>
+<figcaption>Fig. 4. Mean reward on 28 held-out scenarios, 16 hidden seeds. 4 plans per scenario for the models, scripted plans otherwise.</figcaption>
+</figure>
+
+<p>The trained model now writes a real rolling restart: one stale node at a time, the shortest allowed downtime, nothing near the deadline and nothing on nodes already up to date. It beats restarting the stale nodes together by 0.158 (paired bootstrap 95% CI 0.075 to 0.244) and the deadline restart by 0.207. It stays 0.083 below the oracle, because it always starts at 1000ms, the earliest the prompt allows, and most of its failures are the SLO in that first measured window. The oracle waits until 1500ms. The base model's 0.058 is low mostly because 41% of its plans break a rule in the prompt. The code, all three runs and the per-plan samples are in <a href="https://github.com/kunalgoesbyken/seedfall/tree/main/gym/rl" target="_blank" rel="noopener">gym/rl</a>.</p>
+
 <h2 id="limits">Limits</h2>
 
 <ul>
@@ -136,6 +159,7 @@
 <li id="ref-1">C. E. Jimenez et al. <a href="https://arxiv.org/abs/2310.06770" target="_blank" rel="noopener">SWE-bench: Can Language Models Resolve Real-World GitHub Issues?</a> ICLR 2024.</li>
 <li id="ref-2">J. Yang et al. <a href="https://arxiv.org/abs/2504.21798" target="_blank" rel="noopener">SWE-smith: Scaling Data for Software Engineering Agents</a>. 2025.</li>
 <li id="ref-3">J. Skalse et al. <a href="https://arxiv.org/abs/2209.13085" target="_blank" rel="noopener">Defining and Characterizing Reward Hacking</a>. NeurIPS 2022.</li>
+<li id="ref-4">Z. Shao et al. <a href="https://arxiv.org/abs/2402.03300" target="_blank" rel="noopener">DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models</a>. 2024.</li>
 </ol>
 </section>
 

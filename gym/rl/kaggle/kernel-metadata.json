@@ -1,0 +1,1 @@
+{"id": "krockxz/seedfall-rl-grpo", "title": "seedfall-rl-grpo", "code_file": "kernel_main.py", "language": "python", "kernel_type": "script", "is_private": true, "enable_gpu": true, "enable_internet": true, "machine_shape": "NvidiaTeslaT4", "dataset_sources": ["krockxz/seedfall-rl-src"], "competition_sources": [], "kernel_sources": []}

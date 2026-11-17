@@ -1,0 +1,52 @@
+[{"stream_name":"stdout","time":0.787284865,"data":"+ find /kaggle/input -maxdepth 3 | head -30\n"}
+,{"stream_name":"stdout","time":0.806649958,"data":"/kaggle/input\n"}
+,{"stream_name":"stdout","time":0.806692118,"data":"/kaggle/input/datasets\n"}
+,{"stream_name":"stdout","time":0.806697098,"data":"/kaggle/input/datasets/krockxz\n"}
+,{"stream_name":"stdout","time":0.806700918,"data":"/kaggle/input/datasets/krockxz/seedfall-rl-src\n"}
+,{"stream_name":"stdout","time":9.684290173,"data":"+ cp -r /kaggle/input/datasets/krockxz/seedfall-rl-src/rl /kaggle/input/datasets/krockxz/seedfall-rl-src/tree /tmp/bundle/\n"}
+,{"stream_name":"stdout","time":44.098252414,"data":"+ pip list 2\u003e/dev/null | grep -iE '^(torch|transformers|trl|peft|accelerate|datasets|bitsandbytes|unsloth|vllm) '\n"}
+,{"stream_name":"stdout","time":48.51111636,"data":"accelerate                            1.15.0\n"}
+,{"stream_name":"stdout","time":48.51116234,"data":"datasets                              4.8.5\n"}
+,{"stream_name":"stdout","time":48.51116766,"data":"peft                                  0.21.2\n"}
+,{"stream_name":"stdout","time":48.51117216,"data":"torch                                 2.11.0+cpu\n"}
+,{"stream_name":"stdout","time":48.51117624,"data":"transformers                          5.20.2\n"}
+,{"stream_name":"stdout","time":48.511756496,"data":"+ pip list 2\u003e/dev/null | grep -iE '^(torch|transformers|trl|peft|accelerate|datasets|bitsandbytes|unsloth|vllm) '\n"}
+,{"stream_name":"stdout","time":49.379312083,"data":"accelerate                            1.15.0\n"}
+,{"stream_name":"stdout","time":49.379347373,"data":"datasets                              4.8.5\n"}
+,{"stream_name":"stdout","time":49.379352803,"data":"peft                                  0.21.2\n"}
+,{"stream_name":"stdout","time":49.379357783,"data":"torch                                 2.11.0+cpu\n"}
+,{"stream_name":"stdout","time":49.379362283,"data":"transformers                          5.20.2\n"}
+,{"stream_name":"stdout","time":49.37976714,"data":"+ nproc\n"}
+,{"stream_name":"stdout","time":49.383702318,"data":"4\n"}
+,{"stream_name":"stdout","time":49.384125725,"data":"+ /usr/bin/python3 /tmp/bundle/rl/train.py --tree /tmp/bundle/tree --scenarios /tmp/bundle/rl/scenarios.json --out /kaggle/working/results --baselines-only --eval-seeds 16\n"}
+,{"stream_name":"stderr","time":52.4398152,"data":"go: downloading github.com/google/jsonschema-go v0.4.3\n"}
+,{"stream_name":"stderr","time":52.444897636,"data":"go: downloading github.com/modelcontextprotocol/go-sdk v1.8.0\n"}
+,{"stream_name":"stderr","time":52.5182116,"data":"go: downloading github.com/anishathalye/porcupine v1.3.1\n"}
+,{"stream_name":"stderr","time":52.520176663,"data":"go: downloading github.com/tetratelabs/wazero v1.12.0\n"}
+,{"stream_name":"stderr","time":54.228100782,"data":"go: downloading github.com/yosida95/uritemplate/v3 v3.0.2\n"}
+,{"stream_name":"stderr","time":54.229698064,"data":"go: downloading golang.org/x/oauth2 v0.35.0\n"}
+,{"stream_name":"stderr","time":54.231099595,"data":"go: downloading golang.org/x/sync v0.20.0\n"}
+,{"stream_name":"stderr","time":54.242045778,"data":"go: downloading golang.org/x/time v0.15.0\n"}
+,{"stream_name":"stderr","time":54.274326935,"data":"go: downloading github.com/segmentio/encoding v0.5.4\n"}
+,{"stream_name":"stderr","time":54.275307786,"data":"go: downloading golang.org/x/sys v0.44.0\n"}
+,{"stream_name":"stderr","time":56.100293991,"data":"go: downloading github.com/segmentio/asm v1.1.3\n"}
+,{"stream_name":"stdout","time":84.371712548,"data":"built seedfall\n"}
+,{"stream_name":"stdout","time":84.375441553,"data":"scenarios train 40 val 10 test 28\n"}
+,{"stream_name":"stdout","time":472.616643401,"data":"baseline oracle_rolling 0.8125\n"}
+,{"stream_name":"stdout","time":896.124871052,"data":"baseline idle 0.0\n"}
+,{"stream_name":"stdout","time":1048.390051611,"data":"baseline restart_all_together 0.10825892857142858\n"}
+,{"stream_name":"stdout","time":1277.320792383,"data":"baseline restart_stale_together 0.5982142857142857\n"}
+,{"stream_name":"stdout","time":1692.042477386,"data":"baseline restart_without_set_args 0.0\n"}
+,{"stream_name":"stdout","time":1692.742933346,"data":"+ ls -la /kaggle/working/results\n"}
+,{"stream_name":"stdout","time":1692.747519236,"data":"total 20\n"}
+,{"stream_name":"stdout","time":1692.747542326,"data":"drwxr-xr-x 2 root root 4096 Nov 16 21:05 .\n"}
+,{"stream_name":"stdout","time":1692.747547706,"data":"drwxr-xr-x 3 root root 4096 Nov 16 20:38 ..\n"}
+,{"stream_name":"stdout","time":1692.747551876,"data":"-rw-r--r-- 1 root root 3918 Nov 16 21:05 baselines.json\n"}
+,{"stream_name":"stdout","time":1692.747556016,"data":"-rw-r--r-- 1 root root 5085 Nov 16 21:05 results.json\n"}
+,{"stream_name":"stderr","time":1695.111501742,"data":"/usr/local/lib/python3.13/dist-packages/mistune.py:435: SyntaxWarning: invalid escape sequence '\\|'\n"}
+,{"stream_name":"stderr","time":1695.111541592,"data":"  cells[i][c] = re.sub('\\\\\\\\\\|', '|', cell)\n"}
+,{"stream_name":"stderr","time":1695.547672796,"data":"/usr/local/lib/python3.13/dist-packages/nbconvert/filters/filter_links.py:36: SyntaxWarning: invalid escape sequence '\\_'\n"}
+,{"stream_name":"stderr","time":1695.547702846,"data":"  text = re.sub(r'_', '\\_', text) # Escape underscores in display text\n"}
+,{"stream_name":"stderr","time":1696.609358261,"data":"[NbConvertApp] Converting notebook __script__.ipynb to html\n"}
+,{"stream_name":"stderr","time":1697.873207382,"data":"[NbConvertApp] Writing 278901 bytes to __results__.html\n"}
+]
