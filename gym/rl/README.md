@@ -44,7 +44,8 @@ What the trained model writes: 110 of 112 test plans replay (2 are malformed JSO
 - the first window is unmeasured while the cluster starts, so no action may come before 1000ms (an action at 0ms used to hide its outage there),
 - `set_args` must give exactly the node's arguments for the target version,
 - durations must match `[0-9]+(\.[0-9]+)?(ms|s)` (Python's `\d` accepted other scripts' digits),
-- the version poll is bounded by the grace period.
+- the version poll is bounded by the grace period,
+- only `set_args` and `restart` are accepted. The validator used to pass through seedfall's other operator actions, including `heal`, which ends the planned partitions. No plan in any of the three runs used one, so the results stand, but a longer run could have found it.
 
 The scenario family was regenerated against the fixed grader and the oracle was moved to start at 1500ms, since its old 500ms start had relied on the unmeasured first window.
 
@@ -58,7 +59,7 @@ One prompt, one answer. The prompt describes a raft key-value cluster (3 or 5 et
 - at least `slo` of the clients' operations succeed in every 1s window after the first, until 2s after the deadline, and no window is empty,
 - the history stays linearizable.
 
-A plan scores 0 without a replay if it doesn't parse or breaks the schema: an unknown kind or node, an action before 1000ms or after the deadline, a malformed duration, a restart downtime outside the allowed range, `set_args` arguments that aren't exactly the node's arguments for the target version, or more than 24 actions. Touching a node that already runs the target version halves the reward. There is no format bonus.
+A plan scores 0 without a replay if it doesn't parse or breaks the schema: a kind other than `set_args` and `restart`, an unknown node, an action before 1000ms or after the deadline, a malformed duration, a restart downtime outside the allowed range, `set_args` arguments that aren't exactly the node's arguments for the target version, or more than 24 actions. Touching a node that already runs the target version halves the reward. There is no format bonus.
 
 ## Scenario family
 

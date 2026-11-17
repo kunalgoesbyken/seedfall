@@ -9,8 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from . import scenarios as S
 from .env import Env, EnvError
 
-ALLOWED_KINDS = {"set_args", "restart", "crash", "pause", "resume", "partition", "heal", "slow", "clock_jump", "wait"}
-NODE_KINDS = {"set_args", "restart", "crash", "pause", "resume", "slow", "clock_jump"}
+ALLOWED_KINDS = {"set_args", "restart"}
 MAX_ACTIONS = 24
 TOUCH_PENALTY = 0.5
 DURATION = re.compile(r"([0-9]+(?:\.[0-9]+)?)(ms|s)")
@@ -28,7 +27,10 @@ def parse_plan(text):
     start = body.find("[")
     if start < 0:
         raise ValueError("no JSON array")
-    plan, _ = json.JSONDecoder().raw_decode(body[start:])
+    try:
+        plan, _ = json.JSONDecoder().raw_decode(body[start:])
+    except RecursionError:
+        raise ValueError("JSON nested too deeply")
     if not isinstance(plan, list):
         raise ValueError("not an array")
     return plan
@@ -46,7 +48,7 @@ def validate(s, plan):
         at = parse_ms(a.get("at"))
         if not S.WINDOW_MS <= at <= s.deadline_ms:
             raise ValueError("action before the first window ends or after the deadline")
-        if a["kind"] in NODE_KINDS and a.get("node") not in nodes:
+        if a.get("node") not in nodes:
             raise ValueError("unknown node")
         args = a.get("args", [])
         if not isinstance(args, list) or not all(isinstance(x, str) for x in args):
@@ -70,17 +72,11 @@ def doomed(s, plan):
     return False
 
 
-def named_nodes(action):
-    if action["kind"] in NODE_KINDS:
-        return {action.get("node")}
-    if action["kind"] == "partition":
-        return set(action.get("args", [])[1:])
-    return set()
 
 
 def touches_current(s, plan):
     current = {f"n{i + 1}" for i in range(s.n)} - {f"n{i + 1}" for i in s.stale}
-    return any(named_nodes(a) & current for a in plan)
+    return any(a["node"] in current for a in plan)
 
 
 class Reward:

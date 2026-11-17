@@ -25,7 +25,7 @@ class Parsing(unittest.TestCase):
         plan = [{"at": "1s", "kind": "restart", "node": "n1", "args": ["300ms"]}]
         self.assertEqual(parse_plan("```json\n" + json.dumps(plan) + "\n```"), plan)
         self.assertEqual(parse_plan("<think>[1]</think>" + json.dumps(plan)), plan)
-        for bad in ["", "no array", "[1, 2", '{"a": 1}']:
+        for bad in ["", "no array", "[1, 2", '{"a": 1}', "[" * 100000]:
             with self.assertRaises((ValueError, json.JSONDecodeError)):
                 parse_plan(bad)
 
@@ -45,6 +45,12 @@ class Parsing(unittest.TestCase):
             [{"at": "1s", "kind": "set_args", "node": "n1", "args": SCEN.node_args(0, 2) + ["-cluster", "n1"]}],
             [{"at": "1s", "kind": "set_args", "node": "n1", "args": SCEN.node_args(1, 2)}],
             [{"at": "1s", "kind": "upgrade", "node": "n1"}],
+            [{"at": "1s", "kind": "heal"}],
+            [{"at": "1s", "kind": "wait"}],
+            [{"at": "1s", "kind": "crash", "node": "n1"}],
+            [{"at": "1s", "kind": "pause", "node": "n1", "args": ["300ms"]}],
+            [{"at": "1s", "kind": "partition", "node": "n1", "args": ["one", "n1"]}],
+            [{"at": "1s", "kind": "clock_jump", "node": "n1", "args": ["1s"]}],
             [{"at": "1s", "kind": "restart", "node": "n1", "args": ["300ms"], "extra": 1}],
             ["restart n1"],
         ]
@@ -55,8 +61,7 @@ class Parsing(unittest.TestCase):
     def test_touching_current_nodes(self):
         self.assertFalse(touches_current(SCEN, S.oracle_plan(SCEN)))
         self.assertTrue(touches_current(SCEN, S.restart_all_plan(SCEN)))
-        self.assertTrue(touches_current(SCEN, [{"at": "1s", "kind": "crash", "node": "n3"}]))
-        self.assertFalse(touches_current(SCEN, [{"at": "1s", "kind": "wait"}, {"at": "1s", "kind": "heal"}]))
+        self.assertTrue(touches_current(SCEN, [{"at": "1s", "kind": "restart", "node": "n3", "args": ["300ms"]}]))
         self.assertFalse(touches_current(SCEN, []))
 
     def test_prompt_does_not_leak_the_answer(self):
