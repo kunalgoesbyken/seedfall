@@ -250,6 +250,8 @@ expect_operator etcdraft opcluster.json ops/good.json 1 20 pass
 expect_operator etcdraft opcluster.json ops/idle.json 1 20 fail
 expect_operator etcdraft opcluster.json ops/restart-two.json 1 20 fail
 expect_operator etcdraft opcluster.json ops/restart-all.json 1 20 fail
+expect_operator etcdraft opcluster.json ops/early-all.json 1 20 fail
+expect_operator etcdraft opcluster.json ops/deadline-all.json 1 20 pass
 expect natsjs seedfall.json          1-20   fail
 expect natsjs seedfall.always.json   1-60   pass
 expect natsjs seedfall.strict.json   1-20   fail

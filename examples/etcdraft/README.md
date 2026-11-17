@@ -10,14 +10,16 @@ A 3-node key-value store on [etcd-io/raft](https://github.com/etcd-io/raft) v3, 
 
 ## Operator mode
 
-`opcluster.json` runs the same cluster for an operator, a person or an agent that acts on it while it runs ([docs/operator-env.md](../../docs/operator-env.md)). Crashes with restarts and partitions that isolate one node come from the seed. The operator has to roll every node onto version 2 by the 12s deadline, while the clients keep at least 40% of their operations succeeding in every 2s window after the first, and the history stays linearizable. A node reports the version in its `-version` argument, so only `set_args` followed by `restart` on each node gets it there.
+`opcluster.json` runs the same cluster for an operator, a person or an agent that acts on it while it runs ([docs/operator-env.md](../../docs/operator-env.md)). Crashes with restarts and partitions that isolate one node come from the seed. The operator has to roll every node onto version 2 by the 12s deadline, starting after the first 2s window, while the clients keep at least 40% of their operations succeeding in every 2s window after the first until the versions are checked, and the history stays linearizable. A node reports the version in its `-version` argument, so only `set_args` followed by `restart` on each node gets it there.
 
 | Operator actions | Result |
 |---|---|
-| `ops/good.json` restarts n1, n2 and n3 one at a time, 2.5s apart, each down for 300ms | passes |
+| `ops/good.json` restarts n1, n2 and n3 one at a time from 2s, 2.5s apart, each down for 300ms | passes |
 | `ops/idle.json` does nothing | fails: `every node runs the new version by the deadline` |
 | `ops/restart-two.json` restarts n1 and n2 together for 4s | fails: `client availability meets the SLO in every window` |
 | `ops/restart-all.json` restarts all three together for 4s | fails: `client availability meets the SLO in every window` |
+| `ops/early-all.json` restarts all three together at 100ms, before availability is measured | fails: `no node runs the new version before the clients are measured` |
+| `ops/deadline-all.json` restarts all three together at 12s for 300ms | passes, since at 40% the SLO cannot tell a 300ms full restart from a leader restart |
 
 ```sh
 seedfall replay -c opcluster.json -seed 1 -ops ops/good.json

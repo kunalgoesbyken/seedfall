@@ -1,0 +1,59 @@
+[
+  {
+    "at": "100ms",
+    "kind": "set_args",
+    "node": "n1",
+    "args": [
+      "-id",
+      "1",
+      "-version",
+      "2"
+    ]
+  },
+  {
+    "at": "100ms",
+    "kind": "restart",
+    "node": "n1",
+    "args": [
+      "300ms"
+    ]
+  },
+  {
+    "at": "100ms",
+    "kind": "set_args",
+    "node": "n2",
+    "args": [
+      "-id",
+      "2",
+      "-version",
+      "2"
+    ]
+  },
+  {
+    "at": "100ms",
+    "kind": "restart",
+    "node": "n2",
+    "args": [
+      "300ms"
+    ]
+  },
+  {
+    "at": "100ms",
+    "kind": "set_args",
+    "node": "n3",
+    "args": [
+      "-id",
+      "3",
+      "-version",
+      "2"
+    ]
+  },
+  {
+    "at": "100ms",
+    "kind": "restart",
+    "node": "n3",
+    "args": [
+      "300ms"
+    ]
+  }
+]

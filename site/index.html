@@ -193,19 +193,21 @@ faults before the failure (2):
 {"cmd":"step","op":{"kind":"restart","node":"n1","args":["300ms"]}}
 {"cmd":"verify","seeds":[2,3,4,5]}</code></pre>
 
-<p>The test scenario is a 3-node etcd-io/raft key-value store with three clients, under planned crashes and partitions. The operator has to roll every node to version 2 by 12s. It fails if client availability drops under 40% in any 2s window, if a node isn't on version 2 by the deadline, or if the history isn't linearizable <a class="cite" href="#ref-6">[6]</a>. I wrote four action lists and ran each one on seeds 1 to 21:</p>
+<p>The test scenario is a 3-node etcd-io/raft key-value store with three clients, under planned crashes and partitions. The operator has to roll every node to version 2 by 12s. It fails if a node is already on version 2 before availability is measured, if client availability drops under 40% in any 2s window until the versions are checked, if a node isn't on version 2 by the deadline, or if the history isn't linearizable <a class="cite" href="#ref-6">[6]</a>. I wrote six action lists and ran each one on seeds 1 to 21:</p>
 
 <figure class="board">
 <ol>
 <li><span class="rank">1</span><span class="name">good</span><span class="track"><span class="fill" style="width:100%"></span></span><span class="value">21</span></li>
-<li><span class="rank">2</span><span class="name">idle</span><span class="track"><span class="fill" style="width:0%"></span></span><span class="value">0</span></li>
-<li><span class="rank">3</span><span class="name">restart-two</span><span class="track"><span class="fill" style="width:0%"></span></span><span class="value">0</span></li>
-<li><span class="rank">4</span><span class="name">restart-all</span><span class="track"><span class="fill" style="width:0%"></span></span><span class="value">0</span></li>
+<li><span class="rank">2</span><span class="name">deadline-all</span><span class="track"><span class="fill" style="width:100%"></span></span><span class="value">21</span></li>
+<li><span class="rank">3</span><span class="name">idle</span><span class="track"><span class="fill" style="width:0%"></span></span><span class="value">0</span></li>
+<li><span class="rank">4</span><span class="name">restart-two</span><span class="track"><span class="fill" style="width:0%"></span></span><span class="value">0</span></li>
+<li><span class="rank">5</span><span class="name">restart-all</span><span class="track"><span class="fill" style="width:0%"></span></span><span class="value">0</span></li>
+<li><span class="rank">6</span><span class="name">early-all</span><span class="track"><span class="fill" style="width:0%"></span></span><span class="value">0</span></li>
 </ol>
-<figcaption>Fig. 8. Seeds passed out of 21 for each action list. <code>good</code> restarts n1, n2 and n3 one at a time, 300ms down each. <code>idle</code> does nothing and misses the version deadline. <code>restart-two</code> and <code>restart-all</code> take two or three nodes down together for 4s and break availability.</figcaption>
+<figcaption>Fig. 8. Seeds passed out of 21 for each action list. <code>good</code> restarts n1, n2 and n3 one at a time, 300ms down each. <code>deadline-all</code> restarts all three together at the deadline, 300ms down. <code>idle</code> does nothing and misses the version deadline. <code>restart-two</code> and <code>restart-all</code> take two or three nodes down together for 4s and break availability. <code>early-all</code> restarts all three at 100ms, before anything is measured.</figcaption>
 </figure>
 
-<p>So the grader can tell a careful rolling restart apart from doing nothing and from restarting too much at once, and it does it the same way on every seed. On my laptop (Intel Core i5-9300H), <code>reset</code> takes 188ms, a <code>step</code> with an action takes 22µs, and a full episode takes 7.7s. Almost all of that is the raft nodes and clients, not the environment. The full protocol is in <a href="docs/operator-env.html">the operator mode docs</a>.</p>
+<p>So the grader can tell a careful rolling restart apart from doing nothing, from a long outage and from acting before it measures, the same way on every seed. It can't tell it apart from <code>deadline-all</code>: at 40%, three nodes down for 300ms cost about as much availability as restarting the leader, and a stricter SLO fails <code>good</code> too. An earlier version stopped the clients at the deadline and checked the versions with nobody measuring, so any outage that started at the deadline was free. My RL runs exposed it: almost every plan the model wrote restarted the nodes at exactly the deadline. That run is written up in <a href="gym/">the gym</a>. On my laptop (Intel Core i5-9300H), <code>reset</code> takes 53ms, a <code>step</code> with an action takes 6µs, and a full episode takes 6.2s. Almost all of that is the raft nodes and clients, not the environment. The full protocol is in <a href="docs/operator-env.html">the operator mode docs</a>.</p>
 
 <h2 id="limits">Limits</h2>
 

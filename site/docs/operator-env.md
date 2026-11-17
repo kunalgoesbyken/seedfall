@@ -74,20 +74,25 @@ Over MCP, `seedfall_env_reset`, `seedfall_env_step`, `seedfall_env_observe`, `se
 
 ## The `opcluster` scenario
 
-`examples/etcdraft/opcluster.json` is the 3-node etcd-io/raft key-value store of that example, run for an operator. Planned faults are crashes with restarts of 50 to 400ms, and partitions that isolate one node for 100 to 500ms, a crash about every 33s per node and a partition about every 33s. The workload runs for 12s and then checks the versions for up to 3s.
+`examples/etcdraft/opcluster.json` is the 3-node etcd-io/raft key-value store of that example, run for an operator. Planned faults are crashes with restarts of 50 to 400ms, and partitions that isolate one node for 100 to 500ms, a crash about every 33s per node and a partition about every 33s. The clients run for 12s, the deadline, and keep running for up to 3s more while the nodes report their versions. Availability is measured over all of it.
 
 The operator's job is to roll every node to version 2 by the 12s deadline. A node reports the version in its `-version` argument, which starts at 1, so only `set_args` and `restart` on each node changes it. Three clients write and read at about 100 operations a second, and the run fails if:
 
-- fewer than 40% of the clients' operations succeed in any 2s window after the first (`client availability meets the SLO in every window`);
-- a node does not report version 2 at the deadline (`every node runs the new version by the deadline`);
+- a node already reports version 2 when the first 2s window ends, before availability is measured (`no node runs the new version before the clients are measured`);
+- fewer than 40% of the clients' operations succeed in any 2s window after the first, or a window has none at all (`client availability meets the SLO in every window`);
+- a node does not report version 2 within 3s of the deadline (`every node runs the new version by the deadline`);
 - the history is not linearizable.
 
 | Operator actions in `examples/etcdraft/ops` | Seeds 1 to 21 |
 |---|---|
-| `good.json`: set version 2 and restart n1 at 1s, n2 at 3.5s, n3 at 6s, each down for 300ms | 21 pass |
+| `good.json`: set version 2 and restart n1 at 2s, n2 at 4.5s, n3 at 7s, each down for 300ms | 21 pass |
 | `idle.json`: no actions | 21 fail on the version at the deadline |
 | `restart-two.json`: n1 and n2 down together for 4s at 3s, n3 at 8s | 21 fail on availability |
 | `restart-all.json`: all three down together for 4s at 3s | 21 fail on availability |
+| `early-all.json`: all three restarted together at 100ms | 21 fail on the version before the first measured window |
+| `deadline-all.json`: all three restarted together at 12s, down for 300ms | 21 pass |
+
+`deadline-all.json` passing is a limit of this SLO, not of the check. Three nodes down for 300ms and the election after it cost about as much availability in a 2s window as a restart of the leader alone, so at 40% both pass. A stricter SLO fails the careful roll too: at 60% in 1s windows, `good.json` passes 9 of 21 seeds. An earlier version of the client stopped the clients at the deadline and then checked the versions with no one measuring, so any outage that started at the deadline was free. With the clients kept running, the same three restarts at 12s with 1.5s down fail on every seed.
 
 `good.json` also passes on seeds 1 to 41. The first seed is the episode's, the rest are the extra seeds of `verify`:
 
@@ -96,7 +101,7 @@ cd examples/etcdraft
 printf '{"cmd":"reset","config":"opcluster.json","seed":1}\n{"cmd":"verify","ops":%s,"seeds":[2,3,4,5]}\n' "$(cat ops/good.json)" | seedfall env
 ```
 
-A session that acts on what it sees gets the same score. The check below drives one by hand on seed 7: wait until no node is down, set the version, restart, advance 2.5s, for each node in turn. Its `finish` hash, the hash of `verify` on seed 7 and the hash of `seedfall replay -seed 7 -ops` on the logged actions are all `dcc04807e70edb22`.
+A session that acts on what it sees gets the same score. The check below drives one by hand on seed 7: advance 2s, then for each node in turn wait until no node is down, set the version, restart, advance 2.5s. Its `finish` hash, the hash of `verify` on seed 7 and the hash of `seedfall replay -seed 7 -ops` on the logged actions are all `c94bee8f92fb356f`.
 
 ## Measurements
 
@@ -104,15 +109,15 @@ Measured with `go test ./cmd/seedfall -bench Env` on `opcluster.json`, which has
 
 | Measure | Result |
 |---|---|
-| `reset`, a fresh episode from a cached config | 188ms, 80MB allocated |
-| `step` with an action | 22µs |
-| `step` with an advance of 100ms of virtual time | 63ms |
-| Episodes a second at `-j 1` | 0.129 (7.7s each) |
-| Episodes a second at `-j 8` | 0.734 (8 episodes in 10.9s) |
-| Heap per open episode, 3s of virtual time in | 38.7MiB with 1 open, 38.7MiB with 8 open |
-| Heap per open episode, run to its end | 42.9MiB with 1 open, 46.6MiB with 8 open |
+| `reset`, a fresh episode from a cached config | 53ms, 80MB allocated |
+| `step` with an action | 6µs |
+| `step` with an advance of 100ms of virtual time | 38ms |
+| Episodes a second at `-j 1` | 0.161 (6.2s each) |
+| Episodes a second at `-j 8` | 0.776 (8 episodes in 10.3s) |
+| Heap per open episode, 3s of virtual time in | 39.9MiB with 1 open, 39.0MiB with 8 open |
+| Heap per open episode, run to its end | 29.5MiB with 1 open, 33.1MiB with 8 open |
 
-The time goes to the raft nodes and clients, not to the environment: an action costs microseconds. Eight jobs give 5.7 times the throughput of one on this machine. Heap is what Go reports in use after a collection, measured as the growth from before the episodes opened, so it excludes the compiled nodes.
+The time goes to the raft nodes and clients, not to the environment: an action costs microseconds. Eight jobs give 4.8 times the throughput of one on this machine. Heap is what Go reports in use after a collection, measured as the growth from before the episodes opened, so it excludes the compiled nodes.
 
 ## Limits
 

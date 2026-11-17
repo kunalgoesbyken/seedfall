@@ -43,7 +43,7 @@ func main() {
 	every := flag.Duration("window", 2*time.Second, "length of one availability window")
 	slo := flag.Float64("slo", 0.4, "share of client operations that must succeed in every window after the first")
 	version := flag.String("version", "2", "version every node must report by the deadline")
-	grace := flag.Duration("grace", 3*time.Second, "how long after the deadline the nodes may take to answer")
+	grace := flag.Duration("grace", 3*time.Second, "how long after the deadline the nodes may take to report the new version, while the clients keep running and availability is still measured")
 	flag.Parse()
 	nodes := strings.Split(*addrs, ",")
 
@@ -57,10 +57,24 @@ func main() {
 			run(c, nodes, *keys, &tally, stop)
 		}()
 	}
-	watch(&tally, *span, *every, *slo)
+	early := make(chan []string, 1)
+	go func() {
+		time.Sleep(*every)
+		on, _ := reporting(nodes, *version, time.Now().Add(*every/2))
+		early <- on
+	}()
+	versions := make(chan []string, 1)
+	go func() {
+		time.Sleep(*span)
+		versions <- rolled(nodes, *version, *grace)
+	}()
+	watch(&tally, *span+*grace, *every, *slo)
+	upgraded := <-early
+	behind := <-versions
 	close(stop)
 	wg.Wait()
-	rolled(nodes, *version, *grace)
+	sim.Always(len(upgraded) == 0, "no node runs the new version before the clients are measured", fmt.Sprintf("nodes on the new version at the end of the first window: %v", upgraded))
+	sim.Always(len(behind) == 0, "every node runs the new version by the deadline", fmt.Sprintf("nodes still on the old version: %v", behind))
 	fmt.Println("workload done, checking linearizability")
 }
 
@@ -69,28 +83,34 @@ func watch(tally *window, span, every time.Duration, slo float64) {
 		time.Sleep(every)
 		ok, total := tally.drain()
 		fmt.Printf("window %d: %d of %d operations succeeded\n", i, ok, total)
-		if i > 0 && total > 0 {
-			sim.Always(float64(ok)/float64(total) >= slo, "client availability meets the SLO in every window", fmt.Sprintf("window %d: %d of %d operations succeeded", i, ok, total))
+		if i > 0 {
+			sim.Always(total > 0 && float64(ok)/float64(total) >= slo, "client availability meets the SLO in every window", fmt.Sprintf("window %d: %d of %d operations succeeded", i, ok, total))
 		}
 	}
 }
 
-func rolled(nodes []string, version string, grace time.Duration) {
-	deadline := time.Now().Add(grace)
-	var behind []string
+func rolled(nodes []string, version string, grace time.Duration) []string {
+	by := time.Now().Add(grace)
 	for {
-		behind = behind[:0]
-		for _, n := range nodes {
-			if reply, err := call(n, "VERSION"); err != nil || reply != "VER "+version {
-				behind = append(behind, n)
-			}
-		}
-		if len(behind) == 0 || time.Now().After(deadline) {
-			break
+		_, behind := reporting(nodes, version, by)
+		if len(behind) == 0 || time.Until(by) < 200*time.Millisecond {
+			return behind
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	sim.Always(len(behind) == 0, "every node runs the new version by the deadline", fmt.Sprintf("nodes still on the old version: %v", behind))
+}
+
+func reporting(nodes []string, version string, by time.Time) (on, off []string) {
+	for _, n := range nodes {
+		if left := time.Until(by); left > 0 {
+			if reply, err := call(n, "VERSION", min(time.Second, left)); err == nil && reply == "VER "+version {
+				on = append(on, n)
+				continue
+			}
+		}
+		off = append(off, n)
+	}
+	return on, off
 }
 
 func run(client int, nodes []string, keys int, tally *window, stop <-chan struct{}) {
@@ -113,7 +133,7 @@ func run(client int, nodes []string, keys int, tally *window, stop <-chan struct
 }
 
 func record(op sim.Op, nodes []string, leader int, request string, tally *window) int {
-	reply, err := call(nodes[leader], request)
+	reply, err := call(nodes[leader], request, time.Second)
 	switch {
 	case err != nil || strings.HasPrefix(reply, "ERR"):
 		op.Unknown()
@@ -138,13 +158,13 @@ func record(op sim.Op, nodes []string, leader int, request string, tally *window
 	return leader
 }
 
-func call(addr, request string) (string, error) {
+func call(addr, request string, timeout time.Duration) (string, error) {
 	conn, err := sim.Dial("tcp", addr)
 	if err != nil {
 		return "", err
 	}
 	defer conn.Close()
-	conn.SetDeadline(time.Now().Add(time.Second))
+	conn.SetDeadline(time.Now().Add(timeout))
 	if _, err := fmt.Fprintf(conn, "%s\n", request); err != nil {
 		return "", err
 	}
