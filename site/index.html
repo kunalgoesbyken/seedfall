@@ -43,7 +43,7 @@
 <p class="links"><a href="https://github.com/kunalgoesbyken/seedfall" target="_blank" rel="noopener">Code</a><a href="docs/">Docs</a><a href="#break-it-yourself">Demo</a><a href="demo/kvlog-seed-1.html">Real trace</a><a href="docs/findings/">Bugs found</a><a href="gym">RL gym</a></p>
 
 <section class="abstract">
-<p><strong>Abstract.</strong> Storage code loses acknowledged writes when it crashes at the wrong moment, and that moment is almost impossible to hit in a test or to reproduce after production hits it. seedfall runs unmodified Go services in a deterministic simulation on WebAssembly, injects crashes, torn writes and network faults, and names every run by one seed, so each failure replays byte for byte. A shrinker cuts the failure to the few faults that cause it. It has found crash bugs in 10 open-source Go storage projects. Because a seed is a reproducible test case, the same machinery also works as a grader for coding agents and for agents operating a live cluster.</p>
+<p><strong>Abstract.</strong> Storage code loses acknowledged writes when it crashes at the wrong moment, and that moment is almost impossible to hit in a test or to reproduce after production hits it. seedfall runs unmodified Go services in a deterministic simulation on WebAssembly, injects crashes, torn writes and network faults, and names every run by one seed, so each failure replays byte for byte. A shrinker cuts the failure to the few faults that cause it. It has found crash bugs in 10 open-source Go storage projects. Because a seed is a reproducible test case, the same machinery also works as a grader for coding agents and for agents operating a live cluster. A 1.7B model trained against that grader went from 0.06 to 0.70 on held-out rollout scenarios, after an earlier run found a hole in the grader and had to be thrown out.</p>
 <p><strong>Index terms.</strong> deterministic simulation testing, fault injection, crash consistency, delta debugging, Go, WebAssembly.</p>
 </section>
 
@@ -174,7 +174,7 @@ faults before the failure (2):
 <figcaption>Fig. 6. The agent can run the visible seeds as often as it likes. The hidden seeds come from a secret, and only they count.</figcaption>
 </figure>
 
-<p class="callout"><strong>seedfall-gym</strong> turns this into 42 tasks: fix a crash bug in Go storage code, get rewarded by hidden seeds. On every task the reference fix scores 1.0, the buggy code below 0.5 and a scripted cheat 0. <a href="gym">Read the gym write-up &rarr;</a></p>
+<p class="callout"><strong>seedfall-gym</strong> turns this into two environments. In one, an agent fixes a crash bug in Go storage code across 42 tasks; on every task the reference fix scores 1.0, the buggy code below 0.5 and a scripted cheat 0. In the other, a model plans a rolling upgrade of a raft cluster, and I trained one on it with GRPO. <a href="gym">Read the gym write-up &rarr;</a></p>
 
 <h2 id="operator-mode">Operator mode</h2>
 
@@ -207,7 +207,21 @@ faults before the failure (2):
 <figcaption>Fig. 8. Seeds passed out of 21 for each action list. <code>good</code> restarts n1, n2 and n3 one at a time, 300ms down each. <code>deadline-all</code> restarts all three together at the deadline, 300ms down. <code>idle</code> does nothing and misses the version deadline. <code>restart-two</code> and <code>restart-all</code> take two or three nodes down together for 4s and break availability. <code>early-all</code> restarts all three at 100ms, before anything is measured.</figcaption>
 </figure>
 
-<p>So the grader can tell a careful rolling restart apart from doing nothing, from a long outage and from acting before it measures, the same way on every seed. It can't tell it apart from <code>deadline-all</code>: at 40%, three nodes down for 300ms cost about as much availability as restarting the leader, and a stricter SLO fails <code>good</code> too. An earlier version stopped the clients at the deadline and checked the versions with nobody measuring, so any outage that started at the deadline was free. My RL runs exposed it: almost every plan the model wrote restarted the nodes at exactly the deadline. The three runs are written up in <a href="gym/#training">the gym</a>. On my laptop (Intel Core i5-9300H), <code>reset</code> takes 53ms, a <code>step</code> with an action takes 6µs, and a full episode takes 6.2s. Almost all of that is the raft nodes and clients, not the environment. The full protocol is in <a href="docs/operator-env.html">the operator mode docs</a>.</p>
+<p>So the grader can tell a careful rolling restart apart from doing nothing, from a long outage and from acting before it measures, the same way on every seed. It can't tell it apart from <code>deadline-all</code>: at 40%, three nodes down for 300ms cost about as much availability as restarting the leader, and a stricter SLO fails <code>good</code> too. An earlier version stopped the clients at the deadline and checked the versions with nobody measuring, so any outage that started at the deadline was free. My RL training exposed it, as the next section shows. On my laptop (Intel Core i5-9300H), <code>reset</code> takes 53ms, a <code>step</code> with an action takes 6µs, and a full episode takes 6.2s. Almost all of that is the raft nodes and clients, not the environment. The full protocol is in <a href="docs/operator-env.html">the operator mode docs</a>.</p>
+
+<h3 id="training-a-model">Training a model on it</h3>
+
+<p>The gym turns this scenario into a family of 77: 3 or 5 nodes, different stale nodes and versions, deadlines, SLOs, downtime limits and fault rates, split into train and held-out sets. A model gets a description of the cluster and answers with a full action plan, scored on 16 hidden seeds. I trained Qwen3-1.7B on it with GRPO and LoRA on Kaggle's free T4. The second run is the one that found the deadline hole above: every plan it wrote restarted the stale nodes at exactly the deadline. On the fixed grader, the third run learned a real rolling restart: one stale node at a time, shortest downtime, nothing near the deadline.</p>
+
+<figure class="board">
+<ol>
+<li><span class="rank">1</span><span class="name">oracle rolling restart</span><span class="track"><span class="fill" style="width:78.6%"></span></span><span class="value">0.786</span></li>
+<li><span class="rank">2</span><span class="name">GRPO model</span><span class="track"><span class="fill" style="width:70.3%"></span></span><span class="value">0.703</span></li>
+<li><span class="rank">3</span><span class="name">stale nodes together</span><span class="track"><span class="fill" style="width:54.5%"></span></span><span class="value">0.545</span></li>
+<li><span class="rank">4</span><span class="name">base model</span><span class="track"><span class="fill" style="width:5.8%"></span></span><span class="value">0.058</span></li>
+</ol>
+<figcaption>Fig. 9. Mean reward on 28 held-out scenarios, 16 hidden seeds each. The trained model is still 0.083 below the scripted oracle, mostly because it starts restarting a little too early. The full comparison, the paired confidence intervals and all three runs are in <a href="gym/#training">the gym write-up</a>.</figcaption>
+</figure>
 
 <h2 id="limits">Limits</h2>
 
@@ -215,7 +229,7 @@ faults before the failure (2):
 <li>Your code has to build for <code>GOOS=wasip1</code>, so no cgo. seedfall only catches what you check for, and it isn't a race detector.</li>
 <li>It's Go only, and it models a few file systems, not all of them. Big programs are slow to boot.</li>
 <li>An operator-mode action list replays at fixed virtual times, so it can't react to what a different seed does. One episode runs at a time per process.</li>
-<li>Operator mode has one scenario and one task so far. It shows the grading works. It isn't a benchmark of agents.</li>
+<li>Operator mode has one scenario, a rolling upgrade, in the public example and 77 generated variants of it in the gym. It shows the grading works and can be trained against. It isn't a benchmark of agents yet.</li>
 </ul>
 
 <section class="references">

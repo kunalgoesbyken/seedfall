@@ -119,6 +119,10 @@ Measured with `go test ./cmd/seedfall -bench Env` on `opcluster.json`, which has
 
 The time goes to the raft nodes and clients, not to the environment: an action costs microseconds. Eight jobs give 4.8 times the throughput of one on this machine. Heap is what Go reports in use after a collection, measured as the growth from before the episodes opened, so it excludes the compiled nodes.
 
+## Training on it
+
+The gym generates 77 variants of `opcluster` (3 or 5 nodes, stale nodes and versions, deadlines, SLOs, downtime limits, fault rates) and scores a whole action plan by replaying it on hidden seeds. Qwen3-1.7B trained on it with GRPO went from 0.058 to 0.703 on 28 held-out scenarios, against 0.786 for a scripted rolling restart. An earlier run found the deadline hole that the grace period now closes. Code, runs and numbers: [`gym/rl`](https://github.com/kunalgoesbyken/seedfall/tree/main/gym/rl), write-up on [the gym page](https://seedfall.kunalrc.xyz/gym/#training).
+
 ## Limits
 
 - One episode runs at a time per `seedfall env` process and per MCP server. `reset` replaces it.

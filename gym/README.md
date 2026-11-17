@@ -4,6 +4,8 @@ Part of [seedfall](../README.md). Write-up: [seedfall.kunalrc.xyz/gym](https://s
 
 An RL environment for fixing crash bugs in Go storage code. The agent gets a small Go system that loses acknowledged writes or breaks consistency when it crashes, edits the code, and is rewarded by replaying hidden, deterministic fault seeds through [seedfall](https://seedfall.kunalrc.xyz): the share of hidden seeds the fixed system survives.
 
+[`rl/`](rl/) is a second environment: plan a rolling upgrade of a raft cluster in seedfall's operator mode, trained on with GRPO. See [`rl/README.md`](rl/README.md).
+
 **42 tasks** · **9 systems** · **25 bug classes** · oracle 1.0, buggy below 0.5 and cheat 0 on every task · 31 train / 11 held-out
 
 ```mermaid

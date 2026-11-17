@@ -280,6 +280,8 @@ printf '{&quot;cmd&quot;:&quot;reset&quot;,&quot;config&quot;:&quot;opcluster.js
 </tbody>
 </table></div>
 <p>The time goes to the raft nodes and clients, not to the environment: an action costs microseconds. Eight jobs give 4.8 times the throughput of one on this machine. Heap is what Go reports in use after a collection, measured as the growth from before the episodes opened, so it excludes the compiled nodes.</p>
+<h2 id="training-on-it">Training on it</h2>
+<p>The gym generates 77 variants of <code>opcluster</code> (3 or 5 nodes, stale nodes and versions, deadlines, SLOs, downtime limits, fault rates) and scores a whole action plan by replaying it on hidden seeds. Qwen3-1.7B trained on it with GRPO went from 0.058 to 0.703 on 28 held-out scenarios, against 0.786 for a scripted rolling restart. An earlier run found the deadline hole that the grace period now closes. Code, runs and numbers: <a href="https://github.com/kunalgoesbyken/seedfall/tree/main/gym/rl" target="_blank" rel="noopener"><code>gym/rl</code></a>, write-up on <a href="https://seedfall.kunalrc.xyz/gym/#training" target="_blank" rel="noopener">the gym page</a>.</p>
 <h2 id="limits">Limits</h2>
 <ul>
 <li>One episode runs at a time per <code>seedfall env</code> process and per MCP server. <code>reset</code> replaces it.</li>

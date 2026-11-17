@@ -65,7 +65,7 @@ Crash bugs in NATS JetStream, rosedblabs/wal, tidwall/buntdb (fixed), tidwall/wa
 
 ## seedfall-gym
 
-[`gym/`](gym/) is an RL environment built on seedfall: 42 tasks where an agent fixes a crash bug in Go storage code and is rewarded by hidden fault seeds. See the [write-up](https://seedfall.kunalrc.xyz/gym).
+[`gym/`](gym/) holds two RL environments built on seedfall. In one, 42 tasks, an agent fixes a crash bug in Go storage code and is rewarded by hidden fault seeds. In the other, [`gym/rl`](gym/rl/), a model plans a rolling upgrade of a simulated raft cluster. Qwen3-1.7B trained on it with GRPO went from 0.06 to 0.70 on held-out scenarios (a scripted oracle gets 0.79), after an earlier run exploited a grader hole that is now fixed. See the [write-up](https://seedfall.kunalrc.xyz/gym).
 
 ## Limits
 

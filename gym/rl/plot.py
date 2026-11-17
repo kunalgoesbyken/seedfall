@@ -31,7 +31,8 @@ def main(results_dir, out):
     vals = [base[k]["mean_reward"] for k, _ in BASELINES] + [res["base_test"]["mean_reward"], res["final_test"]["mean_reward"]]
     ax[1].barh(names, vals, color=["#999"] * len(BASELINES) + ["#c55", "#27a"])
     ax[1].set_xlim(0, 1)
-    ax[1].set_xlabel("28 held-out scenarios, 16 hidden seeds: mean reward")
+    test = res["final_test"]
+    ax[1].set_xlabel(f"{test['scenarios']} held-out scenarios, {test['seeds_per_sample']} hidden seeds: mean reward")
     plt.tight_layout()
     plt.savefig(out, dpi=140)
 

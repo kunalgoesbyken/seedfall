@@ -3,24 +3,24 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>seedfall-gym: an RL environment for crash bugs</title>
-<meta name="description" content="42 tasks where an agent fixes crash bugs in Go storage code and is rewarded by hidden, deterministic fault seeds replayed through seedfall.">
+<title>seedfall-gym: RL environments for crash bugs and cluster operations</title>
+<meta name="description" content="42 tasks where an agent fixes crash bugs in Go storage code, and a cluster-upgrade environment a 1.7B model was trained on with GRPO, all rewarded by hidden deterministic fault seeds replayed through seedfall.">
 <link rel="canonical" href="https://seedfall.kunalrc.xyz/gym">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta property="og:type" content="article">
-<meta property="og:title" content="seedfall-gym: an RL environment for crash bugs">
-<meta property="og:description" content="42 tasks where an agent fixes crash bugs in Go storage code and is rewarded by hidden, deterministic fault seeds.">
+<meta property="og:title" content="seedfall-gym: RL environments for crash bugs and cluster operations">
+<meta property="og:description" content="42 tasks where an agent fixes crash bugs in Go storage code, plus a cluster-upgrade environment trained on with GRPO, rewarded by hidden deterministic fault seeds.">
 <meta property="og:url" content="https://seedfall.kunalrc.xyz/gym">
 <meta property="og:image" content="https://seedfall.kunalrc.xyz/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <meta property="og:site_name" content="seedfall">
-<meta name="twitter:title" content="seedfall-gym: an RL environment for crash bugs">
-<meta name="twitter:description" content="42 tasks where an agent fixes crash bugs in Go storage code and is rewarded by hidden, deterministic fault seeds.">
+<meta name="twitter:title" content="seedfall-gym: RL environments for crash bugs and cluster operations">
+<meta name="twitter:description" content="42 tasks where an agent fixes crash bugs in Go storage code, plus a cluster-upgrade environment trained on with GRPO, rewarded by hidden deterministic fault seeds.">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0d0f12" media="(prefers-color-scheme: dark)">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":"seedfall-gym: an RL environment for crash bugs","description":"42 tasks where an agent fixes crash bugs in Go storage code and is rewarded by hidden, deterministic fault seeds.","url":"https://seedfall.kunalrc.xyz/gym","image":"https://seedfall.kunalrc.xyz/og.png","datePublished":"2026-11-16","inLanguage":"en","author":{"@type":"Person","name":"Kunal Roy Choudhury","url":"https://kunalrc.xyz"},"about":{"@type":"SoftwareSourceCode","name":"seedfall","codeRepository":"https://github.com/kunalgoesbyken/seedfall","programmingLanguage":"Go","license":"https://github.com/kunalgoesbyken/seedfall/blob/main/LICENSE"}}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":"seedfall-gym: RL environments for crash bugs and cluster operations","description":"42 tasks where an agent fixes crash bugs in Go storage code, plus a cluster-upgrade environment trained on with GRPO, rewarded by hidden deterministic fault seeds.","url":"https://seedfall.kunalrc.xyz/gym","image":"https://seedfall.kunalrc.xyz/og.png","datePublished":"2026-11-16","inLanguage":"en","author":{"@type":"Person","name":"Kunal Roy Choudhury","url":"https://kunalrc.xyz"},"about":{"@type":"SoftwareSourceCode","name":"seedfall","codeRepository":"https://github.com/kunalgoesbyken/seedfall","programmingLanguage":"Go","license":"https://github.com/kunalgoesbyken/seedfall/blob/main/LICENSE"}}</script>
 <link rel="preload" href="/fonts/inter.woff2" as="font" type="font/woff2" crossorigin>
 <script src="/theme.js"></script>
 <link rel="stylesheet" href="/theme.css">
@@ -35,15 +35,15 @@
 <nav class="toc" aria-label="Contents" data-toc hidden><p class="toc-title">Contents</p></nav>
 <article class="page paper">
 
-<h1>seedfall-gym: an RL environment for crash bugs</h1>
-<p class="lede">Fix the storage code, get rewarded by seeds you never see</p>
+<h1>seedfall-gym: RL environments for crash bugs and cluster operations</h1>
+<p class="lede">Fix the storage code or run the cluster, get rewarded by seeds you never see</p>
 <p class="meta">November 2026 · Kunal Roy Choudhury</p>
 
-<p class="links"><a href="https://github.com/kunalgoesbyken/seedfall/tree/main/gym" target="_blank" rel="noopener">Code</a><a href="https://github.com/kunalgoesbyken/seedfall/tree/main/gym/tasks" target="_blank" rel="noopener">Tasks</a><a href="#baselines">Baselines</a><a href="/">seedfall</a></p>
+<p class="links"><a href="https://github.com/kunalgoesbyken/seedfall/tree/main/gym" target="_blank" rel="noopener">Code</a><a href="https://github.com/kunalgoesbyken/seedfall/tree/main/gym/tasks" target="_blank" rel="noopener">Tasks</a><a href="#baselines">Baselines</a><a href="#training">Training</a><a href="/">seedfall</a></p>
 
 <section class="abstract">
-<p><strong>Abstract.</strong> Each task hands an agent a small Go system that loses acknowledged writes or breaks consistency when it crashes. The agent edits the code, and the reward is the share of hidden fault seeds the fixed system survives, replayed through <a href="/">seedfall</a>. Because a seed replays byte for byte, anyone can recompute a reward from the submission. Every one of the 42 tasks is validated the same way: the reference fix scores 1.0, the buggy code scores below 0.5, a scripted cheat scores 0, and doing nothing gives exactly the buggy score.</p>
-<p><strong>Index terms.</strong> reinforcement learning environments, reward hacking, automated program repair, fault injection, crash consistency.</p>
+<p><strong>Abstract.</strong> Each task hands an agent a small Go system that loses acknowledged writes or breaks consistency when it crashes. The agent edits the code, and the reward is the share of hidden fault seeds the fixed system survives, replayed through <a href="/">seedfall</a>. Because a seed replays byte for byte, anyone can recompute a reward from the submission. Every one of the 42 tasks is validated the same way: the reference fix scores 1.0, the buggy code scores below 0.5, a scripted cheat scores 0, and doing nothing gives exactly the buggy score. A second environment asks a model to plan a rolling upgrade of a raft cluster without breaking availability. Training Qwen3-1.7B on it with GRPO took three runs: one learned little, one found a hole in the grader, and the third, on the fixed grader, went from 0.06 to 0.70 against a scripted oracle at 0.79.</p>
+<p><strong>Index terms.</strong> reinforcement learning environments, GRPO, reward hacking, automated program repair, fault injection, crash consistency.</p>
 </section>
 
 <pre class="install" data-copy><code>git clone https://github.com/kunalgoesbyken/seedfall &amp;&amp; cd seedfall/gym</code></pre>
@@ -151,6 +151,7 @@
 <li>n is small: two episodes per task, one salt. The two Gemini rows are within noise of each other.</li>
 <li>A grade takes 6 to 51 seconds, mostly <code>go build</code> and the wazero compile.</li>
 <li>Every system is Go and fits in one process.</li>
+<li>The training result is one run of one small model, tested on 28 held-out scenarios. A second training seed would show how much of it is luck.</li>
 </ul>
 
 <section class="references">
