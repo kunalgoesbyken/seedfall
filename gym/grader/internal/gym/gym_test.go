@@ -3,6 +3,9 @@ package gym
 import (
 	"slices"
 	"testing"
+	"time"
+
+	"github.com/kunalgoesbyken/seedfall/engine"
 )
 
 func TestHiddenSeedsDependOnSaltAndTask(t *testing.T) {
@@ -111,5 +114,44 @@ func TestAssignSplitsIsDeterministicAndOrderFree(t *testing.T) {
 	b := AssignSplits(reversed, 0.25)
 	if !slices.Equal(a.Train, b.Train) || !slices.Equal(a.HeldOut, b.HeldOut) {
 		t.Fatal("the split depends on manifest order")
+	}
+}
+
+func ackEvents(workload string, at ...time.Duration) []engine.Event {
+	var events []engine.Event
+	for _, t := range at {
+		events = append(events, engine.Event{At: t, Instance: workload, Name: AckEvent})
+	}
+	return events
+}
+
+func TestAcksCountOnlyAfterTheFirstServerRestart(t *testing.T) {
+	res := engine.Result{
+		Duration: time.Minute,
+		Faults: []engine.Fault{
+			{At: engine.Duration(time.Second), Kind: engine.FaultCrash, Node: "client", Until: engine.Duration(2 * time.Second)},
+			{At: engine.Duration(3 * time.Second), Kind: engine.FaultCrashIO, Node: "server", Until: engine.Duration(4 * time.Second)},
+			{At: engine.Duration(5 * time.Second), Kind: engine.FaultCrash, Node: "server", Until: engine.Duration(6 * time.Second)},
+		},
+		Events: ackEvents("client", time.Second, 3500*time.Millisecond, 4500*time.Millisecond, 7*time.Second),
+	}
+	if got := acks(res, "client"); got != 2 {
+		t.Fatalf("%d acks counted after the first server restart, want 2", got)
+	}
+	res.Faults = nil
+	if got := acks(res, "client"); got != 4 {
+		t.Fatalf("%d acks counted without a crash, want 4", got)
+	}
+}
+
+func TestProgressGuardTripsWhenMostSeedsAreStarved(t *testing.T) {
+	b := Baseline{MinAcks: 2, GuardAcks: 10}
+	healthy := []SeedReport{{Acks: 30}, {Acks: 12}, {Acks: 3}, {Acks: 40}}
+	if g := progressGuard(healthy, b); g.Tripped || g.Starved != 1 {
+		t.Fatalf("one starved seed in four tripped the guard: %+v", g)
+	}
+	starved := []SeedReport{{Acks: 30}, {Acks: 9}, {Acks: 3}, {Acks: 0}}
+	if g := progressGuard(starved, b); !g.Tripped || g.Starved != 3 {
+		t.Fatalf("three starved seeds in four did not trip the guard: %+v", g)
 	}
 }

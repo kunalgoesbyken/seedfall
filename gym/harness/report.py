@@ -34,9 +34,22 @@ def score_episode(events: list[dict]) -> dict | None:
     }
 
 
-def load_episodes(root: Path) -> list[dict]:
-    scored = (score_episode(read_events(path)) for path in sorted(Path(root).rglob("*.jsonl")))
-    return [episode for episode in scored if episode]
+def load_rewards(path: Path) -> dict[str, float]:
+    rows = json.loads(Path(path).read_text(encoding="utf-8"))
+    return {row["file"]: row["reward"] for row in rows if "reward" in row}
+
+
+def load_episodes(root: Path, rewards: dict[str, float] | None = None) -> list[dict]:
+    episodes = []
+    for path in sorted(Path(root).rglob("*.jsonl")):
+        episode = score_episode(read_events(path))
+        if episode is None:
+            continue
+        key = f"{path.parent.name}/{path.name}"
+        if rewards is not None and episode["reward"] is not None and key in rewards:
+            episode["reward"] = rewards[key]
+        episodes.append(episode)
+    return episodes
 
 
 def summarize(episodes: list[dict]) -> dict:
@@ -77,8 +90,9 @@ def main(argv=None) -> int:
     parser.add_argument("runs", type=Path)
     parser.add_argument("--by-task", action="store_true")
     parser.add_argument("--json", type=Path, dest="json_path")
+    parser.add_argument("--rewards", type=Path, help="regrade.py output whose rewards replace the recorded ones")
     args = parser.parse_args(argv)
-    rows = aggregate(load_episodes(args.runs), args.by_task)
+    rows = aggregate(load_episodes(args.runs, load_rewards(args.rewards) if args.rewards else None), args.by_task)
     print(markdown(rows))
     if args.json_path:
         args.json_path.write_text(json.dumps(rows, indent=2), encoding="utf-8")

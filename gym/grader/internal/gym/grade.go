@@ -48,9 +48,10 @@ type HarnessGuard struct {
 }
 
 type ProgressGuard struct {
-	MinAcks int  `json:"min_acks"`
-	Starved int  `json:"starved_seeds"`
-	Tripped bool `json:"tripped"`
+	MinAcks   int  `json:"min_acks"`
+	GuardAcks int  `json:"guard_acks"`
+	Starved   int  `json:"starved_seeds"`
+	Tripped   bool `json:"tripped"`
 }
 
 type DeterminismGuard struct {
@@ -110,7 +111,7 @@ func Grade(o Options) (Report, error) {
 	for _, res := range results {
 		rep.PerSeed = append(rep.PerSeed, seedReport(res, workload, baseline.MinAcks, o.Explicit))
 	}
-	rep.Guard.Progress = progressGuard(rep.PerSeed, baseline.MinAcks)
+	rep.Guard.Progress = progressGuard(rep.PerSeed, baseline)
 	rep.Guard.Determinism = determinismGuard(runner, results)
 	rep.finish()
 	return rep, nil
@@ -207,19 +208,29 @@ func describeFaults(res engine.Result) []string {
 }
 
 func acks(res engine.Result, workload string) int {
+	recovered := recoveredAt(res, workload)
 	n := 0
 	for _, e := range res.Events {
-		if e.Name == AckEvent && strings.HasPrefix(e.Instance, workload) {
+		if e.Name == AckEvent && strings.HasPrefix(e.Instance, workload) && e.At > recovered {
 			n++
 		}
 	}
 	return n
 }
 
-func progressGuard(seeds []SeedReport, minAcks int) ProgressGuard {
-	g := ProgressGuard{MinAcks: minAcks}
+func recoveredAt(res engine.Result, workload string) time.Duration {
+	for _, f := range res.FaultsApplied() {
+		if (f.Kind == engine.FaultCrash || f.Kind == engine.FaultCrashIO) && f.Node != workload {
+			return time.Duration(f.Until)
+		}
+	}
+	return -1
+}
+
+func progressGuard(seeds []SeedReport, b Baseline) ProgressGuard {
+	g := ProgressGuard{MinAcks: b.MinAcks, GuardAcks: b.GuardAcks}
 	for _, s := range seeds {
-		if s.Acks < minAcks {
+		if s.Acks < b.GuardAcks {
 			g.Starved++
 		}
 	}

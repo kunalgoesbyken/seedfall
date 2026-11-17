@@ -1,4 +1,4 @@
-from authorlib import E, bug_patches, edit, gofmt, read_tree, write_patch
+from authorlib import NONCE_NEW, NONCE_OLD, E, bug_patches, edit, gofmt, read_tree, write_patch
 
 ACK_LIN = [E("linclient/main.go", '''
     case reply == "OK", reply == "NONE":
@@ -11,7 +11,7 @@ ACK_LIN = [E("linclient/main.go", '''
         }
 ''')]
 
-ACK_RAFTKV = [E("client/main.go", '''
+ACK_RAFTKV = [("client/main.go", NONCE_OLD, NONCE_NEW), E("client/main.go", '''
         if c.tryLeader("PUT "+e.key+" "+e.value, 3) == "OK" {
             acked = append(acked, e)
         }

@@ -4,6 +4,8 @@ import sys
 
 SEEDFALL = os.environ.get("SEEDFALL_SRC") or os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 PATCHES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+NONCE_OLD = 'fmt.Sprintf("v%d", i)}'
+NONCE_NEW = 'fmt.Sprintf("v%d-%08x", i, uint32(sim.Random()))}'
 
 
 def read_tree(example_dir, prefix):

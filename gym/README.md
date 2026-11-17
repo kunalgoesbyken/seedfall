@@ -18,10 +18,10 @@ flowchart LR
 Why seeds make a good reward:
 
 - **Reproducible.** A seed replays the same run byte for byte, so anyone can recompute a reward from the submission.
-- **Hard to game.** Hidden seeds come from an HMAC of a secret salt, the harness is restored before grading, a progress floor stops a server that refuses every write, and a determinism check reruns two seeds. Each task ships a scripted cheat that must score 0.
+- **Hard to game.** Hidden seeds come from an HMAC of a secret salt, the harness is restored before grading, values the workload writes are random per seed so a server cannot forge reads, a progress guard stops a server that refuses writes before or after a crash, and a determinism check reruns two seeds. Each task ships a scripted cheat that must score 0, and every system ships the exploits that once scored (forged values, refusing writes after recovery), which must score 0 too.
 - **Readable failures.** A failing visible seed comes back with its reason and trace tail, small enough for an agent to act on.
 
-Baselines on 12 tasks: Haiku 5.5 solves 24 of 24 episodes, the free Gemini flash-lite models 0.82 to 0.86 mean reward, and submitting the code unchanged scores 0.16. Details in [Baselines](#baselines).
+Baselines on 12 tasks: Haiku 5.5 solves 24 of 24 episodes, the free Gemini flash-lite models 0.81 to 0.86 mean reward, and submitting the code unchanged scores 0.13. Details in [Baselines](#baselines).
 
 ### Try it
 
@@ -44,6 +44,7 @@ This folder holds the grader, the generated tasks, the task builder, the validat
 | `tasks_src/` | Patch files the manifest names, plus `author/*.py` that produced them from the pristine seedfall examples. `author/*_scale.py` hold the mutations of the generated tasks, `scale_specs.py` and `scale_symptoms.py` the manifest entries, and `scale_manifest.py` merges them into `tasks.json` |
 | `tasks/<id>/` | Generated. `workspace/` (agent sees and edits), `harness/` (pristine workload, config, go.mod, progress floor), `solution/` (oracle files and `fix.patch`), `task.json`, `visible_seed` |
 | `cheats/<id>/` | Generated. The scripted cheat for each task: the editable dir with every write rejected |
+| `exploits/<name>/` | Hand-written replacements for a system's editable paths: `forge-kvlog`, `forge-httpkv`, `forge-raftkv`, `forge-liveness` (ack every write, answer reads with the value or count the old workload expected) and `refuse-kvlog` (a correct log that refuses writes once it recovered a non-empty log). The systems that list them in `tasks.json` get a `cheats/<id>.<name>/` copy per task |
 | `baselines.json` | Progress floors measured from the oracle by `validate -calibrate` |
 | `splits.json` | Train and held-out split, written by `build_tasks` when it builds every task |
 | `validation.json` | Output of the last full validation |
@@ -78,61 +79,63 @@ Hidden seeds are `HMAC-SHA256(salt, taskID || 0x00 || be64(i))` truncated to a u
 `reward = passed / n`, and 0 if the build fails or a guard trips. A seed passes only if the run did not fail, the workload finished, and the workload saw enough acknowledged operations.
 
 - Harness restore: the grader stages a fresh temp copy of `tasks/<id>/harness` (workload, config, go.mod) and copies only the task's `editable` paths from the agent workspace over it. Edits elsewhere are ignored and listed in `guard.harness.ignored_files`.
-- Progress floor: each workload emits a `gym.ack` event per acknowledged operation. The grader counts them from the workload instance only (the server cannot forge them). The floor is half the lowest count the oracle reached over 128 calibration seeds (`baselines.json`). A seed below it fails with class `progress`, and if more than half the seeds are below it the guard trips and the reward is 0. A server that refuses or errors every write cannot pass. A workload that never finishes (hung server) also fails the seed, class `unfinished`.
+- Unforgeable values: the workloads that write `k<i>` and check the reads (kvlog, symswap, metapage, httpkv, raftkv, aikv) put a random 32-bit nonce, drawn from `sim.Random` (seeded per seed, per node), into every value, and aikv seeds its operation stream the same way. A server that acknowledges without storing and guesses the value from the key fails the read check.
+- Live count check: the liveness checker compares the replicas' counts with the fixed number of adds, so after those checks it sends one more `ADD` with a random id (`sim.Random`) and requires both replicas to count it. A server that answers every `GET` with the expected count fails.
+- Progress guard: each workload emits a `gym.ack` event per acknowledged operation. The grader counts them from the workload instance only (the server cannot forge them), and only those after the first server crash has restarted (all of them when a seed has no crash), so a server has to keep accepting writes after it recovered. Two floors come from the oracle over 128 calibration seeds (`baselines.json`): `min_acks`, half the lowest count, below which a seed fails with class `progress`, and `guard_acks`, half the median count, below which a seed counts as starved. If more than half the seeds are starved the guard trips and the reward is 0. A server that refuses or errors every write, or every write after a restart, cannot pass. A workload that never finishes (hung server) also fails the seed, class `unfinished`.
 - Determinism: the first two seeds are run again and must give the same host-call hash and verdict.
 
-Caveat on the progress guard: a bug that itself starves the workload (`liveness-redial`) trips it on the buggy code, so that task's buggy reward is 0 rather than its pass rate of 0.33. A partial fix on such a task also scores 0 until most seeds make progress.
+Caveat on the progress guard: a bug that itself starves the workload (`liveness-redial`, and since the ack count starts at the first restart also `kvlog-truncate-off-by-one`, `kvlog-fsync-error-swallowed`, `etcdraft-wal-unsynced`, `etcdraft-snapshot-data-unsynced`, where the buggy server never acknowledges again after a crash on more than half the seeds) trips it on the buggy code, so that task's buggy reward is 0 rather than its pass rate (0.33, 0.20, 0.08, 0.31, 0.38). A partial fix on such a task also scores 0 until most seeds make progress.
 
 ## Tasks and measured numbers
 
 Eight-core Windows machine shared with other jobs, `-n` hidden seeds from the dev salt (the heavier tasks use fewer seeds). "sec/grade" is one full grade of the buggy workspace (stage, `go build` for wasip1, compile, run `n` seeds, determinism rerun). Build time is 5 to 12 seconds of that.
 
-| Task | System | Bug class | n | buggy pass rate | buggy reward | oracle | cheat | nop equals buggy | sec/grade | floor | split |
-|---|---|---|---:|---:|---:|---:|---:|---|---:|---:|---|
-| kvlog-torn-tail | kvlog | recovery keeps a torn log tail | 64 | 0.22 | 0.219 | 1.000 | 0 | yes | 7.1 | 2 | train |
-| kvlog-fsyncgate | kvlog | failed fsync leaves the record in the page cache | 64 | 0.16 | 0.156 | 1.000 | 0 | yes | 8.0 | 16 | held-out |
-| kvlog-no-checksum | kvlog | silent read corruption, no checksum | 64 | 0.36 | 0.359 | 1.000 | 0 | yes | 9.8 | 15 | train |
-| kvlog-ack-before-fsync | kvlog | ack before the batched fsync | 64 | 0.14 | 0.141 | 1.000 | 0 | yes | 8.0 | 21 | held-out |
-| symswap-dir-fsync | symswap | symlink swap without directory fsync | 64 | 0.34 | 0.344 | 1.000 | 0 | yes | 9.5 | 12 | train |
-| ledger-nofsync | ledger | ack without fsync | 64 | 0.09 | 0.094 | 1.000 | 0 | yes | 10.9 | 35 | train |
-| ledger-nofsync-heavy | ledger | same code, harsher faults (variant) | 64 | 0.00 | 0.000 | 1.000 | 0 | yes | 12.5 | 13 | train |
-| httpkv-nofsync | httpkv | ack without fsync (HTTP) | 64 | 0.12 | 0.125 | 1.000 | 0 | yes | 26.5 | 13 | train |
-| httpkv-nofsync-heavy | httpkv | same code, harsher faults (variant) | 64 | 0.00 | 0.000 | 1.000 | 0 | yes | 25.7 | 4 | train |
-| liveness-redial | liveness | primary never reconnects to its replica | 64 | 0.33 | 0.000 (guard) | 1.000 | 0 | yes | 13.9 | 20 | held-out |
-| liveness-dedupe | liveness | non-idempotent client retry | 64 | 0.20 | 0.203 | 1.000 | 0 | yes | 16.4 | 20 | train |
-| aikv-haiku-1-tail | aikv (model-written store) | out-of-order writeback read as corruption, store never reopens | 32 | 0.00 | 0.000 | 1.000 | 0 | yes | 30.1 | 285 | held-out |
-| kvlog-no-dir-sync | kvlog | log file's directory entry never fsynced (strict dirs) | 64 | 0.28 | 0.281 | 1.000 | 0 | yes | 8.5 | 19 | train |
-| kvlog-sync-wrong-handle | kvlog | fsync called on the directory instead of the log file | 64 | 0.00 | 0.000 | 1.000 | 0 | yes | 9.0 | 13 | train |
-| kvlog-truncate-off-by-one | kvlog | torn-tail repair cuts one byte too many, next record glued on | 64 | 0.22 | 0.219 | 1.000 | 0 | yes | 7.5 | 2 | train |
-| kvlog-write-error-ignored | kvlog | write EIO ignored, PUT still acknowledged | 64 | 0.08 | 0.078 | 1.000 | 0 | yes | 11.4 | 17 | train |
-| kvlog-no-reread | kvlog | transient flipped-bit read treated as a torn tail and truncated | 64 | 0.00 | 0.000 | 1.000 | 0 | yes | 7.3 | 14 | train |
-| kvlog-sync-before-write | kvlog | fsync issued before the write it should cover | 64 | 0.08 | 0.078 | 1.000 | 0 | yes | 12.1 | 16 | train |
-| kvlog-rollback-truncates-log | kvlog | failed-fsync rollback truncates the whole log | 64 | 0.08 | 0.078 | 1.000 | 0 | yes | 7.3 | 17 | train |
-| kvlog-fsync-error-swallowed | kvlog | fsync EIO ignored, PUT still acknowledged | 64 | 0.08 | 0.078 | 1.000 | 0 | yes | 77.1 | 19 | train |
-| symswap-gen-unsynced | symswap | generation file published without fsyncing its data | 64 | 0.00 | 0.000 | 1.000 | 0 | yes | 11.3 | 14 | train |
-| symswap-no-publish-sync | symswap | no directory fsync after the symlink rename | 64 | 0.00 | 0.000 | 1.000 | 0 | yes | 11.7 | 12 | train |
-| symswap-gc-before-publish | symswap | old generation deleted before the new pointer is durable | 64 | 0.36 | 0.359 | 1.000 | 0 | yes | 9.8 | 13 | train |
-| ledger-torn-tail-kept | ledger | torn log tail left in place, next entries glued onto it | 64 | 0.03 | 0.031 | 1.000 | 0 | yes | 19.9 | 53 | train |
-| ledger-sync-before-write | ledger | fsync issued before the write it should cover | 64 | 0.27 | 0.266 | 1.000 | 0 | yes | 10.6 | 16 | train |
-| httpkv-no-dir-sync | httpkv | no directory fsync after creating the log (strict dirs) | 64 | 0.30 | 0.297 | 1.000 | 0 | yes | 16.6 | 15 | train |
-| httpkv-torn-tail-kept | httpkv | torn log tail left in place, next records glued onto it | 64 | 0.03 | 0.031 | 1.000 | 0 | yes | 67.0 | 1 | train |
-| metapage-single-meta-slot | metapage | metadata updated in place, no second slot to fall back to | 64 | 0.39 | 0.391 | 1.000 | 0 | yes | 9.0 | 3 | held-out |
-| metapage-meta-unsynced | metapage | ack before the meta slot is fsynced | 64 | 0.00 | 0.000 | 1.000 | 0 | yes | 7.8 | 7 | train |
-| liveness-log-unsynced | liveness | ack before the replica's log is fsynced | 64 | 0.03 | 0.031 | 1.000 | 0 | yes | 11.2 | 20 | train |
-| liveness-applied-not-recovered | liveness | dedupe table not rebuilt from the log on restart | 64 | 0.44 | 0.438 | 1.000 | 0 | yes | 11.1 | 20 | train |
-| liveness-backup-error-ignored | liveness | backup replication failure ignored, ack still sent | 64 | 0.02 | 0.016 | 1.000 | 0 | yes | 10.7 | 20 | train |
-| aikv-sonnet-1-base-unsynced | aikv-sonnet-1 | compaction output renamed into place without fsyncing its data | 16 | 0.00 | 0.000 | 1.000 | 0 | yes | 35.1 | 846 | train |
-| aikv-opus-1-fsync-error-ignored | aikv-opus-1 | fsync EIO ignored, write still acknowledged | 32 | 0.16 | 0.156 | 1.000 | 0 | yes | 23.1 | 24 | train |
-| aikv-sonnet-3-compact-unsynced | aikv-sonnet-3 | compaction output renamed into place without fsyncing its data | 16 | 0.00 | 0.000 | 1.000 | 0 | yes | 42.0 | 813 | held-out |
-| etcdraft-wal-unsynced | etcdraft | raft WAL appended but never fsynced before messages go out | 16 | 0.31 | 0.312 | 1.000 | 0 | yes | 13.3 | 1 | held-out |
-| etcdraft-snapshot-data-unsynced | etcdraft | snapshot renamed into place without fsyncing its data | 16 | 0.38 | 0.375 | 1.000 | 0 | yes | 42.7 | 1 | train |
-| raftkv-log-unsynced | raftkv | raft log store skips fsync | 16 | 0.31 | 0.312 | 1.000 | 0 | yes | 20.4 | 52 | held-out |
-| liveness-apply-before-replicate | liveness | applies locally before replicating, the retry skips the backup | 64 | 0.03 | 0.031 | 1.000 | 0 | yes | 11.3 | 20 | train |
-| metapage-append-offset-off-by-one | metapage | records appended one byte before the committed end | 64 | 0.00 | 0.000 | 1.000 | 0 | yes | 5.3 | 7 | held-out |
-| symswap-fsync-wrong-dir | symswap | fsyncs the parent of the data directory | 64 | 0.00 | 0.000 | 1.000 | 0 | yes | 5.7 | 11 | held-out |
-| httpkv-sync-before-write | httpkv | fsync issued before the write it should cover | 64 | 0.19 | 0.188 | 1.000 | 0 | yes | 46.5 | 21 | held-out |
+| Task | System | Bug class | n | buggy pass rate | buggy reward | oracle | cheat | exploit | nop equals buggy | sec/grade | floor | split |
+|---|---|---|---:|---:|---:|---:|---:|---:|---|---:|---:|---|
+| kvlog-torn-tail | kvlog | recovery keeps a torn log tail | 64 | 0.17 | 0.172 | 1.000 | 0 | 0 | yes | 11.2 | 0/18 | train |
+| kvlog-fsyncgate | kvlog | failed fsync leaves the record in the page cache | 64 | 0.16 | 0.156 | 1.000 | 0 | 0 | yes | 10.4 | 0/43 | held-out |
+| kvlog-no-checksum | kvlog | silent read corruption, no checksum | 64 | 0.34 | 0.344 | 1.000 | 0 | 0 | yes | 10.5 | 0/38 | train |
+| kvlog-ack-before-fsync | kvlog | ack before the batched fsync | 64 | 0.14 | 0.141 | 1.000 | 0 | 0 | yes | 11.1 | 0/39 | held-out |
+| symswap-dir-fsync | symswap | symlink swap without directory fsync | 64 | 0.34 | 0.344 | 1.000 | 0 | 0 | yes | 10.3 | 9/23 | train |
+| ledger-nofsync | ledger | ack without fsync | 64 | 0.09 | 0.094 | 1.000 | 0 | - | yes | 13.4 | 0/40 | train |
+| ledger-nofsync-heavy | ledger | same code, harsher faults (variant) | 64 | 0.00 | 0.000 | 1.000 | 0 | - | yes | 12.6 | 8/28 | train |
+| httpkv-nofsync | httpkv | ack without fsync (HTTP) | 64 | 0.12 | 0.125 | 1.000 | 0 | 0 | yes | 20.3 | 0/22 | train |
+| httpkv-nofsync-heavy | httpkv | same code, harsher faults (variant) | 64 | 0.00 | 0.000 | 1.000 | 0 | 0 | yes | 22.3 | 2/17 | train |
+| liveness-redial | liveness | primary never reconnects to its replica | 64 | 0.33 | 0.000 (guard) | 1.000 | 0 | 0 | yes | 13.9 | 1/17 | held-out |
+| liveness-dedupe | liveness | non-idempotent client retry | 64 | 0.20 | 0.203 | 1.000 | 0 | 0 | yes | 12.9 | 3/18 | train |
+| aikv-haiku-1-tail | aikv (model-written store) | out-of-order writeback read as corruption, store never reopens | 32 | 0.00 | 0.000 | 1.000 | 0 | - | yes | 27.4 | 278/400 | held-out |
+| kvlog-no-dir-sync | kvlog | log file's directory entry never fsynced (strict dirs) | 64 | 0.28 | 0.281 | 1.000 | 0 | 0 | yes | 9.8 | 0/37 | train |
+| kvlog-sync-wrong-handle | kvlog | fsync called on the directory instead of the log file | 64 | 0.00 | 0.000 | 1.000 | 0 | 0 | yes | 10.7 | 0/42 | train |
+| kvlog-truncate-off-by-one | kvlog | torn-tail repair cuts one byte too many, next record glued on | 64 | 0.20 | 0.000 (guard) | 1.000 | 0 | 0 | yes | 9.8 | 1/18 | train |
+| kvlog-write-error-ignored | kvlog | write EIO ignored, PUT still acknowledged | 64 | 0.08 | 0.078 | 1.000 | 0 | 0 | yes | 10.1 | 0/35 | train |
+| kvlog-no-reread | kvlog | transient flipped-bit read treated as a torn tail and truncated | 64 | 0.00 | 0.000 | 1.000 | 0 | 0 | yes | 10.7 | 5/35 | train |
+| kvlog-sync-before-write | kvlog | fsync issued before the write it should cover | 64 | 0.06 | 0.062 | 1.000 | 0 | 0 | yes | 11.3 | 0/42 | train |
+| kvlog-rollback-truncates-log | kvlog | failed-fsync rollback truncates the whole log | 64 | 0.08 | 0.078 | 1.000 | 0 | 0 | yes | 9.6 | 0/38 | train |
+| kvlog-fsync-error-swallowed | kvlog | fsync EIO ignored, PUT still acknowledged | 64 | 0.08 | 0.000 (guard) | 1.000 | 0 | 0 | yes | 51.0 | 0/39 | train |
+| symswap-gen-unsynced | symswap | generation file published without fsyncing its data | 64 | 0.00 | 0.000 | 1.000 | 0 | 0 | yes | 12.1 | 11/23 | train |
+| symswap-no-publish-sync | symswap | no directory fsync after the symlink rename | 64 | 0.00 | 0.000 | 1.000 | 0 | 0 | yes | 12.9 | 12/23 | train |
+| symswap-gc-before-publish | symswap | old generation deleted before the new pointer is durable | 64 | 0.36 | 0.359 | 1.000 | 0 | 0 | yes | 11.1 | 13/24 | train |
+| ledger-torn-tail-kept | ledger | torn log tail left in place, next entries glued onto it | 64 | 0.03 | 0.031 | 1.000 | 0 | - | yes | 23.2 | 50/58 | train |
+| ledger-sync-before-write | ledger | fsync issued before the write it should cover | 64 | 0.27 | 0.266 | 1.000 | 0 | - | yes | 14.4 | 0/40 | train |
+| httpkv-no-dir-sync | httpkv | no directory fsync after creating the log (strict dirs) | 64 | 0.30 | 0.297 | 1.000 | 0 | 0 | yes | 24.9 | 0/19 | train |
+| httpkv-torn-tail-kept | httpkv | torn log tail left in place, next records glued onto it | 64 | 0.02 | 0.016 | 1.000 | 0 | 0 | yes | 30.5 | 1/10 | train |
+| metapage-single-meta-slot | metapage | metadata updated in place, no second slot to fall back to | 64 | 0.39 | 0.391 | 1.000 | 0 | 0 | yes | 9.0 | 3/22 | held-out |
+| metapage-meta-unsynced | metapage | ack before the meta slot is fsynced | 64 | 0.00 | 0.000 | 1.000 | 0 | 0 | yes | 9.1 | 4/26 | train |
+| liveness-log-unsynced | liveness | ack before the replica's log is fsynced | 64 | 0.03 | 0.031 | 1.000 | 0 | 0 | yes | 12.3 | 5/18 | train |
+| liveness-applied-not-recovered | liveness | dedupe table not rebuilt from the log on restart | 64 | 0.44 | 0.438 | 1.000 | 0 | 0 | yes | 13.0 | 17/20 | train |
+| liveness-backup-error-ignored | liveness | backup replication failure ignored, ack still sent | 64 | 0.02 | 0.016 | 1.000 | 0 | 0 | yes | 13.4 | 4/18 | train |
+| aikv-sonnet-1-base-unsynced | aikv-sonnet-1 | compaction output renamed into place without fsyncing its data | 16 | 0.00 | 0.000 | 1.000 | 0 | - | yes | 41.9 | 765/1048 | train |
+| aikv-opus-1-fsync-error-ignored | aikv-opus-1 | fsync EIO ignored, write still acknowledged | 32 | 0.25 | 0.250 | 1.000 | 0 | - | yes | 28.5 | 21/85 | train |
+| aikv-sonnet-3-compact-unsynced | aikv-sonnet-3 | compaction output renamed into place without fsyncing its data | 16 | 0.00 | 0.000 | 1.000 | 0 | - | yes | 47.3 | 818/1019 | held-out |
+| etcdraft-wal-unsynced | etcdraft | raft WAL appended but never fsynced before messages go out | 16 | 0.31 | 0.000 (guard) | 1.000 | 0 | - | yes | 18.2 | 0/18 | held-out |
+| etcdraft-snapshot-data-unsynced | etcdraft | snapshot renamed into place without fsyncing its data | 16 | 0.38 | 0.000 (guard) | 1.000 | 0 | - | yes | 46.7 | 0/16 | train |
+| raftkv-log-unsynced | raftkv | raft log store skips fsync | 16 | 0.31 | 0.312 | 1.000 | 0 | 0 | yes | 24.2 | 32/61 | held-out |
+| liveness-apply-before-replicate | liveness | applies locally before replicating, the retry skips the backup | 64 | 0.03 | 0.031 | 1.000 | 0 | 0 | yes | 13.2 | 1/18 | train |
+| metapage-append-offset-off-by-one | metapage | records appended one byte before the committed end | 64 | 0.00 | 0.000 | 1.000 | 0 | 0 | yes | 5.9 | 5/22 | held-out |
+| symswap-fsync-wrong-dir | symswap | fsyncs the parent of the data directory | 64 | 0.00 | 0.000 | 1.000 | 0 | 0 | yes | 7.3 | 11/23 | held-out |
+| httpkv-sync-before-write | httpkv | fsync issued before the write it should cover | 64 | 0.17 | 0.172 | 1.000 | 0 | 0 | yes | 23.7 | 0/23 | held-out |
 
-Every task satisfies: oracle reward exactly 1.0, buggy below 0.5, cheat 0, a nop grade identical hash-for-hash to the buggy grade. The full machine-readable table is `validation.json`. The 12 first tasks keep the numbers they were calibrated with. `kvlog-sync-before-write` was calibrated with `-floor-divisor 4` (a quarter of the lowest oracle ack count): with the default half, one oracle seed with 21 acknowledged writes fell under a floor of 32 and the oracle scored 0.984. The two etcdraft tasks count only acknowledged writes, so a calibration seed with 0 or 1 acknowledged writes gives them a floor of 1.
+Every task satisfies: oracle reward exactly 1.0, buggy pass rate below 0.5, cheat 0, every exploit its system lists 0, a nop grade identical hash-for-hash to the buggy grade. The full machine-readable table is `validation.json`. The floor column is `min_acks/guard_acks`: the per-seed floor is half the lowest oracle ack count after the first restart (0 when an oracle seed crashed at the very end and acknowledged nothing after it, which switches the per-seed floor off), the guard floor half the median. The exploit column is the best reward over `forge-*` and `refuse-kvlog` on that task, `-` where the system has none (ledger, aikv, etcdraft). Tasks 1 to 42 were recalibrated and revalidated on 2026-11-18 after the workloads got random values and the grader started counting acks after the first restart; the two etcdraft tasks could not be rebuilt (their patches no longer apply to the current `examples/etcdraft/node`), so they keep their generated files and only got the new floors.
 
 Tasks 13 to 42 were generated the SWE-smith way: each seedfall example with a real workload is hardwired into its correct form (`kvlog-full.patch`, `symswap-full.patch`, ...), a hand-written mutation then breaks exactly one durability or correctness mechanism (a dropped or misdirected fsync, a missing directory fsync, an ignored I/O error, a misplaced step, a wrong offset), the three patches of each task (`-bug`, `-fix`, `-cheat`) come from `tasks_src/author/*_scale.py`, and `validate` keeps only the candidates that pass every rule above. The failing check always lives in the workload that the grader restores. Where the editable code holds `sim.Always` assertions (symswap, metapage) a probe replaced every one of them with a no-op and the buggy code still scored below 0.5 (0.00 to 0.31), so deleting the assertion does not pass the task.
 
@@ -167,14 +170,14 @@ Current split: 31 train and 11 held-out tasks (74% and 26%). The held-out set is
 
 ## Baselines
 
-Run on 2026-11-16 with the agent harness in `harness/` (`harness.gym_env:Factory`), 12 tasks, hidden grading with a secret local salt (64 hidden seeds per task, 32 for `aikv-haiku-1-tail`). Everything here was free tier except Haiku, which cost $0.076 in total. Raw trajectories are in `runs/`, the machine-readable table in `results.json`.
+Run on 2026-11-16 with the agent harness in `harness/` (`harness.gym_env:Factory`), 12 tasks, hidden grading with a secret local salt (64 hidden seeds per task, 32 for `aikv-haiku-1-tail`). The runs were re-graded on the fixed grader on 2026-11-17 with the public dev salt instead of the secret one, and the tables below show those numbers: `python -m harness.regrade` rebuilds each episode's final workspace from its tool calls and grades it again without a model, and `python -m harness.report runs --rewards <regrade output>` aggregates it. Replaying the last successful `run_seeds` call of 77 episodes on the pre-fix grader reproduced the recorded output text in all 77. The recorded rewards were 0.163 (null), 0.999 (oracle), 0.863 and 0.823 (the two flash-lite models); Haiku stayed at 1.000. Everything here was free tier except Haiku, which cost $0.076 in total. Raw trajectories are in `runs/`, the machine-readable table in `results.json`.
 
 | model | episodes | pass@1 | mean reward | false-claim rate | mean turns | mean tokens | cost |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| null (submit unchanged) | 12 | 0.000 | 0.163 | 1.000 | - | - | $0 |
-| oracle (apply `solution/`) | 12 | 0.917 | 0.999 | 0.083 | - | - | $0 |
-| gemini-3.1-flash-lite | 24 | 0.833 | 0.863 | 0.000 | 11.0 | 63k | $0 |
-| gemini-3.5-flash-lite | 24 | 0.750 | 0.823 | 0.125 | 13.8 | 95k | $0 |
+| null (submit unchanged) | 12 | 0.000 | 0.132 | 1.000 | - | - | $0 |
+| oracle (apply `solution/`) | 12 | 1.000 | 1.000 | 0.000 | - | - | $0 |
+| gemini-3.1-flash-lite | 24 | 0.833 | 0.864 | 0.000 | 11.0 | 63k | $0 |
+| gemini-3.5-flash-lite | 24 | 0.750 | 0.807 | 0.125 | 13.8 | 95k | $0 |
 | claude-haiku-5-5 | 24 | 1.000 | 1.000 | 0.000 | 5.1 | 22k | $0.076 |
 | gemini-3.5-flash | 1 | 1.000 | 1.000 | 0.000 | 20.0 | 269k | $0 |
 | nvidia/nemotron-3-ultra-550b-a55b:free (OpenRouter) | 2 | 1.000 | 1.000 | 0.000 | 17.5 | 59k | $0 |
@@ -185,18 +188,18 @@ Per task, solved episodes out of episodes (mean reward in brackets):
 
 | task | null | oracle | flash-lite 3.1 | flash-lite 3.5 | haiku-5-5 |
 |---|---|---|---|---|---|
-| aikv-haiku-1-tail | 0/1 (0.16) | 1/1 (1.00) | 1/2 (0.50) | 1/2 (0.58) | 2/2 (1.00) |
-| httpkv-nofsync | 0/1 (0.09) | 1/1 (1.00) | 2/2 (1.00) | 2/2 (1.00) | 2/2 (1.00) |
+| aikv-haiku-1-tail | 0/1 (0.00) | 1/1 (1.00) | 1/2 (0.50) | 1/2 (0.50) | 2/2 (1.00) |
+| httpkv-nofsync | 0/1 (0.12) | 1/1 (1.00) | 2/2 (1.00) | 2/2 (1.00) | 2/2 (1.00) |
 | httpkv-nofsync-heavy | 0/1 (0.00) | 1/1 (1.00) | 2/2 (1.00) | 2/2 (1.00) | 2/2 (1.00) |
-| kvlog-ack-before-fsync | 0/1 (0.12) | 1/1 (1.00) | 2/2 (1.00) | 2/2 (1.00) | 2/2 (1.00) |
-| kvlog-fsyncgate | 0/1 (0.27) | 1/1 (1.00) | 1/2 (0.50) | 0/2 (0.25) | 2/2 (1.00) |
-| kvlog-no-checksum | 0/1 (0.31) | 0/1 (0.98) | 0/2 (0.36) | 1/2 (0.95) | 2/2 (1.00) |
-| kvlog-torn-tail | 0/1 (0.38) | 1/1 (1.00) | 2/2 (1.00) | 2/2 (1.00) | 2/2 (1.00) |
-| ledger-nofsync | 0/1 (0.06) | 1/1 (1.00) | 2/2 (1.00) | 2/2 (1.00) | 2/2 (1.00) |
+| kvlog-ack-before-fsync | 0/1 (0.14) | 1/1 (1.00) | 2/2 (1.00) | 2/2 (1.00) | 2/2 (1.00) |
+| kvlog-fsyncgate | 0/1 (0.16) | 1/1 (1.00) | 1/2 (0.50) | 0/2 (0.16) | 2/2 (1.00) |
+| kvlog-no-checksum | 0/1 (0.34) | 1/1 (1.00) | 0/2 (0.37) | 1/2 (0.93) | 2/2 (1.00) |
+| kvlog-torn-tail | 0/1 (0.17) | 1/1 (1.00) | 2/2 (1.00) | 2/2 (1.00) | 2/2 (1.00) |
+| ledger-nofsync | 0/1 (0.09) | 1/1 (1.00) | 2/2 (1.00) | 2/2 (1.00) | 2/2 (1.00) |
 | ledger-nofsync-heavy | 0/1 (0.00) | 1/1 (1.00) | 2/2 (1.00) | 2/2 (1.00) | 2/2 (1.00) |
 | liveness-dedupe | 0/1 (0.20) | 1/1 (1.00) | 2/2 (1.00) | 1/2 (0.60) | 2/2 (1.00) |
 | liveness-redial | 0/1 (0.00) | 1/1 (1.00) | 2/2 (1.00) | 1/2 (0.50) | 2/2 (1.00) |
-| symswap-dir-fsync | 0/1 (0.36) | 1/1 (1.00) | 2/2 (1.00) | 2/2 (1.00) | 2/2 (1.00) |
+| symswap-dir-fsync | 0/1 (0.34) | 1/1 (1.00) | 2/2 (1.00) | 2/2 (1.00) | 2/2 (1.00) |
 
 ### Setup
 
@@ -212,7 +215,7 @@ Per task, solved episodes out of episodes (mean reward in brackets):
 - Free tiers cut the roster short. `gemini-3.5-flash` allows 20 requests per day, so one episode finished and the second hit a 429. `gemma-4-31b-it` through the Gemini API returned HTTP 500 and then 503 (high demand) and no episode finished; the OpenRouter `:free` Gemma copy was rate limited upstream on the first request. The OpenRouter nemotron row stopped at 2 episodes when the 50 requests per day budget ran out. Those three rows are anecdotes, not baselines; the three rows with n = 24 are.
 - Most of this task set is solved by current small models. Haiku 5.5 solved all 24 episodes in about 5 turns, so with this prompt the set does not separate strong agents. The hard rows are `kvlog-fsyncgate`, `kvlog-no-checksum` and `aikv-haiku-1-tail` for the Gemini models.
 - The agent sees a detailed symptom and can replay visible seeds up to 48 times, so a part of the score is test-time search on visible seeds, not blind repair. A tighter prompt or a smaller `run_seeds` budget would make the set harder.
-- Oracle ceiling: the oracle row above predates a fix. With this hidden salt the original `kvlog-no-checksum` oracle scored 63 of 64 (0.984): a read that flips the last record's newline looks like a torn tail, so it truncated an acknowledged write. Haiku found a stricter fix in both episodes. The oracle now retries until two reads that pass every checksum agree on the bytes after the last complete record, and scores 64 of 64 on this salt and 599 of 600 seeds on a wider sweep. The one miss is a seed below the progress floor, not a lost write.
+- Oracle ceiling: the oracle row in the recorded run predated a fix (the re-graded row scores 1.000 on every task). With this hidden salt the original `kvlog-no-checksum` oracle scored 63 of 64 (0.984): a read that flips the last record's newline looks like a torn tail, so it truncated an acknowledged write. Haiku found a stricter fix in both episodes. The oracle now retries until two reads that pass every checksum agree on the bytes after the last complete record, and scores 64 of 64 on this salt and 599 of 600 seeds on a wider sweep. The one miss is a seed below the progress floor, not a lost write.
 - Two episodes of `gemini-3.5-flash-lite` on `liveness-redial` and one of `gemini-3.1-flash-lite` on `aikv-haiku-1-tail` ended on the episode time or token cap with a partial result. Candidate code that never terminates is caught by the 300 s `run_seeds` timeout and costs the agent that call.
 
 ## How tasks are built

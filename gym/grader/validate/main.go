@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -26,16 +27,18 @@ var (
 )
 
 type row struct {
-	Task        string  `json:"task"`
-	Kept        bool    `json:"kept"`
-	Reason      string  `json:"reason,omitempty"`
-	BuggyPass   float64 `json:"buggy_pass_rate"`
-	BuggyReward float64 `json:"buggy_reward"`
-	Oracle      float64 `json:"oracle_reward"`
-	Nop         bool    `json:"nop_matches_buggy"`
-	Cheat       float64 `json:"cheat_reward"`
-	Seconds     float64 `json:"seconds_per_grade"`
-	MinAcks     int     `json:"min_acks"`
+	Task        string             `json:"task"`
+	Kept        bool               `json:"kept"`
+	Reason      string             `json:"reason,omitempty"`
+	BuggyPass   float64            `json:"buggy_pass_rate"`
+	BuggyReward float64            `json:"buggy_reward"`
+	Oracle      float64            `json:"oracle_reward"`
+	Nop         bool               `json:"nop_matches_buggy"`
+	Cheat       float64            `json:"cheat_reward"`
+	Exploits    map[string]float64 `json:"exploit_rewards,omitempty"`
+	Seconds     float64            `json:"seconds_per_grade"`
+	MinAcks     int                `json:"min_acks"`
+	GuardAcks   int                `json:"guard_acks"`
 }
 
 func main() {
@@ -55,7 +58,7 @@ func run() error {
 	report := flag.String("report", "validation.json", "write the validation table as JSON")
 	src := flag.String("seedfall", "", "seedfall source directory, default SEEDFALL_SRC or the seedfall repository around the working directory")
 	flag.IntVar(&jobs, "j", 0, "parallel runs per grade, default all CPUs")
-	flag.IntVar(&floorDivisor, "floor-divisor", defaultFloorDivisor, "with -calibrate, the progress floor is the lowest oracle ack count divided by this")
+	flag.IntVar(&floorDivisor, "floor-divisor", defaultFloorDivisor, "with -calibrate, the per-seed floor is the lowest oracle ack count and the guard floor the median, each divided by this")
 	saltEnv := flag.String("salt-env", "SEEDFALL_GYM_SALT", "environment variable holding the salt, the dev salt is used when it is empty")
 	flag.Parse()
 	source, err := gym.SeedfallSource(*src)
@@ -102,7 +105,7 @@ func validate(t gym.Task, cheats, source string, salt []byte, n int) (row, error
 	if err != nil {
 		return row{}, err
 	}
-	r := row{Task: t.ID, MinAcks: base.MinAcks}
+	r := row{Task: t.ID, MinAcks: base.MinAcks, GuardAcks: base.GuardAcks}
 	buggy, secs, err := grade(t, t.Workspace(), source, seeds)
 	if err != nil {
 		return r, err
@@ -123,6 +126,16 @@ func validate(t gym.Task, cheats, source string, salt []byte, n int) (row, error
 		return r, err
 	}
 	r.Cheat = cheat.Reward
+	for _, name := range t.Exploits {
+		exploit, _, err := grade(t, filepath.Join(cheats, gym.ExploitDir(t.ID, name)), source, seeds)
+		if err != nil {
+			return r, err
+		}
+		if r.Exploits == nil {
+			r.Exploits = map[string]float64{}
+		}
+		r.Exploits[name] = exploit.Reward
+	}
 	r.Reason = verdict(r, buggy, oracle, cheat)
 	r.Kept = r.Reason == ""
 	return r, nil
@@ -158,6 +171,11 @@ func verdict(r row, buggy, oracle, cheat gym.Report) string {
 	if cheat.Reward != 0 {
 		why = append(why, fmt.Sprintf("cheat reward %.3f", cheat.Reward))
 	}
+	for _, name := range slices.Sorted(maps.Keys(r.Exploits)) {
+		if r.Exploits[name] != 0 {
+			why = append(why, fmt.Sprintf("exploit %s reward %.3f", name, r.Exploits[name]))
+		}
+	}
 	return strings.Join(why, "; ")
 }
 
@@ -169,11 +187,18 @@ func hashes(rep gym.Report) []string {
 	return out
 }
 
+func exploitCell(rewards map[string]float64) string {
+	if len(rewards) == 0 {
+		return "-"
+	}
+	return fmt.Sprintf("%.3f", slices.Max(slices.Collect(maps.Values(rewards))))
+}
+
 func printTable(rows []row) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(w, "task\tbuggy pass\tbuggy reward\toracle\tcheat\tnop==buggy\tsec/grade\tfloor\tkept\treason")
+	fmt.Fprintln(w, "task\tbuggy pass\tbuggy reward\toracle\tcheat\texploit\tnop==buggy\tsec/grade\tfloor\tkept\treason")
 	for _, r := range rows {
-		fmt.Fprintf(w, "%s\t%.2f\t%.3f\t%.3f\t%.3f\t%t\t%.1f\t%d\t%t\t%s\n", r.Task, r.BuggyPass, r.BuggyReward, r.Oracle, r.Cheat, r.Nop, r.Seconds, r.MinAcks, r.Kept, r.Reason)
+		fmt.Fprintf(w, "%s\t%.2f\t%.3f\t%.3f\t%.3f\t%s\t%t\t%.1f\t%d/%d\t%t\t%s\n", r.Task, r.BuggyPass, r.BuggyReward, r.Oracle, r.Cheat, exploitCell(r.Exploits), r.Nop, r.Seconds, r.MinAcks, r.GuardAcks, r.Kept, r.Reason)
 	}
 	w.Flush()
 }
@@ -192,12 +217,14 @@ func calibrateAll(tasks []gym.Task, source, path string) error {
 		if !rep.BuildOK {
 			return fmt.Errorf("task %s: oracle does not build: %s", t.ID, rep.BuildError)
 		}
-		lowest := rep.PerSeed[0].Acks
-		for _, s := range rep.PerSeed {
-			lowest = min(lowest, s.Acks)
+		counts := make([]int, len(rep.PerSeed))
+		for i, s := range rep.PerSeed {
+			counts[i] = s.Acks
 		}
-		floors[t.ID] = gym.Baseline{MinAcks: max(1, lowest/floorDivisor), Seeds: calibrationSeeds}
-		fmt.Printf("%s lowest oracle acks %d, floor %d\n", t.ID, lowest, floors[t.ID].MinAcks)
+		slices.Sort(counts)
+		lowest, median := counts[0], counts[len(counts)/2]
+		floors[t.ID] = gym.Baseline{MinAcks: lowest / floorDivisor, GuardAcks: max(1, median/floorDivisor), Seeds: calibrationSeeds}
+		fmt.Printf("%s oracle acks lowest %d median %d, floor %d, guard %d\n", t.ID, lowest, median, floors[t.ID].MinAcks, floors[t.ID].GuardAcks)
 	}
 	return gym.WriteJSON(path, floors)
 }

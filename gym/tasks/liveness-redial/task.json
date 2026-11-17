@@ -6,6 +6,9 @@
   "editable": [
     "server/"
   ],
+  "exploits": [
+    "forge-liveness"
+  ],
   "symptom": "Two replicas, a primary and a backup (server/main.go). The primary forwards each ADD to the backup, appends it to its own log, and answers with the new count. The client sends 40 adds, retrying until acknowledged and saving its progress, then a final check compares both counts. Faults (crashes, pauses, partitions, connection resets) run for the first 5s of virtual time, then stop and all nodes are restarted and healed.\n\nObserved on seed 1: after resets of the connection between the replicas and a crash of the backup, the system never recovered: liveness: client did not finish within 10s of the recovery phase starting at 5.000s. Nothing was lost or applied twice, the client just kept retrying.\n\nExpected: once faults stop and nodes are healthy, the client's adds must be acknowledged and it must finish.",
   "default_n": 0
 }

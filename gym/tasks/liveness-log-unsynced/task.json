@@ -6,6 +6,9 @@
   "editable": [
     "server/"
   ],
+  "exploits": [
+    "forge-liveness"
+  ],
   "symptom": "Two replicas, a primary and a backup (server/main.go). The primary forwards each ADD id to the backup and appends it to its own log, answering with the new count; retried ids must be applied once. The client sends 40 adds, retrying each until acknowledged and saving its progress, and may itself be crashed and resend the add that was in flight. Faults (crashes, pauses, partitions, connection resets) run for the first 5s of virtual time, then stop and all nodes are restarted and healed; a final check compares both counts with the number of adds the client sent.\n\nObserved on seed 1: connections between the replicas were reset five times, the primary and backup were each crashed once and the client twice. The final check failed: no acknowledged add is lost: {\"left\":21,\"right\":40}. The primary reported 21 adds although the client had been acknowledged for 40.\n\nExpected: every acknowledged add must be applied exactly once on both replicas, and the replicas must agree once faults stop.",
   "default_n": 0
 }

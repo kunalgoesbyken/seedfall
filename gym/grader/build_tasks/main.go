@@ -15,6 +15,7 @@ import (
 const (
 	baselinesFile  = "baselines.json"
 	cheatsDir      = "cheats"
+	exploitsDir    = "exploits"
 	solutionPatch  = "fix.patch"
 	splitsFile     = "splits.json"
 	defaultHeldOut = 0.25
@@ -26,6 +27,7 @@ type builder struct {
 	seedfall  string
 	out       string
 	cheats    string
+	exploits  string
 	baselines map[string]gym.Baseline
 }
 
@@ -42,13 +44,14 @@ func run() error {
 	src := flag.String("seedfall", "", "seedfall source directory, default SEEDFALL_SRC or the seedfall repository around the working directory")
 	out := flag.String("out", "tasks", "output directory for generated tasks")
 	cheats := flag.String("cheats", cheatsDir, "output directory for generated cheats")
+	exploits := flag.String("exploits", exploitsDir, "directory of exploit sources, each a replacement for the editable paths of the systems that list it")
 	baselines := flag.String("baselines", baselinesFile, "calibrated progress floors written by validate -calibrate")
 	only := flag.String("only", "", "build only this task id")
 	splits := flag.String("splits", splitsFile, "train and held-out split written when every task is built")
 	heldOut := flag.Float64("held-out", defaultHeldOut, "fraction of tasks held out, whole system and bug class groups at a time")
 	flag.Parse()
 	var b builder
-	b.patchDir, b.out, b.cheats = *patches, *out, *cheats
+	b.patchDir, b.out, b.cheats, b.exploits = *patches, *out, *cheats, *exploits
 	var err error
 	if b.seedfall, err = gym.SeedfallSource(*src); err != nil {
 		return err
@@ -117,7 +120,22 @@ func (b builder) build(s gym.Spec) error {
 	if err := os.RemoveAll(cheatOut); err != nil {
 		return err
 	}
-	return copyEditable(sys.Editable, cheat, cheatOut)
+	if err := copyEditable(sys.Editable, cheat, cheatOut); err != nil {
+		return err
+	}
+	for _, name := range sys.Exploits {
+		if err := b.buildExploit(sys, name, filepath.Join(b.cheats, gym.ExploitDir(s.ID, name))); err != nil {
+			return fmt.Errorf("exploit %s: %w", name, err)
+		}
+	}
+	return nil
+}
+
+func (b builder) buildExploit(sys gym.System, name, out string) error {
+	if err := os.RemoveAll(out); err != nil {
+		return err
+	}
+	return copyEditable(sys.Editable, filepath.Join(b.exploits, name), out)
 }
 
 func (b builder) writeTask(s gym.Spec, sys gym.System, dir, buggy, fixed string) error {
@@ -148,7 +166,7 @@ func (b builder) writeTask(s gym.Spec, sys gym.System, dir, buggy, fixed string)
 	if err := gym.WriteJSON(filepath.Join(harness, gym.BaselineFile), b.baselines[s.ID]); err != nil {
 		return err
 	}
-	task := gym.Task{ID: s.ID, System: s.System, BugClass: s.BugClass, Difficulty: s.Difficulty, DefaultN: s.N, Editable: sys.Editable, Symptom: s.Symptom}
+	task := gym.Task{ID: s.ID, System: s.System, BugClass: s.BugClass, Difficulty: s.Difficulty, DefaultN: s.N, Editable: sys.Editable, Exploits: sys.Exploits, Symptom: s.Symptom}
 	if err := gym.WriteJSON(filepath.Join(dir, gym.TaskFile), task); err != nil {
 		return err
 	}

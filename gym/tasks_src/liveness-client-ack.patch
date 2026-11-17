@@ -1,3 +1,33 @@
+--- a/check/main.go
++++ b/check/main.go
+@@ -24,7 +24,27 @@
+ 	}, "primary and backup report the same count", *within)
+ 	sim.AlwaysLessThanOrEqualTo(p, *adds, "no add is applied twice")
+ 	sim.AlwaysGreaterThanOrEqualTo(p, *adds, "no acknowledged add is lost")
++	probe := fmt.Sprintf("probe-%016x", sim.Random())
++	sim.Eventually(func() bool { return add(*primary, probe) }, "a new add is acknowledged", *within)
++	sim.Eventually(func() bool {
++		after, mirrored := count(*primary), count(*backup)
++		return after > p && after == mirrored
++	}, "a new add reaches both replicas", *within)
+ 	fmt.Printf("primary and backup agree on %d\n", p)
++}
++
++func add(addr, id string) bool {
++	conn, err := sim.Dial("tcp", addr)
++	if err != nil {
++		return false
++	}
++	defer conn.Close()
++	conn.SetDeadline(time.Now().Add(300 * time.Millisecond))
++	if _, err := fmt.Fprintf(conn, "ADD %s\n", id); err != nil {
++		return false
++	}
++	reply, err := bufio.NewReader(conn).ReadString('\n')
++	return err == nil && !strings.HasPrefix(reply, "ERR")
+ }
+ 
+ func count(addr string) int {
 --- a/client/main.go
 +++ b/client/main.go
 @@ -31,6 +31,7 @@

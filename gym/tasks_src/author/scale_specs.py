@@ -45,6 +45,7 @@ add("httpkv-torn-tail-kept", bug_class="torn-tail-recovery", difficulty="medium"
 SYSTEMS["metapage"] = {
     "trees": {"server": "examples/metapage/server", "client": "examples/kvlog/client"},
     "editable": ["server/"],
+    "exploits": ["forge-kvlog", "refuse-kvlog"],
     "config": {
         "nodes": [{"name": "server", "pkg": "./server", "args": ["-dir", "data"]}],
         "workload": {"name": "client", "pkg": "./client", "args": ["-writes", "200"]},
@@ -95,10 +96,16 @@ aikv("aikv-opus-1-fsync-error-ignored", "opus-1", "fsync-error-ignored", "medium
 aikv("aikv-sonnet-3-compact-unsynced", "sonnet-3", "rename-before-data-fsync", "hard", {"crash_per_sec": 1.5}, full=True)
 
 
+RAFT_EXPLOITS = {"raftkv": ["forge-raftkv"]}
+
+
 def raft_system(example, trees, workload, nodes, config):
     cfg = {"nodes": nodes, "workload": {"name": "client", "pkg": "./" + workload}, "duration": "120s", "latency": ["1ms", "8ms"]}
     cfg.update(config)
-    return {"trees": {t: "examples/%s/%s" % (example, t) for t in trees}, "editable": ["node/"], "module_from": "examples/" + example, "config": cfg}
+    system = {"trees": {t: "examples/%s/%s" % (example, t) for t in trees}, "editable": ["node/"], "module_from": "examples/" + example, "config": cfg}
+    if example in RAFT_EXPLOITS:
+        system["exploits"] = RAFT_EXPLOITS[example]
+    return system
 
 
 def raft_nodes(args=None):

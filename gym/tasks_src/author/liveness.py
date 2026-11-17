@@ -34,11 +34,44 @@ CLIENT_ACK = [
     ("client/main.go", "\t\tfor !acked(*addr, id) {\n\t\t\ttime.Sleep(*retry)\n\t\t}\n", '\t\tfor !acked(*addr, id) {\n\t\t\ttime.Sleep(*retry)\n\t\t}\n\t\tsim.Event("gym.ack", id)\n'),
 ]
 
+CHECK_PROBE = [
+    (
+        "check/main.go",
+        '\tsim.AlwaysGreaterThanOrEqualTo(p, *adds, "no acknowledged add is lost")\n',
+        '\tsim.AlwaysGreaterThanOrEqualTo(p, *adds, "no acknowledged add is lost")\n'
+        '\tprobe := fmt.Sprintf("probe-%016x", sim.Random())\n'
+        '\tsim.Eventually(func() bool { return add(*primary, probe) }, "a new add is acknowledged", *within)\n'
+        "\tsim.Eventually(func() bool {\n"
+        "\t\tafter, mirrored := count(*primary), count(*backup)\n"
+        "\t\treturn after > p && after == mirrored\n"
+        '\t}, "a new add reaches both replicas", *within)\n',
+    ),
+    (
+        "check/main.go",
+        "func count(addr string) int {\n",
+        "func add(addr, id string) bool {\n"
+        '\tconn, err := sim.Dial("tcp", addr)\n'
+        "\tif err != nil {\n"
+        "\t\treturn false\n"
+        "\t}\n"
+        "\tdefer conn.Close()\n"
+        "\tconn.SetDeadline(time.Now().Add(300 * time.Millisecond))\n"
+        '\tif _, err := fmt.Fprintf(conn, "ADD %s\\n", id); err != nil {\n'
+        "\t\treturn false\n"
+        "\t}\n"
+        "\treply, err := bufio.NewReader(conn).ReadString('\\n')\n"
+        '\treturn err == nil && !strings.HasPrefix(reply, "ERR")\n'
+        "}\n\n"
+        "func count(addr string) int {\n",
+    ),
+]
+
 
 def liveness():
     pristine = read_tree("examples/liveness/server", "server")
     client = read_tree("examples/liveness/client", "client")
-    write_patch("liveness-client-ack", client, edit(client, CLIENT_ACK))
+    check = read_tree("examples/liveness/check", "check")
+    write_patch("liveness-client-ack", {**client, **check}, {**edit(client, CLIENT_ACK), **edit(check, CHECK_PROBE)})
 
     dedupe_on = write_patch("liveness-dedupe-on", pristine, edit(pristine, DEDUPE_ON))
     redial_bug = write_patch("liveness-redial-bug", dedupe_on, edit(edit(dedupe_on, REDIAL_ON), REDIAL_BUG))

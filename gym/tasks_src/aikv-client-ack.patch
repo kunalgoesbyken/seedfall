@@ -1,5 +1,22 @@
 --- a/client/main.go
 +++ b/client/main.go
+@@ -33,14 +33,14 @@
+ 	outage := flag.Duration("outage", 10*time.Second, "longest the store may refuse to serve before the run fails")
+ 	flag.Parse()
+ 
+-	r := rand.New(rand.NewPCG(1, 2))
++	r := rand.New(rand.NewPCG(sim.Random(), sim.Random()))
+ 	state := map[string]*history{}
+ 	for i := range *keys {
+ 		state[key(i)] = &history{acked: deleted}
+ 	}
+ 	for i := range *ops {
+ 		k := key(r.IntN(*keys))
+-		want, request := value(i, *size), ""
++		want, request := value(i, *size, r.Uint32()), ""
+ 		if r.Float64() < *deletes {
+ 			want, request = deleted, "DEL "+k
+ 		} else {
 @@ -49,6 +49,7 @@
  		h := state[k]
  		if reply, err := call(*addr, request); err == nil && reply == "OK" {
@@ -8,3 +25,14 @@
  		} else {
  			h.ambiguous = append(h.ambiguous, want)
  		}
+@@ -67,8 +68,8 @@
+ 
+ func key(i int) string { return fmt.Sprintf("k%02d", i) }
+ 
+-func value(i, size int) string {
+-	head := fmt.Sprintf("v%d-", i)
++func value(i, size int, nonce uint32) string {
++	head := fmt.Sprintf("v%d-%08x-", i, nonce)
+ 	return head + strings.Repeat("x", max(size-len(head), 0))
+ }
+ 

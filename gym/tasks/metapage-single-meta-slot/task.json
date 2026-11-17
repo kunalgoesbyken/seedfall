@@ -6,6 +6,10 @@
   "editable": [
     "server/"
   ],
+  "exploits": [
+    "forge-kvlog",
+    "refuse-kvlog"
+  ],
   "symptom": "A TCP key-value server (server/main.go) keeps records in data/kv.db: a 4096-byte header holding two 20-byte checksummed meta slots (sequence number and committed size) followed by the appended records. A put writes the record, then publishes it by writing the next meta slot, and answers OK once both are on disk. On start the slot with the highest valid sequence number says how many bytes of records are committed. The client remembers every PUT that was answered OK and reads them all back at the end.\n\nObserved on seed 1: the server was crashed during a disk operation five times, plus once at 852ms. The client reported: acknowledged write lost: k0=v0, server now answers \"NONE\". After one restart the server came up empty.\n\nExpected: every PUT that returned OK must be readable after any number of crashes, including crashes in the middle of a write.",
   "default_n": 0
 }

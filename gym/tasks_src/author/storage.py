@@ -1,4 +1,4 @@
-from authorlib import drop, edit, read_tree, write_patch
+from authorlib import NONCE_NEW, NONCE_OLD, drop, edit, read_tree, write_patch
 
 CHEAT_KV_HANDLE = (
     "server/main.go",
@@ -61,6 +61,15 @@ def httpkv():
     ]))
     client = read_tree("examples/httpkv/client", "client")
     write_patch("httpkv-client-ack", client, edit(client, [
+        ("client/main.go", NONCE_OLD, NONCE_NEW),
+        ("client/main.go", "\t\t\tacked = append(acked, e)\n", '\t\t\tacked = append(acked, e)\n\t\t\tsim.Event("gym.ack", e.key)\n'),
+    ]))
+
+
+def kvlog():
+    client = read_tree("examples/kvlog/client", "client")
+    write_patch("kvlog-client-ack", client, edit(client, [
+        ("client/main.go", NONCE_OLD, NONCE_NEW),
         ("client/main.go", "\t\t\tacked = append(acked, e)\n", '\t\t\tacked = append(acked, e)\n\t\t\tsim.Event("gym.ack", e.key)\n'),
     ]))
 
@@ -90,6 +99,7 @@ def ledger():
 
 
 if __name__ == "__main__":
+    kvlog()
     metapage()
     symswap()
     httpkv()

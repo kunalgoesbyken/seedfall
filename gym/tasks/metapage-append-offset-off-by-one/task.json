@@ -6,6 +6,10 @@
   "editable": [
     "server/"
   ],
+  "exploits": [
+    "forge-kvlog",
+    "refuse-kvlog"
+  ],
   "symptom": "A TCP key-value server (server/main.go) keeps records in data/kv.db: a 4096-byte header holding two 20-byte checksummed meta slots (sequence number and committed size) followed by the appended records. A put writes the record, then publishes it by writing the next meta slot, and answers OK once both are on disk. On start the slot with the highest valid sequence number says how many bytes of records are committed. The client remembers every PUT that was answered OK and reads them all back at the end.\n\nObserved on seed 1: after a crash during a disk operation the restarted server failed its own check: every committed record is intact: meta slot 13 commits 84 bytes of records, 89 on disk, ending in \"10=v10\\nk11=v11\\nk12=v12\\nk\". Records written before the crash were not laid out as the meta slot says.\n\nExpected: the committed records must be intact after a restart and every acknowledged PUT must be readable.",
   "default_n": 0
 }

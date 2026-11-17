@@ -11,6 +11,7 @@ type System struct {
 	Editable   []string          `json:"editable"`
 	Config     map[string]any    `json:"config"`
 	ModuleFrom string            `json:"module_from,omitempty"`
+	Exploits   []string          `json:"exploits,omitempty"`
 }
 
 type Patches struct {

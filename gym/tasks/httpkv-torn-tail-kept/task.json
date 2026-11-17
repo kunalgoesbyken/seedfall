@@ -6,6 +6,9 @@
   "editable": [
     "server/"
   ],
+  "exploits": [
+    "forge-httpkv"
+  ],
   "symptom": "An HTTP key-value server (server/main.go) accepts PUT /put?k=..\u0026v=.. and appends the record to data/kv.log, fsyncing before it answers OK. On start it replays the log. The client stores keys, remembers which were acknowledged, and reads them all back at the end. Crashes can land in the middle of a disk write, leaving an incomplete last record in the log.\n\nObserved on seed 1: 300 writes were attempted and the server was crashed 26 times, 19 of them during a disk operation. The client reported: acknowledged write lost: k63=v63, server now answers \"404 page not found\".\n\nExpected: every acknowledged write must survive any number of crashes and restarts.",
   "default_n": 0
 }

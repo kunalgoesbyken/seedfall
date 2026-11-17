@@ -7,349 +7,21 @@
     "oracle_reward": 1,
     "nop_matches_buggy": true,
     "cheat_reward": 0,
-    "seconds_per_grade": 30.0995222,
-    "min_acks": 285
+    "seconds_per_grade": 27.3906959,
+    "min_acks": 278,
+    "guard_acks": 400
   },
   {
-    "task": "httpkv-nofsync",
+    "task": "aikv-opus-1-fsync-error-ignored",
     "kept": true,
-    "buggy_pass_rate": 0.125,
-    "buggy_reward": 0.125,
+    "buggy_pass_rate": 0.25,
+    "buggy_reward": 0.25,
     "oracle_reward": 1,
     "nop_matches_buggy": true,
     "cheat_reward": 0,
-    "seconds_per_grade": 26.4580343,
-    "min_acks": 13
-  },
-  {
-    "task": "httpkv-nofsync-heavy",
-    "kept": true,
-    "buggy_pass_rate": 0,
-    "buggy_reward": 0,
-    "oracle_reward": 1,
-    "nop_matches_buggy": true,
-    "cheat_reward": 0,
-    "seconds_per_grade": 25.6898807,
-    "min_acks": 4
-  },
-  {
-    "task": "kvlog-ack-before-fsync",
-    "kept": true,
-    "buggy_pass_rate": 0.140625,
-    "buggy_reward": 0.140625,
-    "oracle_reward": 1,
-    "nop_matches_buggy": true,
-    "cheat_reward": 0,
-    "seconds_per_grade": 8.0319704,
-    "min_acks": 21
-  },
-  {
-    "task": "kvlog-fsyncgate",
-    "kept": true,
-    "buggy_pass_rate": 0.15625,
-    "buggy_reward": 0.15625,
-    "oracle_reward": 1,
-    "nop_matches_buggy": true,
-    "cheat_reward": 0,
-    "seconds_per_grade": 8.0448275,
-    "min_acks": 16
-  },
-  {
-    "task": "kvlog-no-checksum",
-    "kept": true,
-    "buggy_pass_rate": 0.359375,
-    "buggy_reward": 0.359375,
-    "oracle_reward": 1,
-    "nop_matches_buggy": true,
-    "cheat_reward": 0,
-    "seconds_per_grade": 9.793544,
-    "min_acks": 15
-  },
-  {
-    "task": "kvlog-torn-tail",
-    "kept": true,
-    "buggy_pass_rate": 0.21875,
-    "buggy_reward": 0.21875,
-    "oracle_reward": 1,
-    "nop_matches_buggy": true,
-    "cheat_reward": 0,
-    "seconds_per_grade": 7.0938383,
-    "min_acks": 2
-  },
-  {
-    "task": "ledger-nofsync",
-    "kept": true,
-    "buggy_pass_rate": 0.09375,
-    "buggy_reward": 0.09375,
-    "oracle_reward": 1,
-    "nop_matches_buggy": true,
-    "cheat_reward": 0,
-    "seconds_per_grade": 10.9335508,
-    "min_acks": 35
-  },
-  {
-    "task": "ledger-nofsync-heavy",
-    "kept": true,
-    "buggy_pass_rate": 0,
-    "buggy_reward": 0,
-    "oracle_reward": 1,
-    "nop_matches_buggy": true,
-    "cheat_reward": 0,
-    "seconds_per_grade": 12.4664084,
-    "min_acks": 13
-  },
-  {
-    "task": "liveness-dedupe",
-    "kept": true,
-    "buggy_pass_rate": 0.203125,
-    "buggy_reward": 0.203125,
-    "oracle_reward": 1,
-    "nop_matches_buggy": true,
-    "cheat_reward": 0,
-    "seconds_per_grade": 16.4422409,
-    "min_acks": 20
-  },
-  {
-    "task": "liveness-redial",
-    "kept": true,
-    "buggy_pass_rate": 0.328125,
-    "buggy_reward": 0,
-    "oracle_reward": 1,
-    "nop_matches_buggy": true,
-    "cheat_reward": 0,
-    "seconds_per_grade": 13.9413101,
-    "min_acks": 20
-  },
-  {
-    "task": "symswap-dir-fsync",
-    "kept": true,
-    "buggy_pass_rate": 0.34375,
-    "buggy_reward": 0.34375,
-    "oracle_reward": 1,
-    "nop_matches_buggy": true,
-    "cheat_reward": 0,
-    "seconds_per_grade": 9.5156671,
-    "min_acks": 12
-  },
-  {
-    "task": "kvlog-no-dir-sync",
-    "kept": true,
-    "buggy_pass_rate": 0.28125,
-    "buggy_reward": 0.28125,
-    "oracle_reward": 1,
-    "nop_matches_buggy": true,
-    "cheat_reward": 0,
-    "seconds_per_grade": 8.4540434,
-    "min_acks": 19
-  },
-  {
-    "task": "kvlog-sync-wrong-handle",
-    "kept": true,
-    "buggy_pass_rate": 0,
-    "buggy_reward": 0,
-    "oracle_reward": 1,
-    "nop_matches_buggy": true,
-    "cheat_reward": 0,
-    "seconds_per_grade": 9.0044723,
-    "min_acks": 13
-  },
-  {
-    "task": "kvlog-truncate-off-by-one",
-    "kept": true,
-    "buggy_pass_rate": 0.21875,
-    "buggy_reward": 0.21875,
-    "oracle_reward": 1,
-    "nop_matches_buggy": true,
-    "cheat_reward": 0,
-    "seconds_per_grade": 7.4868338,
-    "min_acks": 2
-  },
-  {
-    "task": "kvlog-write-error-ignored",
-    "kept": true,
-    "buggy_pass_rate": 0.078125,
-    "buggy_reward": 0.078125,
-    "oracle_reward": 1,
-    "nop_matches_buggy": true,
-    "cheat_reward": 0,
-    "seconds_per_grade": 11.3839333,
-    "min_acks": 17
-  },
-  {
-    "task": "kvlog-no-reread",
-    "kept": true,
-    "buggy_pass_rate": 0,
-    "buggy_reward": 0,
-    "oracle_reward": 1,
-    "nop_matches_buggy": true,
-    "cheat_reward": 0,
-    "seconds_per_grade": 7.2980518,
-    "min_acks": 14
-  },
-  {
-    "task": "kvlog-sync-before-write",
-    "kept": true,
-    "buggy_pass_rate": 0.078125,
-    "buggy_reward": 0.078125,
-    "oracle_reward": 1,
-    "nop_matches_buggy": true,
-    "cheat_reward": 0,
-    "seconds_per_grade": 12.1201753,
-    "min_acks": 16
-  },
-  {
-    "task": "kvlog-rollback-truncates-log",
-    "kept": true,
-    "buggy_pass_rate": 0.078125,
-    "buggy_reward": 0.078125,
-    "oracle_reward": 1,
-    "nop_matches_buggy": true,
-    "cheat_reward": 0,
-    "seconds_per_grade": 7.292705,
-    "min_acks": 17
-  },
-  {
-    "task": "kvlog-fsync-error-swallowed",
-    "kept": true,
-    "buggy_pass_rate": 0.078125,
-    "buggy_reward": 0.078125,
-    "oracle_reward": 1,
-    "nop_matches_buggy": true,
-    "cheat_reward": 0,
-    "seconds_per_grade": 77.1465023,
-    "min_acks": 19
-  },
-  {
-    "task": "symswap-gen-unsynced",
-    "kept": true,
-    "buggy_pass_rate": 0,
-    "buggy_reward": 0,
-    "oracle_reward": 1,
-    "nop_matches_buggy": true,
-    "cheat_reward": 0,
-    "seconds_per_grade": 11.3307901,
-    "min_acks": 14
-  },
-  {
-    "task": "symswap-no-publish-sync",
-    "kept": true,
-    "buggy_pass_rate": 0,
-    "buggy_reward": 0,
-    "oracle_reward": 1,
-    "nop_matches_buggy": true,
-    "cheat_reward": 0,
-    "seconds_per_grade": 11.7460931,
-    "min_acks": 12
-  },
-  {
-    "task": "symswap-gc-before-publish",
-    "kept": true,
-    "buggy_pass_rate": 0.359375,
-    "buggy_reward": 0.359375,
-    "oracle_reward": 1,
-    "nop_matches_buggy": true,
-    "cheat_reward": 0,
-    "seconds_per_grade": 9.8274385,
-    "min_acks": 13
-  },
-  {
-    "task": "ledger-torn-tail-kept",
-    "kept": true,
-    "buggy_pass_rate": 0.03125,
-    "buggy_reward": 0.03125,
-    "oracle_reward": 1,
-    "nop_matches_buggy": true,
-    "cheat_reward": 0,
-    "seconds_per_grade": 19.9413662,
-    "min_acks": 53
-  },
-  {
-    "task": "ledger-sync-before-write",
-    "kept": true,
-    "buggy_pass_rate": 0.265625,
-    "buggy_reward": 0.265625,
-    "oracle_reward": 1,
-    "nop_matches_buggy": true,
-    "cheat_reward": 0,
-    "seconds_per_grade": 10.6172519,
-    "min_acks": 16
-  },
-  {
-    "task": "httpkv-no-dir-sync",
-    "kept": true,
-    "buggy_pass_rate": 0.296875,
-    "buggy_reward": 0.296875,
-    "oracle_reward": 1,
-    "nop_matches_buggy": true,
-    "cheat_reward": 0,
-    "seconds_per_grade": 16.5787109,
-    "min_acks": 15
-  },
-  {
-    "task": "httpkv-torn-tail-kept",
-    "kept": true,
-    "buggy_pass_rate": 0.03125,
-    "buggy_reward": 0.03125,
-    "oracle_reward": 1,
-    "nop_matches_buggy": true,
-    "cheat_reward": 0,
-    "seconds_per_grade": 66.9508435,
-    "min_acks": 1
-  },
-  {
-    "task": "metapage-single-meta-slot",
-    "kept": true,
-    "buggy_pass_rate": 0.390625,
-    "buggy_reward": 0.390625,
-    "oracle_reward": 1,
-    "nop_matches_buggy": true,
-    "cheat_reward": 0,
-    "seconds_per_grade": 9.0278495,
-    "min_acks": 3
-  },
-  {
-    "task": "metapage-meta-unsynced",
-    "kept": true,
-    "buggy_pass_rate": 0,
-    "buggy_reward": 0,
-    "oracle_reward": 1,
-    "nop_matches_buggy": true,
-    "cheat_reward": 0,
-    "seconds_per_grade": 7.8107894,
-    "min_acks": 7
-  },
-  {
-    "task": "liveness-log-unsynced",
-    "kept": true,
-    "buggy_pass_rate": 0.03125,
-    "buggy_reward": 0.03125,
-    "oracle_reward": 1,
-    "nop_matches_buggy": true,
-    "cheat_reward": 0,
-    "seconds_per_grade": 11.2273538,
-    "min_acks": 20
-  },
-  {
-    "task": "liveness-applied-not-recovered",
-    "kept": true,
-    "buggy_pass_rate": 0.4375,
-    "buggy_reward": 0.4375,
-    "oracle_reward": 1,
-    "nop_matches_buggy": true,
-    "cheat_reward": 0,
-    "seconds_per_grade": 11.1001901,
-    "min_acks": 20
-  },
-  {
-    "task": "liveness-backup-error-ignored",
-    "kept": true,
-    "buggy_pass_rate": 0.015625,
-    "buggy_reward": 0.015625,
-    "oracle_reward": 1,
-    "nop_matches_buggy": true,
-    "cheat_reward": 0,
-    "seconds_per_grade": 10.7318811,
-    "min_acks": 20
+    "seconds_per_grade": 28.4623964,
+    "min_acks": 21,
+    "guard_acks": 85
   },
   {
     "task": "aikv-sonnet-1-base-unsynced",
@@ -359,19 +31,9 @@
     "oracle_reward": 1,
     "nop_matches_buggy": true,
     "cheat_reward": 0,
-    "seconds_per_grade": 35.0769875,
-    "min_acks": 846
-  },
-  {
-    "task": "aikv-opus-1-fsync-error-ignored",
-    "kept": true,
-    "buggy_pass_rate": 0.15625,
-    "buggy_reward": 0.15625,
-    "oracle_reward": 1,
-    "nop_matches_buggy": true,
-    "cheat_reward": 0,
-    "seconds_per_grade": 23.1448797,
-    "min_acks": 24
+    "seconds_per_grade": 41.8896231,
+    "min_acks": 765,
+    "guard_acks": 1048
   },
   {
     "task": "aikv-sonnet-3-compact-unsynced",
@@ -381,41 +43,363 @@
     "oracle_reward": 1,
     "nop_matches_buggy": true,
     "cheat_reward": 0,
-    "seconds_per_grade": 42.0468572,
-    "min_acks": 813
-  },
-  {
-    "task": "etcdraft-wal-unsynced",
-    "kept": true,
-    "buggy_pass_rate": 0.3125,
-    "buggy_reward": 0.3125,
-    "oracle_reward": 1,
-    "nop_matches_buggy": true,
-    "cheat_reward": 0,
-    "seconds_per_grade": 13.3066855,
-    "min_acks": 1
+    "seconds_per_grade": 47.3208262,
+    "min_acks": 818,
+    "guard_acks": 1019
   },
   {
     "task": "etcdraft-snapshot-data-unsynced",
     "kept": true,
     "buggy_pass_rate": 0.375,
-    "buggy_reward": 0.375,
+    "buggy_reward": 0,
     "oracle_reward": 1,
     "nop_matches_buggy": true,
     "cheat_reward": 0,
-    "seconds_per_grade": 42.7232,
-    "min_acks": 1
+    "seconds_per_grade": 46.6718616,
+    "min_acks": 0,
+    "guard_acks": 16
   },
   {
-    "task": "raftkv-log-unsynced",
+    "task": "etcdraft-wal-unsynced",
     "kept": true,
     "buggy_pass_rate": 0.3125,
-    "buggy_reward": 0.3125,
+    "buggy_reward": 0,
     "oracle_reward": 1,
     "nop_matches_buggy": true,
     "cheat_reward": 0,
-    "seconds_per_grade": 20.4082339,
-    "min_acks": 52
+    "seconds_per_grade": 18.2450964,
+    "min_acks": 0,
+    "guard_acks": 18
+  },
+  {
+    "task": "httpkv-no-dir-sync",
+    "kept": true,
+    "buggy_pass_rate": 0.296875,
+    "buggy_reward": 0.296875,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "exploit_rewards": {
+      "forge-httpkv": 0
+    },
+    "seconds_per_grade": 24.9224193,
+    "min_acks": 0,
+    "guard_acks": 19
+  },
+  {
+    "task": "httpkv-nofsync",
+    "kept": true,
+    "buggy_pass_rate": 0.125,
+    "buggy_reward": 0.125,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "exploit_rewards": {
+      "forge-httpkv": 0
+    },
+    "seconds_per_grade": 20.3352618,
+    "min_acks": 0,
+    "guard_acks": 22
+  },
+  {
+    "task": "httpkv-nofsync-heavy",
+    "kept": true,
+    "buggy_pass_rate": 0,
+    "buggy_reward": 0,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "exploit_rewards": {
+      "forge-httpkv": 0
+    },
+    "seconds_per_grade": 22.3097635,
+    "min_acks": 2,
+    "guard_acks": 17
+  },
+  {
+    "task": "httpkv-sync-before-write",
+    "kept": true,
+    "buggy_pass_rate": 0.171875,
+    "buggy_reward": 0.171875,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "exploit_rewards": {
+      "forge-httpkv": 0
+    },
+    "seconds_per_grade": 23.7188565,
+    "min_acks": 0,
+    "guard_acks": 23
+  },
+  {
+    "task": "httpkv-torn-tail-kept",
+    "kept": true,
+    "buggy_pass_rate": 0.015625,
+    "buggy_reward": 0.015625,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "exploit_rewards": {
+      "forge-httpkv": 0
+    },
+    "seconds_per_grade": 30.5370897,
+    "min_acks": 1,
+    "guard_acks": 10
+  },
+  {
+    "task": "kvlog-ack-before-fsync",
+    "kept": true,
+    "buggy_pass_rate": 0.140625,
+    "buggy_reward": 0.140625,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "exploit_rewards": {
+      "forge-kvlog": 0,
+      "refuse-kvlog": 0
+    },
+    "seconds_per_grade": 11.0546105,
+    "min_acks": 0,
+    "guard_acks": 39
+  },
+  {
+    "task": "kvlog-fsync-error-swallowed",
+    "kept": true,
+    "buggy_pass_rate": 0.078125,
+    "buggy_reward": 0,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "exploit_rewards": {
+      "forge-kvlog": 0,
+      "refuse-kvlog": 0
+    },
+    "seconds_per_grade": 51.0027728,
+    "min_acks": 0,
+    "guard_acks": 39
+  },
+  {
+    "task": "kvlog-fsyncgate",
+    "kept": true,
+    "buggy_pass_rate": 0.15625,
+    "buggy_reward": 0.15625,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "exploit_rewards": {
+      "forge-kvlog": 0,
+      "refuse-kvlog": 0
+    },
+    "seconds_per_grade": 10.4162874,
+    "min_acks": 0,
+    "guard_acks": 43
+  },
+  {
+    "task": "kvlog-no-checksum",
+    "kept": true,
+    "buggy_pass_rate": 0.34375,
+    "buggy_reward": 0.34375,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "exploit_rewards": {
+      "forge-kvlog": 0,
+      "refuse-kvlog": 0
+    },
+    "seconds_per_grade": 10.508629299999999,
+    "min_acks": 0,
+    "guard_acks": 38
+  },
+  {
+    "task": "kvlog-no-dir-sync",
+    "kept": true,
+    "buggy_pass_rate": 0.28125,
+    "buggy_reward": 0.28125,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "exploit_rewards": {
+      "forge-kvlog": 0,
+      "refuse-kvlog": 0
+    },
+    "seconds_per_grade": 9.7731628,
+    "min_acks": 0,
+    "guard_acks": 37
+  },
+  {
+    "task": "kvlog-no-reread",
+    "kept": true,
+    "buggy_pass_rate": 0,
+    "buggy_reward": 0,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "exploit_rewards": {
+      "forge-kvlog": 0,
+      "refuse-kvlog": 0
+    },
+    "seconds_per_grade": 10.6712646,
+    "min_acks": 5,
+    "guard_acks": 35
+  },
+  {
+    "task": "kvlog-rollback-truncates-log",
+    "kept": true,
+    "buggy_pass_rate": 0.078125,
+    "buggy_reward": 0.078125,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "exploit_rewards": {
+      "forge-kvlog": 0,
+      "refuse-kvlog": 0
+    },
+    "seconds_per_grade": 9.5936176,
+    "min_acks": 0,
+    "guard_acks": 38
+  },
+  {
+    "task": "kvlog-sync-before-write",
+    "kept": true,
+    "buggy_pass_rate": 0.0625,
+    "buggy_reward": 0.0625,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "exploit_rewards": {
+      "forge-kvlog": 0,
+      "refuse-kvlog": 0
+    },
+    "seconds_per_grade": 11.278626,
+    "min_acks": 0,
+    "guard_acks": 42
+  },
+  {
+    "task": "kvlog-sync-wrong-handle",
+    "kept": true,
+    "buggy_pass_rate": 0,
+    "buggy_reward": 0,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "exploit_rewards": {
+      "forge-kvlog": 0,
+      "refuse-kvlog": 0
+    },
+    "seconds_per_grade": 10.7443455,
+    "min_acks": 0,
+    "guard_acks": 42
+  },
+  {
+    "task": "kvlog-torn-tail",
+    "kept": true,
+    "buggy_pass_rate": 0.171875,
+    "buggy_reward": 0.171875,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "exploit_rewards": {
+      "forge-kvlog": 0,
+      "refuse-kvlog": 0
+    },
+    "seconds_per_grade": 11.2035615,
+    "min_acks": 0,
+    "guard_acks": 18
+  },
+  {
+    "task": "kvlog-truncate-off-by-one",
+    "kept": true,
+    "buggy_pass_rate": 0.203125,
+    "buggy_reward": 0,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "exploit_rewards": {
+      "forge-kvlog": 0,
+      "refuse-kvlog": 0
+    },
+    "seconds_per_grade": 9.8109263,
+    "min_acks": 1,
+    "guard_acks": 18
+  },
+  {
+    "task": "kvlog-write-error-ignored",
+    "kept": true,
+    "buggy_pass_rate": 0.078125,
+    "buggy_reward": 0.078125,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "exploit_rewards": {
+      "forge-kvlog": 0,
+      "refuse-kvlog": 0
+    },
+    "seconds_per_grade": 10.1349223,
+    "min_acks": 0,
+    "guard_acks": 35
+  },
+  {
+    "task": "ledger-nofsync",
+    "kept": true,
+    "buggy_pass_rate": 0.09375,
+    "buggy_reward": 0.09375,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "seconds_per_grade": 13.423241,
+    "min_acks": 0,
+    "guard_acks": 40
+  },
+  {
+    "task": "ledger-nofsync-heavy",
+    "kept": true,
+    "buggy_pass_rate": 0,
+    "buggy_reward": 0,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "seconds_per_grade": 12.6455347,
+    "min_acks": 8,
+    "guard_acks": 28
+  },
+  {
+    "task": "ledger-sync-before-write",
+    "kept": true,
+    "buggy_pass_rate": 0.265625,
+    "buggy_reward": 0.265625,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "seconds_per_grade": 14.4008703,
+    "min_acks": 0,
+    "guard_acks": 40
+  },
+  {
+    "task": "ledger-torn-tail-kept",
+    "kept": true,
+    "buggy_pass_rate": 0.03125,
+    "buggy_reward": 0.03125,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "seconds_per_grade": 23.1641912,
+    "min_acks": 50,
+    "guard_acks": 58
+  },
+  {
+    "task": "liveness-applied-not-recovered",
+    "kept": true,
+    "buggy_pass_rate": 0.4375,
+    "buggy_reward": 0.4375,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "exploit_rewards": {
+      "forge-liveness": 0
+    },
+    "seconds_per_grade": 12.9884689,
+    "min_acks": 17,
+    "guard_acks": 20
   },
   {
     "task": "liveness-apply-before-replicate",
@@ -425,8 +409,72 @@
     "oracle_reward": 1,
     "nop_matches_buggy": true,
     "cheat_reward": 0,
-    "seconds_per_grade": 11.2695674,
-    "min_acks": 20
+    "exploit_rewards": {
+      "forge-liveness": 0
+    },
+    "seconds_per_grade": 13.169439,
+    "min_acks": 1,
+    "guard_acks": 18
+  },
+  {
+    "task": "liveness-backup-error-ignored",
+    "kept": true,
+    "buggy_pass_rate": 0.015625,
+    "buggy_reward": 0.015625,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "exploit_rewards": {
+      "forge-liveness": 0
+    },
+    "seconds_per_grade": 13.4429249,
+    "min_acks": 4,
+    "guard_acks": 18
+  },
+  {
+    "task": "liveness-dedupe",
+    "kept": true,
+    "buggy_pass_rate": 0.203125,
+    "buggy_reward": 0.203125,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "exploit_rewards": {
+      "forge-liveness": 0
+    },
+    "seconds_per_grade": 12.868293,
+    "min_acks": 3,
+    "guard_acks": 18
+  },
+  {
+    "task": "liveness-log-unsynced",
+    "kept": true,
+    "buggy_pass_rate": 0.03125,
+    "buggy_reward": 0.03125,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "exploit_rewards": {
+      "forge-liveness": 0
+    },
+    "seconds_per_grade": 12.2794484,
+    "min_acks": 5,
+    "guard_acks": 18
+  },
+  {
+    "task": "liveness-redial",
+    "kept": true,
+    "buggy_pass_rate": 0.328125,
+    "buggy_reward": 0,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "exploit_rewards": {
+      "forge-liveness": 0
+    },
+    "seconds_per_grade": 13.8998033,
+    "min_acks": 1,
+    "guard_acks": 17
   },
   {
     "task": "metapage-append-offset-off-by-one",
@@ -436,8 +484,76 @@
     "oracle_reward": 1,
     "nop_matches_buggy": true,
     "cheat_reward": 0,
-    "seconds_per_grade": 5.30354,
-    "min_acks": 7
+    "exploit_rewards": {
+      "forge-kvlog": 0,
+      "refuse-kvlog": 0
+    },
+    "seconds_per_grade": 5.8652349,
+    "min_acks": 5,
+    "guard_acks": 22
+  },
+  {
+    "task": "metapage-meta-unsynced",
+    "kept": true,
+    "buggy_pass_rate": 0,
+    "buggy_reward": 0,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "exploit_rewards": {
+      "forge-kvlog": 0,
+      "refuse-kvlog": 0
+    },
+    "seconds_per_grade": 9.0849961,
+    "min_acks": 4,
+    "guard_acks": 26
+  },
+  {
+    "task": "metapage-single-meta-slot",
+    "kept": true,
+    "buggy_pass_rate": 0.390625,
+    "buggy_reward": 0.390625,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "exploit_rewards": {
+      "forge-kvlog": 0,
+      "refuse-kvlog": 0
+    },
+    "seconds_per_grade": 9.0017847,
+    "min_acks": 3,
+    "guard_acks": 22
+  },
+  {
+    "task": "raftkv-log-unsynced",
+    "kept": true,
+    "buggy_pass_rate": 0.3125,
+    "buggy_reward": 0.3125,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "exploit_rewards": {
+      "forge-raftkv": 0
+    },
+    "seconds_per_grade": 24.2498913,
+    "min_acks": 32,
+    "guard_acks": 61
+  },
+  {
+    "task": "symswap-dir-fsync",
+    "kept": true,
+    "buggy_pass_rate": 0.34375,
+    "buggy_reward": 0.34375,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "exploit_rewards": {
+      "forge-kvlog": 0,
+      "refuse-kvlog": 0
+    },
+    "seconds_per_grade": 10.2657803,
+    "min_acks": 9,
+    "guard_acks": 23
   },
   {
     "task": "symswap-fsync-wrong-dir",
@@ -447,18 +563,60 @@
     "oracle_reward": 1,
     "nop_matches_buggy": true,
     "cheat_reward": 0,
-    "seconds_per_grade": 5.7438175000000005,
-    "min_acks": 11
+    "exploit_rewards": {
+      "forge-kvlog": 0,
+      "refuse-kvlog": 0
+    },
+    "seconds_per_grade": 7.2539439,
+    "min_acks": 11,
+    "guard_acks": 23
   },
   {
-    "task": "httpkv-sync-before-write",
+    "task": "symswap-gc-before-publish",
     "kept": true,
-    "buggy_pass_rate": 0.1875,
-    "buggy_reward": 0.1875,
+    "buggy_pass_rate": 0.359375,
+    "buggy_reward": 0.359375,
     "oracle_reward": 1,
     "nop_matches_buggy": true,
     "cheat_reward": 0,
-    "seconds_per_grade": 46.4948874,
-    "min_acks": 21
+    "exploit_rewards": {
+      "forge-kvlog": 0,
+      "refuse-kvlog": 0
+    },
+    "seconds_per_grade": 11.0715032,
+    "min_acks": 13,
+    "guard_acks": 24
+  },
+  {
+    "task": "symswap-gen-unsynced",
+    "kept": true,
+    "buggy_pass_rate": 0,
+    "buggy_reward": 0,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "exploit_rewards": {
+      "forge-kvlog": 0,
+      "refuse-kvlog": 0
+    },
+    "seconds_per_grade": 12.0866478,
+    "min_acks": 11,
+    "guard_acks": 23
+  },
+  {
+    "task": "symswap-no-publish-sync",
+    "kept": true,
+    "buggy_pass_rate": 0,
+    "buggy_reward": 0,
+    "oracle_reward": 1,
+    "nop_matches_buggy": true,
+    "cheat_reward": 0,
+    "exploit_rewards": {
+      "forge-kvlog": 0,
+      "refuse-kvlog": 0
+    },
+    "seconds_per_grade": 12.8802698,
+    "min_acks": 12,
+    "guard_acks": 23
   }
 ]

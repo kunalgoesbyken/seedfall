@@ -22,7 +22,7 @@ func main() {
 
 	var acked []entry
 	for i := range *writes {
-		e := entry{fmt.Sprintf("k%d", i), fmt.Sprintf("v%d", i)}
+		e := entry{fmt.Sprintf("k%d", i), fmt.Sprintf("v%d-%08x", i, uint32(sim.Random()))}
 		if body, status, err := call(*base + "/put?" + url.Values{"k": {e.key}, "v": {e.value}}.Encode()); err == nil && status == http.StatusOK && body == "OK" {
 			acked = append(acked, e)
 			sim.Event("gym.ack", e.key)

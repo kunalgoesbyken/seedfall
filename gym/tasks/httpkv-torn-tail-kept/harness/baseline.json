@@ -1,4 +1,5 @@
 {
   "min_acks": 1,
+  "guard_acks": 10,
   "calibration_seeds": 128
 }

@@ -27,7 +27,7 @@ func main() {
 
 	var acked []entry
 	for i := range *writes {
-		e := entry{fmt.Sprintf("k%d", i), fmt.Sprintf("v%d", i)}
+		e := entry{fmt.Sprintf("k%d", i), fmt.Sprintf("v%d-%08x", i, uint32(sim.Random()))}
 		if c.tryLeader("PUT "+e.key+" "+e.value, 3) == "OK" {
 			acked = append(acked, e)
 			sim.Event("gym.ack", e.key)

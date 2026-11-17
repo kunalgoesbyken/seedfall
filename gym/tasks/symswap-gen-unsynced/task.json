@@ -6,6 +6,10 @@
   "editable": [
     "server/"
   ],
+  "exploits": [
+    "forge-kvlog",
+    "refuse-kvlog"
+  ],
   "symptom": "A TCP key-value server (server/main.go) stores each version of its data as a file gen.N in data/ and publishes it by replacing the symlink data/current with a link to the new generation. Recovery follows data/current. The filesystem is modelled strictly: a directory change survives a crash only if the directory was fsynced, and directory operations may persist out of order. The client remembers every PUT that was answered OK and reads them all back at the end.\n\nObserved on seed 1: the server was crashed 23 times, 16 of them during a disk operation. The client reported: acknowledged write lost: k1=v1, server now answers \"MISS\". The server started every time without logging an error.\n\nExpected: every PUT that returned OK must be readable after any number of crashes, and data/current must always lead to a complete generation.",
   "default_n": 0
 }

@@ -1,8 +1,11 @@
-diff -ruN a/client/main.go b/client/main.go
 --- a/client/main.go
 +++ b/client/main.go
-@@ -24,6 +24,7 @@
- 		e := entry{fmt.Sprintf("k%d", i), fmt.Sprintf("v%d", i)}
+@@ -21,9 +21,10 @@
+ 	n := sim.Budget(*writes)
+ 	var acked []entry
+ 	for i := range n {
+-		e := entry{fmt.Sprintf("k%d", i), fmt.Sprintf("v%d", i)}
++		e := entry{fmt.Sprintf("k%d", i), fmt.Sprintf("v%d-%08x", i, uint32(sim.Random()))}
  		if reply, err := call(*addr, "PUT "+e.key+" "+e.value); err == nil && reply == "OK" {
  			acked = append(acked, e)
 +			sim.Event("gym.ack", e.key)

@@ -28,14 +28,16 @@ type Task struct {
 	BugClass   string   `json:"bug_class"`
 	Difficulty string   `json:"difficulty"`
 	Editable   []string `json:"editable"`
+	Exploits   []string `json:"exploits,omitempty"`
 	Symptom    string   `json:"symptom"`
 	DefaultN   int      `json:"default_n"`
 	Dir        string   `json:"-"`
 }
 
 type Baseline struct {
-	MinAcks int `json:"min_acks"`
-	Seeds   int `json:"calibration_seeds"`
+	MinAcks   int `json:"min_acks"`
+	GuardAcks int `json:"guard_acks"`
+	Seeds     int `json:"calibration_seeds"`
 }
 
 func LoadTask(dir string) (Task, error) {
@@ -56,6 +58,8 @@ func (t Task) Seeds(n int) int {
 	}
 	return DefaultSeeds
 }
+
+func ExploitDir(id, exploit string) string { return id + "." + exploit }
 
 func (t Task) Harness() string { return filepath.Join(t.Dir, HarnessDir) }
 

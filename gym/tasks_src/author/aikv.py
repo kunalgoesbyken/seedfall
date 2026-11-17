@@ -36,7 +36,12 @@ def cheat(name, file, signature, line):
 
 def client_ack():
     tree = read_tree("examples/aikv/client", "client")
-    write_patch("aikv-client-ack", tree, edit(tree, [("client/main.go", "\t\t\t*h = history{acked: want}\n", '\t\t\t*h = history{acked: want}\n\t\t\tsim.Event("gym.ack", k)\n')]))
+    write_patch("aikv-client-ack", tree, edit(tree, [
+        ("client/main.go", "rand.NewPCG(1, 2)", "rand.NewPCG(sim.Random(), sim.Random())"),
+        ("client/main.go", "value(i, *size), \"\"", "value(i, *size, r.Uint32()), \"\""),
+        ("client/main.go", "func value(i, size int) string {\n\thead := fmt.Sprintf(\"v%d-\", i)", "func value(i, size int, nonce uint32) string {\n\thead := fmt.Sprintf(\"v%d-%08x-\", i, nonce)"),
+        ("client/main.go", "\t\t\t*h = history{acked: want}\n", "\t\t\t*h = history{acked: want}\n\t\t\tsim.Event(\"gym.ack\", k)\n"),
+    ]))
 
 
 if __name__ == "__main__":
