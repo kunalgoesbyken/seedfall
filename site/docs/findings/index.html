@@ -24,7 +24,7 @@
 <article class="page">
 <p class="back"><a href="../">&larr; Documentation</a></p>
 <h1 id="findings">Findings</h1>
-<p>Bugs that seedfall found in open-source Go projects. Every one replays exactly from its seed, has a full report with the root cause and file and line references, and has a patched copy that was verified to pass. Upstream status is as of 2026-11-09.</p>
+<p>Bugs that seedfall found in open-source Go projects. Every one replays exactly from its seed, has a full report with the root cause and file and line references, and has a patched copy that was verified to pass. Upstream status is as of 2026-11-24.</p>
 <p>Each finding has a plain-English summary of what goes wrong and the technical cause for the people who maintain the code. Click a project for the full report.</p>
 <h2 id="how-to-read-this">How to read this</h2>
 <ul>
@@ -49,7 +49,7 @@
 <td><a href="nats-stream-meta-checksum-crash.html">nats-io/nats-server</a> v2.15.2</td>
 <td>A crash while a stream is created makes it forget every message it confirms from then on, at the next restart.</td>
 <td>A crash during stream creation leaves <code>meta.inf</code> without <code>meta.sum</code>. On restart the stream is skipped; the client re-creates it, but the checksum is never rewritten. Under strict POSIX, new stream directories and message blocks are also never directory-fsynced.<br><em>Any filesystem · 1 crash mid-I/O, 1 crash · fix passes 150 seeds</em></td>
-<td><a href="https://github.com/nats-io/nats-server/issues/8872" target="_blank" rel="noopener">nats-server#8872</a>, open</td>
+<td><a href="https://github.com/nats-io/nats-server/issues/8872" target="_blank" rel="noopener">nats-server#8872</a>, fixed in <a href="https://github.com/nats-io/nats-server/pull/8887" target="_blank" rel="noopener">#8887</a></td>
 </tr>
 <tr>
 <td><a href="rosedblabs-wal-torn-tail.html">rosedblabs/wal</a> v1.3.8</td>

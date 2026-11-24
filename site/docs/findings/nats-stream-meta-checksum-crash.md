@@ -2,7 +2,7 @@
 
 > **In plain words:** A crash while a stream is created makes it forget every message it confirms from then on, at the next restart.
 
-**Upstream:** [nats-io/nats-server#8872](https://github.com/nats-io/nats-server/issues/8872)
+**Upstream:** [nats-io/nats-server#8872](https://github.com/nats-io/nats-server/issues/8872), fixed in [#8887](https://github.com/nats-io/nats-server/pull/8887)
 
 **Repo:** nats-io/nats-server (tested on v2.15.2, single server, JetStream file storage, `sync_always: true`)
 **Severity:** acknowledged messages become invisible after a restart. The stream accepts and acknowledges publishes normally after the first restart, and is silently skipped on every restart after that. No strict-POSIX assumptions needed: this reproduces with ordinary "a rename and an fsynced file are durable" semantics.

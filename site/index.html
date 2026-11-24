@@ -135,10 +135,10 @@ faults before the failure (2):
 
 <div class="table">
 <table>
-<caption>Table 1. Crash bugs found, status as of 2026-11-09.</caption>
+<caption>Table 1. Crash bugs found, status as of 2026-11-24.</caption>
 <thead><tr><th>Project</th><th>What breaks</th><th>Status</th></tr></thead>
 <tbody>
-<tr><td><strong>NATS JetStream</strong></td><td>A crash while a stream is being created loses the stream and its acknowledged messages.</td><td><a href="https://github.com/nats-io/nats-server/issues/8872" target="_blank" rel="noopener">#8872</a>, open</td></tr>
+<tr><td><strong>NATS JetStream</strong></td><td>A crash while a stream is being created loses the stream and its acknowledged messages.</td><td><a href="https://github.com/nats-io/nats-server/issues/8872" target="_blank" rel="noopener">#8872</a>, fixed in <a href="https://github.com/nats-io/nats-server/pull/8887" target="_blank" rel="noopener">#8887</a></td></tr>
 <tr><td><strong>rosedblabs/wal</strong></td><td>After one torn write, later synced writes are lost and rosedb v2 won't open.</td><td><a href="https://github.com/rosedblabs/wal/issues/51" target="_blank" rel="noopener">#51</a>, open</td></tr>
 <tr><td><strong>tidwall/buntdb</strong></td><td>A crash after the automatic shrink can bring the database back empty.</td><td><a href="https://github.com/tidwall/buntdb/issues/126" target="_blank" rel="noopener">#126</a>, <strong>fixed</strong></td></tr>
 <tr><td><strong>tidwall/wal</strong></td><td>A crash mid-write makes the log unopenable, and the pending fix doesn't cover every case.</td><td><a href="https://github.com/tidwall/wal/issues/43" target="_blank" rel="noopener">#43</a>, open</td></tr>

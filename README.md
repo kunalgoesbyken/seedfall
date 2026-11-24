@@ -61,7 +61,7 @@ Setup for Codex, Gemini CLI, VS Code, Cursor and others is in [docs/agents](http
 
 ## Bugs found
 
-Crash bugs in NATS JetStream, rosedblabs/wal, tidwall/buntdb (fixed), tidwall/wal, hashicorp/raft, nutsdb, diskv, bitcask, bbolt and jmsadair/raft. Each has a write-up with a replay command in [docs/findings](https://seedfall.kunalrc.xyz/docs/findings/).
+Crash bugs in NATS JetStream (fixed), rosedblabs/wal, tidwall/buntdb (fixed), tidwall/wal, hashicorp/raft, nutsdb, diskv, bitcask, bbolt and jmsadair/raft. Each has a write-up with a replay command in [docs/findings](https://seedfall.kunalrc.xyz/docs/findings/).
 
 ## seedfall-gym
 
